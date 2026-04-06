@@ -19,6 +19,7 @@ import {
   Smartphone,
   CheckCircle2,
   Star,
+  Lock,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -85,9 +86,10 @@ export default function LandingPage() {
               variant="outline"
               size="sm"
               onClick={() => navigate("/auth")}
-              className="hidden sm:inline-flex border-white/20 text-white/80 hover:bg-white/10 hover:text-white bg-transparent rounded-sm text-xs tracking-wide"
+              className="hidden sm:inline-flex border-[#C9A96E]/40 text-[#C9A96E] hover:bg-[#C9A96E]/10 hover:text-white hover:border-[#C9A96E]/70 bg-transparent rounded-sm text-xs tracking-wide shadow-[0_0_12px_rgba(201,169,110,0.15)] hover:shadow-[0_0_20px_rgba(201,169,110,0.3)] transition-all duration-300 gap-1.5"
             >
-              Client Portal
+              <Lock className="h-3.5 w-3.5" />
+              Portal Login
             </Button>
             <Button
               size="sm"
