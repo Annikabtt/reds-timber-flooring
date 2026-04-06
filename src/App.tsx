@@ -15,6 +15,7 @@ import Contacts from "./pages/Contacts";
 import Team from "./pages/Team";
 import PhotoApproval from "./pages/PhotoApproval";
 import Payroll from "./pages/Payroll";
+import ProjectTimeline from "./pages/ProjectTimeline";
 import SettingsPage from "./pages/SettingsPage";
 import TechHome from "./pages/technician/TechHome";
 import TechMaterials from "./pages/technician/TechMaterials";
@@ -40,6 +41,7 @@ const App = () => (
             <Route path="/team" element={<ProtectedRoute><Team /></ProtectedRoute>} />
             <Route path="/photos" element={<ProtectedRoute><PhotoApproval /></ProtectedRoute>} />
             <Route path="/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
+            <Route path="/project-timeline" element={<ProtectedRoute><ProjectTimeline /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
             <Route path="/tech" element={<ProtectedRoute><TechHome /></ProtectedRoute>} />
             <Route path="/tech/materials" element={<ProtectedRoute><TechMaterials /></ProtectedRoute>} />
