@@ -12,6 +12,9 @@ import Tasks from "./pages/Tasks";
 import Projects from "./pages/Projects";
 import Contacts from "./pages/Contacts";
 import Team from "./pages/Team";
+import PhotoApproval from "./pages/PhotoApproval";
+import Payroll from "./pages/Payroll";
+import SettingsPage from "./pages/SettingsPage";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +32,9 @@ const App = () => (
             <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
             <Route path="/contacts" element={<ProtectedRoute><Contacts /></ProtectedRoute>} />
             <Route path="/team" element={<ProtectedRoute><Team /></ProtectedRoute>} />
+            <Route path="/photos" element={<ProtectedRoute><PhotoApproval /></ProtectedRoute>} />
+            <Route path="/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
