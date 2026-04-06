@@ -16,6 +16,10 @@ import Team from "./pages/Team";
 import PhotoApproval from "./pages/PhotoApproval";
 import Payroll from "./pages/Payroll";
 import SettingsPage from "./pages/SettingsPage";
+import TechHome from "./pages/technician/TechHome";
+import TechMaterials from "./pages/technician/TechMaterials";
+import TechReport from "./pages/technician/TechReport";
+import TechLeave from "./pages/technician/TechLeave";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +41,10 @@ const App = () => (
             <Route path="/photos" element={<ProtectedRoute><PhotoApproval /></ProtectedRoute>} />
             <Route path="/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+            <Route path="/tech" element={<ProtectedRoute><TechHome /></ProtectedRoute>} />
+            <Route path="/tech/materials" element={<ProtectedRoute><TechMaterials /></ProtectedRoute>} />
+            <Route path="/tech/report" element={<ProtectedRoute><TechReport /></ProtectedRoute>} />
+            <Route path="/tech/leave" element={<ProtectedRoute><TechLeave /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
