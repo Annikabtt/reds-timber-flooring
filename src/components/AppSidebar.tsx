@@ -1,15 +1,13 @@
 import {
   LayoutDashboard,
-  CheckSquare,
   FolderKanban,
+  Camera,
   Users,
-  Contact,
+  DollarSign,
   Settings,
   LogOut,
-  TreePine,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Sidebar,
@@ -26,16 +24,16 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Tasks", url: "/tasks", icon: CheckSquare },
   { title: "Projects", url: "/projects", icon: FolderKanban },
-  { title: "Contacts", url: "/contacts", icon: Contact },
-  { title: "Team", url: "/team", icon: Users },
+  { title: "Photo Approval", url: "/photos", icon: Camera },
+  { title: "Team Directory", url: "/team", icon: Users },
+  { title: "Payroll", url: "/payroll", icon: DollarSign },
+  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
-  const location = useLocation();
   const { user, signOut } = useAuth();
 
   const initials = user?.user_metadata?.display_name
@@ -46,11 +44,11 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r-0">
       <div className="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border">
         <div className="h-9 w-9 rounded-lg bg-sidebar-primary flex items-center justify-center shrink-0">
-          <TreePine className="h-5 w-5 text-sidebar-primary-foreground" />
+          <span className="text-sidebar-primary-foreground font-bold text-sm">R</span>
         </div>
         {!collapsed && (
           <span className="text-lg font-bold text-sidebar-foreground tracking-tight">
-            Redstimber
+            Red's Admin
           </span>
         )}
       </div>
