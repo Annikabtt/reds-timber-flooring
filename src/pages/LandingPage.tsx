@@ -93,7 +93,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-white text-neutral-900 font-sans antialiased selection:bg-red-500/20 selection:text-red-600">
       {/* ═══════ NAVBAR ═══════ */}
-      <nav className="fixed top-0 inset-x-0 z-50 backdrop-blur-2xl bg-white/60 border-b border-neutral-200/60">
+      <nav className="fixed top-0 inset-x-0 z-50 backdrop-blur-2xl bg-white border-b border-neutral-200/60">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           {/* Logo */}
           <a href="/">
