@@ -18,6 +18,7 @@ import {
   Linkedin,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import redsLogo from "@/assets/reds-logo.png";
 
 /* ─── Scroll-triggered reveal ─── */
 function Reveal({
@@ -95,11 +96,8 @@ export default function LandingPage() {
       <nav className="fixed top-0 inset-x-0 z-50 backdrop-blur-2xl bg-white/60 border-b border-neutral-200/60">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           {/* Logo */}
-          <a href="/" className="text-xl font-extrabold tracking-tight">
-            <span className="text-red-600">REDS</span>
-            <span className="text-neutral-400 font-medium text-sm ml-1.5 hidden sm:inline">
-              Timber Flooring
-            </span>
+          <a href="/">
+            <img src={redsLogo} alt="REDS Timber Flooring Specialists" className="h-8 sm:h-10" />
           </a>
 
           {/* Center links */}
@@ -283,11 +281,8 @@ export default function LandingPage() {
       <footer className="bg-neutral-950 border-t border-white/[0.06] py-16 px-6">
         <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-12">
           <div>
-            <a href="/" className="text-xl font-extrabold tracking-tight">
-              <span className="text-red-500">REDS</span>
-              <span className="text-neutral-500 font-medium text-sm ml-1.5">
-                Timber Flooring
-              </span>
+            <a href="/">
+              <img src={redsLogo} alt="REDS Timber Flooring Specialists" className="h-8 brightness-0 invert" />
             </a>
             <p className="text-neutral-500 text-sm mt-3 leading-relaxed">
               Next-generation flooring installation — SPC, engineered wood, and
