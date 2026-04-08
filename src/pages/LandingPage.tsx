@@ -284,7 +284,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto">
           <Reveal className="text-center mb-20">
             <p className="text-red-600 text-sm font-black tracking-[0.2em] uppercase mb-4">
-              Why Choose Reds
+              Why Choose Reds Timber Flooring
             </p>
             <h2 className="text-4xl md:text-5xl font-black text-slate-900">
               Modern Solutions
