@@ -22,8 +22,7 @@ import TechMaterials from "./pages/technician/TechMaterials";
 import TechReport from "./pages/technician/TechReport";
 import TechLeave from "./pages/technician/TechLeave";
 import JobCard from "./pages/JobCard";
-import CustomerCheck from "./pages/CustomerCheck.tsx";
-
+import CustomerCheck from "./pages/CustomerCheck";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -50,13 +49,13 @@ const App = () => (
             <Route path="/tech/materials" element={<ProtectedRoute><TechMaterials /></ProtectedRoute>} />
             <Route path="/tech/report" element={<ProtectedRoute><TechReport /></ProtectedRoute>} />
             <Route path="/tech/leave" element={<ProtectedRoute><TechLeave /></ProtectedRoute>} />
+            <Route path="/tech/report" element={<ProtectedRoute><TechReport /></ProtectedRoute>} />
+            <Route path="/tech/leave" element={<ProtectedRoute><TechLeave /></ProtectedRoute>} />
+            
+            {/* หน้าลูกค้า (Customer) */}
+            <Route path="/customer-check" element={<CustomerCheck />} />
+            
+            {/* หน้า 404 ต้องอยู่ล่างสุดเสมอ */}
             <Route path="*" element={<NotFound />} />
-            <Route path="/job-card" element={<JobCard />} />
           </Routes>
         </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
-
-export default App;
