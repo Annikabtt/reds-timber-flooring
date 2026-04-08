@@ -234,11 +234,7 @@ function PhotoUploadGroup({ title, desc }: { title: string, desc: string }) {
           <Upload className="w-4 h-4 mr-1" />
           Take / Upload Photos
           {/* โค้ดลับ: accept="image/*" คือรับเฉพาะรูป, capture="environment" คือบังคับเปิดกล้องหลังมือถือ */}
-          <input 
-            type="file" 
-            accept="image/*" 
-            capture="environment" 
-            className="hidden" 
+          <input type="file" accept="image/*" className="hidden" /> 
           />
         </label>
       </div>
