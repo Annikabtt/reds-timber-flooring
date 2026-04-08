@@ -123,7 +123,8 @@ export default function LandingPage() {
     <div className="min-h-screen bg-white text-slate-900 font-sans antialiased selection:bg-red-600 selection:text-white">
       
       {/* ═══════ NAVBAR ═══════ */}
-      <nav className="fixed top-0 inset-x-0 z-50 backdrop-blur-md bg-white/90 border-b border-slate-100">
+      {/* ═══════ NAVBAR (อัปเดตพื้นหลังสีแดงจางๆ โปร่งแสงตามที่คุณเลือก) ═══════ */}
+      <nav className="fixed top-0 inset-x-0 z-50 backdrop-blur-md bg-[#c26763]/30 border-b border-red-900/10 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <a href="/" className="flex items-center">
             <img 
