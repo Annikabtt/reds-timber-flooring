@@ -1,5 +1,5 @@
-import { motion, useInView } from "framer-motion";
-import { useRef, ReactNode } from "react";
+import { motion, useInView, AnimatePresence } from "framer-motion";
+import { useRef, ReactNode, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
@@ -20,7 +20,15 @@ import {
 import { useNavigate } from "react-router-dom";
 import redsLogo from "@/assets/reds-logo.png";
 
-/* ─── Scroll-triggered reveal ─── */
+/* ─── Hero Slider Images ─── */
+const heroImages = [
+  "https://images.unsplash.com/photo-1581850518616-bcb8186c443e?q=80&w=2070&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1513694203232-719a280e022f?q=80&w=2069&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1505691938895-1758d7feb511?q=80&w=2070&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=2053&auto=format&fit=crop"
+];
+
+/* ─── Scroll Reveal Component ─── */
 function Reveal({
   children,
   className = "",
@@ -35,9 +43,9 @@ function Reveal({
   return (
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, y: 44 }}
+      initial={{ opacity: 0, y: 30 }}
       animate={inView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.8, delay, ease: [0.22, 1, 0.36, 1] }}
       className={className}
     >
       {children}
@@ -50,17 +58,17 @@ const services = [
   {
     icon: Crosshair,
     title: "Precision Installation",
-    desc: "Laser-guided fitting with sub-millimetre accuracy. Every plank locked, levelled, and structurally sound.",
+    desc: "Laser-guided fitting with sub-millimetre accuracy. Every plank is perfectly locked, levelled, and structurally sound.",
   },
   {
     icon: Shield,
     title: "High-Durability Materials",
-    desc: "SPC, engineered wood, and modern laminate rated for heavy foot traffic — scratch-proof, waterproof, built to last.",
+    desc: "Premium SPC, engineered wood, and modern laminate rated for heavy foot traffic—scratch-proof and 100% waterproof.",
   },
   {
     icon: Building2,
-    title: "Commercial & Residential Fitting",
-    desc: "Scalable solutions from single apartments to multi-storey office fit-outs, delivered on schedule every time.",
+    title: "Commercial & Residential",
+    desc: "Scalable solutions from luxury private residences to multi-storey commercial fit-outs, delivered on schedule.",
   },
 ];
 
@@ -68,19 +76,19 @@ const applications = [
   {
     icon: HomeIcon,
     title: "Smart Homes",
-    desc: "Seamless integration with underfloor heating and modern living spaces.",
+    desc: "Seamless integration with underfloor heating and modern minimalist living spaces.",
     img: "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=600&h=400&fit=crop",
   },
   {
     icon: Briefcase,
     title: "Corporate Offices",
-    desc: "Hard-wearing, acoustic-rated flooring for high-performance workplaces.",
+    desc: "Hard-wearing, acoustic-rated flooring designed for high-performance professional environments.",
     img: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=600&h=400&fit=crop",
   },
   {
     icon: Building,
     title: "Premium Apartments",
-    desc: "Luxury finishes with modern materials that elevate property value.",
+    desc: "Luxury finishes with modern materials that significantly elevate property value and aesthetic appeal.",
     img: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=600&h=400&fit=crop",
   },
 ];
@@ -89,36 +97,51 @@ const navLinks = ["Home", "Modern Materials", "Projects", "Contact"];
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const [currentImg, setCurrentImg] = useState(0);
+
+  // Auto-slide logic for Hero Section
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentImg((prev) => (prev + 1) % heroImages.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
-    <div className="min-h-screen bg-white text-neutral-900 font-sans antialiased selection:bg-red-500/20 selection:text-red-600">
+    <div className="min-h-screen bg-white text-slate-900 font-sans antialiased selection:bg-red-600 selection:text-white">
+      
       {/* ═══════ NAVBAR ═══════ */}
-      <nav className="fixed top-0 inset-x-0 z-50 backdrop-blur-2xl bg-white border-b border-neutral-200/60">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          {/* Logo */}
-          <a href="/">
-            <img src={redsLogo} alt="REDS Timber Flooring Specialists" className="h-8 sm:h-10" />
+      <nav className="fixed top-0 inset-x-0 z-50 backdrop-blur-md bg-white/90 border-b border-slate-100">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          {/* Logo: Sharp and original colors */}
+          <a href="/" className="flex items-center">
+            <img 
+              src={redsLogo} 
+              alt="REDS Timber Flooring Specialists" 
+              className="h-10 sm:h-12 w-auto object-contain" 
+            />
           </a>
 
-          {/* Center links */}
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-neutral-500">
+          {/* Navigation Links */}
+          <div className="hidden md:flex items-center gap-10 text-sm font-bold text-slate-600">
             {navLinks.map((l) => (
               <a
                 key={l}
                 href={`#${l.toLowerCase().replace(/\s+/g, "-")}`}
-                className="relative hover:text-neutral-900 transition-colors duration-200 after:absolute after:bottom-[-2px] after:left-0 after:h-[2px] after:w-0 after:bg-red-500 after:transition-all after:duration-300 hover:after:w-full"
+                className="relative hover:text-red-600 transition-colors duration-300 group"
               >
                 {l}
+                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-red-600 transition-all duration-300 group-hover:w-full" />
               </a>
             ))}
           </div>
 
-          {/* Portal Login */}
+          {/* Portal Login: Red Accent Button */}
           <Button
             variant="outline"
             size="sm"
             onClick={() => navigate("/auth")}
-            className="border-red-500/30 text-red-600 hover:bg-red-500 hover:text-white bg-transparent rounded-[4px] text-xs tracking-wide font-semibold shadow-[0_0_16px_rgba(239,68,68,0.12)] hover:shadow-[0_0_24px_rgba(239,68,68,0.35)] transition-all duration-300 gap-1.5"
+            className="border-red-600 text-red-600 hover:bg-red-600 hover:text-white bg-transparent rounded-full px-6 font-bold transition-all duration-300 gap-2 shadow-sm hover:shadow-red-100"
           >
             <Lock className="h-3.5 w-3.5" />
             Portal Login
@@ -126,105 +149,104 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* ═══════ HERO ═══════ */}
-      <section
-        id="home"
-        className="relative min-h-screen flex items-center justify-center overflow-hidden bg-neutral-950"
-      >
-        {/* BG */}
-        <div className="absolute inset-0">
-          <img
-            src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1920&h=1080&fit=crop"
-            alt="Modern floor installation"
-            className="w-full h-full object-cover opacity-40"
-          />
-          <div className="absolute inset-0 bg-gradient-to-br from-neutral-950/90 via-neutral-950/70 to-red-950/40" />
+      {/* ═══════ HERO SECTION (DYNAMIC SLIDER) ═══════ */}
+      <section id="home" className="relative h-screen flex items-center justify-center overflow-hidden bg-slate-50">
+        {/* Background Slider */}
+        <div className="absolute inset-0 z-0">
+          <AnimatePresence mode="wait">
+            <motion.img
+              key={currentImg}
+              src={heroImages[currentImg]}
+              initial={{ opacity: 0, scale: 1.05 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 1.2, ease: "easeInOut" }}
+              className="w-full h-full object-cover"
+            />
+          </AnimatePresence>
+          {/* Subtle Light Gradient Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-r from-white/80 via-white/40 to-transparent" />
         </div>
 
-        {/* Content */}
-        <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-red-500/30 bg-red-500/10 text-red-400 text-xs font-semibold tracking-widest uppercase mb-8"
-          >
-            <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
-            Next-Gen Flooring Technology
-          </motion.div>
-
-          <motion.h1
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.35 }}
-            className="text-4xl sm:text-5xl md:text-7xl font-extrabold leading-[1.05] tracking-tight text-white"
-          >
-            Next-Generation
-            <br />
-            <span className="text-red-500">Flooring Solutions.</span>
-          </motion.h1>
-
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.5 }}
-            className="mt-6 text-neutral-400 text-base sm:text-lg max-w-2xl mx-auto leading-relaxed"
-          >
-            Precision installation of highly durable, modern flooring materials
-            for homes, offices, and apartments.
-          </motion.p>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.65 }}
-            className="mt-10 flex items-center justify-center gap-4"
-          >
-            <Button
-              size="lg"
-              className="bg-red-600 hover:bg-red-700 text-white rounded-[4px] px-8 text-sm font-semibold tracking-wide shadow-[0_4px_24px_rgba(239,68,68,0.35)] hover:shadow-[0_4px_32px_rgba(239,68,68,0.5)] transition-all duration-300 group"
+        {/* Hero Content */}
+        <div className="relative z-10 max-w-7xl mx-auto px-6 w-full">
+          <div className="max-w-3xl">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-600 text-white text-xs font-black tracking-widest uppercase mb-6 shadow-lg shadow-red-200"
             >
-              Explore Materials
-              <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-            </Button>
-          </motion.div>
-        </div>
+              <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+              The Gold Standard in Flooring
+            </motion.div>
 
-        {/* Scroll indicator */}
-        <motion.div
-          animate={{ y: [0, 8, 0] }}
-          transition={{ repeat: Infinity, duration: 2 }}
-          className="absolute bottom-10 left-1/2 -translate-x-1/2"
-        >
-          <div className="w-5 h-8 rounded-full border-2 border-white/20 flex items-start justify-center p-1">
-            <div className="w-1 h-2 bg-red-500/60 rounded-full" />
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="text-5xl md:text-8xl font-black leading-[1.1] tracking-tight text-slate-900"
+            >
+              Next-Generation <br />
+              <span className="text-red-600">Flooring Solutions.</span>
+            </motion.h1>
+
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="mt-8 text-slate-700 text-lg md:text-xl max-w-xl leading-relaxed font-medium"
+            >
+              Precision installation of high-durability timber, SPC, and engineered flooring for modern living and workspaces.
+            </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="mt-10 flex flex-wrap gap-4"
+            >
+              <Button
+                size="lg"
+                className="bg-red-600 hover:bg-red-700 text-white rounded-full px-10 py-7 text-base font-bold shadow-xl shadow-red-200 transition-all hover:-translate-y-1 group"
+              >
+                Explore Materials
+                <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="lg"
+                className="text-slate-900 hover:text-red-600 font-bold px-8"
+              >
+                View Our Projects
+              </Button>
+            </motion.div>
           </div>
-        </motion.div>
+        </div>
       </section>
 
-      {/* ═══════ MODERN SOLUTIONS GRID ═══════ */}
-      <section id="modern-materials" className="py-28 px-6 bg-white">
-        <div className="max-w-6xl mx-auto">
-          <Reveal>
-            <p className="text-red-600 text-xs font-bold tracking-[0.3em] uppercase">
-              Our Expertise
+      {/* ═══════ MODERN SOLUTIONS (RED ACCENTS) ═══════ */}
+      <section id="modern-materials" className="py-32 px-6 bg-white">
+        <div className="max-w-7xl mx-auto">
+          <Reveal className="text-center mb-20">
+            <p className="text-red-600 text-sm font-black tracking-[0.2em] uppercase mb-4">
+              Why Choose Reds
             </p>
-            <h2 className="text-3xl sm:text-4xl font-extrabold mt-3 tracking-tight text-neutral-900">
+            <h2 className="text-4xl md:text-5xl font-black text-slate-900">
               Modern Solutions
             </h2>
           </Reveal>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-14">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {services.map((s, i) => (
-              <Reveal key={s.title} delay={i * 0.12}>
-                <div className="group relative p-8 rounded-[6px] border border-neutral-200 bg-white hover:border-red-500/40 transition-all duration-500 hover:shadow-[0_8px_40px_-12px_rgba(239,68,68,0.15)]">
-                  <div className="h-12 w-12 rounded-[6px] bg-red-50 flex items-center justify-center mb-6 group-hover:bg-red-500 transition-colors duration-300">
-                    <s.icon className="h-6 w-6 text-red-600 group-hover:text-white transition-colors duration-300" />
+              <Reveal key={s.title} delay={i * 0.1}>
+                <div className="group p-10 rounded-3xl bg-white border border-slate-100 shadow-sm hover:shadow-2xl hover:border-red-100 transition-all duration-500 h-full">
+                  <div className="h-16 w-16 rounded-2xl bg-red-50 flex items-center justify-center mb-8 group-hover:bg-red-600 transition-colors duration-500">
+                    <s.icon className="h-8 w-8 text-red-600 group-hover:text-white transition-colors duration-500" />
                   </div>
-                  <h3 className="text-lg font-bold tracking-tight text-neutral-900">
+                  <h3 className="text-2xl font-bold text-slate-900 mb-4 group-hover:text-red-600 transition-colors">
                     {s.title}
                   </h3>
-                  <p className="text-neutral-500 text-sm leading-relaxed mt-3">
+                  <p className="text-slate-500 leading-relaxed">
                     {s.desc}
                   </p>
                 </div>
@@ -235,38 +257,39 @@ export default function LandingPage() {
       </section>
 
       {/* ═══════ APPLICATION AREAS ═══════ */}
-      <section id="projects" className="py-28 px-6 bg-neutral-950">
-        <div className="max-w-6xl mx-auto">
-          <Reveal>
-            <p className="text-red-500 text-xs font-bold tracking-[0.3em] uppercase">
-              Ideal For
+      <section id="projects" className="py-32 px-6 bg-slate-50">
+        <div className="max-w-7xl mx-auto">
+          <Reveal className="mb-16">
+            <p className="text-red-600 text-sm font-black tracking-[0.2em] uppercase mb-4">
+              Versatile Applications
             </p>
-            <h2 className="text-3xl sm:text-4xl font-extrabold mt-3 tracking-tight text-white">
-              Application Areas
+            <h2 className="text-4xl md:text-5xl font-black text-slate-900">
+              Ideal For Every Space
             </h2>
           </Reveal>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-14">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {applications.map((a, i) => (
-              <Reveal key={a.title} delay={i * 0.12}>
-                <div className="group relative overflow-hidden rounded-[6px] border border-white/10 bg-white/[0.03] hover:border-red-500/30 transition-all duration-500">
-                  <div className="aspect-[3/2] overflow-hidden">
+              <Reveal key={a.title} delay={i * 0.1}>
+                <div className="group overflow-hidden rounded-3xl bg-white border border-slate-100 shadow-sm hover:shadow-2xl transition-all duration-500">
+                  <div className="aspect-[4/3] overflow-hidden relative">
                     <img
                       src={a.img}
                       alt={a.title}
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-70 group-hover:opacity-90"
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                     />
+                    <div className="absolute inset-0 bg-red-600/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   </div>
-                  <div className="p-6">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="h-9 w-9 rounded-[4px] bg-red-500/10 flex items-center justify-center">
-                        <a.icon className="h-4 w-4 text-red-500" />
+                  <div className="p-8">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="h-10 w-10 rounded-xl bg-red-50 flex items-center justify-center">
+                        <a.icon className="h-5 w-5 text-red-600" />
                       </div>
-                      <h3 className="font-bold text-white tracking-tight">
+                      <h3 className="font-bold text-xl text-slate-900 group-hover:text-red-600 transition-colors">
                         {a.title}
                       </h3>
                     </div>
-                    <p className="text-neutral-400 text-sm leading-relaxed">
+                    <p className="text-slate-500 text-sm leading-relaxed">
                       {a.desc}
                     </p>
                   </div>
@@ -277,46 +300,43 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ═══════ FOOTER ═══════ */}
-      <footer className="bg-neutral-950 border-t border-white/[0.06] py-16 px-6">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-12">
-          <div>
-            <a href="/">
-              <img src={redsLogo} alt="REDS Timber Flooring Specialists" className="h-8 brightness-0 invert" />
-            </a>
-            <p className="text-neutral-500 text-sm mt-3 leading-relaxed">
-              Next-generation flooring installation — SPC, engineered wood, and
-              modern laminate for homes, offices, and apartments.
+      {/* ═══════ FOOTER (BRANDED RED) ═══════ */}
+      <footer className="bg-white border-t border-slate-100 pt-20 pb-10 px-6">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
+          <div className="md:col-span-2">
+            <img src={redsLogo} alt="REDS Logo" className="h-12 w-auto object-contain mb-6" />
+            <p className="text-slate-500 text-base max-w-sm leading-relaxed">
+              Specialists in next-generation flooring installation. We bring durability, precision, and style to every floor we touch.
             </p>
           </div>
 
           <div>
-            <h4 className="text-xs font-bold tracking-[0.2em] uppercase text-neutral-500 mb-4">
-              Contact
+            <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 mb-6">
+              Contact Info
             </h4>
-            <ul className="space-y-3 text-sm text-neutral-400">
-              <li className="flex items-center gap-2">
-                <Phone className="h-4 w-4 text-red-500" /> 0412 345 678
+            <ul className="space-y-4 text-slate-500">
+              <li className="flex items-center gap-3 hover:text-red-600 transition-colors cursor-pointer">
+                <Phone className="h-5 w-5 text-red-600" /> 0412 345 678
               </li>
-              <li className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-red-500" /> info@redsflooring.com.au
+              <li className="flex items-center gap-3 hover:text-red-600 transition-colors cursor-pointer">
+                <Mail className="h-5 w-5 text-red-600" /> info@redsflooring.com.au
               </li>
-              <li className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-red-500" /> Melbourne, VIC
+              <li className="flex items-center gap-3">
+                <MapPin className="h-5 w-5 text-red-600" /> Melbourne, VIC
               </li>
             </ul>
           </div>
 
           <div>
-            <h4 className="text-xs font-bold tracking-[0.2em] uppercase text-neutral-500 mb-4">
-              Follow Us
+            <h4 className="text-sm font-black uppercase tracking-widest text-slate-900 mb-6">
+              Social Media
             </h4>
-            <div className="flex items-center gap-4 mt-2">
+            <div className="flex gap-4">
               {[Instagram, Facebook, Linkedin].map((Icon, i) => (
                 <a
                   key={i}
                   href="#"
-                  className="text-neutral-500 hover:text-red-500 transition-colors duration-200"
+                  className="h-12 w-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:bg-red-600 hover:text-white transition-all duration-300 shadow-sm"
                 >
                   <Icon className="h-5 w-5" />
                 </a>
@@ -325,9 +345,8 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div className="max-w-6xl mx-auto mt-12 pt-8 border-t border-white/[0.06] text-center text-xs text-neutral-600">
-          © {new Date().getFullYear()} REDS Timber Flooring Specialists. All
-          rights reserved.
+        <div className="max-w-7xl mx-auto pt-8 border-t border-slate-50 text-center text-sm text-slate-400 font-bold">
+          © {new Date().getFullYear()} REDS Timber Flooring Specialists. All rights reserved.
         </div>
       </footer>
     </div>
