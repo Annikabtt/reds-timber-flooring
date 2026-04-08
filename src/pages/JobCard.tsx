@@ -221,21 +221,18 @@ function ChecklistGroup({ title, items }: { title: string, items: string[] }) {
   );
 }
 
-/* --- Component ช่วยเหลือสำหรับ Upload รูปภาพ (อัปเดตให้กดเปิดกล้องได้จริง) --- */
+/* --- Component ช่วยเหลือสำหรับ Upload รูปภาพ --- */
 function PhotoUploadGroup({ title, desc }: { title: string, desc: string }) {
   return (
     <div className="space-y-4">
       <h3 className="font-bold text-slate-900 text-lg border-b border-slate-100 pb-2">{title}</h3>
       <p className="text-slate-500 pl-2">{desc}</p>
       <div className="pl-2">
-        {/* เปลี่ยนจาก button ธรรมดา เป็น label ที่ซ่อน input file เอาไว้ */}
         <label className="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 px-6 rounded-lg transition-colors border border-slate-200 cursor-pointer active:scale-95">
           <Camera className="w-5 h-5" />
           <Upload className="w-4 h-4 mr-1" />
           Take / Upload Photos
-          {/* โค้ดลับ: accept="image/*" คือรับเฉพาะรูป, capture="environment" คือบังคับเปิดกล้องหลังมือถือ */}
-          <input type="file" accept="image/*" className="hidden" /> 
-          />
+          <input type="file" accept="image/*" className="hidden" />
         </label>
       </div>
     </div>
