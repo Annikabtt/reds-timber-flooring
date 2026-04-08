@@ -178,7 +178,7 @@ export default function JobCard() {
             <div className="pt-6 border-t border-slate-100">
               <ChecklistGroup title="11. FINAL SIGN-OFF" items={["Confirm job complete", "No outstanding items"]} />
               <div className="mt-6 bg-slate-50 border border-dashed border-slate-300 rounded-xl p-8 text-center flex flex-col items-center justify-center">
-                <span className="text-slate-400 font-medium mb-4">Customer Digital Signature Area</span>
+                <span className="text-slate-400 font-medium mb-4">Installer Digital Signature Area</span>
                 <div className="w-full max-w-sm h-32 bg-white border border-slate-200 rounded-lg shadow-inner"></div>
               </div>
             </div>
