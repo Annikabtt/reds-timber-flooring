@@ -400,10 +400,10 @@ export default function LandingPage() {
             </h4>
             <ul className="space-y-4 text-slate-500">
               <li className="flex items-center gap-3 hover:text-red-600 transition-colors cursor-pointer">
-                <Phone className="h-5 w-5 text-red-600" /> 0412 345 678
+                <Phone className="h-5 w-5 text-red-600" /> 0415 504 902
               </li>
               <li className="flex items-center gap-3 hover:text-red-600 transition-colors cursor-pointer">
-                <Mail className="h-5 w-5 text-red-600" /> info@redsflooring.com.au
+                <Mail className="h-5 w-5 text-red-600" /> projects@redstimberflooring.com
               </li>
               <li className="flex items-center gap-3">
                 <MapPin className="h-5 w-5 text-red-600" /> Perth, Western Australia
