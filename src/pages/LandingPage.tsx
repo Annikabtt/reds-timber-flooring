@@ -124,15 +124,15 @@ export default function LandingPage() {
       
       {/* ═══════ NAVBAR ═══════ */}
       {/* ═══════ NAVBAR (อัปเดตพื้นหลังสีแดงจางๆ โปร่งแสงตามที่คุณเลือก) ═══════ */}
+      {/* ═══════ NAVBAR (อัปเดตพื้นหลังสีแดงจางๆ โปร่งแสงตามที่คุณเลือก) ═══════ */}
       <nav className="fixed top-0 inset-x-0 z-50 backdrop-blur-xl bg-red-950/10 border-b border-white/20">
-            <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <a href="/" className="flex items-center">
             <img 
               src={redsLogo} 
               alt="REDS Timber Flooring Specialists" 
-              className="h-10 sm:h-12 w-auto object-contain relative z-10 drop-shadow-sm" 
+              className="h-6 sm:h-12 w-auto object-contain relative z-10 drop-shadow-sm" 
             />
-
           </a>
 
           <div className="hidden md:flex items-center gap-10 text-sm font-bold text-slate-600">
@@ -152,10 +152,10 @@ export default function LandingPage() {
             variant="outline"
             size="sm"
             onClick={() => navigate("/job-card")}
-            className="border-red-600 text-red-600 hover:bg-red-600 hover:text-white bg-transparent rounded-full px-6 font-bold transition-all duration-300 gap-2 shadow-sm hover:shadow-red-100"
+            className="border-red-600 text-red-600 hover:bg-red-600 hover:text-white bg-transparent rounded-full px-4 sm:px-6 font-bold transition-all duration-300 gap-2 shadow-sm hover:shadow-red-100"
           >
-            <Lock className="h-3.5 w-3.5" />
-            Portal Login
+            <Lock className="h-4 w-4" />
+            <span className="hidden sm:inline">Portal Login</span>
           </Button>
         </div>
       </nav>
@@ -211,17 +211,17 @@ export default function LandingPage() {
               Precision installation of high-durability timber, SPC, and engineered flooring for modern living and workspaces.
             </motion.p>
 
-            {/* บล็อกปุ่มกด (ปรับเป็นโปร่งแสงทั้ง 2 ปุ่ม) */}
+            {/* บล็อกปุ่มกด (ปรับเป็นโปร่งแสงทั้ง 2 ปุ่ม และแก้ Responsive) */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
-              className="mt-10 flex flex-wrap gap-4"
+              className="mt-10 flex flex-col sm:flex-row gap-4 w-full pr-6 sm:pr-0"
             >
               <Button
                 variant="outline"
                 size="lg"
-                className="border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white bg-white/10 backdrop-blur-sm rounded-full px-10 py-7 text-base font-bold transition-all hover:-translate-y-1 group"
+                className="w-full sm:w-auto border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white bg-white/10 backdrop-blur-sm rounded-full px-10 py-7 text-base font-bold transition-all hover:-translate-y-1 group"
               >
                 Explore Materials
                 <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
@@ -229,7 +229,7 @@ export default function LandingPage() {
               <Button
                 variant="outline"
                 size="lg"
-                className="border-2 border-slate-600 text-slate-800 hover:bg-slate-800 hover:text-white bg-white/10 backdrop-blur-sm rounded-full px-10 py-7 text-base font-bold transition-all hover:-translate-y-1"
+                className="w-full sm:w-auto border-2 border-slate-600 text-slate-800 hover:bg-slate-800 hover:text-white bg-white/10 backdrop-blur-sm rounded-full px-10 py-7 text-base font-bold transition-all hover:-translate-y-1"
               >
                 View Our Projects
               </Button>
