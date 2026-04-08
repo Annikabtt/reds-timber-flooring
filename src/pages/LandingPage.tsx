@@ -180,7 +180,7 @@ export default function LandingPage() {
         </div>
 
         {/* Hero Content */}
-        <div className="relative z-10 max-w-7xl mx-auto px-6 w-full">
+        <div className="relative z-10 max-w-7xl mx-auto px-6 w-full pt-32 md:pt-0">
           <div className="max-w-3xl">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
