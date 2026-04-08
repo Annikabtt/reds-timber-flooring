@@ -20,7 +20,8 @@ import {
 import { useNavigate } from "react-router-dom";
 import redsLogo from "@/assets/reds-logo.png";
 
-/* ─── Hero Slider Images ─── */
+/* ═══════ ข้อมูลทั้งหมด (DATA) ═══════ */
+
 const heroImages = [
   "https://images.unsplash.com/photo-1581850518616-bcb8186c443e?q=80&w=2070&auto=format&fit=crop",
   "https://images.unsplash.com/photo-1513694203232-719a280e022f?q=80&w=2069&auto=format&fit=crop",
@@ -28,32 +29,17 @@ const heroImages = [
   "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=2053&auto=format&fit=crop"
 ];
 
-/* ─── Scroll Reveal Component ─── */
-function Reveal({
-  children,
-  className = "",
-  delay = 0,
-}: {
-  children: ReactNode;
-  className?: string;
-  delay?: number;
-}) {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-60px" });
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 30 }}
-      animate={inView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.8, delay, ease: [0.22, 1, 0.36, 1] }}
-      className={className}
-    >
-      {children}
-    </motion.div>
-  );
-}
+const partners = [
+  { name: "360 Commercial Construction", logo: "/logo-360.jpg" },
+  { name: "ATFA", logo: "/logo-atfa.jpg" },
+  { name: "BallPoint", logo: "/logo-ballpoint.jpg" },
+  { name: "Blackburne", logo: "/logo-blackburne.jpg" },
+  { name: "Dunlop Flooring", logo: "/logo-dunlop.jpg" },
+  { name: "Edge Visionary Living", logo: "/logo-edge.jpg" },
+  { name: "Mapei", logo: "/logo-mapei.jpg" },
+  { name: "Woodpecker Flooring", logo: "/logo-woodpecker.jpg" },
+];
 
-/* ─── Data ─── */
 const services = [
   {
     icon: Crosshair,
@@ -95,6 +81,32 @@ const applications = [
 
 const navLinks = ["Home", "Modern Materials", "Projects", "Contact"];
 
+/* ═══════ คอมโพเนนต์ช่วยแสดงเอฟเฟกต์ (REVEAL) ═══════ */
+function Reveal({
+  children,
+  className = "",
+  delay = 0,
+}: {
+  children: ReactNode;
+  className?: string;
+  delay?: number;
+}) {
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: "-60px" });
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: 30 }}
+      animate={inView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.8, delay, ease: [0.22, 1, 0.36, 1] }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+/* ═══════ โครงสร้างหลักของหน้าเว็บ (MAIN COMPONENT) ═══════ */
 export default function LandingPage() {
   const navigate = useNavigate();
   const [currentImg, setCurrentImg] = useState(0);
@@ -113,7 +125,6 @@ export default function LandingPage() {
       {/* ═══════ NAVBAR ═══════ */}
       <nav className="fixed top-0 inset-x-0 z-50 backdrop-blur-md bg-white/90 border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          {/* Logo: Sharp and original colors */}
           <a href="/" className="flex items-center">
             <img 
               src={redsLogo} 
@@ -122,7 +133,6 @@ export default function LandingPage() {
             />
           </a>
 
-          {/* Navigation Links */}
           <div className="hidden md:flex items-center gap-10 text-sm font-bold text-slate-600">
             {navLinks.map((l) => (
               <a
@@ -136,7 +146,6 @@ export default function LandingPage() {
             ))}
           </div>
 
-          {/* Portal Login: Red Accent Button */}
           <Button
             variant="outline"
             size="sm"
@@ -164,8 +173,8 @@ export default function LandingPage() {
               className="w-full h-full object-cover"
             />
           </AnimatePresence>
-          {/* Subtle Light Gradient Overlay */}
-          <div className="absolute inset-0 bg-gradient-to-r from-white/80 via-white/40 to-transparent" />
+          {/* Subtle Light Gradient Overlay (ปรับให้สว่างขึ้นเพื่อให้ตัวหนังสือชัด) */}
+          <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/50 to-transparent" />
         </div>
 
         {/* Hero Content */}
@@ -180,11 +189,12 @@ export default function LandingPage() {
               The Gold Standard in Flooring
             </motion.div>
 
+            {/* เพิ่ม drop-shadow-lg ให้ตัวหนังสือเด้งออกมาชัดขึ้น */}
             <motion.h1
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="text-5xl md:text-8xl font-black leading-[1.1] tracking-tight text-slate-900"
+              className="text-5xl md:text-8xl font-black leading-[1.1] tracking-tight text-slate-900 drop-shadow-lg"
             >
               Next-Generation <br />
               <span className="text-red-600">Flooring Solutions.</span>
@@ -199,6 +209,7 @@ export default function LandingPage() {
               Precision installation of high-durability timber, SPC, and engineered flooring for modern living and workspaces.
             </motion.p>
 
+            {/* บล็อกปุ่มกด (ปรับเป็นโปร่งแสงทั้ง 2 ปุ่ม) */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -206,16 +217,17 @@ export default function LandingPage() {
               className="mt-10 flex flex-wrap gap-4"
             >
               <Button
+                variant="outline"
                 size="lg"
-                className="bg-red-600 hover:bg-red-700 text-white rounded-full px-10 py-7 text-base font-bold shadow-xl shadow-red-200 transition-all hover:-translate-y-1 group"
+                className="border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white bg-white/10 backdrop-blur-sm rounded-full px-10 py-7 text-base font-bold transition-all hover:-translate-y-1 group"
               >
                 Explore Materials
                 <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
               </Button>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="lg"
-                className="text-slate-900 hover:text-red-600 font-bold px-8"
+                className="border-2 border-slate-600 text-slate-800 hover:bg-slate-800 hover:text-white bg-white/10 backdrop-blur-sm rounded-full px-10 py-7 text-base font-bold transition-all hover:-translate-y-1"
               >
                 View Our Projects
               </Button>
@@ -224,7 +236,48 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ═══════ MODERN SOLUTIONS (RED ACCENTS) ═══════ */}
+      {/* ═══════ SPECIALIST ADVERTISEMENT SECTION ═══════ */}
+      <section className="py-24 px-6 bg-slate-50 border-t border-slate-100">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+          
+          <Reveal>
+            <h3 className="text-2xl md:text-3xl font-medium leading-relaxed text-slate-800 pr-0 md:pr-8">
+              TIMBER FLOORING SPECIALIST, WHO CAN PROVIDE YOU WITH FULL SUPPLY OF ALL TIMBER FLOORS, COMPLETE INSTALLATION AND ALL YOUR <span className="text-red-600 font-bold">SMART MATERIAL NEEDS</span>.
+            </h3>
+          </Reveal>
+
+          <Reveal delay={0.1}>
+            <div className="flex items-start gap-12">
+              <div className="w-0.5 h-64 bg-red-600 rounded-full hidden md:block" />
+              <div className="space-y-12 text-slate-700 font-medium">
+                <div>
+                  <h4 className="text-lg font-bold text-slate-900 mb-6">Contact Information</h4>
+                  <p className="flex items-center gap-3">
+                    Phone : <Phone className="h-5 w-5 text-red-600" /> 0415 504 902
+                  </p>
+                  <p className="flex items-center gap-3 mt-3">
+                    Email : <Mail className="h-5 w-5 text-red-600" /> projects@redstimberflooring.com
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-slate-900 mb-6">Address</h4>
+                  <p className="flex items-start gap-3">
+                    <MapPin className="h-5 w-5 text-red-600" />
+                    <span>
+                      141 Carrington St<br />
+                      White Gum Valley WA, 6162<br />
+                      Australia
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Reveal>
+
+        </div>
+      </section>
+
+      {/* ═══════ MODERN SOLUTIONS ═══════ */}
       <section id="modern-materials" className="py-32 px-6 bg-white">
         <div className="max-w-7xl mx-auto">
           <Reveal className="text-center mb-20">
@@ -300,7 +353,36 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ═══════ FOOTER (BRANDED RED) ═══════ */}
+      {/* ═══════ VALUED PARTNERS SECTION ═══════ */}
+      <section className="py-24 px-6 bg-white border-t border-slate-50">
+        <div className="max-w-7xl mx-auto">
+          <Reveal className="text-center mb-16">
+            <p className="text-red-600 text-sm font-black tracking-[0.2em] uppercase mb-4">
+              Our Network
+            </p>
+            <h2 className="text-3xl md:text-4xl font-black text-slate-900">
+              Some of our valued partners and supporters
+            </h2>
+            <div className="w-20 h-1 bg-red-600 mx-auto mt-6 rounded-full" />
+          </Reveal>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-12 items-center justify-items-center">
+            {partners.map((partner, i) => (
+              <Reveal key={partner.name} delay={i * 0.05}>
+                <div className="group relative flex items-center justify-center p-4 w-full h-32">
+                  <img
+                    src={partner.logo}
+                    alt={partner.name}
+                    className="max-h-full max-w-full object-contain transition-transform duration-500 ease-in-out hover:scale-105"
+                  />
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════ FOOTER ═══════ */}
       <footer className="bg-white border-t border-slate-100 pt-20 pb-10 px-6">
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
           <div className="md:col-span-2">
