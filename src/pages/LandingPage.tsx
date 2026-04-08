@@ -23,10 +23,10 @@ import redsLogo from "@/assets/reds-logo.png";
 /* ═══════ ข้อมูลทั้งหมด (DATA) ═══════ */
 
 const heroImages = [
-  "/slide1.jpg",
-  "/slide2.jpg",
-  "/slide3.jpg",
-  "/slide4.jpg"
+  "/Slide1.jpg",
+  "/Slide2.jpg",
+  "/Slide3.jpg",
+  "/Slide4.jpg"
 ];
 
 const partners = [
