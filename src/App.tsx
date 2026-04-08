@@ -22,6 +22,8 @@ import TechMaterials from "./pages/technician/TechMaterials";
 import TechReport from "./pages/technician/TechReport";
 import TechLeave from "./pages/technician/TechLeave";
 import JobCard from "./pages/JobCard";
+import CustomerCheck from "./pages/CustomerCheck.tsx";
+
 const queryClient = new QueryClient();
 
 const App = () => (
