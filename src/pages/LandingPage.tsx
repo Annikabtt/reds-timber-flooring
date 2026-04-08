@@ -124,14 +124,15 @@ export default function LandingPage() {
       
       {/* ═══════ NAVBAR ═══════ */}
       {/* ═══════ NAVBAR (อัปเดตพื้นหลังสีแดงจางๆ โปร่งแสงตามที่คุณเลือก) ═══════ */}
-      <nav className="fixed top-0 inset-x-0 z-50 backdrop-blur-md bg-[#c26763]/30 border-b border-red-900/10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+      <nav className="fixed top-0 inset-x-0 z-50 backdrop-blur-xl bg-red-950/10 border-b border-white/20">
+            <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <a href="/" className="flex items-center">
             <img 
               src={redsLogo} 
               alt="REDS Timber Flooring Specialists" 
-              className="h-10 sm:h-12 w-auto object-contain" 
+              className="h-10 sm:h-12 w-auto object-contain relative z-10 drop-shadow-sm" 
             />
+
           </a>
 
           <div className="hidden md:flex items-center gap-10 text-sm font-bold text-slate-600">
