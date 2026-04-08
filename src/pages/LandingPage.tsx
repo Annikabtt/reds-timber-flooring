@@ -406,7 +406,7 @@ export default function LandingPage() {
                 <Mail className="h-5 w-5 text-red-600" /> info@redsflooring.com.au
               </li>
               <li className="flex items-center gap-3">
-                <MapPin className="h-5 w-5 text-red-600" /> Melbourne, VIC
+                <MapPin className="h-5 w-5 text-red-600" /> Perth, Western Australia
               </li>
             </ul>
           </div>
