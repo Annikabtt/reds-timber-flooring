@@ -56,10 +56,8 @@ const App = () => (
             <Route path="/customer-check" element={<CustomerCheck />} />
             
             {/* หน้า 404 ต้องอยู่ล่างสุดเสมอ */}
-            <Route path="*" element={<NotFound />} />
+           <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
-        </Routes>
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>
