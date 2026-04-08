@@ -23,10 +23,10 @@ import redsLogo from "@/assets/reds-logo.png";
 /* ═══════ ข้อมูลทั้งหมด (DATA) ═══════ */
 
 const heroImages = [
-  "https://images.unsplash.com/photo-1581850518616-bcb8186c443e?q=80&w=2070&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1513694203232-719a280e022f?q=80&w=2069&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1505691938895-1758d7feb511?q=80&w=2070&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=2053&auto=format&fit=crop"
+  "/slide1.jpg",
+  "/slide2.jpg",
+  "/slide3.jpg",
+  "/slide4.jpg"
 ];
 
 const partners = [
