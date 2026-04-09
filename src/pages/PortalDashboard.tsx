@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Shield, Users, Briefcase, Calculator, 
-  Settings, LogOut, Building2, UserCircle, ChevronRight 
+  Settings, LogOut, Building2, UserCircle, ChevronRight, PackageOpen
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
@@ -79,8 +79,18 @@ export default function PortalDashboard() {
             desc="View daily tasks and update progress."
             icon={<Briefcase />}
             color="emerald"
-            onClick={() => navigate('/job-card')}
+            onClick={() => navigate('/job-card')}          
           />
+          
+          {/* Menu 1.5: Material Request (Installer, Admin, Owner เห็นหมด) */}
+          <DashboardCard 
+            title="Material Requisition" 
+            desc="Request items for your assigned jobs."
+            icon={<PackageOpen />}
+            color="emerald"
+            onClick={() => navigate('/material-request')}
+          />
+
 
           {/* Menu 2: Customers (Owner & Admin เห็น) */}
           {(activeRole === 'owner' || activeRole === 'admin') && (
