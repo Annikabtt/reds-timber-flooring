@@ -39,6 +39,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/portal" element={<PortalDashboard />} />
+            <Route path="/quotation-builder" element={<QuotationBuilder />} />
             <Route path="/dashboard" element={<Index />} />
             <Route path="/job-card" element={<JobCard />} />
             <Route path="/installers" element={<InstallerDatabase />} />      
@@ -46,11 +48,9 @@ const App = () => (
             <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
             <Route path="/contacts" element={<ProtectedRoute><Contacts /></ProtectedRoute>} />
             <Route path="/team" element={<ProtectedRoute><Team /></ProtectedRoute>} />
-            <Route path="/quotation-builder" element={<QuotationBuilder />} />
             <Route path="/photos" element={<ProtectedRoute><PhotoApproval /></ProtectedRoute>} />
             <Route path="/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
             <Route path="/project-timeline" element={<ProtectedRoute><ProjectTimeline /></ProtectedRoute>} />
-            <Route path="/portal" element={<PortalDashboard />} />
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
             <Route path="/tech" element={<ProtectedRoute><TechHome /></ProtectedRoute>} />
             <Route path="/tech/materials" element={<ProtectedRoute><TechMaterials /></ProtectedRoute>} />
