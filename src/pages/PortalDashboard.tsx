@@ -122,7 +122,7 @@ export default function PortalDashboard() {
               desc="CONFIDENTIAL: Adjust margins and markup."
               icon={<Settings />}
               color="red"
-              onClick={() => alert('Pricing Control Room is coming next!')}
+              onClick={() => navigate('/pricing')}
             />
           )}
 

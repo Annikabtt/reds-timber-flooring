@@ -1,3 +1,4 @@
+import PricingSettings from "./pages/PricingSettings";
 import QuotationBuilder from "./pages/QuotationBuilder";
 import PortalDashboard from "./pages/PortalDashboard";
 import CustomerDatabase from "./pages/CustomerDatabase";
@@ -40,6 +41,7 @@ const App = () => (
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/portal" element={<PortalDashboard />} />
+            <Route path="/pricing" element={<PricingSettings />} />
             <Route path="/quotation-builder" element={<QuotationBuilder />} />
             <Route path="/dashboard" element={<Index />} />
             <Route path="/job-card" element={<JobCard />} />
