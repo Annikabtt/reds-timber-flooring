@@ -161,7 +161,7 @@ export default function LandingPage() {
       </nav>
 
       {/* ═══════ HERO SECTION (DYNAMIC SLIDER) ═══════ */}
-      <section id="home" className="relative h-screen flex items-center justify-center overflow-hidden bg-slate-50">
+      <section id="home" className="relative min-h-screen flex items-center justify-center overflow-hidden bg-slate-50 pb-24">git add .
         {/* Background Slider */}
         <div className="absolute inset-0 z-0">
           <AnimatePresence mode="wait">
@@ -180,7 +180,7 @@ export default function LandingPage() {
         </div>
 
         {/* Hero Content */}
-          <div className="relative z-10 max-w-7xl mx-auto px-6 w-full pt-32 md:pt-0">
+          <div className="relative z-10 max-w-7xl mx-auto px-6 w-full pt-40 md:pt-32">
           <div className="max-w-3xl">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
