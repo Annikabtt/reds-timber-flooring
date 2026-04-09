@@ -1,3 +1,4 @@
+import QuotationBuilder from "./pages/QuotationBuilder";
 import PortalDashboard from "./pages/PortalDashboard";
 import CustomerDatabase from "./pages/CustomerDatabase";
 import InstallerDatabase from "./pages/InstallerDatabase";
@@ -45,6 +46,7 @@ const App = () => (
             <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
             <Route path="/contacts" element={<ProtectedRoute><Contacts /></ProtectedRoute>} />
             <Route path="/team" element={<ProtectedRoute><Team /></ProtectedRoute>} />
+            <Route path="/quotation-builder" element={<QuotationBuilder />} />
             <Route path="/photos" element={<ProtectedRoute><PhotoApproval /></ProtectedRoute>} />
             <Route path="/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
             <Route path="/project-timeline" element={<ProtectedRoute><ProjectTimeline /></ProtectedRoute>} />
