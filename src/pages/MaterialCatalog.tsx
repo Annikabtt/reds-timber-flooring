@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { Package, Plus, Search, Box, Layers, Spline, Wrench } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
-// --- 📦 หมวดหมู่หลัก (Main Categories) ---
+// --- Main Categories ---
 const mainCategories = [
-  { id: 'flooring', name: 'Flooring (วัสดุปูพื้น)', icon: <Layers size={18} /> },
-  { id: 'accessories', name: 'Accessories (ตัวจบ/บัว)', icon: <Spline size={18} /> },
-  { id: 'supplies', name: 'Supplies & Tools (กาว/อุปกรณ์)', icon: <Wrench size={18} /> },
+  { id: 'flooring', name: 'Flooring', icon: <Layers size={18} /> },
+  { id: 'accessories', name: 'Accessories', icon: <Spline size={18} /> },
+  { id: 'supplies', name: 'Supplies & Tools', icon: <Wrench size={18} /> },
 ];
 
-// --- 🏷️ ประเภทย่อย (Sub-Categories) แยกตามหมวดหลัก ---
+// --- Sub-Categories ---
 const subCategories: Record<string, { id: string, name: string }[]> = {
   flooring: [
     { id: 'all', name: 'All Flooring' },
@@ -19,48 +19,45 @@ const subCategories: Record<string, { id: string, name: string }[]> = {
   ],
   accessories: [
     { id: 'all', name: 'All Accessories' },
-    { id: 'skirting', name: 'Skirting (บัวผนัง)' },
-    { id: 'scotia', name: 'Scotia (คิ้วไม้มุม)' },
-    { id: 't-molding', name: 'T-Molding (ตัวจบพื้น)' },
+    { id: 'skirting', name: 'Skirting' },
+    { id: 'scotia', name: 'Scotia Trim' },
+    { id: 't-molding', name: 'T-Molding' },
   ],
   supplies: [
     { id: 'all', name: 'All Supplies' },
-    { id: 'adhesive', name: 'Adhesive (กาว)' },
-    { id: 'underlay', name: 'Underlay (โฟมรองพื้น)' },
-    { id: 'tools', name: 'Tools (เครื่องมือช่าง)' },
+    { id: 'adhesive', name: 'Adhesive' },
+    { id: 'underlay', name: 'Underlay' },
+    { id: 'tools', name: 'Tools' },
   ]
 };
 
-// --- 💾 Mock Data: จำลองฐานข้อมูลสินค้า ---
+// --- Mock Database ---
 const mockProducts = [
-  // 🪵 หมวด: พื้น
+  // Flooring
   { id: 1, name: "Natural Oak SPC", sku: "SPC-OAK-01", mainCat: "flooring", subCat: "spc", price: 35.00, stock: 1250, unit: "SQM", img: "https://images.unsplash.com/photo-1581858326456-6189df1a590e?w=300&h=200&fit=crop" },
   { id: 2, name: "Spotted Gum Timber", sku: "TMB-SG-02", mainCat: "flooring", subCat: "timber", price: 85.00, stock: 320, unit: "SQM", img: "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=300&h=200&fit=crop" },
   { id: 3, name: "Classic Walnut Laminate", sku: "LAM-WAL-03", mainCat: "flooring", subCat: "laminate", price: 25.00, stock: 450, unit: "SQM", img: "https://images.unsplash.com/photo-1516455590571-18256e5bb9ff?w=300&h=200&fit=crop" },
   
-  // 📏 หมวด: ตัวจบ/บัว
-  { id: 4, name: "White Skirting 90mm", sku: "ACC-SKT-90W", mainCat: "accessories", subCat: "skirting", price: 15.00, stock: 400, unit: "Length (5.4m)", img: "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=300&h=200&fit=crop" }, // ใช้รูปไม้แทนชั่วคราว
+  // Accessories
+  { id: 4, name: "White Skirting 90mm", sku: "ACC-SKT-90W", mainCat: "accessories", subCat: "skirting", price: 15.00, stock: 400, unit: "Length (5.4m)", img: "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=300&h=200&fit=crop" }, 
   { id: 5, name: "Oak Scotia Trim", sku: "ACC-SCT-OAK", mainCat: "accessories", subCat: "scotia", price: 12.00, stock: 150, unit: "Length (2.4m)", img: "https://images.unsplash.com/photo-1582582621959-48d27397dc69?w=300&h=200&fit=crop" },
   
-  // 🛠️ หมวด: วัสดุติดตั้ง
+  // Supplies & Tools
   { id: 6, name: "Premium PU Adhesive", sku: "SUP-GLU-PU", mainCat: "supplies", subCat: "adhesive", price: 120.00, stock: 45, unit: "Bucket (15kg)", img: "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=300&h=200&fit=crop" },
   { id: 7, name: "Acoustic Underlay 2mm", sku: "SUP-UND-02", mainCat: "supplies", subCat: "underlay", price: 65.00, stock: 80, unit: "Roll (20 SQM)", img: "https://images.unsplash.com/photo-1517646287270-a5a9ca602e5c?w=300&h=200&fit=crop" },
-  { id: 8, name: "Rubber Mallet (ค้อนยาง)", sku: "TOL-MAL-01", mainCat: "supplies", subCat: "tools", price: 25.00, stock: 12, unit: "Piece", img: "https://images.unsplash.com/photo-1540104539506-e69df0d009b0?w=300&h=200&fit=crop" },
+  { id: 8, name: "Rubber Mallet", sku: "TOL-MAL-01", mainCat: "supplies", subCat: "tools", price: 25.00, stock: 12, unit: "Piece", img: "https://images.unsplash.com/photo-1540104539506-e69df0d009b0?w=300&h=200&fit=crop" },
 ];
 
 export default function MaterialCatalog() {
-  // States สำหรับตัวกรอง
   const [activeMainCat, setActiveMainCat] = useState('flooring');
   const [activeSubCat, setActiveSubCat] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // เมื่อเปลี่ยนหมวดหมู่หลัก ให้รีเซ็ตประเภทย่อยกลับไปที่ 'all' เสมอ
   const handleMainCatChange = (catId: string) => {
     setActiveMainCat(catId);
     setActiveSubCat('all');
   };
 
-  // ฟังก์ชันกรองสินค้าตาม 3 เงื่อนไข (หมวดหลัก + หมวดย่อย + ค้นหา)
   const filteredProducts = mockProducts.filter(p => {
     const matchMain = p.mainCat === activeMainCat;
     const matchSub = activeSubCat === 'all' || p.subCat === activeSubCat;
@@ -86,10 +83,9 @@ export default function MaterialCatalog() {
           </Button>
         </div>
 
-        {/* --- Filter System (ระบบกรอง 2 ชั้น) --- */}
+        {/* --- Filter System --- */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           
-          {/* ชั้นที่ 1: หมวดหมู่หลัก (Main Categories) */}
           <div className="flex border-b border-slate-100 bg-slate-50/50">
             {mainCategories.map((cat) => (
               <button
@@ -107,7 +103,6 @@ export default function MaterialCatalog() {
             ))}
           </div>
 
-          {/* ชั้นที่ 2: ช่องค้นหา & ประเภทย่อย (Search & Sub-Categories) */}
           <div className="p-4 space-y-4">
             <div className="relative max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
@@ -173,7 +168,7 @@ export default function MaterialCatalog() {
             </div>
           ))}
 
-          {/* กรณีค้นหาไม่เจอ */}
+          {/* Empty State */}
           {filteredProducts.length === 0 && (
             <div className="col-span-full py-16 text-center bg-white rounded-2xl border border-dashed border-slate-300">
               <Package className="mx-auto text-slate-300 mb-4" size={48} />
