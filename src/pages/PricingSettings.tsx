@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom'; //
 import { 
   Settings, TrendingUp, DollarSign, Percent, 
-  Save, AlertCircle, ShieldCheck 
+  Save, AlertCircle, ShieldCheck, ArrowLeft //
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
 export default function PricingSettings() {
+    const navigate = useNavigate(); //
   // --- States สำหรับเก็บค่า Markup (จำลองว่าดึงมาจาก Database) ---
   const [markups, setMarkups] = useState({
     walkIn: 35,
@@ -27,7 +29,25 @@ export default function PricingSettings() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans p-4 md:p-8">
       <div className="max-w-4xl mx-auto space-y-6">
+       return (
+    <div className="min-h-screen bg-slate-50 font-sans p-4 md:p-8">
+      <div className="max-w-4xl mx-auto space-y-6">
         
+        {/* 👇 เอาโค้ดปุ่ม มาวางแทรกตรงนี้เลยครับ! 👇 */}
+        <Button 
+          variant="ghost" 
+          onClick={() => navigate('/portal')} 
+          className="text-slate-500 hover:text-slate-900 hover:bg-slate-200 -ml-4"
+        >
+          <ArrowLeft className="mr-2" size={20} />
+          Back to Portal
+        </Button>
+        {/* 👆 จบโค้ดปุ่ม 👆 */}
+
+        {/* --- Header --- */}
+        <div className="bg-slate-900 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
+          {/* ... โค้ดด้านใน Header ... */}
+
         {/* --- Header --- */}
         <div className="bg-slate-900 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
