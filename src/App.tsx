@@ -1,3 +1,4 @@
+import MaterialRequest from "./pages/MaterialRequest";
 import MaterialCatalog from "./pages/MaterialCatalog";
 import PricingSettings from "./pages/PricingSettings";
 import QuotationBuilder from "./pages/QuotationBuilder";
@@ -45,6 +46,7 @@ const App = () => (
             <Route path="/pricing" element={<PricingSettings />} />
             <Route path="/quotation-builder" element={<QuotationBuilder />} />
             <Route path="/materials" element={<MaterialCatalog />} />
+            <Route path="/material-request" element={<MaterialRequest />} />
             <Route path="/dashboard" element={<Index />} />
             <Route path="/job-card" element={<JobCard />} />
             <Route path="/installers" element={<InstallerDatabase />} />      
