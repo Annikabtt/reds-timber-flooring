@@ -1,3 +1,4 @@
+import PortalDashboard from "./pages/PortalDashboard";
 import CustomerDatabase from "./pages/CustomerDatabase";
 import InstallerDatabase from "./pages/InstallerDatabase";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -35,6 +36,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
+            <Routes>: <Route path="/portal" element={<PortalDashboard />} />
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<Index />} />
