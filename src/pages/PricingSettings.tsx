@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom'; //
+import { useNavigate } from 'react-router-dom';
 import { 
   Settings, TrendingUp, DollarSign, Percent, 
-  Save, AlertCircle, ShieldCheck, ArrowLeft //
+  Save, AlertCircle, ShieldCheck, ArrowLeft 
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
 export default function PricingSettings() {
-    const navigate = useNavigate(); //
+  const navigate = useNavigate();
+  
   // --- States สำหรับเก็บค่า Markup (จำลองว่าดึงมาจาก Database) ---
   const [markups, setMarkups] = useState({
     walkIn: 35,
@@ -29,11 +30,8 @@ export default function PricingSettings() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans p-4 md:p-8">
       <div className="max-w-4xl mx-auto space-y-6">
-       return (
-    <div className="min-h-screen bg-slate-50 font-sans p-4 md:p-8">
-      <div className="max-w-4xl mx-auto space-y-6">
         
-        {/* 👇 เอาโค้ดปุ่ม มาวางแทรกตรงนี้เลยครับ! 👇 */}
+        {/* --- ปุ่มย้อนกลับ (Back to Portal) --- */}
         <Button 
           variant="ghost" 
           onClick={() => navigate('/portal')} 
@@ -42,11 +40,6 @@ export default function PricingSettings() {
           <ArrowLeft className="mr-2" size={20} />
           Back to Portal
         </Button>
-        {/* 👆 จบโค้ดปุ่ม 👆 */}
-
-        {/* --- Header --- */}
-        <div className="bg-slate-900 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
-          {/* ... โค้ดด้านใน Header ... */}
 
         {/* --- Header --- */}
         <div className="bg-slate-900 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
@@ -88,25 +81,25 @@ export default function PricingSettings() {
                 label="Walk-in Client" 
                 desc="Standard retail margin"
                 value={markups.walkIn} 
-                onChange={(val) => setMarkups({...markups, walkIn: val})} 
+                onChange={(val: number) => setMarkups({...markups, walkIn: val})} 
               />
               <MarkupInput 
                 label="Interior Designer" 
                 desc="Trade discount tier 1"
                 value={markups.designer} 
-                onChange={(val) => setMarkups({...markups, designer: val})} 
+                onChange={(val: number) => setMarkups({...markups, designer: val})} 
               />
               <MarkupInput 
                 label="Contractor / Builder" 
                 desc="Volume builder margin"
                 value={markups.contractor} 
-                onChange={(val) => setMarkups({...markups, contractor: val})} 
+                onChange={(val: number) => setMarkups({...markups, contractor: val})} 
               />
               <MarkupInput 
                 label="VIP / Friends & Family" 
                 desc="Lowest allowed margin"
                 value={markups.vip} 
-                onChange={(val) => setMarkups({...markups, vip: val})} 
+                onChange={(val: number) => setMarkups({...markups, vip: val})} 
               />
             </div>
           </div>
