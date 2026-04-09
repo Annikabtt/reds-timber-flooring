@@ -1,3 +1,4 @@
+import CustomerDatabase from "./pages/CustomerDatabase";
 import InstallerDatabase from "./pages/InstallerDatabase";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
@@ -53,6 +54,7 @@ const App = () => (
             <Route path="/tech/leave" element={<ProtectedRoute><TechLeave /></ProtectedRoute>} />
             <Route path="/tech/report" element={<ProtectedRoute><TechReport /></ProtectedRoute>} />
             <Route path="/tech/leave" element={<ProtectedRoute><TechLeave /></ProtectedRoute>} />
+            <Route path="/customers" element={<CustomerDatabase />} />
             
             {/* หน้าลูกค้า (Customer) */}
             <Route path="/customer-check" element={<CustomerCheck />} />
