@@ -81,6 +81,7 @@ const applications = [
 
 const navLinks = ["Home", "Modern Materials", "Projects", "Contact"];
 
+     
 /* ═══════ คอมโพเนนต์ช่วยแสดงเอฟเฟกต์ (REVEAL) ═══════ */
 function Reveal({
   children,
@@ -125,6 +126,42 @@ export default function LandingPage() {
       {/* ═══════ NAVBAR ═══════ */}
       {/* ═══════ NAVBAR (อัปเดตพื้นหลังสีแดงจางๆ โปร่งแสงตามที่คุณเลือก) ═══════ */}
       {/* ═══════ NAVBAR (อัปเดตพื้นหลังสีแดงจางๆ โปร่งแสงตามที่คุณเลือก) ═══════ */}
+      {/* ═══════ NAVBAR (อัปเดตพื้นหลังสีแดงจางๆ โปร่งแสงตามที่คุณเลือก) ═══════ */}
+      <nav className="fixed top-0 inset-x-0 z-50 backdrop-blur-xl bg-red-950/10 border-b border-white/20">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          <a href="/" className="flex items-center">
+            <img 
+              src={redsLogo} 
+              alt="REDS Timber Flooring Specialists" 
+              className="h-6 sm:h-12 w-auto object-contain relative z-10 drop-shadow-sm" 
+            />
+          </a>
+
+          <div className="hidden md:flex items-center gap-10 text-sm font-bold text-slate-600">
+            {navLinks.map((l) => (
+              <a
+                key={l}
+                href={`#${l.toLowerCase().replace(/\s+/g, "-")}`}
+                className="relative hover:text-red-600 transition-colors duration-300 group"
+              >
+                {l}
+                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-red-600 transition-all duration-300 group-hover:w-full" />
+              </a>
+            ))}
+          </div>
+
+          {/* ปุ่ม Portal Login อยู่ตรงนี้อย่างถูกต้องครับ! */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate("/job-card")}
+            className="border-red-600 text-red-600 hover:bg-red-600 hover:text-white bg-transparent rounded-full px-3 sm:px-6 py-1.5 sm:py-2 text-[11px] sm:text-sm font-bold transition-all duration-300 flex items-center gap-1.5 sm:gap-2 shadow-sm hover:shadow-red-100"
+          >
+            <Lock className="h-3 w-3 sm:h-4 sm:w-4" />
+            Portal Login
+          </Button>
+        </div>
+      </nav>
       <nav className="fixed top-0 inset-x-0 z-50 backdrop-blur-xl bg-red-950/10 border-b border-white/20">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <a href="/" className="flex items-center">
