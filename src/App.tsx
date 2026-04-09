@@ -36,7 +36,6 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Routes>: <Route path="/portal" element={<PortalDashboard />} />
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<Index />} />
@@ -49,6 +48,7 @@ const App = () => (
             <Route path="/photos" element={<ProtectedRoute><PhotoApproval /></ProtectedRoute>} />
             <Route path="/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
             <Route path="/project-timeline" element={<ProtectedRoute><ProjectTimeline /></ProtectedRoute>} />
+            <Route path="/portal" element={<PortalDashboard />} />
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
             <Route path="/tech" element={<ProtectedRoute><TechHome /></ProtectedRoute>} />
             <Route path="/tech/materials" element={<ProtectedRoute><TechMaterials /></ProtectedRoute>} />

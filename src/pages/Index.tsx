@@ -1,7 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
-import Dashboard from "@/pages/Dashboard";
+import Dashboard from "@/pages/PortalDashboard";
 
 export default function Index() {
   const { user, loading } = useAuth();
