@@ -154,7 +154,7 @@ export default function LandingPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate("/job-card")}
+            onClick={() => navigate("/installers")}
             className="border-red-600 text-red-600 hover:bg-red-600 hover:text-white bg-transparent rounded-full px-3 sm:px-6 py-1.5 sm:py-2 text-[11px] sm:text-sm font-bold transition-all duration-300 flex items-center gap-1.5 sm:gap-2 shadow-sm hover:shadow-red-100"
           >
             <Lock className="h-3 w-3 sm:h-4 sm:w-4" />
