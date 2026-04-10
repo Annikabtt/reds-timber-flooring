@@ -12,7 +12,9 @@ export default function CustomerTracking() {
   const [isSigned, setIsSigned] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false); 
 
-  // --- 🔴 State สำหรับ Demo Toggle (สลับสเต็ป 9 กับ 10) 🔴 ---
+  // --- 🔴 State สำหรับ Demo Toggle ---
+  // progress = สเต็ป 9 (กำลังทำงาน 65%)
+  // ready = สเต็ป 10 (งานเสร็จ 100% รอเซ็น)
   const [demoPhase, setDemoPhase] = useState<'progress' | 'ready'>('progress');
 
   const checklistItems = [
@@ -34,7 +36,7 @@ export default function CustomerTracking() {
     setShowSignModal(false);
   };
 
-  // ฟังก์ชันรีเซ็ตค่าเวลาสลับโหมด Demo
+  // ฟังก์ชันสลับโหมด Demo
   const toggleDemoPhase = () => {
     setDemoPhase(prev => prev === 'progress' ? 'ready' : 'progress');
     setIsCompleted(false);
@@ -53,7 +55,7 @@ export default function CustomerTracking() {
           className="bg-white/90 backdrop-blur shadow-lg border-2 border-indigo-500 text-indigo-700 font-bold flex items-center gap-2 rounded-full hover:bg-indigo-50"
         >
           <Settings2 size={16} />
-          {demoPhase === 'progress' ? 'Switch to: Step 10 (Ready)' : 'Switch to: Step 9 (In Progress)'}
+          {demoPhase === 'progress' ? 'Switch to: Step 10 (100% Ready)' : 'Switch to: Step 9 (In Progress)'}
         </Button>
       </div>
 
@@ -74,30 +76,30 @@ export default function CustomerTracking() {
           </div>
         </div>
 
-        {/* Progress Summary (เปลี่ยนตามโหมด) */}
+        {/* Progress Summary (เปลี่ยนข้อความตามโหมด) */}
         <div className={`p-6 border-b border-slate-100 text-center transition-colors duration-500 
-          ${isCompleted ? 'bg-indigo-50' : (demoPhase === 'progress' ? 'bg-emerald-50' : 'bg-emerald-50')}
+          ${isCompleted ? 'bg-indigo-50' : (demoPhase === 'progress' ? 'bg-slate-50' : 'bg-emerald-50')}
         `}>
           <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-3 
-            ${isCompleted ? 'bg-indigo-100 text-indigo-600' : 'bg-emerald-100 text-emerald-600'}
+            ${isCompleted ? 'bg-indigo-100 text-indigo-600' : (demoPhase === 'progress' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600')}
           `}>
-            {isCompleted ? <FileSignature size={32} /> : <Sparkles size={32} />}
+            {isCompleted ? <FileSignature size={32} /> : (demoPhase === 'progress' ? <PenTool size={32} /> : <Sparkles size={32} />)}
           </div>
-          <h3 className={`font-bold text-lg ${isCompleted ? 'text-indigo-800' : 'text-emerald-800'}`}>
+          <h3 className={`font-bold text-lg ${isCompleted ? 'text-indigo-800' : (demoPhase === 'progress' ? 'text-amber-700' : 'text-emerald-800')}`}>
             {isCompleted ? "Project Successfully Closed!" : 
-             (demoPhase === 'progress' ? "Installation is 65% Complete!" : "Installation is 100% Complete!")}
+             (demoPhase === 'progress' ? "Installation is 65% Complete" : "Installation is 100% Complete!")}
           </h3>
-          <p className={`text-sm mt-1 ${isCompleted ? 'text-indigo-600/80' : 'text-emerald-600/80'}`}>
+          <p className={`text-sm mt-1 ${isCompleted ? 'text-indigo-600/80' : 'text-slate-500'}`}>
             {isCompleted ? "Warranty certificate has been sent to your email." : 
-             (demoPhase === 'progress' ? "Our team is currently on-site working magic." : "Please review the site and sign off below.")}
+             (demoPhase === 'progress' ? "Our team is currently on-site working magic." : "All work is done! Please review the site and sign off below.")}
           </p>
         </div>
 
         {/* Customer Timeline */}
         <div className="p-6 space-y-6">
           
-          {/* Step 1: Preparation */}
-          <div className={`flex gap-4 ${demoPhase === 'ready' ? 'opacity-50' : ''}`}>
+          {/* Step 1: Preparation (เขียวเสมอ) */}
+          <div className="flex gap-4">
             <div className="flex flex-col items-center">
               <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center z-10"><CheckCircle2 size={16} /></div>
               <div className="w-0.5 h-full bg-emerald-500 my-1"></div>
@@ -105,16 +107,11 @@ export default function CustomerTracking() {
             <div className="pb-6">
               <h4 className="font-bold text-slate-900">Step 1: Preparation</h4>
               <p className="text-sm text-slate-500 mt-1">Subfloor leveled and underlay placed.</p>
-              {demoPhase === 'progress' && (
-                <div className="mt-2 text-xs font-bold text-indigo-600 flex items-center gap-1 bg-indigo-50 inline-flex px-2 py-1 rounded">
-                  <ImageIcon size={12}/> View 2 Photos
-                </div>
-              )}
             </div>
           </div>
 
-          {/* Step 2: Laying Planks */}
-          <div className={`flex gap-4 ${demoPhase === 'ready' && !isCompleted ? 'opacity-50' : ''}`}>
+          {/* Step 2: Laying Planks (เหลืองตอนสเต็ป 9 / เขียวตอนสเต็ป 10) */}
+          <div className="flex gap-4">
             <div className="flex flex-col items-center">
               <div className={`w-8 h-8 rounded-full text-white flex items-center justify-center z-10 
                 ${demoPhase === 'progress' ? 'bg-amber-400 shadow-lg shadow-amber-200 animate-pulse' : 'bg-emerald-500'}
@@ -131,30 +128,30 @@ export default function CustomerTracking() {
                   <img src="https://images.unsplash.com/photo-1581858326456-6189df1a590e?w=400&q=80" className="mt-3 rounded-xl border border-slate-200 shadow-sm" alt="Update"/>
                 </>
               ) : (
-                <p className="text-sm text-slate-500 mt-1">Planks fully installed.</p>
+                <p className="text-sm text-slate-500 mt-1">Planks fully installed and secured.</p>
               )}
             </div>
           </div>
 
-          {/* Step 3: Finishing & Sign Off */}
+          {/* Step 3: Finishing & Cleanup (เทาตอนสเต็ป 9 / เขียวตอนสเต็ป 10) */}
           <div className="flex gap-4">
             <div className="flex flex-col items-center">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center z-10 border-2 
-                ${isCompleted ? 'bg-emerald-500 border-emerald-500 text-white' : 
-                 (demoPhase === 'ready' ? 'bg-amber-400 border-amber-400 text-white shadow-lg shadow-amber-200 animate-pulse' : 'bg-slate-100 border-slate-200 text-slate-400')}
+                ${demoPhase === 'ready' || isCompleted ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-slate-50 border-slate-200 text-slate-400'}
               `}>
-                {isCompleted ? <CheckCircle2 size={16} /> : (demoPhase === 'ready' ? <PenTool size={16} /> : <Clock size={16} />)}
+                {demoPhase === 'ready' || isCompleted ? <CheckCircle2 size={16} /> : <Clock size={16} />}
               </div>
             </div>
             <div className="pb-2">
-              <h4 className={`font-bold ${isCompleted ? 'text-emerald-600' : (demoPhase === 'ready' ? 'text-amber-600' : 'text-slate-400')}`}>
-                Step 3: Finishing & Sign Off
+              <h4 className={`font-bold ${demoPhase === 'ready' || isCompleted ? 'text-slate-900' : 'text-slate-400'}`}>
+                Step 3: Finishing & Cleanup
               </h4>
               <p className={`text-sm mt-1 ${demoPhase === 'ready' || isCompleted ? 'text-slate-500' : 'text-slate-400'}`}>
-                Skirting installation and final inspection.
+                Skirting installed and site cleaned up.
               </p>
               
-              {demoPhase === 'ready' && !isCompleted && (
+              {/* โชว์รูปตอนงานเสร็จ (Step 10) */}
+              {(demoPhase === 'ready' || isCompleted) && (
                  <img src="https://images.unsplash.com/photo-1513694203232-719a280e022f?w=400&h=250&fit=crop" className="mt-3 rounded-xl border border-slate-200 shadow-sm" alt="Final Update"/>
               )}
             </div>
@@ -173,7 +170,7 @@ export default function CustomerTracking() {
               </>
             ) : (
               <>
-                <p className="text-xs text-slate-500 mb-4">Please inspect your new floor before signing.</p>
+                <p className="text-xs font-bold text-emerald-600 mb-4">✨ Everything is ready for you! ✨</p>
                 <Button 
                   onClick={() => setShowSignModal(true)} 
                   className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-14 rounded-xl shadow-lg shadow-emerald-600/30 text-lg animate-bounce"
