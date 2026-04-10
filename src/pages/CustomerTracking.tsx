@@ -1,16 +1,45 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
-  CheckCircle2, Clock, MapPin, 
-  Sparkles, PenTool, Image as ImageIcon
+  CheckCircle2, MapPin, Sparkles, 
+  PenTool, X, PenLine, FileSignature
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
 export default function CustomerTracking() {
+  // --- States สำหรับควบคุมระบบเซ็นรับงาน ---
+  const [showSignModal, setShowSignModal] = useState(false);
+  const [checks, setChecks] = useState([false, false, false, false]);
+  const [isSigned, setIsSigned] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false); // สถานะปิดจ๊อบสมบูรณ์
+
+  // รายการ Checklist ให้ลูกค้าตรวจ
+  const checklistItems = [
+    "Flooring installed perfectly to agreed specifications.",
+    "Skirting and scotia trims installed seamlessly.",
+    "No visible scratches, dents, or defects on the floor.",
+    "Site has been cleaned and all rubbish removed."
+  ];
+
+  // เช็คว่าลูกค้าติ๊กครบทุกข้อหรือยัง
+  const allChecked = checks.every(c => c === true);
+
+  const toggleCheck = (index: number) => {
+    const newChecks = [...checks];
+    newChecks[index] = !newChecks[index];
+    setChecks(newChecks);
+  };
+
+  const handleSignOff = () => {
+    setIsCompleted(true);
+    setShowSignModal(false);
+    alert("🎉 Thank You! Your floor is now officially handed over.");
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 font-sans sm:p-4 md:p-8 flex items-center justify-center">
       
-      {/* Mobile-sized Card for Customer */}
-      <div className="w-full max-w-md bg-white sm:rounded-3xl shadow-xl overflow-hidden min-h-screen sm:min-h-0">
+      {/* --- Mobile-sized Card for Customer --- */}
+      <div className="w-full max-w-md bg-white sm:rounded-3xl shadow-xl overflow-hidden min-h-screen sm:min-h-0 relative">
         
         {/* Header Cover */}
         <div className="bg-slate-900 p-6 text-center relative overflow-hidden">
@@ -26,74 +55,32 @@ export default function CustomerTracking() {
           </div>
         </div>
 
-        {/* Progress Summary */}
-        <div className="p-6 border-b border-slate-100 bg-emerald-50 text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full mb-3">
-            <Sparkles size={32} />
+        {/* Progress Summary (เปลี่ยนเป็น 100%) */}
+        <div className={`p-6 border-b border-slate-100 text-center transition-colors duration-500 ${isCompleted ? 'bg-indigo-50' : 'bg-emerald-50'}`}>
+          <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-3 ${isCompleted ? 'bg-indigo-100 text-indigo-600' : 'bg-emerald-100 text-emerald-600'}`}>
+            {isCompleted ? <FileSignature size={32} /> : <Sparkles size={32} />}
           </div>
-          <h3 className="font-bold text-emerald-800 text-lg">Installation is 65% Complete!</h3>
-          <p className="text-sm text-emerald-600/80 mt-1">Our team is currently on-site working magic.</p>
+          <h3 className={`font-bold text-lg ${isCompleted ? 'text-indigo-800' : 'text-emerald-800'}`}>
+            {isCompleted ? "Project Successfully Closed!" : "Installation is 100% Complete!"}
+          </h3>
+          <p className={`text-sm mt-1 ${isCompleted ? 'text-indigo-600/80' : 'text-emerald-600/80'}`}>
+            {isCompleted ? "Warranty certificate has been sent to your email." : "Please review the site and sign off below."}
+          </p>
         </div>
 
         {/* Customer Timeline */}
         <div className="p-6 space-y-6">
-          
-          {/* Step 1 */}
-          <div className="flex gap-4">
+          {/* Step 1 & 2 (ย่อให้ดูสั้นลง) */}
+          <div className="flex gap-4 opacity-50">
             <div className="flex flex-col items-center">
-              <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center z-10">
-                <CheckCircle2 size={16} />
-              </div>
+              <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center z-10"><CheckCircle2 size={16} /></div>
               <div className="w-0.5 h-full bg-emerald-500 my-1"></div>
             </div>
-            <div className="pb-6">
-              <h4 className="font-bold text-slate-900">Step 1: Preparation</h4>
-              <p className="text-sm text-slate-500 mt-1">Subfloor leveled and underlay placed.</p>
-              <div className="mt-2 text-xs font-bold text-indigo-600 flex items-center gap-1 bg-indigo-50 inline-flex px-2 py-1 rounded">
-                <ImageIcon size={12}/> View 2 Photos
-              </div>
-            </div>
+            <div className="pb-6"><h4 className="font-bold text-slate-900">Step 1 & 2 Completed</h4></div>
           </div>
 
-          {/* Step 2 (Current) */}
+          {/* Step 3 (Current) */}
           <div className="flex gap-4">
             <div className="flex flex-col items-center">
-              <div className="w-8 h-8 rounded-full bg-amber-400 text-white flex items-center justify-center z-10 shadow-lg shadow-amber-200 animate-pulse">
-                <PenTool size={16} />
-              </div>
-              <div className="w-0.5 h-full bg-slate-200 my-1"></div>
-            </div>
-            <div className="pb-6">
-              <h4 className="font-bold text-amber-600">Step 2: Laying Planks</h4>
-              <p className="text-sm text-slate-500 mt-1">Currently installing Natural Oak Hybrid planks in the living area.</p>
-              <img src="https://images.unsplash.com/photo-1581858326456-6189df1a590e?w=400&q=80" className="mt-3 rounded-xl border border-slate-200 shadow-sm" alt="Update"/>
-            </div>
-          </div>
-
-          {/* Step 3 */}
-          <div className="flex gap-4">
-            <div className="flex flex-col items-center">
-              <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center z-10 border-2 border-slate-200">
-                <Clock size={16} />
-              </div>
-            </div>
-            <div>
-              <h4 className="font-bold text-slate-400">Step 3: Finishing & Sign Off</h4>
-              <p className="text-sm text-slate-400 mt-1">Skirting installation and final inspection.</p>
-            </div>
-          </div>
-
-        </div>
-
-        {/* Footer Action */}
-        <div className="p-6 bg-slate-50 border-t border-slate-100 text-center">
-          <p className="text-xs text-slate-500 mb-4">Once step 3 is completed, you will be able to sign off the project here.</p>
-          <Button disabled className="w-full bg-slate-300 text-slate-500 font-bold h-12 rounded-xl">
-            Sign Off & Approve Job
-          </Button>
-        </div>
-
-      </div>
-    </div>
-  );
-}
+              <div className={`w-8 h-8 rounded-full text-white flex items-center justify-center z-10 ${isCompleted ? 'bg-emerald-500' : 'bg-amber-400 shadow-lg shadow-amber-200 animate-pulse'}`}>
+                {isCompleted ? <CheckCircle2 size={16} />
