@@ -137,21 +137,7 @@ export default function LandingPage() {
             />
           </a>
 
-          <div className="hidden md:flex items-center space-x-8">
-           <a href="#services" className="text-slate-600 hover:text-red-600 font-medium transition-colors">Services</a>
-          ...
-
-          <div className="hidden md:flex items-center space-x-8">
-           <a href="#services" className="text-slate-600 hover:text-red-600 font-medium transition-colors">Services</a>
-            {/* 👇 เพิ่มปุ่มนี้ให้ลูกค้ากดเข้าโชว์รูม 👇 */}
-            <Button variant="ghost" onClick={() => navigate('/showroom')} className="font-bold text-slate-700 hover:text-amber-600">
-            Our Collection
-           </Button>
-           <Button onClick={() => navigate('/portal')} className="bg-red-600 hover:bg-red-700 ...">
-            Portal Login
-           </Button>
-         </div>
-
+          
           <div className="hidden md:flex items-center gap-10 text-sm font-bold text-slate-600">
             {navLinks.map((l) => (
               <a
@@ -164,6 +150,8 @@ export default function LandingPage() {
               </a>
             ))}
           </div>
+
+          <Button variant="ghost" onClick={() => navigate('/showroom')} className="font-bold text-slate-700 hover:text-amber-600 mr-2">Our Collection</Button>
 
           {/* ปุ่ม Portal Login อยู่ตรงนี้อย่างถูกต้องครับ! */}
           <Button
