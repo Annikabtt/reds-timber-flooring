@@ -29,7 +29,7 @@ const workflowSteps = [
   {
     phase: "Phase 3: Tracking & Handover (ติดตามงานและส่งมอบ)",
     steps: [
-      { id: 8, title: "8. Progress Monitor", desc: "Owner ตรวจสอบรูปภาพ รายงาน และประเมินวันงานเสร็จ", icon: <BarChart size={24} />, color: "bg-blue-100 text-blue-700", border: "border-blue-200", role: "Owner", path: "job-manager" },
+      { id: 8, title: "8. Progress Monitor", desc: "Owner ตรวจสอบรูปภาพ รายงาน และประเมินวันงานเสร็จ", icon: <BarChart size={24} />, color: "bg-blue-100 text-blue-700", border: "border-blue-200", role: "Owner", path: "/job-manager" },
       { id: 9, title: "9. Customer Update", desc: "ระบบส่งอัปเดตความคืบหน้าให้ลูกค้าดู (ลิงก์พิเศษสำหรับลูกค้า)", icon: <CheckSquare size={24} />, color: "bg-amber-100 text-amber-700", border: "border-amber-200", role: "Customer", path: "/customer-tracking" }, // อนาคตลิงก์ไปหน้า Customer Tracking
       { id: 10, title: "10. Sign-off & Close Job", desc: "ช่างกดปิดงาน ลูกค้าตรวจสอบหน้างาน เซ็นรับงาน หรือสั่งแก้ไข", icon: <CheckCircle size={24} />, color: "bg-purple-100 text-purple-700", border: "border-purple-200", role: "All Roles", path: "/customer-tracking" },
     ]
