@@ -156,9 +156,7 @@ export default function LandingPage() {
               System Workflow
             </Button>
             
-            <Button variant="ghost" onClick={() => navigate('/workflow')} className="font-bold text-slate-700 hover:text-indigo-600 border border-indigo-200">
-              System Workflow
-            </Button>
+            
 
             <Button
               variant="outline"
