@@ -49,7 +49,7 @@ export default function CustomerUpdate() {
             <div className="pb-6">
               <h4 className="font-bold text-amber-600">Step 2: Laying Planks</h4>
               <p className="text-sm text-slate-500 mt-1">Currently installing Natural Oak Hybrid planks.</p>
-              <img src="https://images.unsplash.com/photo-1581858326456-6189df1a590e?w=400&q=80" className="mt-3 rounded-xl border border-slate-200 shadow-sm" alt="Update"/>
+              <img src="/FinishWork.jpg" className="mt-3 rounded-xl border border-slate-200 shadow-sm" alt="Update"/>
             </div>
           </div>
 
