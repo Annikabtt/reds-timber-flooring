@@ -112,8 +112,6 @@ function Reveal({
 export default function LandingPage() {
   const navigate = useNavigate();
   const [currentImg, setCurrentImg] = useState(0);
-  
-  // 🔴 สร้างตัวควบคุมเปิด/ปิดเมนูมือถือ
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Auto-slide logic for Hero Section
