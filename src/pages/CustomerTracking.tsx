@@ -83,4 +83,97 @@ export default function CustomerTracking() {
           <div className="flex gap-4">
             <div className="flex flex-col items-center">
               <div className={`w-8 h-8 rounded-full text-white flex items-center justify-center z-10 ${isCompleted ? 'bg-emerald-500' : 'bg-amber-400 shadow-lg shadow-amber-200 animate-pulse'}`}>
-                {isCompleted ? <CheckCircle2 size={16} />
+                {isCompleted ? <CheckCircle2 size={16} /> : <PenTool size={16} />}
+              </div>
+            </div>
+            <div className="pb-2">
+              <h4 className={`font-bold ${isCompleted ? 'text-emerald-600' : 'text-amber-600'}`}>Step 3: Finishing & Sign Off</h4>
+              <p className="text-sm text-slate-500 mt-1">Final inspection and handover.</p>
+              
+              {/* เปลี่ยนลิงก์รูปภาพให้ทำงานได้ */}
+              {!isCompleted && (
+                 <img src="https://images.unsplash.com/photo-1513694203232-719a280e022f?w=400&h=250&fit=crop" className="mt-3 rounded-xl border border-slate-200 shadow-sm" alt="Final Update"/>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer Action (ปุ่มกดเซ็นรับงาน) */}
+        {!isCompleted && (
+          <div className="p-6 bg-slate-50 border-t border-slate-100 text-center">
+            <p className="text-xs text-slate-500 mb-4">Please inspect your new floor before signing.</p>
+            <Button 
+              onClick={() => setShowSignModal(true)} 
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-14 rounded-xl shadow-lg shadow-emerald-600/30 text-lg animate-bounce"
+            >
+              Sign Off & Approve Job
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* 🔴 MODAL: CHECKLIST & SIGNATURE (เด้งขึ้นมาเมื่อกดปุ่ม) 🔴 */}
+      {showSignModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h3 className="font-bold text-slate-900">Handover Checklist</h3>
+              <button onClick={() => setShowSignModal(false)} className="p-2 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-50 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <p className="text-sm text-slate-500">Please confirm the following items before signing.</p>
+              
+              {/* Checklist */}
+              <div className="space-y-3">
+                {checklistItems.map((item, idx) => (
+                  <label key={idx} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${checks[idx] ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200 hover:border-slate-300'}`}>
+                    <input 
+                      type="checkbox" 
+                      className="mt-1 w-5 h-5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
+                      checked={checks[idx]}
+                      onChange={() => toggleCheck(idx)}
+                    />
+                    <span className={`text-sm font-medium ${checks[idx] ? 'text-emerald-800' : 'text-slate-700'}`}>{item}</span>
+                  </label>
+                ))}
+              </div>
+
+              {/* Signature Pad (จำลอง) */}
+              <div className="pt-4 border-t border-slate-100">
+                <label className="text-sm font-bold text-slate-700 block mb-2">Customer Signature</label>
+                <div 
+                  onClick={() => setIsSigned(true)}
+                  className={`w-full h-32 rounded-xl border-2 border-dashed flex items-center justify-center cursor-pointer transition-all ${isSigned ? 'bg-slate-50 border-emerald-300' : 'bg-slate-50 border-slate-300 hover:bg-slate-100'}`}
+                >
+                  {isSigned ? (
+                    <div className="text-center">
+                      <span className="font-['Brush_Script_MT',cursive] text-4xl text-slate-800">John Smith</span>
+                      <p className="text-xs text-emerald-600 mt-1 flex items-center justify-center gap-1"><CheckCircle2 size={12}/> Digitally Signed</p>
+                    </div>
+                  ) : (
+                    <span className="text-slate-400 flex items-center gap-2 font-medium"><PenLine size={18}/> Tap here to sign</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Confirm Button */}
+              <Button 
+                disabled={!allChecked || !isSigned}
+                onClick={handleSignOff}
+                className="w-full bg-slate-900 hover:bg-emerald-600 text-white font-bold h-12 rounded-xl disabled:bg-slate-200 disabled:text-slate-400 transition-colors"
+              >
+                Confirm & Submit
+              </Button>
+
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
