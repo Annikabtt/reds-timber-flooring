@@ -1,3 +1,4 @@
+import CustomerProposal from "./pages/CustomerProposal";
 import CustomerShowroom from "./pages/CustomerShowroom";
 import MaterialRequest from "./pages/MaterialRequest";
 import MaterialCatalog from "./pages/MaterialCatalog";
@@ -49,6 +50,7 @@ const App = () => (
             <Route path="/materials" element={<MaterialCatalog />} />
             <Route path="/material-request" element={<MaterialRequest />} />
             <Route path="/showroom" element={<CustomerShowroom />} />
+            <Route path="/proposal" element={<CustomerProposal />} />
             <Route path="/dashboard" element={<Index />} />
             <Route path="/job-card" element={<JobCard />} />
             <Route path="/installers" element={<InstallerDatabase />} />      

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom'; //
 import { 
   Droplets, Shield, PawPrint, CheckCircle2, 
   Heart, ArrowRight, Sparkles 
@@ -49,6 +50,7 @@ const categories = [
 ];
 
 export default function CustomerShowroom() {
+  const navigate = useNavigate(); //
   const [activeTab, setActiveTab] = useState('all');
   const [wishlist, setWishlist] = useState<string[]>([]);
 
@@ -180,9 +182,11 @@ export default function CustomerShowroom() {
               <Heart size={16} className="fill-red-500 text-red-500" />
               <span className="font-bold text-lg">{wishlist.length}</span> items selected
             </div>
-            <Button className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold rounded-full px-6">
-              Request Free Measure <ArrowRight size={16} className="ml-2" />
-            </Button>
+            <Button 
+             onClick={() => navigate('/proposal')} 
+             className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold rounded-full px-6"
+>             View Proposal <ArrowRight size={16} className="ml-2" />
+           </Button>
           </div>
         )}
 
