@@ -16,6 +16,8 @@ import {
   Instagram,
   Facebook,
   Linkedin,
+  Menu,
+  X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import redsLogo from "@/assets/reds-logo.png";
@@ -110,6 +112,9 @@ function Reveal({
 export default function LandingPage() {
   const navigate = useNavigate();
   const [currentImg, setCurrentImg] = useState(0);
+  
+  // 🔴 สร้างตัวควบคุมเปิด/ปิดเมนูมือถือ
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Auto-slide logic for Hero Section
   useEffect(() => {
@@ -134,7 +139,8 @@ export default function LandingPage() {
             />
           </a>
 
-          <div className="hidden md:flex items-center gap-6">
+          {/* --- 💻 โหมด DESKTOP (ซ่อนในมือถือ) --- */}
+          <div className="hidden lg:flex items-center gap-6">
             <div className="flex items-center gap-8 text-sm font-bold text-slate-600 mr-4">
               {navLinks.map((l) => (
                 <a
@@ -156,8 +162,6 @@ export default function LandingPage() {
               System Workflow
             </Button>
             
-            
-
             <Button
               variant="outline"
               size="sm"
@@ -169,7 +173,59 @@ export default function LandingPage() {
             </Button>
           </div>
 
+          {/* --- 📱 ปุ่มเมนูมือถือ ☰ (ซ่อนใน Desktop) --- */}
+          <div className="lg:hidden flex items-center">
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="p-2 text-slate-800 hover:text-red-600 focus:outline-none transition-colors"
+            >
+              {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
+            </button>
+          </div>
         </div>
+
+        {/* --- 📱 หน้าต่างเมนูที่เด้งลงมาตอนกดมือถือ --- */}
+        <AnimatePresence>
+          {isMobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="absolute top-20 left-0 w-full bg-white/95 backdrop-blur-xl border-b border-slate-200 shadow-2xl lg:hidden flex flex-col px-6 py-8 gap-6 z-40"
+            >
+              <div className="flex flex-col gap-4 text-center">
+                {navLinks.map((l) => (
+                  <a
+                    key={l}
+                    href={`#${l.toLowerCase().replace(/\s+/g, "-")}`}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="text-lg font-bold text-slate-700 hover:text-red-600"
+                  >
+                    {l}
+                  </a>
+                ))}
+              </div>
+              
+              <div className="w-full h-px bg-slate-200" />
+              
+              <div className="flex flex-col gap-3">
+                <Button variant="ghost" onClick={() => { navigate('/showroom'); setIsMobileMenuOpen(false); }} className="w-full font-bold text-slate-700 hover:text-amber-600 bg-amber-50">
+                  Our Collection
+                </Button>
+                <Button variant="outline" onClick={() => { navigate('/workflow'); setIsMobileMenuOpen(false); }} className="w-full font-bold text-indigo-700 border-indigo-200 hover:bg-indigo-50">
+                  System Workflow
+                </Button>
+                <Button
+                  onClick={() => { navigate("/portal"); setIsMobileMenuOpen(false); }}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white font-bold transition-all duration-300 flex items-center justify-center gap-2 py-6 rounded-xl shadow-lg shadow-red-600/30"
+                >
+                  <Lock className="h-5 w-5" />
+                  <span>Portal Login</span>
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
 
       {/* ═══════ HERO SECTION (DYNAMIC SLIDER) ═══════ */}
