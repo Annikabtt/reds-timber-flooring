@@ -152,6 +152,10 @@ export default function LandingPage() {
               Our Collection
             </Button>
             
+            <Button variant="ghost" onClick={() => navigate('/workflow')} className="font-bold text-slate-700 hover:text-indigo-600 border border-indigo-200 px-4 py-2 rounded-lg">
+              System Workflow
+            </Button>
+            
             <Button variant="ghost" onClick={() => navigate('/workflow')} className="font-bold text-slate-700 hover:text-indigo-600 border border-indigo-200">
               System Workflow
             </Button>
