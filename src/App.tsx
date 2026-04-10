@@ -1,3 +1,4 @@
+import SystemWorkflow from "./pages/SystemWorkflow";
 import CustomerProposal from "./pages/CustomerProposal";
 import CustomerShowroom from "./pages/CustomerShowroom";
 import MaterialRequest from "./pages/MaterialRequest";
@@ -45,6 +46,7 @@ const App = () => (
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/portal" element={<PortalDashboard />} />
+            <Route path="/workflow" element={<SystemWorkflow />} />
             <Route path="/pricing" element={<PricingSettings />} />
             <Route path="/quotation-builder" element={<QuotationBuilder />} />
             <Route path="/materials" element={<MaterialCatalog />} />
