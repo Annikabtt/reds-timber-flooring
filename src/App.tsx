@@ -1,4 +1,5 @@
 import JobManager from "./pages/JobManager";
+import CustomerUpdate from "./pages/CustomerUpdate";
 import CustomerTracking from "./pages/CustomerTracking";
 import SystemWorkflow from "./pages/SystemWorkflow";
 import CustomerProposal from "./pages/CustomerProposal";
@@ -50,6 +51,7 @@ const App = () => (
             <Route path="/portal" element={<PortalDashboard />} />
             <Route path="/workflow" element={<SystemWorkflow />} />
             <Route path="/job-manager" element={<JobManager />} />
+            <Route path="/customer-update" element={<CustomerUpdate />} />
             <Route path="/customer-tracking" element={<CustomerTracking />} />
             <Route path="/pricing" element={<PricingSettings />} />
             <Route path="/quotation-builder" element={<QuotationBuilder />} />
