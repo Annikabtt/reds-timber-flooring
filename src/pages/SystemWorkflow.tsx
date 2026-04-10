@@ -21,7 +21,7 @@ const workflowSteps = [
   {
     phase: "Phase 2: Operations & Installation (งานปฏิบัติการและติดตั้ง)",
     steps: [
-      { id: 5, title: "5. Assign Job", desc: "Admin เปิด Job Card จ่ายงานให้ช่าง พร้อมแนบข้อมูลหน้างาน", icon: <UserPlus size={24} />, color: "bg-blue-100 text-blue-700", border: "border-blue-200", role: "Admin", path: "/portal" },
+      { id: 5, title: "5. Assign Job", desc: "Admin เปิด Job Card จ่ายงานให้ช่าง พร้อมแนบข้อมูลหน้างาน", icon: <UserPlus size={24} />, color: "bg-blue-100 text-blue-700", border: "border-blue-200", role: "Admin", path: "/job-manager" },
       { id: 6, title: "6. Material Requisition", desc: "ช่างกดเบิกวัสดุ กาว คิ้ว บัว จากคลังเพื่อเตรียมไปหน้างาน", icon: <Truck size={24} />, color: "bg-emerald-100 text-emerald-700", border: "border-emerald-200", role: "Installer", path: "/material-request" },
       { id: 7, title: "7. Daily Report (Job Card)", desc: "ช่างลงมือทำงาน ถ่ายรูปรายงานความคืบหน้าหน้างานแบบรายวัน", icon: <HardHat size={24} />, color: "bg-emerald-100 text-emerald-700", border: "border-emerald-200", role: "Installer", path: "/job-card" },
     ]
@@ -29,9 +29,9 @@ const workflowSteps = [
   {
     phase: "Phase 3: Tracking & Handover (ติดตามงานและส่งมอบ)",
     steps: [
-      { id: 8, title: "8. Progress Monitor", desc: "Owner ตรวจสอบรูปภาพ รายงาน และประเมินวันงานเสร็จ", icon: <BarChart size={24} />, color: "bg-blue-100 text-blue-700", border: "border-blue-200", role: "Owner", path: "/portal" },
-      { id: 9, title: "9. Customer Update", desc: "ระบบส่งอัปเดตความคืบหน้าให้ลูกค้าดู (ลิงก์พิเศษสำหรับลูกค้า)", icon: <CheckSquare size={24} />, color: "bg-amber-100 text-amber-700", border: "border-amber-200", role: "Customer", path: "/portal" }, // อนาคตลิงก์ไปหน้า Customer Tracking
-      { id: 10, title: "10. Sign-off & Close Job", desc: "ช่างกดปิดงาน ลูกค้าตรวจสอบหน้างาน เซ็นรับงาน หรือสั่งแก้ไข", icon: <CheckCircle size={24} />, color: "bg-purple-100 text-purple-700", border: "border-purple-200", role: "All Roles", path: "/job-card" },
+      { id: 8, title: "8. Progress Monitor", desc: "Owner ตรวจสอบรูปภาพ รายงาน และประเมินวันงานเสร็จ", icon: <BarChart size={24} />, color: "bg-blue-100 text-blue-700", border: "border-blue-200", role: "Owner", path: "job-manager" },
+      { id: 9, title: "9. Customer Update", desc: "ระบบส่งอัปเดตความคืบหน้าให้ลูกค้าดู (ลิงก์พิเศษสำหรับลูกค้า)", icon: <CheckSquare size={24} />, color: "bg-amber-100 text-amber-700", border: "border-amber-200", role: "Customer", path: "/customer-tracking" }, // อนาคตลิงก์ไปหน้า Customer Tracking
+      { id: 10, title: "10. Sign-off & Close Job", desc: "ช่างกดปิดงาน ลูกค้าตรวจสอบหน้างาน เซ็นรับงาน หรือสั่งแก้ไข", icon: <CheckCircle size={24} />, color: "bg-purple-100 text-purple-700", border: "border-purple-200", role: "All Roles", path: "/customer-tracking" },
     ]
   }
 ];
