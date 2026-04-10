@@ -93,7 +93,7 @@ export default function PortalDashboard() {
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="p-6 border-b border-slate-100 flex items-center justify-between">
                 <h3 className="text-lg font-bold text-slate-900">Active Jobs</h3>
-                <Button variant="ghost" size="sm" className="text-indigo-600 font-bold hover:bg-indigo-50">View All</Button>
+                <Button onClick={() => navigate('/job-manager')} variant="ghost" size="sm" className="text-indigo-600 font-bold hover:bg-indigo-50">View Job Manager</Button>
               </div>
               
               <div className="divide-y divide-slate-100">

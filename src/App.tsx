@@ -1,3 +1,5 @@
+import JobManager from "./pages/JobManager";
+import CustomerTracking from "./pages/CustomerTracking";
 import SystemWorkflow from "./pages/SystemWorkflow";
 import CustomerProposal from "./pages/CustomerProposal";
 import CustomerShowroom from "./pages/CustomerShowroom";
@@ -47,6 +49,8 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/portal" element={<PortalDashboard />} />
             <Route path="/workflow" element={<SystemWorkflow />} />
+            <Route path="/job-manager" element={<JobManager />} />
+            <Route path="/customer-tracking" element={<CustomerTracking />} />
             <Route path="/pricing" element={<PricingSettings />} />
             <Route path="/quotation-builder" element={<QuotationBuilder />} />
             <Route path="/materials" element={<MaterialCatalog />} />
