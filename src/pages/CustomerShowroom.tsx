@@ -88,7 +88,7 @@ export default function CustomerShowroom() {
           </div>
           <h1 className="text-5xl md:text-7xl font-black tracking-tight leading-tight">
             Find Your Perfect <br className="hidden md:block" />
-            <span style={{ color: 'red' }}>Find Your Perfect</span> Foundation.
+            <span className="text-red-600">Find Your Perfect</span> Foundation.
           </h1>
           <p className="text-lg md:text-xl text-slate-300 max-w-2xl mx-auto font-light">
             Explore our curated collection of high-quality flooring options designed to elevate your living spaces.
