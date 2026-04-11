@@ -24,7 +24,7 @@ export default function CustomerProposal() {
       { name: "Acoustic Underlay 2mm", qty: 55, unit: "SQM", price: 8.00, total: 440.00 }
     ],
     // ค่าแรงติดตั้ง
-    labor: { name: "Professional Flooring Installation", qty: 50, unit: "SQM", price: 35.00, total: 1750.00 },
+    labor: { name: "Professional Flooring Installation", qty: 55, unit: "SQM", price: 35.00, total: 1925.00 },
   };
 
   // คำนวณยอดรวม
@@ -57,37 +57,39 @@ export default function CustomerProposal() {
       </div>
 
       {/* --- กระดาษ A4 (Proposal Document) --- */}
-      <div className="w-full max-w-4xl bg-white rounded-xl shadow-2xl overflow-hidden border border-slate-200">
+      {/* โค้ดใหม่ (เปลี่ยนเป็นเทาอ่อน bg-slate-50) */}
+        <div className="w-full max-w-4xl bg-slate-55 rounded-xl shadow-2xl overflow-hidden border border-slate-200">
         
         {/* Header กระดาษ */}
-        <div className="bg-slate-900 p-8 md:p-12 text-white flex flex-col md:flex-row justify-between items-start gap-8">
+        <div className="bg-red-600/20 p-8 md:p-12 text-red-900 flex flex-col md:flex-row justify-between items-start gap-8 border-b border-red-200">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <Building size={32} className="text-amber-500" />
-              <h1 className="text-3xl font-black tracking-tight">RED'S TIMBER</h1>
+              <Building size={32} className="text-red-600" />
+              <h1 className="text-3xl font-black tracking-tight text-red-800">RED'S TIMBER</h1>
             </div>
-            <p className="text-slate-400 text-sm">Premium Flooring Specialists</p>
-            <div className="mt-6 space-y-1 text-sm text-slate-300">
-              <p className="flex items-center gap-2"><MapPin size={14} className="text-slate-500"/> 456 Industrial Ave, Sydney</p>
-              <p className="flex items-center gap-2"><Phone size={14} className="text-slate-500"/> 1800-REDS-FLR</p>
-              <p className="flex items-center gap-2"><Mail size={14} className="text-slate-500"/> contact@redstimber.com</p>
+            <p className="text-red-700 font-medium text-sm">Premium Flooring Specialists</p>
+            <div className="mt-6 space-y-1 text-sm text-red-800">
+              <p className="flex items-center gap-2"><MapPin size={14} className="text-red-500"/> 456 Industrial Ave, Sydney</p>
+              <p className="flex items-center gap-2"><Phone size={14} className="text-red-500"/> 1800-REDS-FLR</p>
+              <p className="flex items-center gap-2"><Mail size={14} className="text-red-500"/> contact@redstimber.com</p>
             </div>
           </div>
 
-          <div className="text-left md:text-right w-full md:w-auto bg-slate-800/50 p-6 rounded-xl border border-slate-700">
-            <h2 className="text-2xl font-bold text-amber-400 tracking-widest uppercase mb-4">Quotation</h2>
+          {/* กล่อง Quotation (ปรับเป็นสีขาวขุ่นให้ตัดกับพื้นแดง) */}
+          <div className="text-left md:text-right w-full md:w-auto bg-white/60 p-6 rounded-xl border border-red-300 shadow-sm">
+            <h2 className="text-2xl font-bold text-red-700 tracking-widest uppercase mb-4">Quotation</h2>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between md:justify-end gap-8">
-                <span className="text-slate-400">Quote No:</span>
-                <span className="font-bold">{proposalData.proposalId}</span>
+                <span className="text-red-600/80 font-medium">Quote No:</span>
+                <span className="font-bold text-red-900">{proposalData.proposalId}</span>
               </div>
               <div className="flex justify-between md:justify-end gap-8">
-                <span className="text-slate-400">Date:</span>
-                <span className="font-bold">{proposalData.date}</span>
+                <span className="text-red-600/80 font-medium">Date:</span>
+                <span className="font-bold text-red-900">{proposalData.date}</span>
               </div>
               <div className="flex justify-between md:justify-end gap-8">
-                <span className="text-slate-400">Valid Until:</span>
-                <span className="font-bold text-emerald-400">{proposalData.validUntil}</span>
+                <span className="text-red-600/80 font-medium">Valid Until:</span>
+                <span className="font-bold text-red-600">{proposalData.validUntil}</span>
               </div>
             </div>
           </div>
@@ -141,21 +143,26 @@ export default function CustomerProposal() {
             </table>
           </div>
 
-          {/* Summary Box */}
+         {/* Summary Box */}
           <div className="flex flex-col items-end mt-8">
             <div className="w-full md:w-1/2 space-y-3">
+              
               <div className="flex justify-between text-slate-600 px-2">
                 <span>Subtotal</span>
                 <span className="font-bold text-slate-800">${subtotal.toFixed(2)}</span>
               </div>
+              
               <div className="flex justify-between text-slate-600 px-2 pb-3 border-b border-slate-200">
                 <span>Tax / GST (10%)</span>
                 <span className="font-bold text-slate-800">${tax.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between items-center bg-slate-900 text-white p-4 rounded-xl shadow-md">
-                <span className="font-bold uppercase tracking-wider text-sm">Grand Total</span>
-                <span className="text-2xl font-black text-amber-400">${grandTotal.toFixed(2)}</span>
+              
+              {/* 👇 จุดที่เปลี่ยน: Grand Total สีแดงโปร่งแสง โดดเด่นกระแทกตา */}
+              <div className="flex justify-between items-center bg-red-600/20 border-2 border-red-500 p-5 rounded-xl shadow-lg shadow-red-500/20">
+                <span className="font-black uppercase tracking-widest text-sm text-red-800">Grand Total</span>
+                <span className="text-3xl font-black text-red-700">${grandTotal.toFixed(2)}</span>
               </div>
+              
             </div>
           </div>
 
