@@ -86,10 +86,12 @@ export default function CustomerShowroom() {
             <Sparkles size={16} className="text-amber-400" />
             Premium Flooring
           </div>
+
           <h1 className="text-5xl md:text-7xl font-black tracking-tight leading-tight">
-            Find Your Perfect <br className="hidden md:block" />
-            <span className="text-red-600">Find Your Perfect</span> Foundation.
+            <span className="!text-red-600">Find Your Perfect</span> <br className="hidden md:block" />
+             <span className="text-yellow-500">Foundation.</span>
           </h1>
+
           <p className="text-lg md:text-xl text-slate-300 max-w-2xl mx-auto font-light">
             Explore our curated collection of high-quality flooring options designed to elevate your living spaces.
           </p>
