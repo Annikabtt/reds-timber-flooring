@@ -75,7 +75,7 @@ export default function CustomerShowroom() {
     <div className="min-h-screen bg-slate-50 font-sans">
       
       {/* --- Hero Section --- */}
-      <div className="bg-red-600/10py-20 px-4 relative overflow-hidden">
+      <div className="bg-red-600/15py-20 px-4 relative overflow-hidden">
         <div className="max-w-6xl mx-auto relative z-10 text-center space-y-6">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-md rounded-full text-sm font-bold tracking-widest uppercase mb-4 border border-red-200">
             <Sparkles size={16} className="text-red-600" />
@@ -103,7 +103,7 @@ export default function CustomerShowroom() {
               onClick={() => setActiveTab(cat.id)}
               className={`px-6 py-3 rounded-full text-sm font-bold transition-all duration-300 ${
                 activeTab === cat.id 
-                  ? 'bg-red-600/10 text-red-900 border-2 border-red-400 shadow-lg shadow-red-500/20 scale-105' 
+                  ? 'bg-red-600/15 text-red-900 border-2 border-red-400 shadow-lg shadow-red-500/20 scale-105' 
                   : 'bg-white text-slate-500 hover:bg-red-50 border border-slate-200'
               }`}
             >
