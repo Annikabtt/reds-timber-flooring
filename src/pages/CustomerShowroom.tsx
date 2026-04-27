@@ -98,7 +98,7 @@ export default function CustomerShowroom() {
 
       <div className="max-w-7xl mx-auto px-4 py-12 md:py-16 space-y-12">
         
-        {/* --- Category Tabs --- */}
+       {/* --- Category Tabs (เปลี่ยนเป็นสีแดงแล้ว) --- */}
         <div className="flex flex-wrap items-center justify-center gap-3">
           {categories.map((cat) => (
             <button
@@ -106,8 +106,8 @@ export default function CustomerShowroom() {
               onClick={() => setActiveTab(cat.id)}
               className={`px-6 py-3 rounded-full text-sm font-bold transition-all duration-300 ${
                 activeTab === cat.id 
-                  ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/20 scale-105' 
-                  : 'bg-white text-slate-500 hover:bg-slate-100 border border-slate-200'
+                  ? 'bg-red-600/20 text-red-900 border-2 border-red-400 shadow-lg shadow-red-500/20 scale-105' 
+                  : 'bg-white text-slate-500 hover:bg-red-50 border border-slate-200'
               }`}
             >
               {cat.name}
