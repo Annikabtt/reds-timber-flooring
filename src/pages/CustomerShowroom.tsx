@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
-// --- Mock Data: ข้อมูลสำหรับโชว์ลูกค้า ---
+// --- Mock Data ---
 const showroomProducts = [
   { 
     id: 'SPC-01', 
@@ -54,7 +54,6 @@ export default function CustomerShowroom() {
   const [activeTab, setActiveTab] = useState('all');
   const [wishlist, setWishlist] = useState([]);
 
-  // ฟังก์ชันกดหัวใจ (เพิ่มลง Wishlist)
   const toggleWishlist = (id) => {
     if (wishlist.includes(id)) {
       setWishlist(wishlist.filter(item => item !== id));
@@ -65,7 +64,6 @@ export default function CustomerShowroom() {
 
   const filteredProducts = showroomProducts.filter(p => activeTab === 'all' || p.category === activeTab);
 
-  // Helper function เลือก Icon ให้ตรงกับ Feature
   const getFeatureIcon = (feature) => {
     if (feature.includes('Waterproof')) return <Droplets size={14} className="text-blue-500" />;
     if (feature.includes('Pet')) return <PawPrint size={14} className="text-amber-500" />;
@@ -76,10 +74,9 @@ export default function CustomerShowroom() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
       
-      {/* --- Hero Section (หน้าปกพรีเมียมสีแดงโปร่งแสง) --- */}
+      {/* --- Hero Section --- */}
       <div className="bg-red-600/20 py-20 px-4 relative overflow-hidden">
         <div className="max-w-6xl mx-auto relative z-10 text-center space-y-6">
-          
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-md rounded-full text-sm font-bold tracking-widest uppercase mb-4 border border-red-200">
             <Sparkles size={16} className="text-red-600" />
             <span className="text-red-900">Premium Flooring</span>
@@ -98,7 +95,7 @@ export default function CustomerShowroom() {
 
       <div className="max-w-7xl mx-auto px-4 py-12 md:py-16 space-y-12">
         
-       {/* --- Category Tabs (เปลี่ยนเป็นสีแดงแล้ว) --- */}
+        {/* --- Category Tabs --- */}
         <div className="flex flex-wrap items-center justify-center gap-3">
           {categories.map((cat) => (
             <button
@@ -121,15 +118,12 @@ export default function CustomerShowroom() {
             const isSelected = wishlist.includes(product.id);
             return (
               <div key={product.id} className="bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 group border border-slate-100">
-                
-                {/* Product Image */}
                 <div className="relative h-64 overflow-hidden">
                   <img 
                     src={product.img} 
                     alt={product.name} 
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                   />
-                  {/* Heart Button */}
                   <button 
                     onClick={() => toggleWishlist(product.id)}
                     className="absolute top-4 right-4 p-3 bg-white/90 backdrop-blur-sm rounded-full shadow-sm hover:scale-110 transition-transform"
@@ -141,14 +135,12 @@ export default function CustomerShowroom() {
                   </button>
                 </div>
 
-                {/* Product Details */}
                 <div className="p-6 md:p-8 space-y-4">
                   <div>
                     <h3 className="text-2xl font-bold text-slate-900">{product.name}</h3>
                     <p className="text-slate-500 text-sm mt-2 leading-relaxed">{product.desc}</p>
                   </div>
 
-                  {/* Features List */}
                   <div className="space-y-2 pt-4 border-t border-slate-100">
                     {product.features.map((feature, idx) => (
                       <div key={idx} className="flex items-center gap-2 text-sm text-slate-700 font-medium">
@@ -175,16 +167,16 @@ export default function CustomerShowroom() {
           })}
         </div>
 
-        {/* --- Floating Action Bar (แสดงเมื่อมีของใน Wishlist) --- */}
+        {/* --- Floating Action Bar --- */}
         {wishlist.length > 0 && (
-          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-full shadow-2xl flex items-center gap-6 animate-in slide-in-from-bottom-10 z-50">
+          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-red-100/90 backdrop-blur-md border-2 border-red-500 text-red-900 px-6 py-4 rounded-full shadow-2xl flex items-center gap-6 animate-in slide-in-from-bottom-10 z-50">
             <div className="font-medium text-sm flex items-center gap-2">
-              <Heart size={16} className="fill-red-500 text-red-500" />
-              <span className="font-bold text-lg">{wishlist.length}</span> items selected
+              <Heart size={16} className="fill-red-600 text-red-600" />
+              <span className="font-black text-lg text-red-800">{wishlist.length}</span> items selected
             </div>
             <Button 
              onClick={() => navigate('/proposal')} 
-             className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold rounded-full px-6"
+             className="bg-red-600 hover:bg-red-700 text-white font-bold rounded-full px-6 shadow-md"
             >
               View Proposal <ArrowRight size={16} className="ml-2" />
             </Button>
