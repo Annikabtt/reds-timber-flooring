@@ -34,18 +34,18 @@ const subCategories: Record<string, { id: string, name: string }[]> = {
 // --- Mock Database ---
 const mockProducts = [
   // Flooring
-  { id: 1, name: "Natural Oak SPC", sku: "SPC-OAK-01", mainCat: "flooring", subCat: "spc", price: 35.00, stock: 1250, unit: "SQM", img: "https://images.unsplash.com/photo-1581858326456-6189df1a590e?w=300&h=200&fit=crop" },
-  { id: 2, name: "Spotted Gum Timber", sku: "TMB-SG-02", mainCat: "flooring", subCat: "timber", price: 85.00, stock: 320, unit: "SQM", img: "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=300&h=200&fit=crop" },
-  { id: 3, name: "Classic Walnut Laminate", sku: "LAM-WAL-03", mainCat: "flooring", subCat: "laminate", price: 25.00, stock: 450, unit: "SQM", img: "https://images.unsplash.com/photo-1516455590571-18256e5bb9ff?w=300&h=200&fit=crop" },
+  { id: 1, name: "Natural Oak SPC", sku: "SPC-OAK-01", mainCat: "flooring", subCat: "spc", price: 35.00, stock: 1250, unit: "SQM", img:"/images/natural-oak-spc.png" },
+  { id: 2, name: "Spotted Gum Timber", sku: "TMB-SG-02", mainCat: "flooring", subCat: "timber", price: 85.00, stock: 320, unit: "SQM", img:"/images/white-skirting.png" },
+  { id: 3, name: "Classic Walnut Laminate", sku: "LAM-WAL-03", mainCat: "flooring", subCat: "laminate", price: 25.00, stock: 450, unit: "SQM", img:"/images/classic-walnut-laminate.png" },
   
   // Accessories
-  { id: 4, name: "White Skirting 90mm", sku: "ACC-SKT-90W", mainCat: "accessories", subCat: "skirting", price: 15.00, stock: 400, unit: "Length (5.4m)", img: "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=300&h=200&fit=crop" }, 
-  { id: 5, name: "Oak Scotia Trim", sku: "ACC-SCT-OAK", mainCat: "accessories", subCat: "scotia", price: 12.00, stock: 150, unit: "Length (2.4m)", img: "https://images.unsplash.com/photo-1582582621959-48d27397dc69?w=300&h=200&fit=crop" },
+  { id: 4, name: "White Skirting 90mm", sku: "ACC-SKT-90W", mainCat: "accessories", subCat: "skirting", price: 15.00, stock: 400, unit: "Length (5.4m)", img:"/images/white-skirting-90mm.png" }, 
+  { id: 5, name: "Oak Scotia Trim", sku: "ACC-SCT-OAK", mainCat: "accessories", subCat: "scotia", price: 12.00, stock: 150, unit: "Length (2.4m)", img:"/images/oak-scotia-trim.png" },
   
   // Supplies & Tools
-  { id: 6, name: "Premium PU Adhesive", sku: "SUP-GLU-PU", mainCat: "supplies", subCat: "adhesive", price: 120.00, stock: 45, unit: "Bucket (15kg)", img: "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=300&h=200&fit=crop" },
-  { id: 7, name: "Acoustic Underlay 2mm", sku: "SUP-UND-02", mainCat: "supplies", subCat: "underlay", price: 65.00, stock: 80, unit: "Roll (20 SQM)", img: "https://images.unsplash.com/photo-1517646287270-a5a9ca602e5c?w=300&h=200&fit=crop" },
-  { id: 8, name: "Rubber Mallet", sku: "TOL-MAL-01", mainCat: "supplies", subCat: "tools", price: 25.00, stock: 12, unit: "Piece", img: "https://images.unsplash.com/photo-1540104539506-e69df0d009b0?w=300&h=200&fit=crop" },
+  { id: 6, name: "Premium PU Adhesive", sku: "SUP-GLU-PU", mainCat: "supplies", subCat: "adhesive", price: 120.00, stock: 45, unit: "Bucket (15kg)", img: "/images/white-skirting-90mm.png" },
+  { id: 7, name: "Acoustic Underlay 2mm", sku: "SUP-UND-02", mainCat: "supplies", subCat: "underlay", price: 65.00, stock: 80, unit: "Roll (20 SQM)", img: "/images/acoustic-underlay-2mm.png" },
+  { id: 8, name: "Rubber Mallet", sku: "TOL-MAL-01", mainCat: "supplies", subCat: "tools", price: 25.00, stock: 12, unit: "Piece", img: "/images/rubber-mallet.png" },
 ];
 
 export default function MaterialCatalog() {
