@@ -75,7 +75,7 @@ export default function CustomerShowroom() {
     <div className="min-h-screen bg-slate-50 font-sans">
       
       {/* --- Hero Section --- */}
-      <div className="bg-red-50 py-20 px-4 relative overflow-hidden">
+      <div className="bg-red-500 py-20 px-4 relative overflow-hidden">
         
         {/* --- ปุ่ม Back กลับหน้าหลัก --- */}
         <button 
