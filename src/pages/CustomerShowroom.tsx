@@ -14,7 +14,7 @@ const showroomProducts = [
     category: "spc",
     desc: "Authentic timber look with ultimate durability.",
     features: ['100% Waterproof', 'Scratch Resistant', 'Pet Friendly'],
-    img: "https://images.unsplash.com/photo-1581858326456-6189df1a590e?w=800&q=80"
+    img: "/images/natural-oak-spc.png"
   },
   { 
     id: 'TMB-02', 
@@ -22,7 +22,7 @@ const showroomProducts = [
     category: "timber",
     desc: "Premium Australian engineered timber.",
     features: ['Real Wood Top', 'Elegant Finish', 'Eco-Friendly'],
-    img: "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=800&q=80"
+    img: "/images/spotted-gum-timber.png"
   },
   { 
     id: 'LAM-03', 
@@ -30,7 +30,7 @@ const showroomProducts = [
     category: "laminate",
     desc: "Budget-friendly classic style for any room.",
     features: ['Fade Resistant', 'Easy Clean', 'Durable'],
-    img: "https://images.unsplash.com/photo-1516455590571-18256e5bb9ff?w=800&q=80"
+    img: "/images/classic-walnut-laminate.png"
   },
   { 
     id: 'SPC-04', 
@@ -38,7 +38,7 @@ const showroomProducts = [
     category: "spc",
     desc: "Modern grey tones for contemporary spaces.",
     features: ['100% Waterproof', 'Acoustic Backing', 'Pet Friendly'],
-    img: "https://images.unsplash.com/photo-1582582621959-48d27397dc69?w=800&q=80"
+    img: "/images/grey-ash-hybrid.png"
   },
 ];
 
@@ -79,7 +79,7 @@ export default function CustomerShowroom() {
       {/* --- Hero Section (หน้าปกพรีเมียม) --- */}
       <div className="bg-slate-900 text-white py-20 px-4 relative overflow-hidden">
         <div className="absolute inset-0 opacity-20">
-          <img src="https://images.unsplash.com/photo-1600607686527-6fb886090705?w=1600&q=80" alt="Background" className="w-full h-full object-cover" />
+          <img src="/images/hero-background.png" alt="Background" className="w-full h-full object-cover" />
         </div>
         <div className="max-w-6xl mx-auto relative z-10 text-center space-y-6">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full text-sm font-bold tracking-widest uppercase mb-4">
