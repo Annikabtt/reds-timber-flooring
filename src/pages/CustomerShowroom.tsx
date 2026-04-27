@@ -1,40 +1,40 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom'; //
-import { 
-  Droplets, Shield, PawPrint, CheckCircle2, 
-  Heart, ArrowRight, Sparkles 
+import {
+  Droplets, Shield, PawPrint, CheckCircle2,
+  Heart, ArrowRight, Sparkles
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
 // --- Mock Data: ข้อมูลสำหรับโชว์ลูกค้า (ซ่อนราคาและสต็อก) ---
 const showroomProducts = [
-  { 
-    id: 'SPC-01', 
-    name: "Natural Oak Hybrid", 
+  {
+    id: 'SPC-01',
+    name: "Natural Oak Hybrid",
     category: "spc",
     desc: "Authentic timber look with ultimate durability.",
     features: ['100% Waterproof', 'Scratch Resistant', 'Pet Friendly'],
     img: "/images/natural-oak-spc.png"
   },
-  { 
-    id: 'TMB-02', 
-    name: "Spotted Gum Timber", 
+  {
+    id: 'TMB-02',
+    name: "Spotted Gum Timber",
     category: "timber",
     desc: "Premium Australian engineered timber.",
     features: ['Real Wood Top', 'Elegant Finish', 'Eco-Friendly'],
     img: "/images/spotted-gum-timber.png"
   },
-  { 
-    id: 'LAM-03', 
-    name: "Classic Walnut", 
+  {
+    id: 'LAM-03',
+    name: "Classic Walnut",
     category: "laminate",
     desc: "Budget-friendly classic style for any room.",
     features: ['Fade Resistant', 'Easy Clean', 'Durable'],
     img: "/images/classic-walnut-laminate.png"
   },
-  { 
-    id: 'SPC-04', 
-    name: "Grey Ash Hybrid", 
+  {
+    id: 'SPC-04',
+    name: "Grey Ash Hybrid",
     category: "spc",
     desc: "Modern grey tones for contemporary spaces.",
     features: ['100% Waterproof', 'Acoustic Backing', 'Pet Friendly'],
@@ -75,7 +75,7 @@ export default function CustomerShowroom() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
-      
+
       {/* --- Hero Section (หน้าปกพรีเมียม) --- */}
       <div className="bg-slate-900 text-white py-20 px-4 relative overflow-hidden">
         <div className="absolute inset-0 opacity-20">
@@ -88,8 +88,9 @@ export default function CustomerShowroom() {
           </div>
 
           <h1 className="text-5xl md:text-7xl font-black tracking-tight leading-tight">
-            <span className="!text-red-600">Find Your Perfect</span> <br className="hidden md:block" />
-             <span className="text-yellow-500">Foundation.</span>
+            {/* 👇 เปลี่ยนตรงนี้เป็น !text-red-900 ครับ */}
+            <span className="!text-red-900">Find Your Perfect</span> <br className="hidden md:block" />
+            <span className="text-yellow-500">Foundation.</span>
           </h1>
 
           <p className="text-lg md:text-xl text-slate-300 max-w-2xl mx-auto font-light">
@@ -99,18 +100,17 @@ export default function CustomerShowroom() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-12 md:py-16 space-y-12">
-        
+
         {/* --- Category Tabs --- */}
         <div className="flex flex-wrap items-center justify-center gap-3">
           {categories.map((cat) => (
             <button
               key={cat.id}
               onClick={() => setActiveTab(cat.id)}
-              className={`px-6 py-3 rounded-full text-sm font-bold transition-all duration-300 ${
-                activeTab === cat.id 
-                  ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/20 scale-105' 
+              className={`px-6 py-3 rounded-full text-sm font-bold transition-all duration-300 ${activeTab === cat.id
+                  ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/20 scale-105'
                   : 'bg-white text-slate-500 hover:bg-slate-100 border border-slate-200'
-              }`}
+                }`}
             >
               {cat.name}
             </button>
@@ -123,22 +123,22 @@ export default function CustomerShowroom() {
             const isSelected = wishlist.includes(product.id);
             return (
               <div key={product.id} className="bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 group border border-slate-100">
-                
+
                 {/* Product Image */}
                 <div className="relative h-64 overflow-hidden">
-                  <img 
-                    src={product.img} 
-                    alt={product.name} 
+                  <img
+                    src={product.img}
+                    alt={product.name}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                   />
                   {/* Heart Button */}
-                  <button 
+                  <button
                     onClick={() => toggleWishlist(product.id)}
                     className="absolute top-4 right-4 p-3 bg-white/90 backdrop-blur-sm rounded-full shadow-sm hover:scale-110 transition-transform"
                   >
-                    <Heart 
-                      size={20} 
-                      className={`transition-colors ${isSelected ? 'fill-red-500 text-red-500' : 'text-slate-400'}`} 
+                    <Heart
+                      size={20}
+                      className={`transition-colors ${isSelected ? 'fill-red-500 text-red-500' : 'text-slate-400'}`}
                     />
                   </button>
                 </div>
@@ -160,14 +160,13 @@ export default function CustomerShowroom() {
                     ))}
                   </div>
 
-                  <Button 
+                  <Button
                     onClick={() => toggleWishlist(product.id)}
                     variant={isSelected ? "default" : "outline"}
-                    className={`w-full mt-6 h-12 rounded-xl font-bold transition-all ${
-                      isSelected 
-                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
+                    className={`w-full mt-6 h-12 rounded-xl font-bold transition-all ${isSelected
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                         : 'border-slate-200 text-slate-700 hover:border-slate-900 hover:text-slate-900'
-                    }`}
+                      }`}
                   >
                     {isSelected ? '✓ Added to Wishlist' : 'Select for Quote'}
                   </Button>
@@ -184,11 +183,11 @@ export default function CustomerShowroom() {
               <Heart size={16} className="fill-red-500 text-red-500" />
               <span className="font-bold text-lg">{wishlist.length}</span> items selected
             </div>
-            <Button 
-             onClick={() => navigate('/proposal')} 
-             className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold rounded-full px-6"
->             View Proposal <ArrowRight size={16} className="ml-2" />
-           </Button>
+            <Button
+              onClick={() => navigate('/proposal')}
+              className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold rounded-full px-6"
+            >             View Proposal <ArrowRight size={16} className="ml-2" />
+            </Button>
           </div>
         )}
 
