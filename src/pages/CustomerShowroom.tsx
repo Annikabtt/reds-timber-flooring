@@ -1,40 +1,40 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Droplets, Shield, PawPrint, CheckCircle2,
-  Heart, ArrowRight, Sparkles
+import { 
+  Droplets, Shield, PawPrint, CheckCircle2, 
+  Heart, ArrowRight, Sparkles, ArrowLeft 
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
 // --- Mock Data ---
 const showroomProducts = [
-  {
-    id: 'SPC-01',
-    name: "Natural Oak Hybrid",
+  { 
+    id: 'SPC-01', 
+    name: "Natural Oak Hybrid", 
     category: "spc",
     desc: "Authentic timber look with ultimate durability.",
     features: ['100% Waterproof', 'Scratch Resistant', 'Pet Friendly'],
     img: "/images/natural-oak-spc.png"
   },
-  {
-    id: 'TMB-02',
-    name: "Spotted Gum Timber",
+  { 
+    id: 'TMB-02', 
+    name: "Spotted Gum Timber", 
     category: "timber",
     desc: "Premium Australian engineered timber.",
     features: ['Real Wood Top', 'Elegant Finish', 'Eco-Friendly'],
     img: "/images/spotted-gum-timber.png"
   },
-  {
-    id: 'LAM-03',
-    name: "Classic Walnut",
+  { 
+    id: 'LAM-03', 
+    name: "Classic Walnut", 
     category: "laminate",
     desc: "Budget-friendly classic style for any room.",
     features: ['Fade Resistant', 'Easy Clean', 'Durable'],
     img: "/images/classic-walnut-laminate.png"
   },
-  {
-    id: 'SPC-04',
-    name: "Grey Ash Hybrid",
+  { 
+    id: 'SPC-04', 
+    name: "Grey Ash Hybrid", 
     category: "spc",
     desc: "Modern grey tones for contemporary spaces.",
     features: ['100% Waterproof', 'Acoustic Backing', 'Pet Friendly'],
@@ -73,9 +73,19 @@ export default function CustomerShowroom() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
-
+      
       {/* --- Hero Section --- */}
-      <div className="bg-red-600/20 py-20 px-4 relative overflow-hidden">
+      <div className="bg-red-50 py-20 px-4 relative overflow-hidden">
+        
+        {/* --- ปุ่ม Back กลับหน้าหลัก --- */}
+        <button 
+          onClick={() => navigate(-1)} 
+          className="absolute top-6 left-6 flex items-center gap-2 px-4 py-2 bg-white/60 hover:bg-white backdrop-blur-md border border-red-200 rounded-full text-red-900 font-bold transition-all z-20 shadow-sm hover:shadow-md hover:-translate-x-1"
+        >
+          <ArrowLeft size={18} />
+          Back
+        </button>
+
         <div className="max-w-6xl mx-auto relative z-10 text-center space-y-6">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/60 backdrop-blur-md rounded-full text-sm font-bold tracking-widest uppercase mb-4 border border-red-200">
             <Sparkles size={16} className="text-red-600" />
@@ -94,17 +104,18 @@ export default function CustomerShowroom() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-12 md:py-16 space-y-12">
-
+        
         {/* --- Category Tabs --- */}
         <div className="flex flex-wrap items-center justify-center gap-3">
           {categories.map((cat) => (
             <button
               key={cat.id}
               onClick={() => setActiveTab(cat.id)}
-              className={`px-6 py-3 rounded-full text-sm font-bold transition-all duration-300 ${activeTab === cat.id
-                  ? 'bg-red-600/20 text-red-900 border-2 border-red-400 shadow-lg shadow-red-500/20 scale-105'
+              className={`px-6 py-3 rounded-full text-sm font-bold transition-all duration-300 ${
+                activeTab === cat.id 
+                  ? 'bg-red-600/10 text-red-900 border-2 border-red-400 shadow-lg shadow-red-500/20 scale-105' 
                   : 'bg-white text-slate-500 hover:bg-red-50 border border-slate-200'
-                }`}
+              }`}
             >
               {cat.name}
             </button>
@@ -118,18 +129,18 @@ export default function CustomerShowroom() {
             return (
               <div key={product.id} className="bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 group border border-slate-100">
                 <div className="relative h-64 overflow-hidden">
-                  <img
-                    src={product.img}
-                    alt={product.name}
+                  <img 
+                    src={product.img} 
+                    alt={product.name} 
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                   />
-                  <button
+                  <button 
                     onClick={() => toggleWishlist(product.id)}
                     className="absolute top-4 right-4 p-3 bg-white/90 backdrop-blur-sm rounded-full shadow-sm hover:scale-110 transition-transform"
                   >
-                    <Heart
-                      size={20}
-                      className={`transition-colors ${isSelected ? 'fill-red-500 text-red-500' : 'text-slate-400'}`}
+                    <Heart 
+                      size={20} 
+                      className={`transition-colors ${isSelected ? 'fill-red-500 text-red-500' : 'text-slate-400'}`} 
                     />
                   </button>
                 </div>
@@ -149,13 +160,14 @@ export default function CustomerShowroom() {
                     ))}
                   </div>
 
-                  <Button
+                  <Button 
                     onClick={() => toggleWishlist(product.id)}
                     variant={isSelected ? "default" : "outline"}
-                    className={`w-full mt-6 h-12 rounded-xl font-bold transition-all ${isSelected
-                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    className={`w-full mt-6 h-12 rounded-xl font-bold transition-all ${
+                      isSelected 
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
                         : 'border-slate-200 text-slate-700 hover:border-slate-900 hover:text-slate-900'
-                      }`}
+                    }`}
                   >
                     {isSelected ? '✓ Added to Wishlist' : 'Select for Quote'}
                   </Button>
@@ -167,14 +179,14 @@ export default function CustomerShowroom() {
 
         {/* --- Floating Action Bar --- */}
         {wishlist.length > 0 && (
-          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-red-100/90 backdrop-blur-md border-2 border-red-500 text-red-900 px-6 py-4 rounded-full shadow-2xl flex items-center gap-6 animate-in slide-in-from-bottom-10 z-50">
+          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-red-800/90 backdrop-blur-md border-2 border-red-900 text-white px-6 py-4 rounded-full shadow-2xl flex items-center gap-6 animate-in slide-in-from-bottom-10 z-50">
             <div className="font-medium text-sm flex items-center gap-2">
-              <Heart size={16} className="fill-red-600 text-red-600" />
-              <span className="font-black text-lg text-red-800">{wishlist.length}</span> items selected
+              <Heart size={16} className="fill-white text-white" />
+              <span className="font-black text-lg text-white">{wishlist.length}</span> items selected
             </div>
-            <Button
-              onClick={() => navigate('/proposal')}
-              className="bg-red-600 hover:bg-red-700 text-white font-bold rounded-full px-6 shadow-md"
+            <Button 
+             onClick={() => navigate('/proposal')} 
+             className="bg-white hover:bg-gray-100 text-red-900 font-bold rounded-full px-6 shadow-md"
             >
               View Proposal <ArrowRight size={16} className="ml-2" />
             </Button>
