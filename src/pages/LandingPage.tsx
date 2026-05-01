@@ -227,32 +227,29 @@ export default function LandingPage() {
       </nav>
 
       {/* ═══════ HERO SECTION (DYNAMIC SLIDER) ═══════ */}
-      <section id="home" className="relative min-h-screen flex items-center justify-start overflow-hidden bg-slate-900 pb-24">
+      {/* 👇 แก้ 1: เปลี่ยน bg-slate-900 เป็น bg-black สีดำสนิท เวลาเปลี่ยนรูปจะได้ไม่แลบเป็นสีน้ำเงิน */}
+      <section id="home" className="relative min-h-screen flex items-center justify-start overflow-hidden bg-black pb-24">
         
-        {/* --- ส่วนที่ 1: รูปภาพพื้นหลัง (โชว์ทันที) --- */}
+        {/* --- ส่วนที่ 1: รูปภาพพื้นหลัง --- */}
         <div className="absolute inset-0 z-0">
           <AnimatePresence mode="wait">
             <motion.img
               key={currentImg}
               src={heroImages[currentImg]}
-              // 👇 ปรับให้รูปแรกโชว์ทันที ไม่ต้องรอเฟดนาน
-              initial={{ opacity: 0.8, scale: 1 }}
-              animate={{ opacity: 1, scale: 1 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.8, ease: "easeInOut" }}
               className="w-full h-full object-cover"
             />
           </AnimatePresence>
           
-          {/* 👇 ฟิลเตอร์ไล่สี (Gradient) โทนน้ำเงินเข้ม/ดำ จากซ้ายไปขวา */}
-          {/* ฝั่งซ้ายจะมืดนิดนึงให้อ่านตัวหนังสือออก ฝั่งขวาจะใส 100% ให้เห็นลายไม้ */}
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-900/80 via-slate-900/40 to-transparent" />
+          {/* ❌ แก้ 2: ลบฟิลเตอร์/เงาซ้ายมือ (Gradient) ออกทิ้งไปเลยครับ โชว์รูป 100% */}
         </div>
 
-        {/* --- ส่วนที่ 2: ข้อความ (ทุบกล่องทิ้ง ลดขนาดลง) --- */}
+        {/* --- ส่วนที่ 2: ข้อความ --- */}
         <div className="relative z-10 max-w-7xl mx-auto px-6 w-full pt-40 md:pt-32">
           
-          {/* 👇 เอาคลาส bg-white และ border ออกทั้งหมด เหลือแค่ความกว้าง */}
           <motion.div
             initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
@@ -265,14 +262,14 @@ export default function LandingPage() {
               The Gold Standard in Flooring
             </motion.div>
 
-            {/* 👇 หัวข้อหลัก: ลดขนาดลง (จาก 8xl เหลือ 5xl/6xl) และเปลี่ยนเป็น "สีขาว" ให้ตัดกับพื้นหลัง */}
-            <motion.h1 className="text-4xl md:text-5xl lg:text-6xl font-black leading-[1.1] tracking-tight text-white drop-shadow-md">
+            {/* 👇 แก้ 3: ใส่เงาที่ตัวหนังสือ (drop-shadow แบบเข้ม) แทนเงาที่พื้นหลัง เพื่อให้อ่านออกไม่ว่าจะเจอรูปสว่างแค่ไหน */}
+            <motion.h1 className="text-4xl md:text-5xl lg:text-6xl font-black leading-[1.1] tracking-tight text-white drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)]">
               Next-Generation <br />
-              <span className="text-red-500">Flooring Solutions.</span>
+              <span className="text-red-500 drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)]">Flooring Solutions.</span>
             </motion.h1>
 
-            {/* 👇 คำอธิบาย: เปลี่ยนเป็นสีเทาอ่อน/ขาว เพื่อให้อ่านง่ายบนรูปภาพ */}
-            <motion.p className="mt-6 text-slate-200 text-base md:text-lg max-w-lg leading-relaxed font-medium drop-shadow-md">
+            {/* คำอธิบาย: ใส่เงาเข้มๆ ให้ตัวหนังสือเหมือนกัน */}
+            <motion.p className="mt-6 text-slate-100 text-base md:text-lg max-w-lg leading-relaxed font-semibold drop-shadow-[0_3px_3px_rgba(0,0,0,0.8)]">
               Precision installation of high-durability timber, SPC, and engineered flooring for modern living and workspaces.
             </motion.p>
 
@@ -282,8 +279,7 @@ export default function LandingPage() {
                 variant="outline"
                 size="lg"
                 onClick={() => navigate('/showroom')}
-                // ปรับปุ่มให้เป็นสีแดงล้วน จะได้เด้งออกมาจากรูป
-                className="w-full sm:w-auto border-none bg-red-600 text-white hover:bg-red-700 rounded-full px-10 py-7 text-base font-bold transition-all hover:-translate-y-1 shadow-lg shadow-red-600/30 group"
+                className="w-full sm:w-auto border-none bg-red-600 text-white hover:bg-red-700 rounded-full px-10 py-7 text-base font-bold transition-all hover:-translate-y-1 shadow-lg shadow-red-600/50 group"
               >
                 Explore Materials
                 <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
@@ -292,8 +288,7 @@ export default function LandingPage() {
                 variant="outline"
                 size="lg"
                 onClick={() => navigate('/workflow')}
-                // ปรับปุ่มรองให้เป็นสีขาวโปร่งแสง
-                className="w-full sm:w-auto border-2 border-white/30 text-white hover:bg-white hover:text-slate-900 bg-white/10 backdrop-blur-sm rounded-full px-10 py-7 text-base font-bold transition-all hover:-translate-y-1"
+                className="w-full sm:w-auto border-2 border-white/50 text-white hover:bg-white hover:text-slate-900 bg-black/20 backdrop-blur-sm rounded-full px-10 py-7 text-base font-bold transition-all hover:-translate-y-1"
               >
                 System Workflow
               </Button>
