@@ -227,7 +227,8 @@ export default function LandingPage() {
       </nav>
 
       {/* ═══════ HERO SECTION (DYNAMIC SLIDER) ═══════ */}
-      <section id="home" className="relative min-h-screen flex items-center justify-center overflow-hidden bg-slate-50 pb-24">
+      {/* ═══════ HERO SECTION (DYNAMIC SLIDER) ═══════ */}
+      <section id="home" className="relative min-h-screen flex items-center justify-start overflow-hidden bg-slate-900 pb-24">
         <div className="absolute inset-0 z-0">
           <AnimatePresence mode="wait">
             <motion.img
@@ -240,11 +241,19 @@ export default function LandingPage() {
               className="w-full h-full object-cover"
             />
           </AnimatePresence>
-          <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/50 to-transparent" />
+          {/* 🛠️ แก้ตรงนี้: เปลี่ยน Gradient สีขาวทึบ เป็นสีดำจางๆ แค่ 10% ให้ภาพไม่แยงตา แต่โชว์ลายไม้เต็ม 100% */}
+          <div className="absolute inset-0 bg-black/10" />
         </div>
 
         <div className="relative z-10 max-w-7xl mx-auto px-6 w-full pt-40 md:pt-32">
-          <div className="max-w-3xl">
+          
+          {/* 🛠️ แก้ตรงนี้: สร้างกล่อง Glassmorphism (พื้นขาวกึ่งโปร่งแสง + เบลอ) ครอบข้อความไว้ */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className="max-w-3xl bg-white/90 backdrop-blur-md p-8 md:p-12 rounded-3xl shadow-2xl border border-white/50"
+          >
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -258,7 +267,7 @@ export default function LandingPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="text-5xl md:text-8xl font-black leading-[1.1] tracking-tight text-slate-900 drop-shadow-lg"
+              className="text-5xl md:text-7xl lg:text-8xl font-black leading-[1.1] tracking-tight text-slate-900 drop-shadow-sm"
             >
               Next-Generation <br />
               <span className="text-red-600">Flooring Solutions.</span>
@@ -268,7 +277,7 @@ export default function LandingPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              className="mt-8 text-slate-700 text-lg md:text-xl max-w-xl leading-relaxed font-medium"
+              className="mt-6 text-slate-700 text-lg md:text-xl max-w-xl leading-relaxed font-medium"
             >
               Precision installation of high-durability timber, SPC, and engineered flooring for modern living and workspaces.
             </motion.p>
@@ -277,13 +286,13 @@ export default function LandingPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
-              className="mt-10 flex flex-col sm:flex-row gap-4 w-full pr-6 sm:pr-0"
+              className="mt-10 flex flex-col sm:flex-row gap-4 w-full"
             >
               <Button
                 variant="outline"
                 size="lg"
                 onClick={() => navigate('/showroom')}
-                className="w-full sm:w-auto border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white bg-white/10 backdrop-blur-sm rounded-full px-10 py-7 text-base font-bold transition-all hover:-translate-y-1 group"
+                className="w-full sm:w-auto border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white bg-white/50 backdrop-blur-sm rounded-full px-10 py-7 text-base font-bold transition-all hover:-translate-y-1 group"
               >
                 Explore Materials
                 <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
@@ -292,12 +301,13 @@ export default function LandingPage() {
                 variant="outline"
                 size="lg"
                 onClick={() => navigate('/workflow')}
-                className="w-full sm:w-auto border-2 border-slate-600 text-slate-800 hover:bg-slate-800 hover:text-white bg-white/10 backdrop-blur-sm rounded-full px-10 py-7 text-base font-bold transition-all hover:-translate-y-1"
+                className="w-full sm:w-auto border-2 border-slate-600 text-slate-800 hover:bg-slate-800 hover:text-white bg-white/50 backdrop-blur-sm rounded-full px-10 py-7 text-base font-bold transition-all hover:-translate-y-1"
               >
                 System Workflow
               </Button>
             </motion.div>
-          </div>
+          </motion.div>
+
         </div>
       </section>
 
