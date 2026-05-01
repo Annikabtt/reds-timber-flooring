@@ -126,7 +126,8 @@ export default function LandingPage() {
     <div className="min-h-screen bg-white text-slate-900 font-sans antialiased selection:bg-red-600 selection:text-white">
       
       {/* ═══════ NAVBAR ═══════ */}
-      <nav className="fixed top-0 inset-x-0 z-50 backdrop-blur-xl bg-red-950/10 border-b border-white/20">
+      {/* 👇 ปรับพื้นหลังเป็นสีขาวโปร่งแสง (bg-white/90) ให้ดูสว่างและสะอาดตา */}
+      <nav className="fixed top-0 inset-x-0 z-50 backdrop-blur-xl bg-white/90 border-b border-slate-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           
           <a href="/" className="flex items-center">
@@ -139,7 +140,8 @@ export default function LandingPage() {
 
           {/* --- 💻 โหมด DESKTOP (ซ่อนในมือถือ) --- */}
           <div className="hidden lg:flex items-center gap-6">
-            <div className="flex items-center gap-8 text-sm font-bold text-slate-600 mr-4">
+            {/* 👇 ปรับ text-slate-600 เป็น text-slate-900 (เทาเข้มสุดเกือบดำ) */}
+            <div className="flex items-center gap-8 text-sm font-black text-slate-900 mr-4">
               {navLinks.map((l) => (
                 <a
                   key={l}
@@ -152,11 +154,12 @@ export default function LandingPage() {
               ))}
             </div>
 
-            <Button variant="ghost" onClick={() => navigate('/showroom')} className="font-bold text-slate-700 hover:text-amber-600">
+            {/* 👇 ปรับปุ่มเมนูให้เป็น text-slate-900 ด้วย */}
+            <Button variant="ghost" onClick={() => navigate('/showroom')} className="font-bold text-slate-900 hover:text-red-600">
               Our Collection
             </Button>
             
-            <Button variant="ghost" onClick={() => navigate('/workflow')} className="font-bold text-slate-700 hover:text-indigo-600 border border-indigo-200 px-4 py-2 rounded-lg">
+            <Button variant="ghost" onClick={() => navigate('/workflow')} className="font-bold text-slate-900 hover:text-red-600 border border-slate-300 px-4 py-2 rounded-lg hover:border-red-600 hover:bg-red-50 transition-all">
               System Workflow
             </Button>
             
@@ -171,11 +174,11 @@ export default function LandingPage() {
             </Button>
           </div>
 
-          {/* --- 📱 ปุ่มเมนูมือถือ ☰ (ซ่อนใน Desktop) --- */}
+          {/* --- 📱 ปุ่มเมนูมือถือ ☰ --- */}
           <div className="lg:hidden flex items-center">
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 text-slate-800 hover:text-red-600 focus:outline-none transition-colors"
+              className="p-2 text-slate-900 hover:text-red-600 focus:outline-none transition-colors"
             >
               {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
             </button>
@@ -197,7 +200,7 @@ export default function LandingPage() {
                     key={l}
                     href={`#${l.toLowerCase().replace(/\s+/g, "-")}`}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className="text-lg font-bold text-slate-700 hover:text-red-600"
+                    className="text-lg font-bold text-slate-900 hover:text-red-600"
                   >
                     {l}
                   </a>
@@ -207,10 +210,10 @@ export default function LandingPage() {
               <div className="w-full h-px bg-slate-200" />
               
               <div className="flex flex-col gap-3">
-                <Button variant="ghost" onClick={() => { navigate('/showroom'); setIsMobileMenuOpen(false); }} className="w-full font-bold text-slate-700 hover:text-amber-600 bg-amber-50">
+                <Button variant="ghost" onClick={() => { navigate('/showroom'); setIsMobileMenuOpen(false); }} className="w-full font-bold text-slate-900 hover:text-red-600 bg-slate-50">
                   Our Collection
                 </Button>
-                <Button variant="outline" onClick={() => { navigate('/workflow'); setIsMobileMenuOpen(false); }} className="w-full font-bold text-indigo-700 border-indigo-200 hover:bg-indigo-50">
+                <Button variant="outline" onClick={() => { navigate('/workflow'); setIsMobileMenuOpen(false); }} className="w-full font-bold text-slate-900 border-slate-300 hover:bg-slate-50">
                   System Workflow
                 </Button>
                 <Button
@@ -230,8 +233,9 @@ export default function LandingPage() {
       {/* 👇 แก้ 1: เปลี่ยน bg-slate-900 เป็น bg-black สีดำสนิท เวลาเปลี่ยนรูปจะได้ไม่แลบเป็นสีน้ำเงิน */}
       <section id="home" className="relative min-h-screen flex items-center justify-start overflow-hidden bg-black pb-24">
         
-        {/* --- ส่วนที่ 1: รูปภาพพื้นหลัง --- */}
-        <div className="absolute inset-0 z-0">
+        {/* --- ส่วนที่ 1: รูปภาพพื้นหลัง (เปิดไฟให้สว่าง 100%) --- */}
+        {/* เปลี่ยนฉากหลังตอนสลับรูปเป็น bg-slate-100 สีสว่าง จะได้ไม่แลบเป็นสีดำ/น้ำเงิน */}
+        <div className="absolute inset-0 z-0 bg-slate-100">
           <AnimatePresence mode="wait">
             <motion.img
               key={currentImg}
@@ -240,11 +244,12 @@ export default function LandingPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.8, ease: "easeInOut" }}
-              className="w-full h-full object-cover"
+              // สั่งให้รูปโชว์ความสว่างเต็มที่ 100% ไม่มีฟิลเตอร์มืดๆ
+              className="w-full h-full object-cover brightness-100 opacity-100"
             />
           </AnimatePresence>
           
-          {/* ❌ แก้ 2: ลบฟิลเตอร์/เงาซ้ายมือ (Gradient) ออกทิ้งไปเลยครับ โชว์รูป 100% */}
+          {/* ⚠️ บัดดี้เช็คตรงนี้ครับ: ห้ามมีแท็ก <div className="... bg-black/..."> หรือ bg-gradient ใดๆ ต่อท้ายตรงนี้นะครับ ลบทิ้งให้หมดเลย รูปจะได้ใสปิ๊ง! */}
         </div>
 
         {/* --- ส่วนที่ 2: ข้อความ --- */}
@@ -262,14 +267,49 @@ export default function LandingPage() {
               The Gold Standard in Flooring
             </motion.div>
 
-            {/* 👇 แก้ 3: ใส่เงาที่ตัวหนังสือ (drop-shadow แบบเข้ม) แทนเงาที่พื้นหลัง เพื่อให้อ่านออกไม่ว่าจะเจอรูปสว่างแค่ไหน */}
-            <motion.h1 className="text-4xl md:text-5xl lg:text-6xl font-black leading-[1.1] tracking-tight text-white drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)]">
+         {/* ═══════ HERO SECTION (DYNAMIC SLIDER) ═══════ */}
+      {/* 👇 เปลี่ยน bg-black ตรงนี้ให้เป็น bg-slate-50 เพื่อล้างสีดำทิ้ง 100% */}
+      <section id="home" className="relative min-h-screen flex items-center justify-start overflow-hidden bg-slate-50 pb-24">
+        
+        {/* --- ส่วนที่ 1: รูปภาพพื้นหลัง --- */}
+        {/* 👇 เปลี่ยน bg-slate-100 ตรงนี้ด้วยให้แน่ใจว่าสว่าง */}
+        <div className="absolute inset-0 z-0 bg-slate-50">
+          <AnimatePresence mode="wait">
+            <motion.img
+              key={currentImg}
+              src={heroImages[currentImg]}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.8, ease: "easeInOut" }}
+              className="w-full h-full object-cover brightness-100 opacity-100"
+            />
+          </AnimatePresence>
+        </div>
+
+        {/* --- ส่วนที่ 2: ข้อความ --- */}
+        <div className="relative z-10 max-w-7xl mx-auto px-6 w-full pt-40 md:pt-32">
+          
+          <motion.div
+            initial={{ opacity: 0, x: -30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8 }}
+            className="max-w-2xl" 
+          >
+            {/* ป้าย Tag ด้านบน */}
+            <motion.div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-600 text-white text-xs font-black tracking-widest uppercase mb-6 shadow-lg">
+              <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+              The Gold Standard in Flooring
+            </motion.div>
+
+            {/* หัวข้อหลัก */}
+            <motion.h1 className="text-4xl md:text-5xl lg:text-6xl font-black leading-[1.1] tracking-tight text-white drop-shadow-[0_4px_4px_rgba(0,0,0,0.6)]">
               Next-Generation <br />
-              <span className="text-red-500 drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)]">Flooring Solutions.</span>
+              <span className="text-red-500 drop-shadow-[0_4px_4px_rgba(0,0,0,0.6)]">Flooring Solutions.</span>
             </motion.h1>
 
-            {/* คำอธิบาย: ใส่เงาเข้มๆ ให้ตัวหนังสือเหมือนกัน */}
-            <motion.p className="mt-6 text-slate-100 text-base md:text-lg max-w-lg leading-relaxed font-semibold drop-shadow-[0_3px_3px_rgba(0,0,0,0.8)]">
+            {/* คำอธิบาย */}
+            <motion.p className="mt-6 text-slate-100 text-base md:text-lg max-w-lg leading-relaxed font-semibold drop-shadow-[0_3px_3px_rgba(0,0,0,0.6)]">
               Precision installation of high-durability timber, SPC, and engineered flooring for modern living and workspaces.
             </motion.p>
 
@@ -288,7 +328,7 @@ export default function LandingPage() {
                 variant="outline"
                 size="lg"
                 onClick={() => navigate('/workflow')}
-                className="w-full sm:w-auto border-2 border-white/50 text-white hover:bg-white hover:text-slate-900 bg-black/20 backdrop-blur-sm rounded-full px-10 py-7 text-base font-bold transition-all hover:-translate-y-1"
+                className="w-full sm:w-auto border-2 border-white/80 text-white hover:bg-white hover:text-slate-900 bg-black/20 backdrop-blur-sm rounded-full px-10 py-7 text-base font-bold transition-all hover:-translate-y-1"
               >
                 System Workflow
               </Button>
@@ -296,7 +336,7 @@ export default function LandingPage() {
           </motion.div>
 
         </div>
-      </section>
+      </section>   
 
       {/* ═══════ SPECIALIST ADVERTISEMENT SECTION ═══════ */}
       <section className="py-24 px-6 bg-slate-50 border-t border-slate-100">
