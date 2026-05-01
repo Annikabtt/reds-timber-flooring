@@ -227,72 +227,63 @@ export default function LandingPage() {
       </nav>
 
       {/* ═══════ HERO SECTION (DYNAMIC SLIDER) ═══════ */}
-      {/* ═══════ HERO SECTION (DYNAMIC SLIDER) ═══════ */}
       <section id="home" className="relative min-h-screen flex items-center justify-start overflow-hidden bg-slate-900 pb-24">
+        
+        {/* --- ส่วนที่ 1: รูปภาพพื้นหลัง (โชว์ทันที) --- */}
         <div className="absolute inset-0 z-0">
           <AnimatePresence mode="wait">
             <motion.img
               key={currentImg}
               src={heroImages[currentImg]}
-              initial={{ opacity: 0, scale: 1.05 }}
+              // 👇 ปรับให้รูปแรกโชว์ทันที ไม่ต้องรอเฟดนาน
+              initial={{ opacity: 0.8, scale: 1 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 1.2, ease: "easeInOut" }}
+              transition={{ duration: 0.8, ease: "easeInOut" }}
               className="w-full h-full object-cover"
             />
           </AnimatePresence>
-          {/* 🛠️ แก้ตรงนี้: เปลี่ยน Gradient สีขาวทึบ เป็นสีดำจางๆ แค่ 10% ให้ภาพไม่แยงตา แต่โชว์ลายไม้เต็ม 100% */}
-          <div className="absolute inset-0 bg-black/10" />
+          
+          {/* 👇 ฟิลเตอร์ไล่สี (Gradient) โทนน้ำเงินเข้ม/ดำ จากซ้ายไปขวา */}
+          {/* ฝั่งซ้ายจะมืดนิดนึงให้อ่านตัวหนังสือออก ฝั่งขวาจะใส 100% ให้เห็นลายไม้ */}
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-900/80 via-slate-900/40 to-transparent" />
         </div>
 
+        {/* --- ส่วนที่ 2: ข้อความ (ทุบกล่องทิ้ง ลดขนาดลง) --- */}
         <div className="relative z-10 max-w-7xl mx-auto px-6 w-full pt-40 md:pt-32">
           
-          {/* 🛠️ แก้ตรงนี้: สร้างกล่อง Glassmorphism (พื้นขาวกึ่งโปร่งแสง + เบลอ) ครอบข้อความไว้ */}
+          {/* 👇 เอาคลาส bg-white และ border ออกทั้งหมด เหลือแค่ความกว้าง */}
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, x: -30 }}
+            animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8 }}
-            className="max-w-3xl bg-white/90 backdrop-blur-md p-8 md:p-12 rounded-3xl shadow-2xl border border-white/50"
+            className="max-w-2xl" 
           >
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-600 text-white text-xs font-black tracking-widest uppercase mb-6 shadow-lg shadow-red-200"
-            >
+            {/* ป้าย Tag ด้านบน */}
+            <motion.div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-600 text-white text-xs font-black tracking-widest uppercase mb-6 shadow-lg">
               <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
               The Gold Standard in Flooring
             </motion.div>
 
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="text-5xl md:text-7xl lg:text-8xl font-black leading-[1.1] tracking-tight text-slate-900 drop-shadow-sm"
-            >
+            {/* 👇 หัวข้อหลัก: ลดขนาดลง (จาก 8xl เหลือ 5xl/6xl) และเปลี่ยนเป็น "สีขาว" ให้ตัดกับพื้นหลัง */}
+            <motion.h1 className="text-4xl md:text-5xl lg:text-6xl font-black leading-[1.1] tracking-tight text-white drop-shadow-md">
               Next-Generation <br />
-              <span className="text-red-600">Flooring Solutions.</span>
+              <span className="text-red-500">Flooring Solutions.</span>
             </motion.h1>
 
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="mt-6 text-slate-700 text-lg md:text-xl max-w-xl leading-relaxed font-medium"
-            >
+            {/* 👇 คำอธิบาย: เปลี่ยนเป็นสีเทาอ่อน/ขาว เพื่อให้อ่านง่ายบนรูปภาพ */}
+            <motion.p className="mt-6 text-slate-200 text-base md:text-lg max-w-lg leading-relaxed font-medium drop-shadow-md">
               Precision installation of high-durability timber, SPC, and engineered flooring for modern living and workspaces.
             </motion.p>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="mt-10 flex flex-col sm:flex-row gap-4 w-full"
-            >
+            {/* ปุ่มกด */}
+            <motion.div className="mt-10 flex flex-col sm:flex-row gap-4 w-full">
               <Button
                 variant="outline"
                 size="lg"
                 onClick={() => navigate('/showroom')}
-                className="w-full sm:w-auto border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white bg-white/50 backdrop-blur-sm rounded-full px-10 py-7 text-base font-bold transition-all hover:-translate-y-1 group"
+                // ปรับปุ่มให้เป็นสีแดงล้วน จะได้เด้งออกมาจากรูป
+                className="w-full sm:w-auto border-none bg-red-600 text-white hover:bg-red-700 rounded-full px-10 py-7 text-base font-bold transition-all hover:-translate-y-1 shadow-lg shadow-red-600/30 group"
               >
                 Explore Materials
                 <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
@@ -301,7 +292,8 @@ export default function LandingPage() {
                 variant="outline"
                 size="lg"
                 onClick={() => navigate('/workflow')}
-                className="w-full sm:w-auto border-2 border-slate-600 text-slate-800 hover:bg-slate-800 hover:text-white bg-white/50 backdrop-blur-sm rounded-full px-10 py-7 text-base font-bold transition-all hover:-translate-y-1"
+                // ปรับปุ่มรองให้เป็นสีขาวโปร่งแสง
+                className="w-full sm:w-auto border-2 border-white/30 text-white hover:bg-white hover:text-slate-900 bg-white/10 backdrop-blur-sm rounded-full px-10 py-7 text-base font-bold transition-all hover:-translate-y-1"
               >
                 System Workflow
               </Button>
