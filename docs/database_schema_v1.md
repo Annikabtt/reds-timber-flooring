@@ -11455,6 +11455,10 @@ Document numbers must be unique within each document type.
 
 Historical document numbers must never be changed.
 
+Document numbers should be generated automatically by the system.
+
+Manual editing of generated document numbers should not be allowed except by authorized administrators.
+
 ---
 
 # SQL Migration V1 Order
