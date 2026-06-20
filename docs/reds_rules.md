@@ -1,0 +1,2 @@
+- Purchase order number format should be POYYMM-00001.
+- Running number resets monthly.
