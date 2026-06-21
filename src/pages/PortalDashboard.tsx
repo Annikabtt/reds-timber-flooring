@@ -132,34 +132,34 @@ export default function PortalDashboard() {
           d.getMonth() === now.getMonth() &&
           d.getFullYear() === now.getFullYear()
         );
-const previousMonth = new Date(
-  now.getFullYear(),
-  now.getMonth() - 1,
-  1
-);
+        const previousMonth = new Date(
+          now.getFullYear(),
+          now.getMonth() - 1,
+          1
+        );
 
-const revenueLastMonth = invoices
-  .filter((i) => {
-    if (!i.created_at) return false;
+        const revenueLastMonth = invoices
+          .filter((i) => {
+            if (!i.created_at) return false;
 
-    const d = new Date(i.created_at);
+            const d = new Date(i.created_at);
 
-    return (
-      d.getMonth() === previousMonth.getMonth() &&
-      d.getFullYear() === previousMonth.getFullYear()
-    );
-  })
-  .reduce(
-    (sum, i) => sum + Number(i.total_amount || 0),
-    0
-  );
+            return (
+              d.getMonth() === previousMonth.getMonth() &&
+              d.getFullYear() === previousMonth.getFullYear()
+            );
+          })
+          .reduce(
+            (sum, i) => sum + Number(i.total_amount || 0),
+            0
+          );
 
-const revenueGrowth =
-  revenueLastMonth > 0
-    ? ((revenueThisMonth - revenueLastMonth) /
-        revenueLastMonth) *
-      100
-    : 0;
+        const revenueGrowth =
+          revenueLastMonth > 0
+            ? ((revenueThisMonth - revenueLastMonth) /
+              revenueLastMonth) *
+            100
+            : 0;
 
       })
       .reduce(
@@ -224,6 +224,9 @@ const revenueGrowth =
     const payrollDue = payrollEntries
       .filter((p) => Number(p.net_amount || p.gross_amount || 0) > 0)
       .reduce((sum, p) => sum + Number(p.net_amount || p.gross_amount || 0), 0);
+    const projectOutstanding = invoices
+      .filter((i) => Number(i.balance_amount || 0) > 0)
+      .reduce((sum, i) => sum + Number(i.balance_amount || 0), 0);
     const profit = revenue - payrollCost;
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
 
@@ -243,6 +246,7 @@ const revenueGrowth =
       outstanding: revenue - received,
       activeEmployees: employees.filter((e) => e.is_active).length,
       contractValue,
+      projectOutstanding,
       payrollCost,
       payrollDue,
       profit,
@@ -361,7 +365,41 @@ const revenueGrowth =
         </section>
 
       </section>
+      <section>
+        <h2 className="text-lg font-semibold text-slate-800 mb-3">
+          Project KPI
+        </h2>
 
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            title="Total Projects"
+            value={String(summary.totalProjects)}
+            icon={FolderKanban}
+          />
+
+          <MetricCard
+            title="Active Projects"
+            value={String(summary.activeProjects)}
+            icon={FolderKanban}
+          />
+          <MetricCard
+            title="Completed Projects"
+            value={String(summary.completedProjects)}
+            icon={FolderKanban}
+          />
+          <MetricCard
+            title="Contract Value"
+            value={money(summary.contractValue)}
+            icon={DollarSign}
+          />
+          <MetricCard
+            title="Project Outstanding"
+            value={money(summary.projectOutstanding)}
+            icon={DollarSign}
+            note="Total unpaid invoice balance"
+          />
+        </div>
+      </section>
       <section>
         <h2 className="text-lg font-semibold text-slate-800 mb-3">
           Revenue Trend
@@ -385,7 +423,7 @@ const revenueGrowth =
             value={`${summary.revenueGrowth.toFixed(1)}%`}
             icon={DollarSign}
           />
-         
+
         </div>
       </section>
 
