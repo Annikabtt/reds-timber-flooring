@@ -344,7 +344,7 @@ export default function PortalDashboard() {
       netCashPosition,
     };
   }, [data]);
-
+  const canViewFinancialSensitiveData = Boolean(data?.isExecutive);
   if (isLoading) {
     return <div className="p-6 text-slate-500">Loading dashboard...</div>;
   }
@@ -426,12 +426,14 @@ export default function PortalDashboard() {
               icon={DollarSign}
               note="Invoice amount minus payments received"
             />
-            <MetricCard
-              title="Payroll Due"
-              value={money(summary.payrollDue)}
-              icon={DollarSign}
-              note="Estimated payroll amount"
-            />
+            {canViewFinancialSensitiveData && (
+              <MetricCard
+                title="Payroll Due"
+                value={money(summary.payrollDue)}
+                icon={DollarSign}
+                note="Estimated payroll amount"
+              />
+            )}
           </div>
         </section>
 
@@ -464,12 +466,14 @@ export default function PortalDashboard() {
               icon={DollarSign}
               note="Estimated payroll amount"
             />
-            <MetricCard
-              title="Net Cash Position"
-              value={money(summary.netCashPosition)}
-              icon={DollarSign}
-              note="Due next 30 days minus payroll due"
-            />
+            {canViewFinancialSensitiveData && (
+              <MetricCard
+                title="Net Cash Position"
+                value={money(summary.netCashPosition)}
+                icon={DollarSign}
+                note="Due next 30 days minus payroll due"
+              />
+            )}
           </div>
         </section>
 
@@ -607,7 +611,66 @@ export default function PortalDashboard() {
           </CardContent>
         </Card>
       </section>
-      {data?.isExecutive && (
+      <section>
+        <h2 className="text-lg font-semibold text-slate-800 mb-3">
+          Top Customers
+        </h2>
+
+        <Card className="rounded-2xl shadow-sm">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium">
+                      Customer
+                    </th>
+                    <th className="px-4 py-3 text-right font-medium">
+                      Revenue
+                    </th>
+                    <th className="px-4 py-3 text-right font-medium">
+                      Outstanding
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {summary.topCustomers.map((customer) => (
+                    <tr
+                      key={customer.customerName}
+                      className="border-t border-slate-100"
+                    >
+                      <td className="px-4 py-3 font-medium text-slate-900">
+                        {customer.customerName}
+                      </td>
+
+                      <td className="px-4 py-3 text-right">
+                        {money(customer.revenue)}
+                      </td>
+
+                      <td className="px-4 py-3 text-right">
+                        {money(customer.outstanding)}
+                      </td>
+                    </tr>
+                  ))}
+
+                  {summary.topCustomers.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={3}
+                        className="px-4 py-6 text-center text-slate-500"
+                      >
+                        No customer data available.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+      {canViewFinancialSensitiveData && (
         <section>
           <div className="flex items-center gap-2 mb-3">
             <Shield className="h-5 w-5 text-red-600" />
