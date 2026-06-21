@@ -1,5 +1,11 @@
 import { useMemo, useState } from "react";
-import { MapPin, Plus, Search, Phone } from "lucide-react";
+import {
+  MapPin,
+  Plus,
+  Search,
+  Phone,
+  Eye,
+} from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -26,7 +32,7 @@ const ProjectSites = () => {
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-
+  const [statusFilter, setStatusFilter] = useState("all");
   const [projectId, setProjectId] = useState("");
   const [siteCode, setSiteCode] = useState("");
   const [siteName, setSiteName] = useState("");
@@ -152,11 +158,22 @@ const ProjectSites = () => {
       toast.error(error.message);
     },
   });
-
+  const siteSummary = useMemo(() => {
+    return {
+      totalSites: sites.length,
+      activeSites: sites.filter((s) => s.is_active).length,
+      inactiveSites: sites.filter((s) => !s.is_active).length,
+      totalProjects: new Set(
+        sites.map((s) => s.project_id)
+      ).size,
+    };
+  }, [sites]);
   const filteredSites = useMemo(() => {
     const keyword = searchTerm.toLowerCase();
 
     return sites.filter((site) => {
+      if (statusFilter === "active" && !site.is_active) return false;
+      if (statusFilter === "inactive" && site.is_active) return false;
       const projectName = site.projects?.project_name || "";
       const customerName = site.projects?.customers?.customer_name || "";
 
@@ -193,16 +210,55 @@ const ProjectSites = () => {
           Add Site
         </Button>
       </div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="bg-white rounded-2xl border p-4">
+          <p className="text-sm text-slate-500">Total Sites</p>
+          <p className="text-2xl font-bold">{siteSummary.totalSites}</p>
+        </div>
 
+        <div className="bg-white rounded-2xl border p-4">
+          <p className="text-sm text-slate-500">Active Sites</p>
+          <p className="text-2xl font-bold text-green-600">
+            {siteSummary.activeSites}
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl border p-4">
+          <p className="text-sm text-slate-500">Inactive Sites</p>
+          <p className="text-2xl font-bold text-slate-600">
+            {siteSummary.inactiveSites}
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl border p-4">
+          <p className="text-sm text-slate-500">Projects</p>
+          <p className="text-2xl font-bold">
+            {siteSummary.totalProjects}
+          </p>
+        </div>
+      </div>
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
-          <Input
-            placeholder="Search by site, project, customer, or suburb..."
-            className="pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
+            <Input
+              placeholder="Search by site, project, customer, or suburb..."
+              className="pl-10"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Sites</SelectItem>
+              <SelectItem value="active">Active Sites</SelectItem>
+              <SelectItem value="inactive">Inactive Sites</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -213,6 +269,8 @@ const ProjectSites = () => {
           <div className="col-span-2">Customer</div>
           <div className="col-span-3">Address</div>
           <div className="col-span-2">Contact</div>
+          <div className="col-span-1">Status</div>
+          <div className="col-span-1">Actions</div>
         </div>
 
         {filteredSites.length === 0 ? (
@@ -263,14 +321,34 @@ const ProjectSites = () => {
                   {address || "-"}
                 </div>
 
-                <div className="col-span-2 text-sm text-slate-600">
+                <div className="col-span-1 text-sm text-slate-600">
                   <p>{site.contact_name || "-"}</p>
+
                   {site.contact_phone && (
                     <p className="flex items-center gap-1 text-slate-500 mt-1">
                       <Phone className="h-3 w-3" />
                       {site.contact_phone}
                     </p>
                   )}
+                </div>
+
+                <div className="col-span-1">
+                  <span
+                    className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${site.is_active
+                      ? "bg-green-100 text-green-700"
+                      : "bg-slate-100 text-slate-500"
+                      }`}
+                  >
+                    {site.is_active ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                <div className="col-span-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             );
