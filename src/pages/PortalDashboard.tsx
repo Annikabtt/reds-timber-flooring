@@ -72,7 +72,7 @@ export default function PortalDashboard() {
 
         supabase
           .from("customer_invoices")
-          .select("customer_invoice_id, invoice_status, total_amount, paid_amount, balance_amount, due_date")
+          .select("customer_invoice_id, invoice_status, total_amount, paid_amount, balance_amount, due_date, created_at")
           .eq("is_deleted", false),
 
         supabase
@@ -120,6 +120,82 @@ export default function PortalDashboard() {
       0
     );
 
+    const now = new Date();
+
+    const revenueThisMonth = invoices
+      .filter((i) => {
+        if (!i.created_at) return false;
+
+        const d = new Date(i.created_at);
+
+        return (
+          d.getMonth() === now.getMonth() &&
+          d.getFullYear() === now.getFullYear()
+        );
+const previousMonth = new Date(
+  now.getFullYear(),
+  now.getMonth() - 1,
+  1
+);
+
+const revenueLastMonth = invoices
+  .filter((i) => {
+    if (!i.created_at) return false;
+
+    const d = new Date(i.created_at);
+
+    return (
+      d.getMonth() === previousMonth.getMonth() &&
+      d.getFullYear() === previousMonth.getFullYear()
+    );
+  })
+  .reduce(
+    (sum, i) => sum + Number(i.total_amount || 0),
+    0
+  );
+
+const revenueGrowth =
+  revenueLastMonth > 0
+    ? ((revenueThisMonth - revenueLastMonth) /
+        revenueLastMonth) *
+      100
+    : 0;
+
+      })
+      .reduce(
+        (sum, i) => sum + Number(i.total_amount || 0),
+        0
+      );
+
+    const previousMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() - 1,
+      1
+    );
+
+    const revenueLastMonth = invoices
+      .filter((i) => {
+        if (!i.created_at) return false;
+
+        const d = new Date(i.created_at);
+
+        return (
+          d.getMonth() === previousMonth.getMonth() &&
+          d.getFullYear() === previousMonth.getFullYear()
+        );
+      })
+      .reduce(
+        (sum, i) => sum + Number(i.total_amount || 0),
+        0
+      );
+
+    const revenueGrowth =
+      revenueLastMonth > 0
+        ? ((revenueThisMonth - revenueLastMonth) /
+          revenueLastMonth) *
+        100
+        : 0;
+
     const received = payments.reduce(
       (sum, item) => sum + Number(item.amount || 0),
       0
@@ -135,6 +211,19 @@ export default function PortalDashboard() {
       0
     );
 
+    const today = new Date();
+
+    const overdueAmount = invoices
+      .filter(
+        (i) =>
+          Number(i.balance_amount || 0) > 0 &&
+          i.due_date &&
+          new Date(i.due_date) < today
+      )
+      .reduce((sum, i) => sum + Number(i.balance_amount || 0), 0);
+    const payrollDue = payrollEntries
+      .filter((p) => Number(p.net_amount || p.gross_amount || 0) > 0)
+      .reduce((sum, p) => sum + Number(p.net_amount || p.gross_amount || 0), 0);
     const profit = revenue - payrollCost;
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
 
@@ -142,15 +231,23 @@ export default function PortalDashboard() {
       totalProjects: projects.length,
       activeProjects: projects.filter((p) => p.project_status !== "Completed")
         .length,
+      completedProjects: projects.filter(
+        (p) => p.project_status === "Completed"
+      ).length,
       totalInvoices: invoices.length,
       revenue,
+      revenueThisMonth,
+      revenueLastMonth,
+      revenueGrowth,
       received,
       outstanding: revenue - received,
       activeEmployees: employees.filter((e) => e.is_active).length,
       contractValue,
       payrollCost,
+      payrollDue,
       profit,
       margin,
+      overdueAmount,
     };
   }, [data]);
 
@@ -173,12 +270,7 @@ export default function PortalDashboard() {
         </h2>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            title="Total Projects"
-            value={String(summary.totalProjects)}
-            icon={FolderKanban}
-            note={`${summary.activeProjects} active`}
-          />
+
           <MetricCard
             title="Total Invoices"
             value={String(summary.totalInvoices)}
@@ -189,22 +281,111 @@ export default function PortalDashboard() {
             value={money(summary.revenue)}
             icon={DollarSign}
           />
+
           <MetricCard
-            title="Outstanding"
-            value={money(summary.outstanding)}
+            title="Overdue"
+            value={money(summary.overdueAmount)}
             icon={DollarSign}
-            note="Invoice amount minus payments received"
+            note="Unpaid invoices past due date"
           />
-          <MetricCard
-            title="Payments Received"
-            value={money(summary.received)}
-            icon={DollarSign}
-          />
+
           <MetricCard
             title="Active Employees"
             value={String(summary.activeEmployees)}
             icon={Users}
           />
+        </div>
+
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800 mb-3">
+            Cash Flow
+          </h2>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+
+            <MetricCard
+              title="Payments Received"
+              value={money(summary.received)}
+              icon={DollarSign}
+            />
+            <MetricCard
+              title="Outstanding"
+              value={money(summary.outstanding)}
+              icon={DollarSign}
+              note="Invoice amount minus payments received"
+            />
+            <MetricCard
+              title="Payroll Due"
+              value={money(summary.payrollDue)}
+              icon={DollarSign}
+              note="Estimated payroll amount"
+            />
+          </div>
+        </section>
+
+        <section>
+          <h2 className="text-lg font-semibold text-slate-800 mb-3">
+            Cash Flow
+          </h2>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+
+            <MetricCard
+              title="Payments Received"
+              value={money(summary.received)}
+              icon={DollarSign}
+            />
+
+            <MetricCard
+              title="Outstanding"
+              value={money(summary.outstanding)}
+              icon={DollarSign}
+              note="Invoice amount minus payments received"
+            />
+
+            <MetricCard
+              title="Overdue"
+              value={money(summary.overdueAmount)}
+              icon={DollarSign}
+              note="Unpaid invoices past due date"
+            />
+
+            <MetricCard
+              title="Payroll Due"
+              value={money(summary.payrollDue)}
+              icon={DollarSign}
+              note="Estimated payroll amount"
+            />
+
+          </div>
+        </section>
+
+      </section>
+
+      <section>
+        <h2 className="text-lg font-semibold text-slate-800 mb-3">
+          Revenue Trend
+        </h2>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            title="Revenue This Month"
+            value={money(summary.revenueThisMonth)}
+            icon={DollarSign}
+
+          />
+          <MetricCard
+            title="Revenue Last Month"
+            value={money(summary.revenueLastMonth)}
+            icon={DollarSign}
+          />
+
+          <MetricCard
+            title="Revenue Growth"
+            value={`${summary.revenueGrowth.toFixed(1)}%`}
+            icon={DollarSign}
+          />
+         
         </div>
       </section>
 
