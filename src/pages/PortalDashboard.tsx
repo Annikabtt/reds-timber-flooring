@@ -72,7 +72,9 @@ export default function PortalDashboard() {
 
         supabase
           .from("customer_invoices")
-          .select("customer_invoice_id, invoice_status, total_amount, paid_amount, balance_amount, due_date, created_at")
+          .select(
+            "customer_invoice_id, customer_id, invoice_status, total_amount, paid_amount, balance_amount, due_date, created_at, customers(customer_name)"
+          )
           .eq("is_deleted", false),
 
         supabase
@@ -221,9 +223,71 @@ export default function PortalDashboard() {
           new Date(i.due_date) < today
       )
       .reduce((sum, i) => sum + Number(i.balance_amount || 0), 0);
+    const next7Days = new Date();
+    next7Days.setDate(today.getDate() + 7);
+
+    const next30Days = new Date();
+    next30Days.setDate(today.getDate() + 30);
+
+    const dueNext7Days = invoices
+      .filter((i) => {
+        if (!i.due_date) return false;
+
+        const dueDate = new Date(i.due_date);
+
+        return (
+          Number(i.balance_amount || 0) > 0 &&
+          dueDate >= today &&
+          dueDate <= next7Days
+        );
+      })
+      .reduce((sum, i) => sum + Number(i.balance_amount || 0), 0);
+
+    const dueNext30Days = invoices
+      .filter((i) => {
+        if (!i.due_date) return false;
+
+        const dueDate = new Date(i.due_date);
+
+        return (
+          Number(i.balance_amount || 0) > 0 &&
+          dueDate >= today &&
+          dueDate <= next30Days
+        );
+      })
+      .reduce((sum, i) => sum + Number(i.balance_amount || 0), 0);
     const payrollDue = payrollEntries
       .filter((p) => Number(p.net_amount || p.gross_amount || 0) > 0)
       .reduce((sum, p) => sum + Number(p.net_amount || p.gross_amount || 0), 0);
+    const customerMap = new Map<
+      string,
+      {
+        customerName: string;
+        revenue: number;
+        outstanding: number;
+      }
+    >();
+
+    invoices.forEach((invoice) => {
+      const customerId = invoice.customer_id || "unknown";
+      const customerName =
+        invoice.customers?.customer_name || "Unknown Customer";
+
+      const existing = customerMap.get(customerId) || {
+        customerName,
+        revenue: 0,
+        outstanding: 0,
+      };
+
+      existing.revenue += Number(invoice.total_amount || 0);
+      existing.outstanding += Number(invoice.balance_amount || 0);
+
+      customerMap.set(customerId, existing);
+    });
+
+    const topCustomers = Array.from(customerMap.values())
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 5);
     const projectStatusSummary = projects.reduce<Record<string, number>>(
       (acc, project) => {
         const status = project.project_status || "Unknown";
@@ -242,6 +306,10 @@ export default function PortalDashboard() {
     const projectOutstanding = invoices
       .filter((i) => Number(i.balance_amount || 0) > 0)
       .reduce((sum, i) => sum + Number(i.balance_amount || 0), 0);
+
+    const netCashPosition = dueNext30Days - payrollDue;
+    const collectionRate =
+      revenue > 0 ? (received / revenue) * 100 : 0;
     const profit = revenue - payrollCost;
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
 
@@ -258,17 +326,22 @@ export default function PortalDashboard() {
       revenueLastMonth,
       revenueGrowth,
       received,
+      collectionRate,
       outstanding: revenue - received,
       activeEmployees: employees.filter((e) => e.is_active).length,
       contractValue,
       projectStatusSummary,
       topProjects,
+      topCustomers,
       projectOutstanding,
       payrollCost,
-      payrollDue,
       profit,
       margin,
       overdueAmount,
+      dueNext7Days,
+      dueNext30Days,
+      payrollDue,
+      netCashPosition,
     };
   }, [data]);
 
@@ -309,7 +382,19 @@ export default function PortalDashboard() {
             icon={DollarSign}
             note="Unpaid invoices past due date"
           />
+          <MetricCard
+            title="Due Next 7 Days"
+            value={money(summary.dueNext7Days)}
+            icon={DollarSign}
+            note="Unpaid invoices due soon"
+          />
 
+          <MetricCard
+            title="Due Next 30 Days"
+            value={money(summary.dueNext30Days)}
+            icon={DollarSign}
+            note="Unpaid invoices due this month"
+          />
           <MetricCard
             title="Active Employees"
             value={String(summary.activeEmployees)}
@@ -328,6 +413,12 @@ export default function PortalDashboard() {
               title="Payments Received"
               value={money(summary.received)}
               icon={DollarSign}
+            />
+            <MetricCard
+              title="Collection Rate"
+              value={`${summary.collectionRate.toFixed(1)}%`}
+              icon={DollarSign}
+              note="Payments received divided by invoices"
             />
             <MetricCard
               title="Outstanding"
@@ -350,34 +441,35 @@ export default function PortalDashboard() {
           </h2>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-
             <MetricCard
               title="Payments Received"
               value={money(summary.received)}
               icon={DollarSign}
             />
-
             <MetricCard
               title="Outstanding"
               value={money(summary.outstanding)}
               icon={DollarSign}
               note="Invoice amount minus payments received"
             />
-
             <MetricCard
               title="Overdue"
               value={money(summary.overdueAmount)}
               icon={DollarSign}
               note="Unpaid invoices past due date"
             />
-
             <MetricCard
               title="Payroll Due"
               value={money(summary.payrollDue)}
               icon={DollarSign}
               note="Estimated payroll amount"
             />
-
+            <MetricCard
+              title="Net Cash Position"
+              value={money(summary.netCashPosition)}
+              icon={DollarSign}
+              note="Due next 30 days minus payroll due"
+            />
           </div>
         </section>
 
