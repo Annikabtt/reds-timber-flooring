@@ -67,7 +67,7 @@ export default function PortalDashboard() {
       ] = await Promise.all([
         supabase
           .from("projects")
-          .select("project_id, project_status, contract_value")
+          .select("project_id, project_no, project_name, project_status, contract_value")
           .eq("is_deleted", false),
 
         supabase
@@ -224,6 +224,21 @@ export default function PortalDashboard() {
     const payrollDue = payrollEntries
       .filter((p) => Number(p.net_amount || p.gross_amount || 0) > 0)
       .reduce((sum, p) => sum + Number(p.net_amount || p.gross_amount || 0), 0);
+    const projectStatusSummary = projects.reduce<Record<string, number>>(
+      (acc, project) => {
+        const status = project.project_status || "Unknown";
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+      },
+      {}
+    );
+    const topProjects = projects
+      .slice()
+      .sort(
+        (a, b) =>
+          Number(b.contract_value || 0) - Number(a.contract_value || 0)
+      )
+      .slice(0, 5);
     const projectOutstanding = invoices
       .filter((i) => Number(i.balance_amount || 0) > 0)
       .reduce((sum, i) => sum + Number(i.balance_amount || 0), 0);
@@ -246,6 +261,8 @@ export default function PortalDashboard() {
       outstanding: revenue - received,
       activeEmployees: employees.filter((e) => e.is_active).length,
       contractValue,
+      projectStatusSummary,
+      topProjects,
       projectOutstanding,
       payrollCost,
       payrollDue,
@@ -402,6 +419,24 @@ export default function PortalDashboard() {
       </section>
       <section>
         <h2 className="text-lg font-semibold text-slate-800 mb-3">
+          Project Status Summary
+        </h2>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {Object.entries(summary.projectStatusSummary).map(
+            ([status, count]) => (
+              <MetricCard
+                key={status}
+                title={status}
+                value={String(count)}
+                icon={FolderKanban}
+              />
+            )
+          )}
+        </div>
+      </section>
+      <section>
+        <h2 className="text-lg font-semibold text-slate-800 mb-3">
           Revenue Trend
         </h2>
 
@@ -426,7 +461,60 @@ export default function PortalDashboard() {
 
         </div>
       </section>
+      <section>
+        <h2 className="text-lg font-semibold text-slate-800 mb-3">
+          Top Projects
+        </h2>
 
+        <Card className="rounded-2xl shadow-sm">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium">Project No</th>
+                    <th className="px-4 py-3 text-left font-medium">Project Name</th>
+                    <th className="px-4 py-3 text-left font-medium">Status</th>
+                    <th className="px-4 py-3 text-right font-medium">Contract Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summary.topProjects.map((project) => (
+                    <tr
+                      key={project.project_id}
+                      className="border-t border-slate-100"
+                    >
+                      <td className="px-4 py-3 text-slate-600">
+                        {project.project_no || "-"}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-slate-900">
+                        {project.project_name || "-"}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {project.project_status || "-"}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                        {money(Number(project.contract_value || 0))}
+                      </td>
+                    </tr>
+                  ))}
+
+                  {summary.topProjects.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="px-4 py-6 text-center text-slate-500"
+                      >
+                        No project data available.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
       {data?.isExecutive && (
         <section>
           <div className="flex items-center gap-2 mb-3">
