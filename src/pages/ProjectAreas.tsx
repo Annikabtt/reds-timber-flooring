@@ -50,14 +50,14 @@ const ProjectAreas = () => {
             customer_name
           )
         `)
-        .eq("is_deleted", false)
+
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data;
     },
   });
-
+  projects
   const { data: sites = [] } = useQuery({
     queryKey: ["sites-for-areas"],
     queryFn: async () => {
@@ -69,7 +69,6 @@ const ProjectAreas = () => {
           site_code,
           site_name
         `)
-        .eq("is_deleted", false)
         .eq("is_active", true)
         .order("created_at", { ascending: false });
 

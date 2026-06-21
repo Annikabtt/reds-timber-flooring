@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   MapPin,
   Plus,
@@ -96,7 +97,7 @@ const ProjectSites = () => {
             )
           )
         `)
-        .eq("is_deleted", false)
+       
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -344,10 +345,13 @@ const ProjectSites = () => {
                 </div>
                 <div className="col-span-1">
                   <Button
+                    asChild
                     size="sm"
                     variant="outline"
                   >
-                    <Eye className="h-4 w-4" />
+                    <Link to={`/project-sites/${site.site_id}`}>
+                      <Eye className="h-4 w-4" />
+                    </Link>
                   </Button>
                 </div>
               </div>

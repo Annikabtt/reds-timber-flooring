@@ -24,6 +24,9 @@ import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Tasks from "./pages/Tasks";
 import Projects from "./pages/Projects";
+import ProjectSites from "./pages/ProjectSites";
+import ProjectAreas from "./pages/ProjectAreas";
+import ProjectSiteDashboard from "./pages/ProjectSiteDashboard";
 import Contacts from "./pages/Contacts";
 import Team from "./pages/Team";
 import PhotoApproval from "./pages/PhotoApproval";
@@ -36,6 +39,7 @@ import TechReport from "./pages/technician/TechReport";
 import TechLeave from "./pages/technician/TechLeave";
 import JobCard from "./pages/JobCard";
 import CustomerCheck from "./pages/CustomerCheck";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -49,6 +53,9 @@ const App = () => (
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/portal" element={<PortalDashboard />} />
+            <Route path="/project-sites" element={<ProjectSites />} />
+            <Route path="/project-sites/:siteId" element={<ProjectSiteDashboard />} />
+            <Route path="/project-areas" element={<ProtectedRoute><ProjectAreas /></ProtectedRoute>}/>
             <Route path="/workflow" element={<SystemWorkflow />} />
             <Route path="/job-manager" element={<JobManager />} />
             <Route path="/customer-update" element={<CustomerUpdate />} />
