@@ -1,27 +1,50 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ClipboardList, Plus, Search } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle,} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue,} from "@/components/ui/select";
 import { toast } from "sonner";
 
 const WorkOrders = () => {
+  const getStatusBadgeClass = (status: string | null) => {
+    switch (status) {
+      case "Open":
+        return "bg-slate-100 text-slate-700 border-slate-200";
+      case "Assigned":
+        return "bg-blue-100 text-blue-700 border-blue-200";
+      case "In Progress":
+        return "bg-orange-100 text-orange-700 border-orange-200";
+      case "Completed":
+        return "bg-green-100 text-green-700 border-green-200";
+      case "Cancelled":
+        return "bg-red-100 text-red-700 border-red-200";
+      default:
+        return "bg-slate-100 text-slate-700 border-slate-200";
+    }
+  };
+
+  const getPriorityBadgeClass = (priority: string | null) => {
+    switch (priority) {
+      case "Low":
+        return "bg-slate-100 text-slate-700 border-slate-200";
+      case "Normal":
+        return "bg-blue-100 text-blue-700 border-blue-200";
+      case "High":
+        return "bg-orange-100 text-orange-700 border-orange-200";
+      case "Urgent":
+        return "bg-red-100 text-red-700 border-red-200";
+      default:
+        return "bg-slate-100 text-slate-700 border-slate-200";
+    }
+  };
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -34,10 +57,11 @@ const WorkOrders = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("Normal");
-  const [status, setStatus] = useState("Planned");
+  const [status, setStatus] = useState("Open");
   const [plannedStartDate, setPlannedStartDate] = useState("");
   const [plannedEndDate, setPlannedEndDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
 
   const { data: projects = [] } = useQuery({
     queryKey: ["projects-for-work-orders"],
@@ -79,7 +103,26 @@ const WorkOrders = () => {
       return data;
     },
   });
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employees-for-work-orders"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employees")
+        .select(`
+        employee_id,
+        employee_code,
+        first_name,
+        last_name,
+        display_name
+      `)
+        .eq("is_deleted", false)
+        .eq("is_active", true)
+        .order("employee_code", { ascending: true });
 
+      if (error) throw error;
+      return data;
+    },
+  });
   const { data: areas = [] } = useQuery({
     queryKey: ["areas-for-work-orders"],
     queryFn: async () => {
@@ -134,9 +177,20 @@ const WorkOrders = () => {
             site_name
           ),
           project_areas (
-            area_code,
-            area_name
-          )
+  area_code,
+  area_name
+),
+work_assignments (
+  work_assignment_id,
+  employee_id,
+  is_deleted,
+  employees (
+    employee_code,
+    display_name,
+    first_name,
+    last_name
+  )
+)
         `)
         .eq("is_deleted", false)
         .order("created_at", { ascending: false });
@@ -164,10 +218,10 @@ const WorkOrders = () => {
     setTitle("");
     setDescription("");
     setPriority("Normal");
-    setStatus("Planned");
+    setStatus("Open");
     setPlannedStartDate("");
     setPlannedEndDate("");
-    setNotes("");
+    setSelectedEmployeeIds([]);
   };
 
   const createWorkOrder = useMutation({
@@ -188,22 +242,45 @@ const WorkOrders = () => {
         throw new Error("Please enter work order title.");
       }
 
-      const { error } = await supabase.from("work_orders").insert({
-        work_order_no: workOrderNo.trim() || null,
-        project_id: projectId,
-        site_id: siteId,
-        area_id: areaId,
-        title: title.trim(),
-        description: description.trim() || null,
-        priority,
-        status,
-        planned_start_date: plannedStartDate || null,
-        planned_end_date: plannedEndDate || null,
-        notes: notes.trim() || null,
-        is_deleted: false,
-      });
+      const { data: newWorkOrder, error } = await supabase
+        .from("work_orders")
+        .insert({
+          work_order_no: workOrderNo.trim() || undefined,
+          project_id: projectId,
+          site_id: siteId,
+          area_id: areaId || null,
+          title: title.trim(),
+          description: description.trim() || null,
+          priority,
+          status,
+          planned_start_date: plannedStartDate || null,
+          planned_end_date: plannedEndDate || null,
+          notes: notes.trim() || null,
+          is_deleted: false,
+        })
+        .select("work_order_id")
+        .single();
 
       if (error) throw error;
+
+      if (selectedEmployeeIds.length > 0) {
+        const assignmentRows = selectedEmployeeIds.map((employeeId) => ({
+          employee_id: employeeId,
+          project_id: projectId,
+          site_id: siteId,
+          area_id: areaId || null,
+          work_order_id: newWorkOrder.work_order_id,
+          assigned_date: plannedStartDate || new Date().toISOString().slice(0, 10),
+          notes: null,
+          is_deleted: false,
+        }));
+
+        const { error: assignmentError } = await supabase
+          .from("work_assignments")
+          .insert(assignmentRows);
+
+        if (assignmentError) throw assignmentError;
+      }
     },
     onSuccess: () => {
       toast.success("Work order created successfully.");
@@ -277,12 +354,14 @@ const WorkOrders = () => {
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="grid grid-cols-12 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500 px-4 py-3 border-b">
           <div className="col-span-2">Work Order</div>
-          <div className="col-span-3">Project</div>
-          <div className="col-span-2">Site</div>
-          <div className="col-span-2">Area</div>
+          <div className="col-span-2">Project</div>
+          <div className="col-span-1">Site</div>
+          <div className="col-span-1">Area</div>
+          <div className="col-span-2">Assigned</div>
           <div className="col-span-1">Priority</div>
           <div className="col-span-1">Status</div>
           <div className="col-span-1">Planned</div>
+          <div className="col-span-1">Action</div>
         </div>
 
         {filteredWorkOrders.length === 0 ? (
@@ -304,7 +383,7 @@ const WorkOrders = () => {
                 </p>
               </div>
 
-              <div className="col-span-3">
+              <div className="col-span-2">
                 <p className="font-medium text-slate-800">
                   {workOrder.projects?.project_name || "-"}
                 </p>
@@ -314,22 +393,50 @@ const WorkOrders = () => {
                 </p>
               </div>
 
-              <div className="col-span-2 text-slate-700">
+              <div className="col-span-1 text-slate-700">
                 <p>{workOrder.project_sites?.site_name || "-"}</p>
                 <p className="text-xs text-slate-500">
                   {workOrder.project_sites?.site_code || "-"}
                 </p>
               </div>
 
-              <div className="col-span-2 text-slate-700">
+              <div className="col-span-1 text-slate-700">
                 <p>{workOrder.project_areas?.area_name || "-"}</p>
                 <p className="text-xs text-slate-500">
                   {workOrder.project_areas?.area_code || "-"}
                 </p>
               </div>
+              <div className="col-span-2 text-xs text-slate-700">
+                {workOrder.work_assignments?.filter((assignment) => !assignment.is_deleted)
+                  .length === 0 ? (
+                  <span className="text-slate-400">-</span>
+                ) : (
+                  <div className="space-y-1">
+                    {workOrder.work_assignments
+                      ?.filter((assignment) => !assignment.is_deleted)
+                      .map((assignment) => {
+                        const employee = assignment.employees;
+                        const employeeName = employee
+                          ? employee.display_name ||
+                          `${employee.first_name} ${employee.last_name}`
+                          : "-";
 
-              <div className="col-span-1 text-slate-700">
-                {workOrder.priority || "-"}
+                        return (
+                          <div key={assignment.work_assignment_id}>
+                            {employee?.employee_code || "-"} - {employeeName}
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+              <div className="col-span-1">
+                <Badge
+                  variant="outline"
+                  className={getPriorityBadgeClass(workOrder.priority)}
+                >
+                  {workOrder.priority || "-"}
+                </Badge>
               </div>
 
               <div className="col-span-1 text-slate-700">
@@ -339,6 +446,15 @@ const WorkOrders = () => {
               <div className="col-span-1 text-xs text-slate-600">
                 <p>{workOrder.planned_start_date || "-"}</p>
                 <p>{workOrder.planned_end_date || "-"}</p>
+              </div>
+              <div className="col-span-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/work-orders/${workOrder.work_order_id}`)}
+                >
+                  View
+                </Button>
               </div>
             </div>
           ))
@@ -469,7 +585,11 @@ const WorkOrders = () => {
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Planned">Planned</SelectItem>
+                  <SelectItem value="Open">Open</SelectItem>
+                  <SelectItem value="Assigned">Assigned</SelectItem>
+                  <SelectItem value="In Progress">In Progress</SelectItem>
+                  <SelectItem value="Completed">Completed</SelectItem>
+                  <SelectItem value="Cancelled">Cancelled</SelectItem>
                   <SelectItem value="In Progress">In Progress</SelectItem>
                   <SelectItem value="On Hold">On Hold</SelectItem>
                   <SelectItem value="Completed">Completed</SelectItem>
@@ -495,7 +615,52 @@ const WorkOrders = () => {
                 onChange={(e) => setPlannedEndDate(e.target.value)}
               />
             </div>
+            <div className="col-span-2 space-y-2">
+              <Label>Assign Employees</Label>
 
+              <div className="grid grid-cols-2 gap-2 border rounded-xl p-3 max-h-48 overflow-y-auto">
+                {employees.length === 0 ? (
+                  <p className="col-span-2 text-sm text-slate-500">
+                    No active employees found.
+                  </p>
+                ) : (
+                  employees.map((employee) => {
+                    const employeeName =
+                      employee.display_name ||
+                      `${employee.first_name} ${employee.last_name}`;
+
+                    const checked = selectedEmployeeIds.includes(employee.employee_id);
+
+                    return (
+                      <label
+                        key={employee.employee_id}
+                        className="flex items-center gap-2 text-sm cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(event) => {
+                            if (event.target.checked) {
+                              setSelectedEmployeeIds((current) => [
+                                ...current,
+                                employee.employee_id,
+                              ]);
+                            } else {
+                              setSelectedEmployeeIds((current) =>
+                                current.filter((id) => id !== employee.employee_id)
+                              );
+                            }
+                          }}
+                        />
+                        <span>
+                          {employee.employee_code} - {employeeName}
+                        </span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            </div>
             <div className="col-span-2 space-y-2">
               <Label>Description</Label>
               <Textarea

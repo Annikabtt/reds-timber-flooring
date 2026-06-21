@@ -39,6 +39,10 @@ import TechReport from "./pages/technician/TechReport";
 import TechLeave from "./pages/technician/TechLeave";
 import JobCard from "./pages/JobCard";
 import CustomerCheck from "./pages/CustomerCheck";
+import WorkOrders from "./pages/WorkOrders";
+import WorkOrderDashboard from "./pages/WorkOrderDashboard";
+import DailyReports from "./pages/DailyReports";
+import DailyReportDashboard from "./pages/DailyReportDashboard";
 
 const queryClient = new QueryClient();
 
@@ -83,6 +87,10 @@ const App = () => (
             <Route path="/tech/leave" element={<ProtectedRoute><TechLeave /></ProtectedRoute>} />
             <Route path="/tech/report" element={<ProtectedRoute><TechReport /></ProtectedRoute>} />
             <Route path="/tech/leave" element={<ProtectedRoute><TechLeave /></ProtectedRoute>} />
+            <Route path="/work-orders" element={<WorkOrders />} />
+            <Route path="/work-orders/:workOrderId" element={<WorkOrderDashboard />} />
+            <Route path="/daily-reports" element={<DailyReports />} />
+            <Route path="/daily-reports/:reportId" element={<DailyReportDashboard />} />
             <Route
               path="/customers"
               element={

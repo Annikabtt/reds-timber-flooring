@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { CalendarDays, Plus, Search } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +23,7 @@ import {
 import { toast } from "sonner";
 
 const DailyReports = () => {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -166,8 +168,9 @@ const DailyReports = () => {
             status
           ),
           daily_report_photos (
-            photo_id
-          )
+          photo_id,
+          is_deleted
+            )
         `)
         .eq("is_deleted", false)
         .order("report_date", { ascending: false });
@@ -247,7 +250,7 @@ const DailyReports = () => {
         let nextStatus = "In Progress";
 
         if (progress === 0) {
-          nextStatus = "Planned";
+          nextStatus = "Open";
         }
 
         if (progress >= 100) {
@@ -349,7 +352,7 @@ const DailyReports = () => {
           <div className="col-span-1">Weather</div>
           <div className="col-span-1">Workers</div>
           <div className="col-span-1">Progress</div>
-          <div className="col-span-1">Photos</div>
+          <div className="col-span-1">Action</div>
         </div>
 
         {filteredDailyReports.length === 0 ? (
@@ -403,8 +406,14 @@ const DailyReports = () => {
                 {report.progress_percent ?? "-"}%
               </div>
 
-              <div className="col-span-1 text-slate-700">
-                {report.daily_report_photos?.length || 0}
+              <div className="col-span-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/daily-reports/${report.report_id}`)}
+                >
+                  View
+                </Button>
               </div>
             </div>
           ))
