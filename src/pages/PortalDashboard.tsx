@@ -377,25 +377,6 @@ export default function PortalDashboard() {
           />
 
           <MetricCard
-            title="Overdue"
-            value={money(summary.overdueAmount)}
-            icon={DollarSign}
-            note="Unpaid invoices past due date"
-          />
-          <MetricCard
-            title="Due Next 7 Days"
-            value={money(summary.dueNext7Days)}
-            icon={DollarSign}
-            note="Unpaid invoices due soon"
-          />
-
-          <MetricCard
-            title="Due Next 30 Days"
-            value={money(summary.dueNext30Days)}
-            icon={DollarSign}
-            note="Unpaid invoices due this month"
-          />
-          <MetricCard
             title="Active Employees"
             value={String(summary.activeEmployees)}
             icon={Users}
@@ -408,7 +389,6 @@ export default function PortalDashboard() {
           </h2>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-
             <MetricCard
               title="Payments Received"
               value={money(summary.received)}
@@ -426,6 +406,25 @@ export default function PortalDashboard() {
               icon={DollarSign}
               note="Invoice amount minus payments received"
             />
+            <MetricCard
+              title="Overdue"
+              value={money(summary.overdueAmount)}
+              icon={DollarSign}
+              note="Unpaid invoices past due date"
+            />
+            <MetricCard
+              title="Due Next 7 Days"
+              value={money(summary.dueNext7Days)}
+              icon={DollarSign}
+              note="Unpaid invoices due soon"
+            />
+
+            <MetricCard
+              title="Due Next 30 Days"
+              value={money(summary.dueNext30Days)}
+              icon={DollarSign}
+              note="Unpaid invoices due this month"
+            />
             {canViewFinancialSensitiveData && (
               <MetricCard
                 title="Payroll Due"
@@ -434,38 +433,6 @@ export default function PortalDashboard() {
                 note="Estimated payroll amount"
               />
             )}
-          </div>
-        </section>
-
-        <section>
-          <h2 className="text-lg font-semibold text-slate-800 mb-3">
-            Cash Flow
-          </h2>
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard
-              title="Payments Received"
-              value={money(summary.received)}
-              icon={DollarSign}
-            />
-            <MetricCard
-              title="Outstanding"
-              value={money(summary.outstanding)}
-              icon={DollarSign}
-              note="Invoice amount minus payments received"
-            />
-            <MetricCard
-              title="Overdue"
-              value={money(summary.overdueAmount)}
-              icon={DollarSign}
-              note="Unpaid invoices past due date"
-            />
-            <MetricCard
-              title="Payroll Due"
-              value={money(summary.payrollDue)}
-              icon={DollarSign}
-              note="Estimated payroll amount"
-            />
             {canViewFinancialSensitiveData && (
               <MetricCard
                 title="Net Cash Position"
