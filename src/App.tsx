@@ -61,7 +61,7 @@ const App = () => (
             <Route path="/proposal" element={<CustomerProposal />} />
             <Route path="/dashboard" element={<Index />} />
             <Route path="/job-card" element={<JobCard />} />
-            <Route path="/installers" element={<InstallerDatabase />} />      
+            <Route path="/installers" element={<InstallerDatabase />} />
             <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
             <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
             <Route path="/contacts" element={<ProtectedRoute><Contacts /></ProtectedRoute>} />
@@ -76,13 +76,20 @@ const App = () => (
             <Route path="/tech/leave" element={<ProtectedRoute><TechLeave /></ProtectedRoute>} />
             <Route path="/tech/report" element={<ProtectedRoute><TechReport /></ProtectedRoute>} />
             <Route path="/tech/leave" element={<ProtectedRoute><TechLeave /></ProtectedRoute>} />
-            <Route path="/customers" element={<CustomerDatabase />} />
-            
+            <Route
+              path="/customers"
+              element={
+                <ProtectedRoute>
+                  <CustomerDatabase />
+                </ProtectedRoute>
+              }
+            />
+
             {/* หน้าลูกค้า (Customer) */}
             <Route path="/customer-check" element={<CustomerCheck />} />
-            
+
             {/* หน้า 404 ต้องอยู่ล่างสุดเสมอ */}
-           <Route path="*" element={<NotFound />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
