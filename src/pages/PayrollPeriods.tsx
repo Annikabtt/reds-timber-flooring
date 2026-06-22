@@ -1,29 +1,19 @@
 import { useMemo, useState } from "react";
-import { CalendarRange, Plus, Search } from "lucide-react";
+import { CalendarRange, Eye, Plus, Search } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select";
 import { toast } from "sonner";
 
 const PayrollPeriods = () => {
   const queryClient = useQueryClient();
-
+  const navigate = useNavigate();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -82,7 +72,9 @@ const PayrollPeriods = () => {
       if (!endDate) {
         throw new Error("Please select end date.");
       }
-
+      if (new Date(endDate) < new Date(startDate)) {
+        throw new Error("End date must be later than or equal to start date.");
+      }
       const { error } = await supabase.from("payroll_periods").insert({
         period_no: periodNo.trim() || null,
         period_name: periodName.trim(),
@@ -131,7 +123,7 @@ const PayrollPeriods = () => {
             </h1>
           </div>
           <p className="text-slate-500 mt-1">
-            Manage weekly payroll periods for hourly workers.
+            Manage weekly, monthly, and custom payroll periods.
           </p>
         </div>
 
@@ -143,7 +135,57 @@ const PayrollPeriods = () => {
           Add Period
         </Button>
       </div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white border rounded-xl p-4">
+          <div className="text-sm text-slate-500">
+            Total Periods
+          </div>
+          <div className="text-2xl font-bold">
+            {periods.length}
+          </div>
+        </div>
 
+        <div className="bg-white border rounded-xl p-4">
+          <div className="text-sm text-slate-500">
+            Open
+          </div>
+          <div className="text-2xl font-bold text-green-600">
+            {
+              periods.filter(
+                (period) => period.status === "Open"
+              ).length
+            }
+          </div>
+        </div>
+
+        <div className="bg-white border rounded-xl p-4">
+          <div className="text-sm text-slate-500">
+            Processing
+          </div>
+          <div className="text-2xl font-bold text-orange-600">
+            {
+              periods.filter(
+                (period) => period.status === "Processing"
+              ).length
+            }
+          </div>
+        </div>
+
+        <div className="bg-white border rounded-xl p-4">
+          <div className="text-sm text-slate-500">
+            Closed / Paid
+          </div>
+          <div className="text-2xl font-bold text-slate-700">
+            {
+              periods.filter(
+                (period) =>
+                  period.status === "Closed" ||
+                  period.status === "Paid"
+              ).length
+            }
+          </div>
+        </div>
+      </div>
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
         <div className="relative">
           <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
@@ -159,11 +201,12 @@ const PayrollPeriods = () => {
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="grid grid-cols-12 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500 px-4 py-3 border-b">
           <div className="col-span-2">Period No</div>
-          <div className="col-span-3">Period Name</div>
+          <div className="col-span-2">Period Name</div>
           <div className="col-span-2">Type</div>
           <div className="col-span-2">Start Date</div>
           <div className="col-span-2">End Date</div>
           <div className="col-span-1">Status</div>
+          <div className="col-span-1 text-right">Action</div>
         </div>
 
         {filteredPeriods.length === 0 ? (
@@ -180,7 +223,7 @@ const PayrollPeriods = () => {
                 {period.period_no || "-"}
               </div>
 
-              <div className="col-span-3 text-slate-700">
+              <div className="col-span-2 text-slate-700">
                 {period.period_name || "-"}
               </div>
 
@@ -196,15 +239,50 @@ const PayrollPeriods = () => {
                 {period.end_date || "-"}
               </div>
 
-              <div className="col-span-1 text-slate-700">
-                {period.status || "-"}
+              <div className="col-span-1">
+                <span
+                  className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${period.status === "Open"
+                    ? "bg-green-100 text-green-700"
+                    : period.status === "Processing"
+                      ? "bg-orange-100 text-orange-700"
+                      : period.status === "Paid" ||
+                        period.status === "Closed"
+                        ? "bg-slate-100 text-slate-700"
+                        : "bg-blue-100 text-blue-700"
+                    }`}
+                >
+                  {period.status || "-"}
+                </span>
+              </div>
+              <div className="col-span-1 flex justify-end">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    navigate(
+                      `/payroll-periods/${period.payroll_period_id}`
+                    )
+                  }
+                >
+                  <Eye className="h-4 w-4 mr-1" />
+                  View
+                </Button>
               </div>
             </div>
           ))
         )}
       </div>
 
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+      <Dialog
+        open={showAddDialog}
+        onOpenChange={(open) => {
+          setShowAddDialog(open);
+
+          if (!open) {
+            resetForm();
+          }
+        }}
+      >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Add Payroll Period</DialogTitle>
@@ -272,7 +350,6 @@ const PayrollPeriods = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Weekly">Weekly</SelectItem>
-                  <SelectItem value="Fortnightly">Fortnightly</SelectItem>
                   <SelectItem value="Monthly">Monthly</SelectItem>
                   <SelectItem value="Custom">Custom</SelectItem>
                 </SelectContent>

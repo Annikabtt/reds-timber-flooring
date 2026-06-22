@@ -43,6 +43,7 @@ import WorkOrders from "./pages/WorkOrders";
 import WorkOrderDashboard from "./pages/WorkOrderDashboard";
 import DailyReports from "./pages/DailyReports";
 import DailyReportDashboard from "./pages/DailyReportDashboard";
+import PayrollPeriodDashboard from "./pages/PayrollPeriodDashboard";
 
 const queryClient = new QueryClient();
 
@@ -59,7 +60,7 @@ const App = () => (
             <Route path="/portal" element={<PortalDashboard />} />
             <Route path="/project-sites" element={<ProjectSites />} />
             <Route path="/project-sites/:siteId" element={<ProjectSiteDashboard />} />
-            <Route path="/project-areas" element={<ProtectedRoute><ProjectAreas /></ProtectedRoute>}/>
+            <Route path="/project-areas" element={<ProtectedRoute><ProjectAreas /></ProtectedRoute>} />
             <Route path="/workflow" element={<SystemWorkflow />} />
             <Route path="/job-manager" element={<JobManager />} />
             <Route path="/customer-update" element={<CustomerUpdate />} />
@@ -79,6 +80,7 @@ const App = () => (
             <Route path="/team" element={<ProtectedRoute><Team /></ProtectedRoute>} />
             <Route path="/photos" element={<ProtectedRoute><PhotoApproval /></ProtectedRoute>} />
             <Route path="/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
+            <Route path="/payroll-periods/:payrollPeriodId" element={<ProtectedRoute><PayrollPeriodDashboard /></ProtectedRoute>} />
             <Route path="/project-timeline" element={<ProtectedRoute><ProjectTimeline /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
             <Route path="/tech" element={<ProtectedRoute><TechHome /></ProtectedRoute>} />
@@ -86,11 +88,11 @@ const App = () => (
             <Route path="/tech/report" element={<ProtectedRoute><TechReport /></ProtectedRoute>} />
             <Route path="/tech/leave" element={<ProtectedRoute><TechLeave /></ProtectedRoute>} />
             <Route path="/tech/report" element={<ProtectedRoute><TechReport /></ProtectedRoute>} />
-            <Route path="/tech/leave" element={<ProtectedRoute><TechLeave /></ProtectedRoute>} />
             <Route path="/work-orders" element={<WorkOrders />} />
             <Route path="/work-orders/:workOrderId" element={<WorkOrderDashboard />} />
             <Route path="/daily-reports" element={<DailyReports />} />
             <Route path="/daily-reports/:reportId" element={<DailyReportDashboard />} />
+
             <Route
               path="/customers"
               element={

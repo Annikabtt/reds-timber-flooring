@@ -92,7 +92,33 @@ const PayrollEntries = () => {
       return data;
     },
   });
+  const { data: approvedTimeLogs = [] } = useQuery({
+    queryKey: ["approved-work-time-logs-for-payroll"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("work_time_logs")
+        .select(`
+          work_time_log_id,
+          employee_id,
+          work_date,
+          regular_hours,
+          overtime_hours,
+          approved,
+          employees (
+            employee_code,
+            display_name,
+            first_name,
+            last_name
+          )
+        `)
+        .eq("is_deleted", false)
+        .eq("approved", true)
+        .order("work_date", { ascending: false });
 
+      if (error) throw error;
+      return data;
+    },
+  });
   const { data: entries = [] } = useQuery({
     queryKey: ["payroll_entries"],
     queryFn: async () => {
@@ -150,12 +176,71 @@ const PayrollEntries = () => {
     setStatus("Draft");
     setNotes("");
   };
+  const calculateHoursFromTimeLogs = () => {
+    if (!payrollPeriodId) {
+      toast.error("Please select payroll period first.");
+      return;
+    }
+
+    if (!employeeId) {
+      toast.error("Please select employee first.");
+      return;
+    }
+
+    const selectedPeriod = periods.find(
+      (period) => period.payroll_period_id === payrollPeriodId
+    );
+
+    if (!selectedPeriod) {
+      toast.error("Selected payroll period not found.");
+      return;
+    }
+
+    const matchedLogs = approvedTimeLogs.filter((log) => {
+      const workDate = new Date(log.work_date);
+      const start = new Date(selectedPeriod.start_date);
+      const end = new Date(selectedPeriod.end_date);
+
+      return (
+        log.employee_id === employeeId &&
+        workDate >= start &&
+        workDate <= end
+      );
+    });
+
+    const totalRegularHours = matchedLogs.reduce(
+      (sum, log) => sum + Number(log.regular_hours || 0),
+      0
+    );
+
+    const totalOvertimeHours = matchedLogs.reduce(
+      (sum, log) => sum + Number(log.overtime_hours || 0),
+      0
+    );
+
+    setRegularHours(totalRegularHours.toFixed(2));
+    setOvertimeHours(totalOvertimeHours.toFixed(2));
+
+    toast.success(
+      `Calculated from ${matchedLogs.length} approved time logs.`
+    );
+  };
 
   const createEntry = useMutation({
     mutationFn: async () => {
       if (!payrollPeriodId) throw new Error("Please select payroll period.");
       if (!employeeId) throw new Error("Please select employee.");
+      const duplicatedEntry = entries.find(
+        (entry) =>
+          entry.payroll_period_id === payrollPeriodId &&
+          entry.employee_id === employeeId
+      );
 
+      if (duplicatedEntry) {
+        throw new Error(
+          "Payroll entry already exists for this employee in this period."
+        );
+      }
       const { error } = await supabase.from("payroll_entries").insert({
         payroll_period_id: payrollPeriodId,
         employee_id: employeeId,
@@ -193,8 +278,7 @@ const PayrollEntries = () => {
     return entries.filter((entry) => {
       const employeeName =
         entry.employees?.display_name ||
-        `${entry.employees?.first_name || ""} ${
-          entry.employees?.last_name || ""
+        `${entry.employees?.first_name || ""} ${entry.employees?.last_name || ""
         }`;
 
       return (
@@ -231,6 +315,62 @@ const PayrollEntries = () => {
         </Button>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white border rounded-xl p-4">
+          <div className="text-sm text-slate-500">
+            Total Entries
+          </div>
+          <div className="text-2xl font-bold">
+            {entries.length}
+          </div>
+        </div>
+
+        <div className="bg-white border rounded-xl p-4">
+          <div className="text-sm text-slate-500">
+            Draft
+          </div>
+          <div className="text-2xl font-bold text-orange-600">
+            {
+              entries.filter(
+                (entry) => entry.status === "Draft"
+              ).length
+            }
+          </div>
+        </div>
+
+        <div className="bg-white border rounded-xl p-4">
+          <div className="text-sm text-slate-500">
+            Gross Total
+          </div>
+          <div className="text-2xl font-bold text-green-600">
+            $
+            {entries
+              .reduce(
+                (sum, entry) =>
+                  sum + Number(entry.gross_amount || 0),
+                0
+              )
+              .toFixed(2)}
+          </div>
+        </div>
+
+        <div className="bg-white border rounded-xl p-4">
+          <div className="text-sm text-slate-500">
+            Net Total
+          </div>
+          <div className="text-2xl font-bold text-red-600">
+            $
+            {entries
+              .reduce(
+                (sum, entry) =>
+                  sum + Number(entry.net_amount || 0),
+                0
+              )
+              .toFixed(2)}
+          </div>
+        </div>
+      </div>
+
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
         <div className="relative">
           <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
@@ -263,9 +403,8 @@ const PayrollEntries = () => {
           filteredEntries.map((entry) => {
             const employeeName =
               entry.employees?.display_name ||
-              `${entry.employees?.first_name || ""} ${
-                entry.employees?.last_name || ""
-              }`.trim() ||
+              `${entry.employees?.first_name || ""} ${entry.employees?.last_name || ""
+                }`.trim() ||
               "-";
 
             return (
@@ -349,7 +488,20 @@ const PayrollEntries = () => {
 
             <div className="col-span-2 space-y-2">
               <Label>Employee *</Label>
-              <Select value={employeeId} onValueChange={setEmployeeId}>
+              <Select
+                value={employeeId}
+                onValueChange={(value) => {
+                  setEmployeeId(value);
+
+                  const selectedEmployee = employees.find(
+                    (employee) => employee.employee_id === value
+                  );
+
+                  if (selectedEmployee?.employment_type) {
+                    setPayMethod(selectedEmployee.employment_type);
+                  }
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select employee" />
                 </SelectTrigger>
@@ -357,9 +509,8 @@ const PayrollEntries = () => {
                   {employees.map((employee) => {
                     const name =
                       employee.display_name ||
-                      `${employee.first_name || ""} ${
-                        employee.last_name || ""
-                      }`.trim();
+                      `${employee.first_name || ""} ${employee.last_name || ""
+                        }`.trim();
 
                     return (
                       <SelectItem
@@ -396,7 +547,6 @@ const PayrollEntries = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Draft">Draft</SelectItem>
-                  <SelectItem value="Submitted">Submitted</SelectItem>
                   <SelectItem value="Approved">Approved</SelectItem>
                   <SelectItem value="Paid">Paid</SelectItem>
                   <SelectItem value="Cancelled">Cancelled</SelectItem>
@@ -420,6 +570,16 @@ const PayrollEntries = () => {
                 value={overtimeHours}
                 onChange={(e) => setOvertimeHours(e.target.value)}
               />
+            </div>
+
+            <div className="md:col-span-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={calculateHoursFromTimeLogs}
+              >
+                Calculate Hours
+              </Button>
             </div>
 
             <div className="space-y-2">
