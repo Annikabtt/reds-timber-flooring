@@ -350,7 +350,7 @@ export default function PortalDashboard() {
   }
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full max-w-none space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
         <p className="text-slate-500 mt-1">
@@ -363,7 +363,7 @@ export default function PortalDashboard() {
           General KPI
         </h2>
 
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(250px,1fr))]">
 
           <MetricCard
             title="Total Invoices"
@@ -388,7 +388,7 @@ export default function PortalDashboard() {
             Cash Flow
           </h2>
 
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(250px,1fr))]">
             <MetricCard
               title="Payments Received"
               value={money(summary.received)}
@@ -450,7 +450,7 @@ export default function PortalDashboard() {
           Project KPI
         </h2>
 
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(250px,1fr))]">
           <MetricCard
             title="Total Projects"
             value={String(summary.totalProjects)}

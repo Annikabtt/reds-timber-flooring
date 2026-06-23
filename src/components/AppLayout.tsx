@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+
 import { AppSidebar } from "@/components/AppSidebar";
 import { Bell } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -15,16 +16,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
     : user?.email?.slice(0, 2).toUpperCase() ?? "U";
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full">
-        <AppSidebar />
+  <SidebarProvider>
+    <AppSidebar />
 
-        <div className="flex-1 flex flex-col min-w-0">
-          <main className="flex-1 w-full p-6 overflow-auto">
-            {children}
-          </main>
-        </div>
-      </div>
-    </SidebarProvider>
-  );
+    <SidebarInset>
+      <main className="flex-1 w-full max-w-none px-2 py-6 overflow-auto">
+        {children}
+      </main>
+    </SidebarInset>
+  </SidebarProvider>
+);
 }
