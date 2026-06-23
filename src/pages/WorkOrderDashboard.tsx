@@ -174,6 +174,69 @@ const WorkOrderDashboard = () => {
             toast.error(error.message);
         },
     });
+    const updateWorkOrderStatus = useMutation({
+        mutationFn: async (nextStatus: string) => {
+            if (!workOrderId) {
+                throw new Error("Work order ID is missing.");
+            }
+
+            const { error } = await supabase
+                .from("work_orders")
+                .update({
+                    status: nextStatus,
+                })
+                .eq("work_order_id", workOrderId);
+
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            toast.success("Work order status updated.");
+            queryClient.invalidateQueries({ queryKey: ["work_order", workOrderId] });
+            queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+        },
+        onError: (error) => {
+            toast.error(error.message);
+        },
+    });
+    const getNextWorkflowAction = (status: string | null) => {
+        switch (status) {
+            case "Open":
+            case "Assigned":
+                return {
+                    label: "Start Work",
+                    nextStatus: "In Progress",
+                };
+
+            case "In Progress":
+                return {
+                    label: "Submit for Inspection",
+                    nextStatus: "Ready for Inspection",
+                };
+
+            case "Ready for Inspection":
+                return {
+                    label: "Start Inspection",
+                    nextStatus: "Inspection",
+                };
+
+            case "Inspection":
+                return {
+                    label: "Approve Completion",
+                    nextStatus: "Approved Completion",
+                };
+
+            case "Approved Completion":
+                return {
+                    label: "Mark Completed",
+                    nextStatus: "Completed",
+                };
+
+            default:
+                return null;
+        }
+    };
+
+    const nextWorkflowAction = getNextWorkflowAction(workOrder?.status || null);
 
     if (isLoading) {
         return (
@@ -206,12 +269,32 @@ const WorkOrderDashboard = () => {
                     Back
                 </Button>
 
+                {nextWorkflowAction && (
+                    <Button
+                        onClick={() =>
+                            updateWorkOrderStatus.mutate(
+                                nextWorkflowAction.nextStatus
+                            )
+                        }
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                        {nextWorkflowAction.label}
+                    </Button>
+                )}
+
                 <Button
                     onClick={() => setShowEditDialog(true)}
                     className="bg-red-600 hover:bg-red-700 text-white"
                 >
                     Edit Work Order
                 </Button>
+
+                <Button onClick={() => setShowEditDialog(true)}
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                    Edit Work Order
+                </Button>
+
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
