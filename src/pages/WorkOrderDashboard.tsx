@@ -30,6 +30,12 @@ const getStatusBadgeClass = (status: string | null) => {
             return "bg-blue-100 text-blue-700 border-blue-200";
         case "In Progress":
             return "bg-orange-100 text-orange-700 border-orange-200";
+        case "Ready for Inspection":
+            return "bg-purple-100 text-purple-700 border-purple-200";
+        case "Inspection":
+            return "bg-yellow-100 text-yellow-700 border-yellow-200";
+        case "Approved Completion":
+            return "bg-emerald-100 text-emerald-700 border-emerald-200";
         case "Completed":
             return "bg-green-100 text-green-700 border-green-200";
         case "Cancelled":
@@ -393,6 +399,19 @@ const WorkOrderDashboard = () => {
                                     <SelectItem value="Open">Open</SelectItem>
                                     <SelectItem value="Assigned">Assigned</SelectItem>
                                     <SelectItem value="In Progress">In Progress</SelectItem>
+
+                                    <SelectItem value="Ready for Inspection">
+                                        Ready for Inspection
+                                    </SelectItem>
+
+                                    <SelectItem value="Inspection">
+                                        Inspection
+                                    </SelectItem>
+
+                                    <SelectItem value="Approved Completion">
+                                        Approved Completion
+                                    </SelectItem>
+
                                     <SelectItem value="Completed">Completed</SelectItem>
                                     <SelectItem value="Cancelled">Cancelled</SelectItem>
                                 </SelectContent>
