@@ -1,4 +1,5 @@
 import JobManager from "./pages/JobManager";
+import { AppLayout } from "@/components/AppLayout";
 import CustomerUpdate from "./pages/CustomerUpdate";
 import CustomerTracking from "./pages/CustomerTracking";
 import SystemWorkflow from "./pages/SystemWorkflow";
@@ -18,7 +19,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import LandingPage from "./pages/LandingPage";
-import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -60,7 +60,38 @@ const App = () => (
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/portal" element={<PortalDashboard />} />
+            <Route
+              path="/portal"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <PortalDashboard />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/portal"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <PortalDashboard />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <PortalDashboard />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
 
             <Route path="/project-sites" element={<ProtectedRoute><ProjectSites /></ProtectedRoute>} />
             <Route path="/work-orders" element={<ProtectedRoute><WorkOrders /></ProtectedRoute>} />
@@ -80,7 +111,6 @@ const App = () => (
             <Route path="/material-request" element={<MaterialRequest />} />
             <Route path="/showroom" element={<CustomerShowroom />} />
             <Route path="/proposal" element={<CustomerProposal />} />
-            <Route path="/dashboard" element={<Index />} />
             <Route path="/job-card" element={<JobCard />} />
             <Route path="/installers" element={<InstallerDatabase />} />
             <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />

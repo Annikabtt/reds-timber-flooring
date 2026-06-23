@@ -350,7 +350,7 @@ export default function PortalDashboard() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
         <p className="text-slate-500 mt-1">
@@ -363,7 +363,7 @@ export default function PortalDashboard() {
           General KPI
         </h2>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
 
           <MetricCard
             title="Total Invoices"
@@ -388,7 +388,7 @@ export default function PortalDashboard() {
             Cash Flow
           </h2>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <MetricCard
               title="Payments Received"
               value={money(summary.received)}
@@ -450,7 +450,7 @@ export default function PortalDashboard() {
           Project KPI
         </h2>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <MetricCard
             title="Total Projects"
             value={String(summary.totalProjects)}
@@ -485,7 +485,7 @@ export default function PortalDashboard() {
           Project Status Summary
         </h2>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(250px,1fr))]">
           {Object.entries(summary.projectStatusSummary).map(
             ([status, count]) => (
               <MetricCard
@@ -503,7 +503,7 @@ export default function PortalDashboard() {
           Revenue Trend
         </h2>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(250px,1fr))]">
           <MetricCard
             title="Revenue This Month"
             value={money(summary.revenueThisMonth)}
@@ -646,7 +646,7 @@ export default function PortalDashboard() {
             </h2>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(250px,1fr))]">
             <MetricCard
               title="Contract Value"
               value={money(summary.contractValue)}
