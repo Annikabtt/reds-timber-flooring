@@ -5,11 +5,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle,} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue,} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select";
 import { toast } from "sonner";
 
 const WorkOrders = () => {
@@ -200,6 +200,31 @@ work_assignments (
     },
   });
 
+  const { data: areaProgress = [] } = useQuery({
+    queryKey: ["project_area_progress_v"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("project_area_progress_v")
+        .select(`
+        area_id,
+        estimated_quantity,
+        actual_quantity,
+        remaining_quantity,
+        progress_percent,
+        unit_of_measure
+      `);
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const areaProgressMap = useMemo(() => {
+    return new Map(
+      areaProgress.map((item) => [item.area_id, item])
+    );
+  }, [areaProgress]);
+
   const filteredSites = useMemo(() => {
     return sites.filter((site) => site.project_id === projectId);
   }, [sites, projectId]);
@@ -360,7 +385,7 @@ work_assignments (
           <div className="col-span-2">Assigned</div>
           <div className="col-span-1">Priority</div>
           <div className="col-span-1">Status</div>
-          <div className="col-span-1">Planned</div>
+          <div className="col-span-1">Progress</div>
           <div className="col-span-1">Action</div>
         </div>
 
@@ -443,9 +468,26 @@ work_assignments (
                 {workOrder.status || "-"}
               </div>
 
-              <div className="col-span-1 text-xs text-slate-600">
-                <p>{workOrder.planned_start_date || "-"}</p>
-                <p>{workOrder.planned_end_date || "-"}</p>
+              <div className="col-span-1 text-xs text-slate-700">
+                {(() => {
+                  const progress = areaProgressMap.get(workOrder.area_id);
+
+                  if (!progress) {
+                    return "-";
+                  }
+
+                  return (
+                    <div>
+                      <p className="font-medium">
+                        {Number(progress.progress_percent || 0).toFixed(2)}%
+                      </p>
+                      <p className="text-slate-500">
+                        {progress.actual_quantity || 0}
+                        {progress.unit_of_measure || ""}
+                      </p>
+                    </div>
+                  );
+                })()}
               </div>
               <div className="col-span-1">
                 <Button
