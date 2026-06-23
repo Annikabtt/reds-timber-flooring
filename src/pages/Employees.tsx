@@ -33,6 +33,8 @@ const Employees = () => {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [employmentType, setEmploymentType] = useState("Full Time");
+  const [payMethod, setPayMethod] = useState("Hourly");
+  const [payRate, setPayRate] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [taxFileNumber, setTaxFileNumber] = useState("");
@@ -55,6 +57,8 @@ const Employees = () => {
           phone,
           email,
           employment_type,
+          pay_method,
+          pay_rate,
           start_date,
           end_date,
           tax_file_number,
@@ -81,6 +85,8 @@ const Employees = () => {
     setPhone("");
     setEmail("");
     setEmploymentType("Full Time");
+    setPayMethod("Hourly");
+    setPayRate("");
     setStartDate("");
     setEndDate("");
     setTaxFileNumber("");
@@ -99,7 +105,15 @@ const Employees = () => {
       if (!lastName.trim()) {
         throw new Error("Please enter last name.");
       }
-
+      if (!payMethod) {
+        throw new Error("Pay method is required.");
+      }
+      if (!payRate) {
+        throw new Error("Pay rate is required.");
+      }
+      if (Number(payRate) <= 0) {
+        throw new Error("Pay rate must be greater than 0.");
+      }
       const finalDisplayName =
         displayName.trim() || `${firstName.trim()} ${lastName.trim()}`;
 
@@ -111,6 +125,8 @@ const Employees = () => {
         phone: phone.trim() || null,
         email: email.trim() || null,
         employment_type: employmentType,
+        pay_method: payMethod,
+        pay_rate: payRate ? Number(payRate) : null,
         start_date: startDate || null,
         end_date: endDate || null,
         tax_file_number: taxFileNumber.trim() || null,
@@ -190,7 +206,7 @@ const Employees = () => {
         <div className="grid grid-cols-12 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500 px-4 py-3 border-b">
           <div className="col-span-3">Employee</div>
           <div className="col-span-2">Contact</div>
-          <div className="col-span-2">Employment</div>
+          <div className="col-span-2">Employment / Payroll</div>
           <div className="col-span-2">Bank</div>
           <div className="col-span-2">Period</div>
           <div className="col-span-1">Status</div>
@@ -232,8 +248,18 @@ const Employees = () => {
                 {!employee.phone && !employee.email && "-"}
               </div>
 
-              <div className="col-span-2 text-slate-700">
-                {employee.employment_type || "-"}
+              <div className="col-span-2">
+                <p className="font-medium text-slate-900">
+                  {employee.employment_type || "-"}
+                </p>
+
+                <p className="text-sm text-blue-600">
+                  {employee.pay_method || "-"}
+                </p>
+
+                <p className="font-semibold text-green-600">
+                  ${Number(employee.pay_rate || 0).toFixed(2)}
+                </p>
               </div>
 
               <div className="col-span-2 text-sm text-slate-700">
@@ -290,7 +316,29 @@ const Employees = () => {
                 </SelectContent>
               </Select>
             </div>
-
+            <div className="space-y-2">
+              <Label>Pay Method</Label>
+              <Select value={payMethod} onValueChange={setPayMethod}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select pay method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Hourly">Hourly</SelectItem>
+                  <SelectItem value="Daily">Daily</SelectItem>
+                  <SelectItem value="Weekly">Weekly</SelectItem>
+                  <SelectItem value="Monthly">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Pay Rate</Label>
+              <Input
+                type="number"
+                value={payRate}
+                onChange={(e) => setPayRate(e.target.value)}
+                placeholder="35.00"
+              />
+            </div>
             <div className="space-y-2">
               <Label>First Name *</Label>
               <Input

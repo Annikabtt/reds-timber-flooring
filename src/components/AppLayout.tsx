@@ -1,8 +1,7 @@
 import { ReactNode } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-import { Button } from "@/components/ui/button";
-import { Bell, Plus } from "lucide-react";
+import { Bell } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -25,13 +24,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <SidebarTrigger />
             </div>
             <div className="flex items-center gap-3">
-              <Button
-                onClick={() => navigate("/projects?newProject=1")}
-                size="sm"
-                className="gap-1.5 bg-red-600 text-white hover:bg-red-700 hover:text-white"
-              >
-                <Plus className="h-4 w-4" /> New Project
-              </Button>
               <button className="relative p-2 rounded-lg hover:bg-muted transition-colors">
                 <Bell className="h-5 w-5 text-muted-foreground" />
                 <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary" />

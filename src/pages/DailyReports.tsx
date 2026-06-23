@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CalendarDays, Plus, Search } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -38,10 +38,13 @@ const DailyReports = () => {
   const [weatherCondition, setWeatherCondition] = useState("Fine");
   const [workersCount, setWorkersCount] = useState("");
   const [progressPercent, setProgressPercent] = useState("");
+  const [completedQuantity, setCompletedQuantity] = useState("");
   const [workCompleted, setWorkCompleted] = useState("");
   const [issuesFound, setIssuesFound] = useState("");
   const [nextActions, setNextActions] = useState("");
   const [notes, setNotes] = useState("");
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [photoCaption, setPhotoCaption] = useState("");
 
   const { data: projects = [] } = useQuery({
     queryKey: ["projects-for-daily-reports"],
@@ -94,7 +97,8 @@ const DailyReports = () => {
           project_id,
           site_id,
           area_code,
-          area_name
+          area_name,
+          estimated_quantity
         `)
         .eq("is_deleted", false)
         .eq("is_active", true)
@@ -141,7 +145,9 @@ const DailyReports = () => {
           report_date,
           weather_condition,
           workers_count,
+          completed_quantity,
           progress_percent,
+          approval_status,
           work_completed,
           issues_found,
           next_actions,
@@ -160,7 +166,9 @@ const DailyReports = () => {
           ),
           project_areas (
             area_code,
-            area_name
+            area_name,
+            estimated_quantity,
+            unit_of_measure
           ),
           work_orders (
             work_order_no,
@@ -190,6 +198,26 @@ const DailyReports = () => {
     );
   }, [areas, projectId, siteId]);
 
+  const selectedArea = useMemo(() => {
+    return areas.find((area) => area.area_id === areaId);
+  }, [areas, areaId]);
+  useEffect(() => {
+    const completed = Number(completedQuantity || 0);
+    const estimated = Number(selectedArea?.estimated_quantity || 0);
+
+    if (completed <= 0 || estimated <= 0) {
+      setProgressPercent("0.00");
+      return;
+    }
+
+    const calculatedProgress = Math.min(
+      (completed / estimated) * 100,
+      100
+    );
+
+    setProgressPercent(calculatedProgress.toFixed(2));
+  }, [completedQuantity, selectedArea]);
+
   const filteredWorkOrders = useMemo(() => {
     return workOrders.filter(
       (workOrder) =>
@@ -208,10 +236,13 @@ const DailyReports = () => {
     setWeatherCondition("Fine");
     setWorkersCount("");
     setProgressPercent("");
+    setCompletedQuantity("");
     setWorkCompleted("");
     setIssuesFound("");
     setNextActions("");
     setNotes("");
+    setPhotoFiles([]);
+    setPhotoCaption("");
   };
 
   const createDailyReport = useMutation({
@@ -221,6 +252,27 @@ const DailyReports = () => {
       if (!areaId) throw new Error("Please select a project area.");
       if (!workOrderId) throw new Error("Please select a work order.");
       if (!reportDate) throw new Error("Please select report date.");
+      if (!projectId) throw new Error("Please select a project.");
+      if (!siteId) throw new Error("Please select a project site.");
+      if (!areaId) throw new Error("Please select a project area.");
+      if (!workOrderId) throw new Error("Please select a work order.");
+      if (!reportDate) throw new Error("Please select report date.");
+
+      const completedToday = Number(completedQuantity || 0);
+
+      if (completedToday < 0) {
+        throw new Error("Completed Quantity Today cannot be negative.");
+      }
+
+      if (
+        completedToday === 0 &&
+        !issuesFound.trim() &&
+        !notes.trim()
+      ) {
+        throw new Error(
+          "Please enter Issues Found or Notes when Completed Quantity Today is 0."
+        );
+      }
 
       const progress = progressPercent ? Number(progressPercent) : null;
 
@@ -228,23 +280,66 @@ const DailyReports = () => {
         throw new Error("Progress percent must be between 0 and 100.");
       }
 
-      const { error } = await supabase.from("daily_reports").insert({
-        project_id: projectId,
-        site_id: siteId,
-        area_id: areaId,
-        work_order_id: workOrderId,
-        report_date: reportDate,
-        weather_condition: weatherCondition || null,
-        workers_count: workersCount ? Number(workersCount) : null,
-        progress_percent: progress,
-        work_completed: workCompleted.trim() || null,
-        issues_found: issuesFound.trim() || null,
-        next_actions: nextActions.trim() || null,
-        notes: notes.trim() || null,
-        is_deleted: false,
-      });
+      const { data: createdReport, error } = await supabase
+        .from("daily_reports")
+        .insert({
+          project_id: projectId,
+          site_id: siteId,
+          area_id: areaId,
+          work_order_id: workOrderId,
+          report_date: reportDate,
+          weather_condition: weatherCondition || null,
+          workers_count: workersCount ? Number(workersCount) : null,
+          approval_status: "Submitted",
+          progress_percent: progress,
+          completed_quantity: completedToday,
+          work_completed: workCompleted.trim() || null,
+          issues_found: issuesFound.trim() || null,
+          next_actions: nextActions.trim() || null,
+          notes: notes.trim() || null,
+          is_deleted: false,
+        })
+        .select("report_id")
+        .single();
 
       if (error) throw error;
+
+      if (!createdReport?.report_id) {
+        throw new Error("Daily report was created but report ID was not returned.");
+      }
+
+      if (photoFiles.length > 0) {
+        for (const photoFile of photoFiles) {
+          const fileName =
+            `${createdReport.report_id}/${Date.now()}-${photoFile.name}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from("daily-report-photos")
+            .upload(fileName, photoFile, {
+              cacheControl: "3600",
+              upsert: false,
+            });
+
+          if (uploadError) throw uploadError;
+
+          const { data: publicUrlData } = supabase.storage
+            .from("daily-report-photos")
+            .getPublicUrl(fileName);
+
+          const { error: photoInsertError } = await supabase
+            .from("daily_report_photos")
+            .insert({
+              report_id: createdReport.report_id,
+              photo_url: publicUrlData.publicUrl,
+              caption: photoCaption.trim() || null,
+              sort_order: 0,
+              taken_at: new Date().toISOString(),
+              is_deleted: false,
+            });
+
+          if (photoInsertError) throw photoInsertError;
+        }
+      }
 
       if (progress !== null) {
         let nextStatus = "In Progress";
@@ -344,14 +439,15 @@ const DailyReports = () => {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="grid grid-cols-12 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500 px-4 py-3 border-b">
+        <div className="grid grid-cols-12 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500 px-4 py-3 border-b gap-3">
           <div className="col-span-1">Date</div>
-          <div className="col-span-3">Project</div>
+          <div className="col-span-2">Project</div>
           <div className="col-span-2">Site / Area</div>
           <div className="col-span-2">Work Order</div>
           <div className="col-span-1">Weather</div>
           <div className="col-span-1">Workers</div>
           <div className="col-span-1">Progress</div>
+          <div className="col-span-1">Status</div>
           <div className="col-span-1">Action</div>
         </div>
 
@@ -363,13 +459,13 @@ const DailyReports = () => {
           filteredDailyReports.map((report) => (
             <div
               key={report.report_id}
-              className="grid grid-cols-12 px-4 py-4 border-b last:border-b-0 hover:bg-slate-50 transition-colors"
+              className="grid grid-cols-12 px-4 py-4 border-b last:border-b-0 hover:bg-slate-50 transition-colors gap-3"
             >
               <div className="col-span-1 text-sm text-slate-700">
                 {report.report_date || "-"}
               </div>
 
-              <div className="col-span-3">
+              <div className="col-span-2">
                 <p className="font-medium text-slate-800">
                   {report.projects?.project_name || "-"}
                 </p>
@@ -403,7 +499,22 @@ const DailyReports = () => {
               </div>
 
               <div className="col-span-1 text-slate-700">
-                {report.progress_percent ?? "-"}%
+                <p>
+                  {report.progress_percent ?? "-"}%
+                </p>
+                <p className="text-xs text-slate-500">
+                  {report.completed_quantity ?? 0} /{" "}
+                  {report.project_areas?.estimated_quantity ?? 0}{" "}
+                  {report.project_areas?.unit_of_measure || ""}
+                </p>
+              </div>
+
+              <div className="col-span-1 text-slate-700">
+                {report.approval_status || "-"}
+                <p className="text-xs text-slate-500">
+                  Photos:{" "}
+                  {report.daily_report_photos?.filter((photo) => !photo.is_deleted).length || 0}
+                </p>
               </div>
 
               <div className="col-span-1">
@@ -421,7 +532,7 @@ const DailyReports = () => {
       </div>
 
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Daily Report</DialogTitle>
           </DialogHeader>
@@ -574,16 +685,28 @@ const DailyReports = () => {
                 onChange={(e) => setWorkersCount(e.target.value)}
               />
             </div>
-
             <div className="space-y-2">
-              <Label>Progress %</Label>
+              <Label>Completed Quantity Today</Label>
               <Input
                 type="number"
                 min="0"
-                max="100"
-                value={progressPercent}
-                onChange={(e) => setProgressPercent(e.target.value)}
+                value={completedQuantity}
+                onChange={(e) => setCompletedQuantity(e.target.value)}
+                placeholder="e.g. 25"
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Estimated Progress %</Label>
+
+              <Input
+                value={progressPercent}
+                readOnly
+                className="bg-slate-50"
+              />
+
+              <p className="text-xs text-slate-500">
+                Calculated from completed quantity versus estimated area quantity.
+              </p>
             </div>
 
             <div className="col-span-2 space-y-2">
@@ -619,6 +742,32 @@ const DailyReports = () => {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
+              />
+            </div>
+            <div className="col-span-2 space-y-2">
+              <Label>Photos</Label>
+              <Input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  setPhotoFiles(files);
+                }}
+              />
+              <p className="text-xs text-slate-500">
+                {photoFiles.length > 0
+                  ? `${photoFiles.length} photo(s) selected`
+                  : "No photos selected"}
+              </p>
+            </div>
+
+            <div className="col-span-2 space-y-2">
+              <Label>Photo Caption</Label>
+              <Input
+                value={photoCaption}
+                onChange={(e) => setPhotoCaption(e.target.value)}
+                placeholder="Optional caption for uploaded photos"
               />
             </div>
           </div>

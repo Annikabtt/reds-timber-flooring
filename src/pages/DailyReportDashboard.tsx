@@ -32,6 +32,7 @@ const DailyReportDashboard = () => {
     const [editWeatherCondition, setEditWeatherCondition] = useState("Fine");
     const [editWorkersCount, setEditWorkersCount] = useState("");
     const [editProgressPercent, setEditProgressPercent] = useState("");
+    const [editCompletedQuantity, setEditCompletedQuantity] = useState("");
     const [editWorkCompleted, setEditWorkCompleted] = useState("");
     const [editIssuesFound, setEditIssuesFound] = useState("");
     const [editNextActions, setEditNextActions] = useState("");
@@ -55,6 +56,8 @@ const DailyReportDashboard = () => {
           weather_condition,
           workers_count,
           progress_percent,
+          completed_quantity,
+          approval_status,
           work_completed,
           issues_found,
           next_actions,
@@ -71,10 +74,12 @@ const DailyReportDashboard = () => {
             site_code,
             site_name
           ),
-          project_areas (
+            project_areas (
             area_code,
-            area_name
-          ),
+            area_name,
+            estimated_quantity,
+            unit_of_measure
+            ),
           work_orders (
             work_order_no,
             title,
@@ -113,6 +118,11 @@ const DailyReportDashboard = () => {
                 ? ""
                 : String(report.progress_percent)
         );
+        setEditCompletedQuantity(
+            report.completed_quantity === null || report.completed_quantity === undefined
+                ? ""
+                : String(report.completed_quantity)
+        );
         setEditWorkCompleted(report.work_completed || "");
         setEditIssuesFound(report.issues_found || "");
         setEditNextActions(report.next_actions || "");
@@ -133,7 +143,27 @@ const DailyReportDashboard = () => {
                 throw new Error("Please select report date.");
             }
 
-            const progress = editProgressPercent ? Number(editProgressPercent) : null;
+            const completedToday = Number(editCompletedQuantity || 0);
+            const estimatedQuantity = Number(report.project_areas?.estimated_quantity || 0);
+
+            if (completedToday < 0) {
+                throw new Error("Completed Quantity Today cannot be negative.");
+            }
+
+            if (
+                completedToday === 0 &&
+                !editIssuesFound.trim() &&
+                !editNotes.trim()
+            ) {
+                throw new Error(
+                    "Please enter Issues Found or Notes when Completed Quantity Today is 0."
+                );
+            }
+
+            const progress =
+                estimatedQuantity > 0
+                    ? Math.min((completedToday / estimatedQuantity) * 100, 100)
+                    : 0;
             const workers = editWorkersCount ? Number(editWorkersCount) : null;
 
             if (progress !== null && (progress < 0 || progress > 100)) {
@@ -150,7 +180,9 @@ const DailyReportDashboard = () => {
                     report_date: editReportDate,
                     weather_condition: editWeatherCondition || null,
                     workers_count: workers,
+                    approval_status: report.approval_status || "Submitted",
                     progress_percent: progress,
+                    completed_quantity: completedToday,
                     work_completed: editWorkCompleted.trim() || null,
                     issues_found: editIssuesFound.trim() || null,
                     next_actions: editNextActions.trim() || null,
@@ -194,7 +226,88 @@ const DailyReportDashboard = () => {
             toast.error(error.message);
         },
     });
+
+    const markReadyForInspection = useMutation({
+        mutationFn: async () => {
+            if (!reportId) {
+                throw new Error("Daily report ID is missing.");
+            }
+
+            const { error } = await supabase
+                .from("daily_reports")
+                .update({
+                    approval_status: "Ready for Inspection",
+                    completed_quantity: report?.completed_quantity ?? 0,
+                })
+                .eq("report_id", reportId);
+
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            toast.success("Daily report marked ready for inspection.");
+            queryClient.invalidateQueries({ queryKey: ["daily_report", reportId] });
+            queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
+        },
+        onError: (error) => {
+            toast.error(error.message);
+        },
+    });
+
+
+    const approveDailyReport = useMutation({
+        mutationFn: async () => {
+            if (!reportId) {
+                throw new Error("Daily report ID is missing.");
+            }
+
+            const { error } = await supabase
+                .from("daily_reports")
+                .update({
+                    approval_status: "Approved",
+                    completed_quantity: report?.completed_quantity ?? 0,
+                })
+                .eq("report_id", reportId);
+
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            toast.success("Daily report approved.");
+            queryClient.invalidateQueries({ queryKey: ["daily_report", reportId] });
+            queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
+        },
+        onError: (error) => {
+            toast.error(error.message);
+        },
+    });
+
+    const rejectDailyReport = useMutation({
+        mutationFn: async () => {
+            if (!reportId) {
+                throw new Error("Daily report ID is missing.");
+            }
+
+            const { error } = await supabase
+                .from("daily_reports")
+                .update({
+                    approval_status: "Rejected",
+                    completed_quantity: report?.completed_quantity ?? 0,
+                })
+                .eq("report_id", reportId);
+
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            toast.success("Daily report rejected.");
+            queryClient.invalidateQueries({ queryKey: ["daily_report", reportId] });
+            queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
+        },
+        onError: (error) => {
+            toast.error(error.message);
+        },
+    });
+
     const uploadPhoto = useMutation({
+
         mutationFn: async () => {
             if (!reportId) {
                 throw new Error("Daily report ID is missing.");
@@ -292,12 +405,47 @@ const DailyReportDashboard = () => {
                     Back
                 </Button>
 
-                <Button
-                    onClick={() => setShowEditDialog(true)}
-                    className="bg-red-600 hover:bg-red-700 text-white"
-                >
-                    Edit Daily Report
-                </Button>
+                <div className="flex gap-3">
+                    {report.approval_status === "Submitted" && (
+                        <Button
+                            variant="outline"
+                            onClick={() => markReadyForInspection.mutate()}
+                            disabled={markReadyForInspection.isPending}
+                        >
+                            {markReadyForInspection.isPending
+                                ? "Updating..."
+                                : "Mark Ready for Inspection"}
+                        </Button>
+                    )}
+
+                    {report.approval_status === "Ready for Inspection" && (
+                        <Button
+                            variant="outline"
+                            onClick={() => approveDailyReport.mutate()}
+                            disabled={approveDailyReport.isPending}
+                        >
+                            {approveDailyReport.isPending ? "Approving..." : "Approve"}
+                        </Button>
+                    )}
+
+                    {report.approval_status === "Ready for Inspection" && (
+                        <Button
+                            variant="outline"
+                            onClick={() => rejectDailyReport.mutate()}
+                            disabled={rejectDailyReport.isPending}
+                            className="text-red-600 hover:text-red-700"
+                        >
+                            {rejectDailyReport.isPending ? "Rejecting..." : "Reject"}
+                        </Button>
+                    )}
+
+                    <Button
+                        onClick={() => setShowEditDialog(true)}
+                        className="bg-red-600 hover:bg-red-700 text-white"
+                    >
+                        Edit Daily Report
+                    </Button>
+                </div>
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
@@ -382,6 +530,14 @@ const DailyReportDashboard = () => {
                     <h2 className="font-bold text-slate-900 mb-4">Daily Summary</h2>
 
                     <div className="space-y-3 text-sm">
+
+                        <div>
+                            <p className="text-slate-500">Approval Status</p>
+                            <p className="font-medium">
+                                {report.approval_status || "-"}
+                            </p>
+                        </div>
+
                         <div>
                             <p className="text-slate-500">Weather</p>
                             <p className="font-medium">
@@ -397,6 +553,22 @@ const DailyReportDashboard = () => {
                         </div>
 
                         <div>
+                            <p className="text-slate-500">Completed Today</p>
+                            <p className="font-medium">
+                                {report.completed_quantity ?? 0}{" "}
+                                {report.project_areas?.unit_of_measure || ""}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-slate-500">Estimated Area</p>
+                            <p className="font-medium">
+                                {report.project_areas?.estimated_quantity ?? 0}{" "}
+                                {report.project_areas?.unit_of_measure || ""}
+                            </p>
+                        </div>
+
+                        <div>
                             <p className="text-slate-500">Progress</p>
                             <p className="font-medium">
                                 {report.progress_percent ?? "-"}%
@@ -406,7 +578,7 @@ const DailyReportDashboard = () => {
                         <div>
                             <p className="text-slate-500">Photos</p>
                             <p className="font-medium">
-                              {report.daily_report_photos?.filter((photo) => !photo.is_deleted).length || 0}  
+                                {report.daily_report_photos?.filter((photo) => !photo.is_deleted).length || 0}
                             </p>
                         </div>
                     </div>
@@ -442,7 +614,7 @@ const DailyReportDashboard = () => {
                     </p>
                 </div>
                 <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-                    <DialogContent className="max-w-3xl">
+                    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>Edit Daily Report</DialogTitle>
                         </DialogHeader>
@@ -488,13 +660,12 @@ const DailyReportDashboard = () => {
                             </div>
 
                             <div className="space-y-2">
-                                <Label>Progress %</Label>
+                                <Label>Completed Quantity Today</Label>
                                 <Input
                                     type="number"
                                     min="0"
-                                    max="100"
-                                    value={editProgressPercent}
-                                    onChange={(event) => setEditProgressPercent(event.target.value)}
+                                    value={editCompletedQuantity}
+                                    onChange={(event) => setEditCompletedQuantity(event.target.value)}
                                 />
                             </div>
 
@@ -609,7 +780,10 @@ const DailyReportDashboard = () => {
                                             {photo.caption || "No caption"}
                                         </p>
                                         <p className="text-xs text-slate-500 mt-1">
-                                            {photo.taken_at || "-"}
+                                            {photo.taken_at
+                                                ? new Date(photo.taken_at).toLocaleString()
+                                                : "-"
+                                            }
                                             <Button
                                                 variant="outline"
                                                 size="sm"

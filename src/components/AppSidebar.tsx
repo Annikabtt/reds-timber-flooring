@@ -24,10 +24,20 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+
   { title: "Projects", url: "/projects", icon: FolderKanban },
+  { title: "Project Sites", url: "/project-sites", icon: FolderKanban },
+  { title: "Project Areas", url: "/project-areas", icon: FolderKanban },
+
+  { title: "Work Orders", url: "/work-orders", icon: FolderKanban },
+  { title: "Daily Reports", url: "/daily-reports", icon: Camera },
+
+  { title: "Employees", url: "/employees", icon: Users },
+  { title: "Payroll Periods", url: "/payroll-periods", icon: DollarSign },
+  { title: "Payroll Entries", url: "/payroll-entries", icon: DollarSign },
+
   { title: "Photo Approval", url: "/photos", icon: Camera },
-  { title: "Team Directory", url: "/team", icon: Users },
-  { title: "Payroll", url: "/payroll", icon: DollarSign },
+
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
@@ -48,7 +58,7 @@ export function AppSidebar() {
         </div>
         {!collapsed && (
           <span className="text-lg font-bold text-sidebar-foreground tracking-tight">
-            Red's Admin
+            REDS Timber Flooring
           </span>
         )}
       </div>

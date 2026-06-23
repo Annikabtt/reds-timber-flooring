@@ -25,6 +25,7 @@ const ProjectAreas = () => {
   const queryClient = useQueryClient();
 
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingAreaId, setEditingAreaId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
   const [projectId, setProjectId] = useState("");
@@ -33,7 +34,6 @@ const ProjectAreas = () => {
   const [areaName, setAreaName] = useState("");
   const [areaType, setAreaType] = useState("");
   const [estimatedQuantity, setEstimatedQuantity] = useState("");
-  const [actualQuantity, setActualQuantity] = useState("");
   const [unitOfMeasure, setUnitOfMeasure] = useState("sqm");
   const [notes, setNotes] = useState("");
 
@@ -57,7 +57,7 @@ const ProjectAreas = () => {
       return data;
     },
   });
-  projects
+
   const { data: sites = [] } = useQuery({
     queryKey: ["sites-for-areas"],
     queryFn: async () => {
@@ -78,37 +78,29 @@ const ProjectAreas = () => {
   });
 
   const { data: areas = [] } = useQuery({
-    queryKey: ["project_areas"],
+    queryKey: ["project_area_progress_v"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("project_areas")
+        .from("project_area_progress_v")
         .select(`
-          area_id,
-          project_id,
-          site_id,
-          area_code,
-          area_name,
-          area_type,
-          estimated_quantity,
-          actual_quantity,
-          unit_of_measure,
-          notes,
-          is_active,
-          created_at,
-          projects (
-            project_no,
-            project_name,
-            customers (
-              customer_name
-            )
-          ),
-          project_sites (
-            site_code,
-            site_name
-          )
-        `)
-        .eq("is_deleted", false)
-        .order("created_at", { ascending: false });
+        area_id,
+        project_id,
+        site_id,
+        area_code,
+        area_name,
+        area_type,
+        estimated_quantity,
+        actual_quantity,
+        remaining_quantity,
+        progress_percent,
+        unit_of_measure,
+        project_no,
+        project_name,
+        customer_name,
+        site_code,
+        site_name
+      `)
+        .order("area_name", { ascending: true });
 
       if (error) throw error;
       return data;
@@ -126,9 +118,25 @@ const ProjectAreas = () => {
     setAreaName("");
     setAreaType("");
     setEstimatedQuantity("");
-    setActualQuantity("");
     setUnitOfMeasure("sqm");
     setNotes("");
+  };
+
+  const openEditDialog = (area: any) => {
+    setEditingAreaId(area.area_id);
+    setProjectId(area.project_id || "");
+    setSiteId(area.site_id || "");
+    setAreaCode(area.area_code || "");
+    setAreaName(area.area_name || "");
+    setAreaType(area.area_type || "");
+    setEstimatedQuantity(
+      area.estimated_quantity !== null && area.estimated_quantity !== undefined
+        ? String(area.estimated_quantity)
+        : ""
+    );
+    setUnitOfMeasure(area.unit_of_measure || "sqm");
+    setNotes(area.notes || "");
+    setShowAddDialog(true);
   };
 
   const createArea = useMutation({
@@ -154,7 +162,6 @@ const ProjectAreas = () => {
         estimated_quantity: estimatedQuantity
           ? Number(estimatedQuantity)
           : null,
-        actual_quantity: actualQuantity ? Number(actualQuantity) : null,
         unit_of_measure: unitOfMeasure.trim() || null,
         notes: notes.trim() || null,
         is_active: true,
@@ -167,6 +174,55 @@ const ProjectAreas = () => {
       toast.success("Project area created successfully.");
       queryClient.invalidateQueries({ queryKey: ["project_areas"] });
       setShowAddDialog(false);
+      setEditingAreaId(null);
+      resetForm();
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const updateArea = useMutation({
+    mutationFn: async () => {
+      if (!editingAreaId) {
+        throw new Error("No area selected.");
+      }
+
+      if (!projectId) {
+        throw new Error("Please select a project.");
+      }
+
+      if (!siteId) {
+        throw new Error("Please select a project site.");
+      }
+
+      if (!areaName.trim()) {
+        throw new Error("Please enter area name.");
+      }
+
+      const { error } = await supabase
+        .from("project_areas")
+        .update({
+          project_id: projectId,
+          site_id: siteId,
+          area_code: areaCode.trim() || null,
+          area_name: areaName.trim(),
+          area_type: areaType.trim() || null,
+          estimated_quantity: estimatedQuantity
+            ? Number(estimatedQuantity)
+            : null,
+          unit_of_measure: unitOfMeasure.trim() || null,
+          notes: notes.trim() || null,
+        })
+        .eq("area_id", editingAreaId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Project area updated successfully.");
+      queryClient.invalidateQueries({ queryKey: ["project_areas"] });
+      setShowAddDialog(false);
+      setEditingAreaId(null);
       resetForm();
     },
     onError: (error) => {
@@ -178,9 +234,9 @@ const ProjectAreas = () => {
     const keyword = searchTerm.toLowerCase();
 
     return areas.filter((area) => {
-      const projectName = area.projects?.project_name || "";
-      const customerName = area.projects?.customers?.customer_name || "";
-      const siteName = area.project_sites?.site_name || "";
+      const projectName = area.project_name || "";
+      const customerName = area.customer_name || "";
+      const siteName = area.site_name || "";
 
       return (
         area.area_name?.toLowerCase().includes(keyword) ||
@@ -230,14 +286,16 @@ const ProjectAreas = () => {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="grid grid-cols-12 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500 px-4 py-3 border-b">
+        <div className="grid grid-cols-12 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500 px-4 py-3 border-b gap-3">
           <div className="col-span-2">Area</div>
-          <div className="col-span-2">Type</div>
+          <div className="col-span-1">Type</div>
           <div className="col-span-2">Site</div>
-          <div className="col-span-3">Project</div>
+          <div className="col-span-2">Project</div>
           <div className="col-span-1">Est.</div>
           <div className="col-span-1">Actual</div>
-          <div className="col-span-1">Unit</div>
+          <div className="col-span-1">Remain</div>
+          <div className="col-span-1">Progress</div>
+          <div className="col-span-1 text-right">Actions</div>
         </div>
 
         {filteredAreas.length === 0 ? (
@@ -248,7 +306,7 @@ const ProjectAreas = () => {
           filteredAreas.map((area) => (
             <div
               key={area.area_id}
-              className="grid grid-cols-12 px-4 py-4 border-b last:border-b-0 hover:bg-slate-50 transition-colors"
+              className="grid grid-cols-12 px-4 py-4 border-b last:border-b-0 hover:bg-slate-50 transition-colors gap-3"
             >
               <div className="col-span-2">
                 <p className="font-semibold text-slate-900">
@@ -259,37 +317,51 @@ const ProjectAreas = () => {
                 </p>
               </div>
 
-              <div className="col-span-2 text-slate-700">
+              <div className="col-span-1 text-slate-700">
                 {area.area_type || "-"}
               </div>
 
               <div className="col-span-2 text-slate-700">
-                <p>{area.project_sites?.site_name || "-"}</p>
+                <p>{area.site_name || "-"}</p>
                 <p className="text-xs text-slate-500">
-                  {area.project_sites?.site_code || "-"}
+                  {area.site_code || "-"}
                 </p>
               </div>
 
-              <div className="col-span-3">
+              <div className="col-span-2">
                 <p className="font-medium text-slate-800">
-                  {area.projects?.project_name || "-"}
+                  {area.project_name || "-"}
                 </p>
                 <p className="text-xs text-slate-500">
-                  {area.projects?.project_no || "-"} ·{" "}
-                  {area.projects?.customers?.customer_name || "-"}
+                  {area.project_no || "-"} ·{" "}
+                  {area.customer_name || "-"}
                 </p>
               </div>
 
               <div className="col-span-1 text-slate-700">
-                {area.estimated_quantity ?? "-"}
+                {area.estimated_quantity ?? "-"} {area.unit_of_measure || ""}
               </div>
 
               <div className="col-span-1 text-slate-700">
-                {area.actual_quantity ?? "-"}
+                {area.actual_quantity ?? 0} {area.unit_of_measure || ""}
               </div>
 
               <div className="col-span-1 text-slate-700">
-                {area.unit_of_measure || "-"}
+                {area.remaining_quantity ?? 0} {area.unit_of_measure || ""}
+              </div>
+
+              <div className="col-span-1 text-slate-700">
+                {Number(area.progress_percent || 0).toFixed(2)}%
+              </div>
+
+              <div className="col-span-1 text-right">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openEditDialog(area)}
+                >
+                  Edit
+                </Button>
               </div>
             </div>
           ))
@@ -298,10 +370,9 @@ const ProjectAreas = () => {
 
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Add Project Area</DialogTitle>
-          </DialogHeader>
-
+          <DialogTitle>
+            {editingAreaId ? "Edit Project Area" : "Add Project Area"}
+          </DialogTitle>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2 space-y-2">
               <Label>Project *</Label>
@@ -409,15 +480,6 @@ const ProjectAreas = () => {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Actual Quantity</Label>
-              <Input
-                type="number"
-                value={actualQuantity}
-                onChange={(e) => setActualQuantity(e.target.value)}
-              />
-            </div>
-
             <div className="col-span-2 space-y-2">
               <Label>Notes</Label>
               <Textarea
@@ -440,11 +502,26 @@ const ProjectAreas = () => {
             </Button>
 
             <Button
-              onClick={() => createArea.mutate()}
-              disabled={createArea.isPending}
+              onClick={() => {
+                if (editingAreaId) {
+                  updateArea.mutate();
+                } else {
+                  createArea.mutate();
+                }
+              }}
+              disabled={
+                createArea.isPending ||
+                updateArea.isPending
+              }
               className="bg-red-600 hover:bg-red-700 text-white"
             >
-              {createArea.isPending ? "Saving..." : "Save Area"}
+              {
+                createArea.isPending || updateArea.isPending
+                  ? "Saving..."
+                  : editingAreaId
+                    ? "Update Area"
+                    : "Save Area"
+              }
             </Button>
           </div>
         </DialogContent>

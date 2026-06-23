@@ -30,8 +30,10 @@ const PayrollEntries = () => {
   const [payrollPeriodId, setPayrollPeriodId] = useState("");
   const [employeeId, setEmployeeId] = useState("");
   const [payMethod, setPayMethod] = useState("Hourly");
+  const [payRate, setPayRate] = useState("");
   const [regularHours, setRegularHours] = useState("");
   const [overtimeHours, setOvertimeHours] = useState("");
+  const [overtimeMultiplier, setOvertimeMultiplier] = useState("1.5");
   const [baseAmount, setBaseAmount] = useState("");
   const [overtimeAmount, setOvertimeAmount] = useState("");
   const [allowanceAmount, setAllowanceAmount] = useState("0");
@@ -82,7 +84,9 @@ const PayrollEntries = () => {
           display_name,
           first_name,
           last_name,
-          employment_type
+          employment_type,
+          pay_method,
+          pay_rate
         `)
         .eq("is_deleted", false)
         .eq("is_active", true)
@@ -139,6 +143,8 @@ const PayrollEntries = () => {
           tax_amount,
           net_amount,
           status,
+          approved_by,
+          approved_at,
           notes,
           created_at,
           payroll_periods (
@@ -166,8 +172,10 @@ const PayrollEntries = () => {
     setPayrollPeriodId("");
     setEmployeeId("");
     setPayMethod("Hourly");
+    setPayRate("");
     setRegularHours("");
     setOvertimeHours("");
+    setOvertimeMultiplier("1.5");
     setBaseAmount("");
     setOvertimeAmount("");
     setAllowanceAmount("0");
@@ -218,6 +226,20 @@ const PayrollEntries = () => {
       0
     );
 
+    if (matchedLogs.length === 0) {
+      toast.error(
+        "No approved time logs found for this employee in this payroll period."
+      );
+      return;
+    }
+
+    if (matchedLogs.length === 0) {
+      toast.error(
+        "No approved time logs found for this employee in this payroll period."
+      );
+      return;
+    }
+
     setRegularHours(totalRegularHours.toFixed(2));
     setOvertimeHours(totalOvertimeHours.toFixed(2));
 
@@ -225,11 +247,68 @@ const PayrollEntries = () => {
       `Calculated from ${matchedLogs.length} approved time logs.`
     );
   };
+  const calculateBaseAmount = () => {
+    const rate = Number(payRate || 0);
+    const regular = Number(regularHours || 0);
 
+    if (!employeeId) {
+      toast.error("Please select employee first.");
+      return;
+    }
+
+    if (!payMethod) {
+      toast.error("Please select pay method first.");
+      return;
+    }
+
+    if (!rate) {
+      toast.error("Pay rate is missing.");
+      return;
+    }
+
+    let calculatedBaseAmount = 0;
+
+    if (payMethod === "Hourly") {
+      calculatedBaseAmount = regular * rate;
+    }
+
+    if (payMethod === "Daily") {
+      calculatedBaseAmount = regular * rate;
+    }
+
+    if (payMethod === "Weekly" || payMethod === "Monthly") {
+      calculatedBaseAmount = rate;
+    }
+
+    setBaseAmount(calculatedBaseAmount.toFixed(2));
+    const overtime = Number(overtimeHours || 0);
+
+    const multiplier = Number(overtimeMultiplier || 1.5);
+
+    const calculatedOvertimeAmount =
+      overtime * rate * multiplier;
+
+    setOvertimeAmount(
+      calculatedOvertimeAmount.toFixed(2)
+    );
+
+    toast.success("Base amount calculated.");
+  };
   const createEntry = useMutation({
     mutationFn: async () => {
       if (!payrollPeriodId) throw new Error("Please select payroll period.");
       if (!employeeId) throw new Error("Please select employee.");
+      if (Number(regularHours || 0) <= 0) {
+        throw new Error("Regular hours must be greater than 0.");
+      }
+
+      if (Number(baseAmount || 0) <= 0) {
+        throw new Error("Base amount must be greater than 0. Please calculate amount first.");
+      }
+
+      if (netAmount <= 0) {
+        throw new Error("Net amount must be greater than 0.");
+      }
       const duplicatedEntry = entries.find(
         (entry) =>
           entry.payroll_period_id === payrollPeriodId &&
@@ -271,7 +350,94 @@ const PayrollEntries = () => {
       toast.error(error.message);
     },
   });
+  const submitPayrollEntry = useMutation({
+    mutationFn: async (payrollEntryId: string) => {
+      const { error } = await supabase
+        .from("payroll_entries")
+        .update({
+          status: "Submitted",
+        })
+        .eq("payroll_entry_id", payrollEntryId)
+        .eq("status", "Draft");
 
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payroll_entries"] });
+      toast.success("Payroll entry submitted.");
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+  const approvePayrollEntry = useMutation({
+    mutationFn: async (payrollEntryId: string) => {
+      const { data: authData } = await supabase.auth.getUser();
+      const currentUserId = authData.user?.id;
+
+      if (!currentUserId) {
+        throw new Error("User not found.");
+      }
+
+      const { error } = await supabase
+        .from("payroll_entries")
+        .update({
+          status: "Approved",
+          approved_by: currentUserId,
+          approved_at: new Date().toISOString(),
+        })
+        .eq("payroll_entry_id", payrollEntryId)
+        .eq("status", "Submitted");
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payroll_entries"] });
+      toast.success("Payroll entry approved.");
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+  const markPayrollEntryPaid = useMutation({
+    mutationFn: async (payrollEntryId: string) => {
+      const { error } = await supabase
+        .from("payroll_entries")
+        .update({
+          status: "Paid",
+        })
+        .eq("payroll_entry_id", payrollEntryId)
+        .eq("status", "Approved");
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payroll_entries"] });
+      toast.success("Payroll entry marked as paid.");
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+  const cancelPayrollEntry = useMutation({
+    mutationFn: async (payrollEntryId: string) => {
+      const { error } = await supabase
+        .from("payroll_entries")
+        .update({
+          status: "Cancelled",
+        })
+        .eq("payroll_entry_id", payrollEntryId)
+        .in("status", ["Draft", "Submitted"]);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payroll_entries"] });
+      toast.success("Payroll entry cancelled.");
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
   const filteredEntries = useMemo(() => {
     const keyword = searchTerm.toLowerCase();
 
@@ -392,7 +558,7 @@ const PayrollEntries = () => {
           <div className="col-span-2">Gross</div>
           <div className="col-span-2">Net</div>
           <div className="col-span-1">Method</div>
-          <div className="col-span-1">Status</div>
+          <div className="col-span-1">Status / Action</div>
         </div>
 
         {filteredEntries.length === 0 ? (
@@ -448,8 +614,66 @@ const PayrollEntries = () => {
                   {entry.pay_method || "-"}
                 </div>
 
-                <div className="col-span-1 text-slate-700">
-                  {entry.status || "-"}
+                <div className="col-span-1 space-y-2">
+                  <span
+                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${entry.status === "Submitted"
+                      ? "bg-orange-100 text-orange-700"
+                      : entry.status === "Approved"
+                        ? "bg-blue-100 text-blue-700"
+                        : entry.status === "Paid"
+                          ? "bg-green-100 text-green-700"
+                          : entry.status === "Cancelled"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-slate-100 text-slate-700"
+                      }`}
+                  >
+                    {entry.status || "Draft"}
+                  </span>
+
+                  {entry.status === "Draft" && (
+                    <Button
+                      size="sm"
+                      onClick={() => submitPayrollEntry.mutate(entry.payroll_entry_id)}
+                      disabled={submitPayrollEntry.isPending}
+                      className="bg-orange-600 hover:bg-orange-700 text-white"
+                    >
+                      Submit
+                    </Button>
+                  )}
+
+                  {entry.status === "Submitted" && (
+                    <Button
+                      size="sm"
+                      onClick={() => approvePayrollEntry.mutate(entry.payroll_entry_id)}
+                      disabled={approvePayrollEntry.isPending}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      Approve
+                    </Button>
+                  )}
+
+                  {entry.status === "Approved" && (
+                    <Button
+                      size="sm"
+                      onClick={() => markPayrollEntryPaid.mutate(entry.payroll_entry_id)}
+                      disabled={markPayrollEntryPaid.isPending}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      Mark Paid
+                    </Button>
+                  )}
+
+                  {(entry.status === "Draft" || entry.status === "Submitted") && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => cancelPayrollEntry.mutate(entry.payroll_entry_id)}
+                      disabled={cancelPayrollEntry.isPending}
+                      className="text-red-600 border-red-200 hover:bg-red-50"
+                    >
+                      Cancel
+                    </Button>
+                  )}
                 </div>
               </div>
             );
@@ -458,7 +682,7 @@ const PayrollEntries = () => {
       </div>
 
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Payroll Entry</DialogTitle>
           </DialogHeader>
@@ -497,8 +721,12 @@ const PayrollEntries = () => {
                     (employee) => employee.employee_id === value
                   );
 
-                  if (selectedEmployee?.employment_type) {
-                    setPayMethod(selectedEmployee.employment_type);
+                  if (selectedEmployee?.pay_method) {
+                    setPayMethod(selectedEmployee.pay_method);
+                  }
+
+                  if (selectedEmployee?.pay_rate !== null && selectedEmployee?.pay_rate !== undefined) {
+                    setPayRate(String(selectedEmployee.pay_rate));
                   }
                 }}
               >
@@ -535,8 +763,18 @@ const PayrollEntries = () => {
                   <SelectItem value="Hourly">Hourly</SelectItem>
                   <SelectItem value="Daily">Daily</SelectItem>
                   <SelectItem value="Weekly">Weekly</SelectItem>
+                  <SelectItem value="Monthly">Monthly</SelectItem>
                 </SelectContent>
               </Select>
+              <div className="mt-2 rounded-md border bg-slate-50 p-2">
+                <p className="text-xs text-slate-500">
+                  Pay Rate
+                </p>
+
+                <p className="font-semibold text-green-600">
+                  ${Number(payRate || 0).toFixed(2)}
+                </p>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -547,6 +785,7 @@ const PayrollEntries = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Draft">Draft</SelectItem>
+                  <SelectItem value="Submitted">Submitted</SelectItem>
                   <SelectItem value="Approved">Approved</SelectItem>
                   <SelectItem value="Paid">Paid</SelectItem>
                   <SelectItem value="Cancelled">Cancelled</SelectItem>
@@ -571,11 +810,20 @@ const PayrollEntries = () => {
                 onChange={(e) => setOvertimeHours(e.target.value)}
               />
             </div>
-
+            <div className="space-y-2">
+              <Label>Overtime Multiplier</Label>
+              <Input
+                type="number"
+                step="0.1"
+                value={overtimeMultiplier}
+                onChange={(e) => setOvertimeMultiplier(e.target.value)}
+                placeholder="1.5"
+              />
+            </div>
             <div className="md:col-span-2">
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 onClick={calculateHoursFromTimeLogs}
               >
                 Calculate Hours
@@ -589,14 +837,20 @@ const PayrollEntries = () => {
                 value={baseAmount}
                 onChange={(e) => setBaseAmount(e.target.value)}
               />
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={calculateBaseAmount}
+              >
+                Calculate Amount
+              </Button>
             </div>
 
             <div className="space-y-2">
               <Label>Overtime Amount</Label>
               <Input
-                type="number"
-                value={overtimeAmount}
-                onChange={(e) => setOvertimeAmount(e.target.value)}
+                value={`$${Number(overtimeAmount || 0).toFixed(2)}`}
+                readOnly
               />
             </div>
 
@@ -619,11 +873,12 @@ const PayrollEntries = () => {
             </div>
 
             <div className="space-y-2">
-              <Label>Tax Amount</Label>
+              <Label>PAYG Tax Withheld ($)</Label>
               <Input
                 type="number"
                 value={taxAmount}
                 onChange={(e) => setTaxAmount(e.target.value)}
+                placeholder="Enter tax amount in dollars"
               />
             </div>
 

@@ -301,11 +301,24 @@ const WorkTimeLogs = () => {
       const employee =
         log.employees?.display_name || "";
 
+      const project =
+        log.projects?.project_name || "";
+
+      const workOrderNo =
+        log.work_orders?.work_order_no || "";
+
+      const workOrderTitle =
+        log.work_orders?.title || "";
+
+      const workDate =
+        String(log.work_date || "");
+
       return (
         employee.toLowerCase().includes(keyword) ||
-        log.work_orders?.title
-          ?.toLowerCase()
-          .includes(keyword)
+        project.toLowerCase().includes(keyword) ||
+        workOrderNo.toLowerCase().includes(keyword) ||
+        workOrderTitle.toLowerCase().includes(keyword) ||
+        workDate.toLowerCase().includes(keyword)
       );
     });
   }, [timeLogs, searchTerm]);
@@ -393,7 +406,7 @@ const WorkTimeLogs = () => {
         </div>
       </div>
       <Input
-        placeholder="Search..."
+        placeholder="Search employee, project, work order, date..."
         value={searchTerm}
         onChange={(e) =>
           setSearchTerm(e.target.value)
@@ -411,15 +424,27 @@ const WorkTimeLogs = () => {
             </div>
 
             <div className="text-sm text-slate-500">
+              {log.projects?.project_name}
+            </div>
+
+            <div className="text-sm text-slate-500">
+              {log.projects?.project_name}
+            </div>
+
+            {log.work_orders && (
+              <div className="text-sm text-slate-500">
+                {log.work_orders.work_order_no} - {log.work_orders.title}
+              </div>
+            )}
+
+            <div className="text-sm text-slate-500">
               {log.work_date}
             </div>
+
             {log.approved_at && (
               <div className="text-xs text-slate-500">
-                Approved:
-                {" "}
-                {new Date(
-                  log.approved_at
-                ).toLocaleString()}
+                Approved:{" "}
+                {new Date(log.approved_at).toLocaleString()}
               </div>
             )}
 
@@ -427,22 +452,16 @@ const WorkTimeLogs = () => {
               Regular: {log.regular_hours} hrs |
               OT: {log.overtime_hours} hrs
             </div>
-            {log.approved_at && (
-              <div className="text-xs text-slate-500">
-                Approved:{" "}
-                {new Date(log.approved_at).toLocaleString()}
-              </div>
-            )}
+
             <div className="flex items-center gap-3 mt-2">
+              
               <div
-                className={`text-sm font-medium ${log.approved
-                  ? "text-green-600"
-                  : "text-orange-600"
+                className={`text-xs font-semibold px-3 py-1 rounded-full ${log.approved
+                    ? "bg-green-100 text-green-700"
+                    : "bg-orange-100 text-orange-700"
                   }`}
               >
-                {log.approved
-                  ? "Approved"
-                  : "Pending Approval"}
+                {log.approved ? "Approved" : "Pending Approval"}
               </div>
 
               {!log.approved && (
@@ -471,7 +490,7 @@ const WorkTimeLogs = () => {
           }
         }}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Time Log</DialogTitle>
           </DialogHeader>

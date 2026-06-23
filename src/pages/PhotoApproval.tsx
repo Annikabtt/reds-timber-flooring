@@ -2,12 +2,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Check, X, Camera } from "lucide-react";
 
-const photos = [
-  { id: 1, project: "Smith Residence — Kitchen", tech: "Mike R.", time: "12 min ago", thumbnail: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=200&h=200&fit=crop" },
-  { id: 2, project: "Oak Valley Office — Lobby", tech: "James T.", time: "28 min ago", thumbnail: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=200&h=200&fit=crop" },
-  { id: 3, project: "Maple Court — Hallway", tech: "Sarah L.", time: "1h ago", thumbnail: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=200&h=200&fit=crop" },
-  { id: 4, project: "Cedar Lane — Master Bed", tech: "Tom K.", time: "2h ago", thumbnail: "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=200&h=200&fit=crop" },
-];
+const photos: {
+  id: number;
+  project: string;
+  tech: string;
+  time: string;
+  thumbnail: string;
+}[] = [];
 
 export default function PhotoApproval() {
   return (

@@ -10,12 +10,14 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { DateRange } from "react-day-picker";
 
-const payrollData = [
-  { name: "Mike R.", role: "Lead Installer", hours: 42, tasks: 8, rate: 35, status: "pending" as const },
-  { name: "James T.", role: "Technician", hours: 38, tasks: 6, rate: 28, status: "pending" as const },
-  { name: "Sarah L.", role: "Technician", hours: 40, tasks: 7, rate: 28, status: "paid" as const },
-  { name: "Tom K.", role: "Apprentice", hours: 36, tasks: 5, rate: 20, status: "pending" as const },
-];
+const payrollData: {
+  name: string;
+  role: string;
+  hours: number;
+  tasks: number;
+  rate: number;
+  status: "pending" | "paid";
+}[] = [];
 
 export default function Payroll() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
