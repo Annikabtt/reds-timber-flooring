@@ -22,6 +22,16 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 
+type LabourRecord = {
+  employee_id: string;
+  activity_type_id: string;
+  regular_hours: string;
+  overtime_hours: string;
+  completed_quantity: string;
+  worker_role: string;
+  notes: string;
+};
+
 const DailyReports = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -45,7 +55,18 @@ const DailyReports = () => {
   const [notes, setNotes] = useState("");
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photoCaption, setPhotoCaption] = useState("");
-
+  const [selectedActivityTypeIds, setSelectedActivityTypeIds] = useState<string[]>([]);
+  const [labourRecords, setLabourRecords] = useState<LabourRecord[]>([
+    {
+      employee_id: "",
+      activity_type_id: "",
+      regular_hours: "8",
+      overtime_hours: "0",
+      completed_quantity: "0",
+      worker_role: "",
+      notes: "",
+    },
+  ]);
   const { data: projects = [] } = useQuery({
     queryKey: ["projects-for-daily-reports"],
     queryFn: async () => {
@@ -109,6 +130,45 @@ const DailyReports = () => {
     },
   });
 
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employees-for-daily-reports"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employees")
+        .select(`
+        employee_id,
+        employee_code,
+        display_name,
+        first_name,
+        last_name
+      `)
+        .eq("is_deleted", false)
+        .eq("is_active", true)
+        .order("display_name", { ascending: true });
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: activityTypes = [] } = useQuery({
+    queryKey: ["work-activity-types-for-daily-reports"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("work_activity_types")
+        .select(`
+        activity_type_id,
+        activity_code,
+        activity_name,
+        sort_order
+      `)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+
+      if (error) throw error;
+      return data;
+    },
+  });
   const { data: workOrders = [] } = useQuery({
     queryKey: ["work-orders-for-daily-reports"],
     queryFn: async () => {
@@ -137,49 +197,57 @@ const DailyReports = () => {
       const { data, error } = await supabase
         .from("daily_reports")
         .select(`
-          report_id,
-          project_id,
-          site_id,
-          area_id,
-          work_order_id,
-          report_date,
-          weather_condition,
-          workers_count,
-          completed_quantity,
-          progress_percent,
-          approval_status,
-          work_completed,
-          issues_found,
-          next_actions,
-          notes,
-          created_at,
-          projects (
-            project_no,
-            project_name,
-            customers (
-              customer_name
-            )
-          ),
-          project_sites (
-            site_code,
-            site_name
-          ),
-          project_areas (
-            area_code,
-            area_name,
-            estimated_quantity,
-            unit_of_measure
-          ),
-          work_orders (
-            work_order_no,
-            title,
-            status
-          ),
-          daily_report_photos (
+        report_id,
+        project_id,
+        site_id,
+        area_id,
+        work_order_id,
+        report_date,
+        weather_condition,
+        workers_count,
+        completed_quantity,
+        progress_percent,
+        approval_status,
+        work_completed,
+        issues_found,
+        next_actions,
+        notes,
+        created_at,
+        projects (
+          project_no,
+          project_name,
+          customers (
+            customer_name
+          )
+        ),
+        project_sites (
+          site_code,
+          site_name
+        ),
+        project_areas (
+          area_code,
+          area_name,
+          estimated_quantity,
+          unit_of_measure
+        ),
+        work_orders (
+          work_order_no,
+          title,
+          status
+        ),
+        daily_report_activities (
+          daily_report_activity_id,
+          activity_type_id,
+          work_activity_types (
+            activity_name,
+            sort_order
+          )
+        ),
+        daily_report_photos (
           photo_id,
           is_deleted
-            )
-        `)
+        )
+      `)
         .eq("is_deleted", false)
         .order("report_date", { ascending: false });
 
@@ -199,17 +267,17 @@ const DailyReports = () => {
   }, [areas, projectId, siteId]);
 
   const selectedArea = useMemo(() => {
-  return areas.find((area) => area.area_id === areaId);
-}, [areas, areaId]);
+    return areas.find((area) => area.area_id === areaId);
+  }, [areas, areaId]);
 
-console.log("Daily Report Progress Debug", {
-  areaId,
-  selectedArea,
-  completedQuantity,
-  estimatedQuantity: selectedArea?.estimated_quantity,
-});
+  console.log("Daily Report Progress Debug", {
+    areaId,
+    selectedArea,
+    completedQuantity,
+    estimatedQuantity: selectedArea?.estimated_quantity,
+  });
 
-  
+
   useEffect(() => {
     const completed = Number(completedQuantity || 0);
     const estimated = Number(selectedArea?.estimated_quantity || 0);
@@ -252,7 +320,20 @@ console.log("Daily Report Progress Debug", {
     setNotes("");
     setPhotoFiles([]);
     setPhotoCaption("");
+    setSelectedActivityTypeIds([]);
   };
+
+  setLabourRecords([
+    {
+      employee_id: "",
+      activity_type_id: "",
+      regular_hours: "8",
+      overtime_hours: "0",
+      completed_quantity: "0",
+      worker_role: "",
+      notes: "",
+    },
+  ]);
 
   const createDailyReport = useMutation({
     mutationFn: async () => {
@@ -261,12 +342,13 @@ console.log("Daily Report Progress Debug", {
       if (!areaId) throw new Error("Please select a project area.");
       if (!workOrderId) throw new Error("Please select a work order.");
       if (!reportDate) throw new Error("Please select report date.");
-      if (!projectId) throw new Error("Please select a project.");
-      if (!siteId) throw new Error("Please select a project site.");
-      if (!areaId) throw new Error("Please select a project area.");
-      if (!workOrderId) throw new Error("Please select a work order.");
-      if (!reportDate) throw new Error("Please select report date.");
+      const validLabourRecords = labourRecords.filter(
+        (record) => record.employee_id && record.activity_type_id
+      );
 
+      if (validLabourRecords.length === 0) {
+        throw new Error("Please add at least one labour record.");
+      }
       const completedToday = Number(completedQuantity || 0);
 
       if (completedToday < 0) {
@@ -298,7 +380,7 @@ console.log("Daily Report Progress Debug", {
           work_order_id: workOrderId,
           report_date: reportDate,
           weather_condition: weatherCondition || null,
-          workers_count: workersCount ? Number(workersCount) : null,
+          workers_count: new Set(validLabourRecords.map((record) => record.employee_id)).size,
           approval_status: "Submitted",
           progress_percent: progress,
           completed_quantity: completedToday,
@@ -316,6 +398,32 @@ console.log("Daily Report Progress Debug", {
       if (!createdReport?.report_id) {
         throw new Error("Daily report was created but report ID was not returned.");
       }
+      const activityRows = selectedActivityTypeIds.map((activityTypeId) => ({
+        report_id: createdReport.report_id,
+        activity_type_id: activityTypeId,
+      }));
+
+      const { error: activityInsertError } = await supabase
+        .from("daily_report_activities")
+        .insert(activityRows);
+
+      if (activityInsertError) throw activityInsertError;
+      const workerRows = validLabourRecords.map((record) => ({
+        report_id: createdReport.report_id,
+        employee_id: record.employee_id,
+        activity_type_id: record.activity_type_id,
+        regular_hours: Number(record.regular_hours || 0),
+        overtime_hours: Number(record.overtime_hours || 0),
+        completed_quantity: Number(record.completed_quantity || 0),
+        worker_role: record.worker_role.trim() || null,
+        notes: record.notes.trim() || null,
+      }));
+
+      const { error: workerInsertError } = await supabase
+        .from("daily_report_workers")
+        .insert(workerRows);
+
+      if (workerInsertError) throw workerInsertError;
 
       if (photoFiles.length > 0) {
         for (const photoFile of photoFiles) {
@@ -344,6 +452,11 @@ console.log("Daily Report Progress Debug", {
               sort_order: 0,
               taken_at: new Date().toISOString(),
               is_deleted: false,
+
+              approval_status: "Pending",
+              approved_by: null,
+              approved_at: null,
+              rejected_reason: null,
             });
 
           if (photoInsertError) throw photoInsertError;
@@ -496,6 +609,15 @@ console.log("Daily Report Progress Debug", {
                 <p className="text-xs text-slate-500">
                   {report.work_orders?.work_order_no || "-"} ·{" "}
                   {report.work_orders?.status || "-"}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Activities:{" "}
+                  {report.daily_report_activities?.length
+                    ? report.daily_report_activities
+                      .map((item) => item.work_activity_types?.activity_name)
+                      .filter(Boolean)
+                      .join(", ")
+                    : "-"}
                 </p>
               </div>
 
@@ -655,7 +777,50 @@ console.log("Daily Report Progress Debug", {
                 </SelectContent>
               </Select>
             </div>
+            <div className="col-span-2 space-y-2">
+              <Label>Work Activities *</Label>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 rounded-xl border border-slate-200 p-3">
+                {activityTypes.map((activity) => {
+                  const checked = selectedActivityTypeIds.includes(
+                    activity.activity_type_id
+                  );
+
+                  return (
+                    <label
+                      key={activity.activity_type_id}
+                      className="flex items-center gap-2 text-sm text-slate-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedActivityTypeIds((current) => [
+                              ...current,
+                              activity.activity_type_id,
+                            ]);
+                            return;
+                          }
+
+                          setSelectedActivityTypeIds((current) =>
+                            current.filter(
+                              (activityTypeId) =>
+                                activityTypeId !== activity.activity_type_id
+                            )
+                          );
+                        }}
+                      />
+                      <span>{activity.activity_name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+
+              <p className="text-xs text-slate-500">
+                Select one or more activities completed today.
+              </p>
+            </div>
             <div className="space-y-2">
               <Label>Report Date *</Label>
               <Input
@@ -686,14 +851,208 @@ console.log("Daily Report Progress Debug", {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Workers Count</Label>
-              <Input
-                type="number"
-                value={workersCount}
-                onChange={(e) => setWorkersCount(e.target.value)}
-              />
+            <div className="col-span-2 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Labour Records *</Label>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setLabourRecords((current) => [
+                      ...current,
+                      {
+                        employee_id: "",
+                        activity_type_id: "",
+                        regular_hours: "8",
+                        overtime_hours: "0",
+                        completed_quantity: "0",
+                        worker_role: "",
+                        notes: "",
+                      },
+                    ])
+                  }
+                >
+                  + Add Worker
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                {labourRecords.map((record, index) => (
+                  <div
+                    key={index}
+                    className="grid grid-cols-1 md:grid-cols-12 gap-2 rounded-xl border border-slate-200 p-3"
+                  >
+                    <div className="md:col-span-3 space-y-1">
+                      <Label>Employee</Label>
+                      <Select
+                        value={record.employee_id}
+                        onValueChange={(value) => {
+                          setLabourRecords((current) =>
+                            current.map((item, itemIndex) =>
+                              itemIndex === index
+                                ? { ...item, employee_id: value }
+                                : item
+                            )
+                          );
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select employee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {employees.map((employee) => (
+                            <SelectItem
+                              key={employee.employee_id}
+                              value={employee.employee_id}
+                            >
+                              {employee.display_name ||
+                                `${employee.first_name} ${employee.last_name}`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="md:col-span-3 space-y-1">
+                      <Label>Activity</Label>
+                      <Select
+                        value={record.activity_type_id}
+                        onValueChange={(value) => {
+                          setLabourRecords((current) =>
+                            current.map((item, itemIndex) =>
+                              itemIndex === index
+                                ? { ...item, activity_type_id: value }
+                                : item
+                            )
+                          );
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select activity" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {activityTypes.map((activity) => (
+                            <SelectItem
+                              key={activity.activity_type_id}
+                              value={activity.activity_type_id}
+                            >
+                              {activity.activity_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="md:col-span-1 space-y-1">
+                      <Label>Hours</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={record.regular_hours}
+                        onChange={(e) => {
+                          setLabourRecords((current) =>
+                            current.map((item, itemIndex) =>
+                              itemIndex === index
+                                ? { ...item, regular_hours: e.target.value }
+                                : item
+                            )
+                          );
+                        }}
+                      />
+                    </div>
+
+                    <div className="md:col-span-1 space-y-1">
+                      <Label>OT</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={record.overtime_hours}
+                        onChange={(e) => {
+                          setLabourRecords((current) =>
+                            current.map((item, itemIndex) =>
+                              itemIndex === index
+                                ? { ...item, overtime_hours: e.target.value }
+                                : item
+                            )
+                          );
+                        }}
+                      />
+                    </div>
+
+                    <div className="md:col-span-1 space-y-1">
+                      <Label>Qty</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={record.completed_quantity}
+                        onChange={(e) => {
+                          setLabourRecords((current) =>
+                            current.map((item, itemIndex) =>
+                              itemIndex === index
+                                ? { ...item, completed_quantity: e.target.value }
+                                : item
+                            )
+                          );
+                        }}
+                      />
+                    </div>
+
+                    <div className="md:col-span-2 space-y-1">
+                      <Label>Role</Label>
+                      <Input
+                        value={record.worker_role}
+                        onChange={(e) => {
+                          setLabourRecords((current) =>
+                            current.map((item, itemIndex) =>
+                              itemIndex === index
+                                ? { ...item, worker_role: e.target.value }
+                                : item
+                            )
+                          );
+                        }}
+                        placeholder="Installer"
+                      />
+                    </div>
+
+                    <div className="md:col-span-1 flex items-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={labourRecords.length === 1}
+                        onClick={() =>
+                          setLabourRecords((current) =>
+                            current.filter((_, itemIndex) => itemIndex !== index)
+                          )
+                        }
+                      >
+                        Remove
+                      </Button>
+                    </div>
+
+                    <div className="md:col-span-12 space-y-1">
+                      <Label>Notes</Label>
+                      <Input
+                        value={record.notes}
+                        onChange={(e) => {
+                          setLabourRecords((current) =>
+                            current.map((item, itemIndex) =>
+                              itemIndex === index
+                                ? { ...item, notes: e.target.value }
+                                : item
+                            )
+                          );
+                        }}
+                        placeholder="Optional notes"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
+
             <div className="space-y-2">
               <Label>Completed Quantity Today</Label>
               <Input

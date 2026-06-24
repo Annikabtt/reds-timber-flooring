@@ -85,8 +85,36 @@ const DailyReportDashboard = () => {
             title,
             status,
             priority
-          ),
-         daily_report_photos (
+            ),
+            daily_report_activities (
+            daily_report_activity_id,
+            activity_type_id,
+            work_activity_types (
+                activity_name,
+                sort_order
+            )
+            ),
+            daily_report_workers (
+            daily_report_worker_id,
+            employee_id,
+            activity_type_id,
+            regular_hours,
+            overtime_hours,
+            completed_quantity,
+            worker_role,
+            notes,
+            employees (
+                employee_code,
+                display_name,
+                first_name,
+                last_name
+            ),
+            work_activity_types (
+                activity_name,
+                sort_order
+            )
+            ),
+            daily_report_photos (
             photo_id,
             photo_url,
             caption,
@@ -666,7 +694,9 @@ const DailyReportDashboard = () => {
                         <div>
                             <p className="text-slate-500">Workers Count</p>
                             <p className="font-medium">
-                                {report.workers_count ?? "-"}
+                                {report.daily_report_workers?.length
+                                    ? new Set(report.daily_report_workers.map((worker) => worker.employee_id)).size
+                                    : 0}
                             </p>
                         </div>
 
@@ -765,6 +795,88 @@ const DailyReportDashboard = () => {
                     </div>
                 </div>
 
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                <h2 className="font-bold text-slate-900 mb-3">Work Activities</h2>
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                    <h2 className="font-bold text-slate-900 mb-4">Labour Records</h2>
+
+                    {report.daily_report_workers?.length ? (
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full text-sm">
+                                <thead>
+                                    <tr className="border-b text-left text-slate-500">
+                                        <th className="py-2 pr-4">Employee</th>
+                                        <th className="py-2 pr-4">Activity</th>
+                                        <th className="py-2 pr-4 text-right">Hours</th>
+                                        <th className="py-2 pr-4 text-right">OT</th>
+                                        <th className="py-2 pr-4 text-right">Qty</th>
+                                        <th className="py-2 pr-4">Role</th>
+                                        <th className="py-2">Notes</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    {report.daily_report_workers.map((worker) => (
+                                        <tr
+                                            key={worker.daily_report_worker_id}
+                                            className="border-b last:border-b-0 align-top"
+                                        >
+                                            <td className="py-3 pr-4 font-medium text-slate-900">
+                                                {worker.employees?.display_name ||
+                                                    `${worker.employees?.first_name || ""} ${worker.employees?.last_name || ""}`.trim() ||
+                                                    worker.employees?.employee_code ||
+                                                    "-"}
+                                            </td>
+
+                                            <td className="py-3 pr-4 text-slate-700">
+                                                {worker.work_activity_types?.activity_name || "-"}
+                                            </td>
+
+                                            <td className="py-3 pr-4 text-right text-slate-700">
+                                                {Number(worker.regular_hours || 0).toFixed(2)}
+                                            </td>
+
+                                            <td className="py-3 pr-4 text-right text-slate-700">
+                                                {Number(worker.overtime_hours || 0).toFixed(2)}
+                                            </td>
+
+                                            <td className="py-3 pr-4 text-right text-slate-700">
+                                                {Number(worker.completed_quantity || 0).toFixed(2)}
+                                            </td>
+
+                                            <td className="py-3 pr-4 text-slate-700">
+                                                {worker.worker_role || "-"}
+                                            </td>
+
+                                            <td className="py-3 text-slate-700">
+                                                {worker.notes || "-"}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <p className="text-sm text-slate-500">No labour records added.</p>
+                    )}
+                </div>
+
+                {report.daily_report_activities?.length ? (
+                    <div className="flex flex-wrap gap-2">
+                        {report.daily_report_activities.map((item) => (
+                            <span
+                                key={item.daily_report_activity_id}
+                                className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700"
+                            >
+                                {item.work_activity_types?.activity_name || "-"}
+                            </span>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-sm text-slate-500">No work activities selected.</p>
+                )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
