@@ -86,14 +86,15 @@ const DailyReportDashboard = () => {
             status,
             priority
           ),
-          daily_report_photos (
-         photo_id,
-        photo_url,
-        caption,
-        sort_order,
-        taken_at,
-        is_deleted
-        )
+         daily_report_photos (
+            photo_id,
+            photo_url,
+            caption,
+            sort_order,
+            taken_at,
+            is_deleted,
+            approval_status
+            )
         `)
                 .eq("report_id", reportId)
                 .eq("is_deleted", false)
@@ -340,7 +341,34 @@ const DailyReportDashboard = () => {
             if (!reportId) {
                 throw new Error("Daily report ID is missing.");
             }
+            const photos =
+                report.daily_report_photos?.filter((photo) => !photo.is_deleted) || [];
 
+            if (photos.length === 0) {
+                throw new Error(
+                    "Please upload and approve at least one photo before approving this daily report."
+                );
+            }
+
+            const pendingPhotos = photos.filter(
+                (photo) => photo.approval_status === "Pending"
+            );
+
+            if (pendingPhotos.length > 0) {
+                throw new Error(
+                    "Please complete photo approval before approving this daily report."
+                );
+            }
+
+            const rejectedPhotos = photos.filter(
+                (photo) => photo.approval_status === "Rejected"
+            );
+
+            if (rejectedPhotos.length > 0) {
+                throw new Error(
+                    "This daily report has rejected photos. Please review photos before approving."
+                );
+            }
             const { error } = await supabase
                 .from("daily_reports")
                 .update({
@@ -423,6 +451,10 @@ const DailyReportDashboard = () => {
                     sort_order: 0,
                     taken_at: new Date().toISOString(),
                     is_deleted: false,
+                    approval_status: "Pending",
+                    approved_by: null,
+                    approved_at: null,
+                    rejected_reason: null,
                 });
 
             if (insertError) throw insertError;
@@ -445,6 +477,10 @@ const DailyReportDashboard = () => {
                 .update({
                     is_deleted: true,
                     deleted_at: new Date().toISOString(),
+                    approval_status: "Pending",
+                    approved_by: null,
+                    approved_at: null,
+                    rejected_reason: null,
                 })
                 .eq("photo_id", photoId);
 
