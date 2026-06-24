@@ -129,6 +129,87 @@ const DailyReportDashboard = () => {
         setEditNotes(report.notes || "");
     }, [report]);
 
+    const { data: areaProgress } = useQuery({
+        queryKey: ["daily_report_area_progress", report?.area_id],
+        enabled: !!report?.area_id,
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("project_area_progress_v")
+                .select(`
+        area_id,
+        estimated_quantity,
+        actual_quantity,
+        remaining_quantity,
+        progress_percent,
+        unit_of_measure
+      `)
+                .eq("area_id", report?.area_id)
+                .single();
+
+            if (error) throw error;
+
+            return data;
+        },
+    });
+
+    const { data: areaReports = [] } = useQuery({
+        queryKey: ["daily_report_area_reports", report?.area_id],
+        enabled: !!report?.area_id,
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("daily_reports")
+                .select(`
+        report_id,
+        completed_quantity,
+        approval_status
+      `)
+                .eq("area_id", report?.area_id)
+                .eq("is_deleted", false);
+
+            if (error) throw error;
+
+            return data;
+        },
+    });
+
+    const areaReportedSummary = areaReports.reduce(
+        (summary, item) => {
+            const qty = Number(item.completed_quantity || 0);
+
+            summary.totalReported += qty;
+
+            if (item.approval_status === "Approved") {
+                summary.approvedCompleted += qty;
+            } else if (
+                item.approval_status === "Submitted" ||
+                item.approval_status === "Ready for Inspection"
+            ) {
+                summary.pendingReview += qty;
+            }
+
+            return summary;
+        },
+        {
+            totalReported: 0,
+            approvedCompleted: 0,
+            pendingReview: 0,
+        }
+    );
+
+    const areaEstimatedQuantity = Number(
+        areaProgress?.estimated_quantity ||
+        report?.project_areas?.estimated_quantity ||
+        0
+    );
+
+    const reportedProgressPercent =
+        areaEstimatedQuantity > 0
+            ? Math.min(
+                (areaReportedSummary.totalReported / areaEstimatedQuantity) * 100,
+                100
+            )
+            : 0;
+
     const updateDailyReport = useMutation({
         mutationFn: async () => {
             if (!reportId) {
@@ -497,13 +578,12 @@ const DailyReportDashboard = () => {
                                 {report.project_areas?.area_name || "-"}
                             </p>
                         </div>
-                    </div>
-                </div>
+                        <div className="border-t pt-3 mt-3">
+                            <p className="font-semibold text-slate-900 mb-2">
+                                Work Order
+                            </p>
+                        </div>
 
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-                    <h2 className="font-bold text-slate-900 mb-4">Work Order</h2>
-
-                    <div className="space-y-3 text-sm">
                         <div>
                             <p className="text-slate-500">Work Order</p>
                             <p className="font-medium">
@@ -514,7 +594,9 @@ const DailyReportDashboard = () => {
 
                         <div>
                             <p className="text-slate-500">Status</p>
-                            <p className="font-medium">{report.work_orders?.status || "-"}</p>
+                            <p className="font-medium">
+                                {report.work_orders?.status || "-"}
+                            </p>
                         </div>
 
                         <div>
@@ -581,8 +663,72 @@ const DailyReportDashboard = () => {
                                 {report.daily_report_photos?.filter((photo) => !photo.is_deleted).length || 0}
                             </p>
                         </div>
+
                     </div>
                 </div>
+
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                    <h2 className="font-bold text-slate-900 mb-4">
+                        Area Progress Summary
+                    </h2>
+
+                    <div className="space-y-3 text-sm">
+                        <div>
+                            <p className="text-slate-500">Area Estimated</p>
+                            <p className="font-medium">
+                                {areaEstimatedQuantity.toFixed(2)}{" "}
+                                {areaProgress?.unit_of_measure || report.project_areas?.unit_of_measure || ""}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-slate-500">Approved Completed</p>
+                            <p className="font-medium text-green-600">
+                                {areaReportedSummary.approvedCompleted.toFixed(2)}{" "}
+                                {areaProgress?.unit_of_measure || report.project_areas?.unit_of_measure || ""}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-slate-500">Pending Review</p>
+                            <p className="font-medium text-orange-600">
+                                {areaReportedSummary.pendingReview.toFixed(2)}{" "}
+                                {areaProgress?.unit_of_measure || report.project_areas?.unit_of_measure || ""}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-slate-500">Total Reported</p>
+                            <p className="font-medium text-blue-600">
+                                {areaReportedSummary.totalReported.toFixed(2)}{" "}
+                                {areaProgress?.unit_of_measure || report.project_areas?.unit_of_measure || ""}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-slate-500">Remaining Approved</p>
+                            <p className="font-medium">
+                                {Number(areaProgress?.remaining_quantity || 0).toFixed(2)}{" "}
+                                {areaProgress?.unit_of_measure || report.project_areas?.unit_of_measure || ""}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-slate-500">Official Progress</p>
+                            <p className="font-medium">
+                                {Number(areaProgress?.progress_percent || 0).toFixed(2)}%
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-slate-500">Reported Progress</p>
+                            <p className="font-medium text-blue-600">
+                                {reportedProgressPercent.toFixed(2)}%
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -199,8 +199,17 @@ const DailyReports = () => {
   }, [areas, projectId, siteId]);
 
   const selectedArea = useMemo(() => {
-    return areas.find((area) => area.area_id === areaId);
-  }, [areas, areaId]);
+  return areas.find((area) => area.area_id === areaId);
+}, [areas, areaId]);
+
+console.log("Daily Report Progress Debug", {
+  areaId,
+  selectedArea,
+  completedQuantity,
+  estimatedQuantity: selectedArea?.estimated_quantity,
+});
+
+  
   useEffect(() => {
     const completed = Number(completedQuantity || 0);
     const estimated = Number(selectedArea?.estimated_quantity || 0);

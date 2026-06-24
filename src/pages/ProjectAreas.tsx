@@ -170,15 +170,20 @@ const ProjectAreas = () => {
 
       if (error) throw error;
     },
-    onSuccess: () => {
-      toast.success("Project area created successfully.");
-      queryClient.invalidateQueries({ queryKey: ["project_areas"] });
+    onSuccess: async () => {
+      toast.success("Project area updated successfully.");
+
+      await queryClient.invalidateQueries({
+        queryKey: ["project_area_progress_v"],
+      });
+
+      await queryClient.refetchQueries({
+        queryKey: ["project_area_progress_v"],
+      });
+
       setShowAddDialog(false);
       setEditingAreaId(null);
       resetForm();
-    },
-    onError: (error) => {
-      toast.error(error.message);
     },
   });
 
@@ -214,16 +219,27 @@ const ProjectAreas = () => {
           unit_of_measure: unitOfMeasure.trim() || null,
           notes: notes.trim() || null,
         })
-        .eq("area_id", editingAreaId);
+        .eq("area_id", editingAreaId)
+        .select()
+        .single();
 
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Project area updated successfully.");
-      queryClient.invalidateQueries({ queryKey: ["project_areas"] });
+
       setShowAddDialog(false);
       setEditingAreaId(null);
       resetForm();
+
+      await queryClient.invalidateQueries({
+        queryKey: ["project_area_progress_v"]
+      });
+
+      await queryClient.refetchQueries({
+        queryKey: ["project_area_progress_v"]
+      });
+
     },
     onError: (error) => {
       toast.error(error.message);

@@ -129,6 +129,22 @@ const WorkOrderDashboard = () => {
         },
     });
 
+    const { data: areaProgress } = useQuery({
+        queryKey: ["area_progress", workOrder?.area_id],
+        enabled: !!workOrder?.area_id,
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("project_area_progress_v")
+                .select("*")
+                .eq("area_id", workOrder?.area_id)
+                .single();
+
+            if (error) throw error;
+
+            return data;
+        },
+    });
+
     const assignedEmployees =
         workOrder?.work_assignments?.filter((assignment) => !assignment.is_deleted) ||
         [];
@@ -296,6 +312,38 @@ const WorkOrderDashboard = () => {
                 </Button>
 
             </div>
+
+            {areaProgress && (
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                        <p className="text-sm text-slate-500">Estimated Quantity</p>
+                        <p className="mt-2 text-2xl font-bold text-slate-900">
+                            {Number(areaProgress.estimated_quantity || 0).toFixed(2)}
+                        </p>
+                    </div>
+
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                        <p className="text-sm text-slate-500">Actual Quantity</p>
+                        <p className="mt-2 text-2xl font-bold text-slate-900">
+                            {Number(areaProgress.actual_quantity || 0).toFixed(2)}
+                        </p>
+                    </div>
+
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                        <p className="text-sm text-slate-500">Remaining Quantity</p>
+                        <p className="mt-2 text-2xl font-bold text-slate-900">
+                            {Number(areaProgress.remaining_quantity || 0).toFixed(2)}
+                        </p>
+                    </div>
+
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                        <p className="text-sm text-slate-500">Progress</p>
+                        <p className="mt-2 text-2xl font-bold text-slate-900">
+                            {Number(areaProgress.progress_percent || 0).toFixed(2)}%
+                        </p>
+                    </div>
+                </div>
+            )}
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
                 <div className="flex items-start justify-between gap-4">
