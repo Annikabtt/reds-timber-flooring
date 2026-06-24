@@ -235,17 +235,24 @@ const DailyReports = () => {
           title,
           status
         ),
-        daily_report_activities (
-          daily_report_activity_id,
-          activity_type_id,
-          work_activity_types (
-            activity_name,
-            sort_order
-          )
-        ),
-        daily_report_photos (
-          photo_id,
-          is_deleted
+                  daily_report_activities (
+            daily_report_activity_id,
+            activity_type_id,
+            work_activity_types (
+              activity_name,
+              sort_order
+            )
+          ),
+          daily_report_workers (
+            daily_report_worker_id,
+            employee_id,
+            regular_hours,
+            overtime_hours,
+            completed_quantity
+          ),
+          daily_report_photos (
+            photo_id,
+            is_deleted
         )
       `)
         .eq("is_deleted", false)
@@ -321,19 +328,18 @@ const DailyReports = () => {
     setPhotoFiles([]);
     setPhotoCaption("");
     setSelectedActivityTypeIds([]);
+    setLabourRecords([
+      {
+        employee_id: "",
+        activity_type_id: "",
+        regular_hours: "8",
+        overtime_hours: "0",
+        completed_quantity: "0",
+        worker_role: "",
+        notes: "",
+      },
+    ]);
   };
-
-  setLabourRecords([
-    {
-      employee_id: "",
-      activity_type_id: "",
-      regular_hours: "8",
-      overtime_hours: "0",
-      completed_quantity: "0",
-      worker_role: "",
-      notes: "",
-    },
-  ]);
 
   const createDailyReport = useMutation({
     mutationFn: async () => {
@@ -626,7 +632,39 @@ const DailyReports = () => {
               </div>
 
               <div className="col-span-1 text-slate-700">
-                {report.workers_count ?? "-"}
+                <p>
+                  {report.daily_report_workers?.length
+                    ? new Set(report.daily_report_workers.map((worker) => worker.employee_id)).size
+                    : report.workers_count ?? "-"}{" "}
+                  workers
+                </p>
+
+                <p className="text-xs text-slate-500">
+                  Hours:{" "}
+                  {report.daily_report_workers?.length
+                    ? report.daily_report_workers
+                      .reduce(
+                        (sum, worker) =>
+                          sum +
+                          Number(worker.regular_hours || 0) +
+                          Number(worker.overtime_hours || 0),
+                        0
+                      )
+                      .toFixed(2)
+                    : "0.00"}
+                </p>
+
+                <p className="text-xs text-slate-500">
+                  Qty:{" "}
+                  {report.daily_report_workers?.length
+                    ? report.daily_report_workers
+                      .reduce(
+                        (sum, worker) => sum + Number(worker.completed_quantity || 0),
+                        0
+                      )
+                      .toFixed(2)
+                    : "0.00"}
+                </p>
               </div>
 
               <div className="col-span-1 text-slate-700">
