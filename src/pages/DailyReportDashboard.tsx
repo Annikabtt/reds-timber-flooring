@@ -330,7 +330,20 @@ const DailyReportDashboard = () => {
     ].filter(Boolean);
 
     const currentReportCompletedQuantity = Number(report?.completed_quantity || 0);
+    const labourSummary = (report?.daily_report_workers || []).reduce(
+        (summary, worker) => {
+            summary.regularHours += Number(worker.regular_hours || 0);
+            summary.overtimeHours += Number(worker.overtime_hours || 0);
+            summary.completedQuantity += Number(worker.completed_quantity || 0);
 
+            return summary;
+        },
+        {
+            regularHours: 0,
+            overtimeHours: 0,
+            completedQuantity: 0,
+        }
+    );
     const approvedCompletedBeforeThisReport =
         report?.approval_status === "Approved"
             ? Math.max(
@@ -1190,9 +1203,32 @@ const DailyReportDashboard = () => {
             )}
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
-                <h2 className="font-bold text-slate-900 mb-3">Work Activities</h2>
+                <h2 className="font-bold text-slate-900 mb-3">Work Activities & Labour</h2>
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
-                    <h2 className="font-bold text-slate-900 mb-4">Labour Records</h2>
+                    <h2 className="font-bold text-slate-900 mb-4">Labour Records Summary</h2>
+
+                    <div className="grid grid-cols-3 gap-3 mb-4">
+                        <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                            <p className="text-xs text-slate-500">Regular</p>
+                            <p className="text-base font-bold text-slate-900 mt-1">
+                                {labourSummary.regularHours.toFixed(2)}
+                            </p>
+                        </div>
+
+                        <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                            <p className="text-xs text-slate-500">OT</p>
+                            <p className="text-base font-bold text-slate-900 mt-1">
+                                {labourSummary.overtimeHours.toFixed(2)}
+                            </p>
+                        </div>
+
+                        <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                            <p className="text-xs text-slate-500">Qty</p>
+                            <p className="text-base font-bold text-slate-900 mt-1">
+                                {labourSummary.completedQuantity.toFixed(2)}
+                            </p>
+                        </div>
+                    </div>
 
                     {report.daily_report_workers?.length ? (
                         <div className="space-y-3">
@@ -1288,7 +1324,7 @@ const DailyReportDashboard = () => {
 
                     <div className="border-t pt-4 mt-4 space-y-4">
                         <h3 className="font-semibold text-slate-900">
-                            {editingWorkerId ? "Edit Labour Record" : "Add Labour Record"}
+                            {editingWorkerId ? "Edit Worker Record" : "Add Worker Record"}
                         </h3>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
