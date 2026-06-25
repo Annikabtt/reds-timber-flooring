@@ -38,7 +38,11 @@ const DailyReports = () => {
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-
+  const [filterProjectId, setFilterProjectId] = useState("all");
+  const [filterSiteId, setFilterSiteId] = useState("all");
+  const [filterAreaId, setFilterAreaId] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [showLatestOnly, setShowLatestOnly] = useState(false);
   const [projectId, setProjectId] = useState("");
   const [siteId, setSiteId] = useState("");
   const [areaId, setAreaId] = useState("");
@@ -272,7 +276,20 @@ const DailyReports = () => {
       (area) => area.project_id === projectId && area.site_id === siteId
     );
   }, [areas, projectId, siteId]);
+  const filterSites = useMemo(() => {
+    if (filterProjectId === "all") return sites;
+    return sites.filter((site) => site.project_id === filterProjectId);
+  }, [sites, filterProjectId]);
 
+  const filterAreas = useMemo(() => {
+    return areas.filter((area) => {
+      const matchProject =
+        filterProjectId === "all" || area.project_id === filterProjectId;
+      const matchSite = filterSiteId === "all" || area.site_id === filterSiteId;
+
+      return matchProject && matchSite;
+    });
+  }, [areas, filterProjectId, filterSiteId]);
   const selectedArea = useMemo(() => {
     return areas.find((area) => area.area_id === areaId);
   }, [areas, areaId]);
@@ -430,7 +447,7 @@ const DailyReports = () => {
         .insert(workerRows);
 
       if (workerInsertError) throw workerInsertError;
-     
+
     },
     onSuccess: () => {
       toast.success("Daily report created successfully.");
@@ -450,14 +467,15 @@ const DailyReports = () => {
   const filteredDailyReports = useMemo(() => {
     const keyword = searchTerm.toLowerCase();
 
-    return dailyReports.filter((report) => {
+    let reports = dailyReports.filter((report) => {
       const projectName = report.projects?.project_name || "";
       const customerName = report.projects?.customers?.customer_name || "";
       const siteName = report.project_sites?.site_name || "";
       const areaName = report.project_areas?.area_name || "";
       const workOrderTitle = report.work_orders?.title || "";
 
-      return (
+      const matchKeyword =
+        !keyword ||
         report.report_date?.toLowerCase().includes(keyword) ||
         report.weather_condition?.toLowerCase().includes(keyword) ||
         report.work_completed?.toLowerCase().includes(keyword) ||
@@ -465,10 +483,144 @@ const DailyReports = () => {
         customerName.toLowerCase().includes(keyword) ||
         siteName.toLowerCase().includes(keyword) ||
         areaName.toLowerCase().includes(keyword) ||
-        workOrderTitle.toLowerCase().includes(keyword)
+        workOrderTitle.toLowerCase().includes(keyword);
+
+      const matchProject =
+        filterProjectId === "all" || report.project_id === filterProjectId;
+      const matchSite =
+        filterSiteId === "all" || report.site_id === filterSiteId;
+      const matchArea =
+        filterAreaId === "all" || report.area_id === filterAreaId;
+      const matchStatus =
+        filterStatus === "all" || report.approval_status === filterStatus;
+
+      return (
+        matchKeyword &&
+        matchProject &&
+        matchSite &&
+        matchArea &&
+        matchStatus
       );
     });
-  }, [dailyReports, searchTerm]);
+
+    if (showLatestOnly) {
+      const latestByArea = new Map<string, any>();
+
+      reports.forEach((report) => {
+        const key = report.area_id || report.report_id;
+        const current = latestByArea.get(key);
+
+        if (!current || report.report_date > current.report_date) {
+          latestByArea.set(key, report);
+        }
+      });
+
+      reports = Array.from(latestByArea.values());
+    }
+
+    return reports;
+  }, [
+    dailyReports,
+    searchTerm,
+    filterProjectId,
+    filterSiteId,
+    filterAreaId,
+    filterStatus,
+    showLatestOnly,
+  ]);
+
+  const areaSummary = useMemo(() => {
+    const approvedReports = filteredDailyReports.filter(
+      (report) => report.approval_status === "Approved"
+    );
+
+    const pendingReports = filteredDailyReports.filter((report) =>
+      ["Submitted", "Ready for Inspection"].includes(report.approval_status || "")
+    );
+
+    const approvedProgress = approvedReports.reduce(
+      (sum, report) => sum + Number(report.completed_quantity || 0),
+      0
+    );
+
+    const pendingReview = pendingReports.reduce(
+      (sum, report) => sum + Number(report.completed_quantity || 0),
+      0
+    );
+
+    const estimatedQuantity =
+      filterAreaId !== "all"
+        ? Number(
+          areas.find((area) => area.area_id === filterAreaId)
+            ?.estimated_quantity || 0
+        )
+        : 0;
+
+    const latestReport = filteredDailyReports[0]?.report_date || "-";
+
+    return {
+      approvedProgress,
+      pendingReview,
+      estimatedQuantity,
+      remaining: Math.max(estimatedQuantity - approvedProgress, 0),
+      latestReport,
+      pendingReports: pendingReports.length,
+    };
+  }, [filteredDailyReports, areas, filterAreaId]);
+
+  const groupedDailyReports = useMemo(() => {
+    const groups = new Map<string, any[]>();
+
+    filteredDailyReports.forEach((report) => {
+      const key = report.area_id || "no-area";
+
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+
+      groups.get(key)?.push(report);
+    });
+
+    return Array.from(groups.entries()).map(([areaKey, reports]) => {
+      const firstReport = reports[0];
+
+      const approvedProgress = reports
+        .filter((report) => report.approval_status === "Approved")
+        .reduce(
+          (sum, report) => sum + Number(report.completed_quantity || 0),
+          0
+        );
+
+      const pendingProgress = reports
+        .filter((report) =>
+          ["Submitted", "Ready for Inspection"].includes(
+            report.approval_status || ""
+          )
+        )
+        .reduce(
+          (sum, report) => sum + Number(report.completed_quantity || 0),
+          0
+        );
+
+      const estimatedQuantity = Number(
+        firstReport?.project_areas?.estimated_quantity || 0
+      );
+
+      return {
+        areaKey,
+        reports,
+        areaName: firstReport?.project_areas?.area_name || "-",
+        areaCode: firstReport?.project_areas?.area_code || "-",
+        siteName: firstReport?.project_sites?.site_name || "-",
+        unitOfMeasure: firstReport?.project_areas?.unit_of_measure || "sqm",
+        approvedProgress,
+        pendingProgress,
+        remaining: Math.max(estimatedQuantity - approvedProgress, 0),
+        latestReport: reports[0]?.report_date || "-",
+        reportCount: reports.length,
+      };
+    });
+  }, [filteredDailyReports]);
 
   return (
     <div className="p-6 space-y-6">
@@ -494,7 +646,89 @@ const DailyReports = () => {
         </Button>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <Select
+            value={filterProjectId}
+            onValueChange={(value) => {
+              setFilterProjectId(value);
+              setFilterSiteId("all");
+              setFilterAreaId("all");
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Project" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Projects</SelectItem>
+              {projects.map((project) => (
+                <SelectItem key={project.project_id} value={project.project_id}>
+                  {project.project_no || "-"} - {project.project_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={filterSiteId}
+            onValueChange={(value) => {
+              setFilterSiteId(value);
+              setFilterAreaId("all");
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Site" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Sites</SelectItem>
+              {filterSites.map((site) => (
+                <SelectItem key={site.site_id} value={site.site_id}>
+                  {site.site_code || "-"} - {site.site_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={filterAreaId} onValueChange={setFilterAreaId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Area" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Areas</SelectItem>
+              {filterAreas.map((area) => (
+                <SelectItem key={area.area_id} value={area.area_id}>
+                  {area.area_code || "-"} - {area.area_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger>
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="Draft">Draft</SelectItem>
+              <SelectItem value="Submitted">Submitted</SelectItem>
+              <SelectItem value="Ready for Inspection">
+                Ready for Inspection
+              </SelectItem>
+              <SelectItem value="Approved">Approved</SelectItem>
+              <SelectItem value="Rejected">Rejected</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={showLatestOnly}
+              onChange={(e) => setShowLatestOnly(e.target.checked)}
+            />
+            Show latest only
+          </label>
+        </div>
+
         <div className="relative">
           <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
           <Input
@@ -503,6 +737,45 @@ const DailyReports = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 border-t pt-4">
+          <div>
+            <p className="text-xs text-slate-500">Approved Progress</p>
+            <p className="font-bold text-slate-900">
+              {areaSummary.approvedProgress.toFixed(2)} /{" "}
+              {areaSummary.estimatedQuantity.toFixed(2)} sqm
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs text-slate-500">Pending Review</p>
+            <p className="font-bold text-amber-700">
+              {areaSummary.pendingReview.toFixed(2)} sqm
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs text-slate-500">Remaining</p>
+            <p className="font-bold text-slate-900">
+              {areaSummary.remaining.toFixed(2)} sqm
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs text-slate-500">Latest Report</p>
+            <p className="font-bold text-slate-900">
+              {areaSummary.latestReport}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs text-slate-500">Pending Reports</p>
+            <p className="font-bold text-slate-900">
+              {areaSummary.pendingReports}
+            </p>
+
+          </div>
         </div>
       </div>
 
@@ -524,123 +797,170 @@ const DailyReports = () => {
             No daily reports found.
           </div>
         ) : (
-          filteredDailyReports.map((report) => (
-            <div
-              key={report.report_id}
-              className="grid grid-cols-12 px-4 py-4 border-b last:border-b-0 hover:bg-slate-50 transition-colors gap-3"
-            >
-              <div className="col-span-1 text-sm text-slate-700">
-                {report.report_date || "-"}
+          groupedDailyReports.map((group) => (
+            <div key={group.areaKey} className="border-b last:border-b-0">
+              <div className="bg-slate-100 px-4 py-3 border-b">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
+                  <div>
+                    <p className="font-bold text-slate-900">
+                      {group.areaCode} - {group.areaName}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Site: {group.siteName} · Reports: {group.reportCount} · Latest:{" "}
+                      {group.latestReport}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <p className="text-slate-500">Approved</p>
+                      <p className="font-bold text-slate-900">
+                        {group.approvedProgress.toFixed(2)} {group.unitOfMeasure}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-slate-500">Pending</p>
+                      <p className="font-bold text-amber-700">
+                        {group.pendingProgress.toFixed(2)} {group.unitOfMeasure}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-slate-500">Remaining</p>
+                      <p className="font-bold text-slate-900">
+                        {group.remaining.toFixed(2)} {group.unitOfMeasure}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="col-span-2">
-                <p className="font-medium text-slate-800">
-                  {report.projects?.project_name || "-"}
-                </p>
-                <p className="text-xs text-slate-500">
-                  {report.projects?.project_no || "-"} ·{" "}
-                  {report.projects?.customers?.customer_name || "-"}
-                </p>
-              </div>
-
-              <div className="col-span-2 text-slate-700">
-                <p>{report.project_sites?.site_name || "-"}</p>
-                <p className="text-xs text-slate-500">
-                  {report.project_areas?.area_name || "-"}
-                </p>
-              </div>
-
-              <div className="col-span-2 text-slate-700">
-                <p>{report.work_orders?.title || "-"}</p>
-                <p className="text-xs text-slate-500">
-                  {report.work_orders?.work_order_no || "-"} ·{" "}
-                  {report.work_orders?.status || "-"}
-                </p>
-                <p className="text-xs text-slate-500 mt-1">
-                  Activities:{" "}
-                  {report.daily_report_activities?.length
-                    ? report.daily_report_activities
-                      .map((item) => item.work_activity_types?.activity_name)
-                      .filter(Boolean)
-                      .join(", ")
-                    : "-"}
-                </p>
-              </div>
-
-              <div className="col-span-1 text-slate-700">
-                {report.weather_condition || "-"}
-              </div>
-
-              <div className="col-span-1 text-slate-700">
-                <p>
-                  {report.daily_report_workers?.length
-                    ? new Set(report.daily_report_workers.map((worker) => worker.employee_id)).size
-                    : report.workers_count ?? "-"}{" "}
-                  workers
-                </p>
-
-                <p className="text-xs text-slate-500">
-                  Hours:{" "}
-                  {report.daily_report_workers?.length
-                    ? report.daily_report_workers
-                      .reduce(
-                        (sum, worker) =>
-                          sum +
-                          Number(worker.regular_hours || 0) +
-                          Number(worker.overtime_hours || 0),
-                        0
-                      )
-                      .toFixed(2)
-                    : "0.00"}
-                </p>
-
-                <p className="text-xs text-slate-500">
-                  Qty:{" "}
-                  {report.daily_report_workers?.length
-                    ? report.daily_report_workers
-                      .reduce(
-                        (sum, worker) => sum + Number(worker.completed_quantity || 0),
-                        0
-                      )
-                      .toFixed(2)
-                    : "0.00"}
-                </p>
-              </div>
-
-              <div className="col-span-1 text-slate-700">
-                <p>
-                  {report.progress_percent ?? "-"}%
-                </p>
-                <p className="text-xs text-slate-500">
-                  {report.completed_quantity ?? 0} /{" "}
-                  {report.project_areas?.estimated_quantity ?? 0}{" "}
-                  {report.project_areas?.unit_of_measure || ""}
-                </p>
-              </div>
-
-              <div className="col-span-1 text-slate-700">
-                {report.approval_status || "-"}
-                <p className="text-xs text-slate-500">
-                  Photos:{" "}
-                  {report.daily_report_photos?.filter((photo) => !photo.is_deleted).length || 0}
-                </p>
-              </div>
-
-              <div className="col-span-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate(`/daily-reports/${report.report_id}`)}
+              {group.reports.map((report) => (
+                <div
+                  key={report.report_id}
+                  className="grid grid-cols-12 px-4 py-4 border-b last:border-b-0 hover:bg-slate-50 transition-colors gap-3"
                 >
-                  View
-                </Button>
-              </div>
+                  <div className="col-span-1 text-sm text-slate-700">
+                    {report.report_date || "-"}
+                  </div>
+
+                  <div className="col-span-2">
+                    <p className="font-medium text-slate-800">
+                      {report.projects?.project_name || "-"}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {report.projects?.project_no || "-"} ·{" "}
+                      {report.projects?.customers?.customer_name || "-"}
+                    </p>
+                  </div>
+
+                  <div className="col-span-2 text-slate-700">
+                    <p>{report.project_sites?.site_name || "-"}</p>
+                    <p className="text-xs text-slate-500">
+                      {report.project_areas?.area_name || "-"}
+                    </p>
+                  </div>
+
+                  <div className="col-span-2 text-slate-700">
+                    <p>{report.work_orders?.title || "-"}</p>
+                    <p className="text-xs text-slate-500">
+                      {report.work_orders?.work_order_no || "-"} ·{" "}
+                      {report.work_orders?.status || "-"}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Activities:{" "}
+                      {report.daily_report_activities?.length
+                        ? report.daily_report_activities
+                          .map((item) => item.work_activity_types?.activity_name)
+                          .filter(Boolean)
+                          .join(", ")
+                        : "-"}
+                    </p>
+                  </div>
+
+                  <div className="col-span-1 text-slate-700">
+                    {report.weather_condition || "-"}
+                  </div>
+
+                  <div className="col-span-1 text-slate-700">
+                    <p>
+                      {report.daily_report_workers?.length
+                        ? new Set(
+                          report.daily_report_workers.map(
+                            (worker) => worker.employee_id
+                          )
+                        ).size
+                        : report.workers_count ?? "-"}{" "}
+                      workers
+                    </p>
+
+                    <p className="text-xs text-slate-500">
+                      Hours:{" "}
+                      {report.daily_report_workers?.length
+                        ? report.daily_report_workers
+                          .reduce(
+                            (sum, worker) =>
+                              sum +
+                              Number(worker.regular_hours || 0) +
+                              Number(worker.overtime_hours || 0),
+                            0
+                          )
+                          .toFixed(2)
+                        : "0.00"}
+                    </p>
+
+                    <p className="text-xs text-slate-500">
+                      Qty:{" "}
+                      {report.daily_report_workers?.length
+                        ? report.daily_report_workers
+                          .reduce(
+                            (sum, worker) =>
+                              sum + Number(worker.completed_quantity || 0),
+                            0
+                          )
+                          .toFixed(2)
+                        : "0.00"}
+                    </p>
+                  </div>
+
+                  <div className="col-span-1 text-slate-700">
+                    <p>{report.progress_percent ?? "-"}%</p>
+                    <p className="text-xs text-slate-500">
+                      {report.completed_quantity ?? 0} /{" "}
+                      {report.project_areas?.estimated_quantity ?? 0}{" "}
+                      {report.project_areas?.unit_of_measure || ""}
+                    </p>
+                  </div>
+
+                  <div className="col-span-1 text-slate-700">
+                    {report.approval_status || "-"}
+                    <p className="text-xs text-slate-500">
+                      Photos:{" "}
+                      {report.daily_report_photos?.filter((photo) => !photo.is_deleted)
+                        .length || 0}
+                    </p>
+                  </div>
+
+                  <div className="col-span-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/daily-reports/${report.report_id}`)}
+                    >
+                      View
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           ))
         )}
+
       </div>
 
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Daily Report</DialogTitle>
@@ -1117,13 +1437,13 @@ const DailyReports = () => {
               />
             </div>
           </div>
-
           <div className="flex justify-end gap-3 pt-4">
             <Button
               variant="outline"
               onClick={() => {
                 setShowAddDialog(false);
                 resetForm();
+
               }}
             >
               Cancel
@@ -1139,7 +1459,7 @@ const DailyReports = () => {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   );
 };
 
