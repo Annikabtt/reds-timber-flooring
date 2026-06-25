@@ -597,6 +597,7 @@ const DailyReports = () => {
             report.approval_status || ""
           )
         )
+
         .reduce(
           (sum, report) => sum + Number(report.completed_quantity || 0),
           0
@@ -621,7 +622,23 @@ const DailyReports = () => {
       };
     });
   }, [filteredDailyReports]);
+  const getApprovalStatusClass = (status?: string | null) => {
+    switch (status) {
+      case "Approved":
+        return "bg-green-100 text-green-700 border-green-200";
+      case "Submitted":
+        return "bg-blue-100 text-blue-700 border-blue-200";
+      case "Ready for Inspection":
+        return "bg-amber-100 text-amber-700 border-amber-200";
+      case "Rejected":
+        return "bg-red-100 text-red-700 border-red-200";
+      case "Draft":
+        return "bg-slate-100 text-slate-700 border-slate-200";
+      default:
+        return "bg-slate-100 text-slate-500 border-slate-200";
+    }
 
+  };
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -856,9 +873,11 @@ const DailyReports = () => {
                   </div>
 
                   <div className="col-span-2 text-slate-700">
-                    <p>{report.project_sites?.site_name || "-"}</p>
+                    <p className="font-medium text-slate-800">
+                      {report.work_completed || "No work summary"}
+                    </p>
                     <p className="text-xs text-slate-500">
-                      {report.project_areas?.area_name || "-"}
+                      Issues: {report.issues_found || "-"}
                     </p>
                   </div>
 
@@ -925,20 +944,38 @@ const DailyReports = () => {
                   </div>
 
                   <div className="col-span-1 text-slate-700">
-                    <p>{report.progress_percent ?? "-"}%</p>
-                    <p className="text-xs text-slate-500">
-                      {report.completed_quantity ?? 0} /{" "}
-                      {report.project_areas?.estimated_quantity ?? 0}{" "}
+                    <p className="font-semibold text-slate-900">
+                      {Number(report.progress_percent || 0).toFixed(2)}%
+                    </p>
+
+                    <div className="mt-2 h-2 w-full rounded-full bg-slate-100">
+                      <div
+                        className="h-2 rounded-full bg-red-600"
+                        style={{
+                          width: `${Math.min(Number(report.progress_percent || 0), 100)}%`,
+                        }}
+                      />
+                    </div>
+
+                    <p className="text-xs text-slate-500 mt-2">
+                      {Number(report.completed_quantity || 0).toFixed(2)} /{" "}
+                      {Number(report.project_areas?.estimated_quantity || 0).toFixed(2)}{" "}
                       {report.project_areas?.unit_of_measure || ""}
                     </p>
                   </div>
 
                   <div className="col-span-1 text-slate-700">
-                    {report.approval_status || "-"}
-                    <p className="text-xs text-slate-500">
+                    <span
+                      className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${getApprovalStatusClass(
+                        report.approval_status
+                      )}`}
+                    >
+                      {report.approval_status || "-"}
+                    </span>
+
+                    <p className="text-xs text-slate-500 mt-2">
                       Photos:{" "}
-                      {report.daily_report_photos?.filter((photo) => !photo.is_deleted)
-                        .length || 0}
+                      {report.daily_report_photos?.filter((photo) => !photo.is_deleted).length || 0}
                     </p>
                   </div>
 
