@@ -13,6 +13,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type Customer = {
   customer_id: string;
@@ -35,6 +42,7 @@ export default function CustomerDatabase() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [abn, setAbn] = useState("");
+  const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
 
   const {
@@ -76,7 +84,9 @@ export default function CustomerDatabase() {
         phone: phone || null,
         email: email || null,
         abn: abn || null,
-        notes: notes || null,
+        notes: address.trim()
+          ? `Address: ${address.trim()}${notes.trim() ? `\nNotes: ${notes.trim()}` : ""}`
+          : notes.trim() || null,
         is_active: true,
         is_deleted: false,
       });
@@ -91,6 +101,7 @@ export default function CustomerDatabase() {
     setPhone("");
     setEmail("");
     setAbn("");
+    setAddress("");
     setNotes("");
 
     setShowAddDialog(false);
@@ -131,7 +142,7 @@ export default function CustomerDatabase() {
           </div>
 
           <Button
-           onClick={() => setShowAddDialog(true)}
+            onClick={() => setShowAddDialog(true)}
             className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-xl shadow-lg shadow-red-200 transition-all flex items-center gap-2"
           >
             <Plus size={20} />
@@ -146,57 +157,114 @@ export default function CustomerDatabase() {
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>
-                Add New Customer
+                Quick Add Customer
               </DialogTitle>
             </DialogHeader>
 
             <div className="space-y-4">
 
               <div>
-                <Label>Customer Name</Label>
+                <Label>
+                  {customerType === "Commercial" ? "Business / Company Name" : "Customer Name"}
+                </Label>
                 <Input
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder={
+                    customerType === "Commercial"
+                      ? "Business or company name"
+                      : "Customer full name"
+                  }
                 />
               </div>
 
               <div>
                 <Label>Customer Type</Label>
-                <Input
+                <Select
                   value={customerType}
-                  onChange={(e) => setCustomerType(e.target.value)}
-                />
+                  onValueChange={(value) => {
+                    setCustomerType(value);
+                    if (value === "Residential") {
+                      setAbn("");
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select customer type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Residential">Residential</SelectItem>
+                    <SelectItem value="Commercial">Commercial</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>
-                <Label>Phone</Label>
+                <Label>
+                  {customerType === "Commercial" ? "Business Phone" : "Phone"}
+                </Label>
                 <Input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
+                  placeholder={
+                    customerType === "Commercial"
+                      ? "Office or business phone"
+                      : "Customer phone"
+                  }
                 />
               </div>
 
               <div>
-                <Label>Email</Label>
+                <Label>
+                  {customerType === "Commercial" ? "Business Address" : "Address"}
+                </Label>
+                <Input
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder={
+                    customerType === "Commercial"
+                      ? "Office or billing address"
+                      : "Customer address"
+                  }
+                />
+              </div>
+
+              <div>
+                <Label>
+                  {customerType === "Commercial" ? "Business Email" : "Email"}
+                </Label>
                 <Input
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  placeholder={
+                    customerType === "Commercial"
+                      ? "Accounts or office email"
+                      : "Customer email"
+                  }
                 />
               </div>
 
-              <div>
-                <Label>ABN</Label>
-                <Input
-                  value={abn}
-                  onChange={(e) => setAbn(e.target.value)}
-                />
-              </div>
+              {customerType === "Commercial" && (
+                <div>
+                  <Label>ABN</Label>
+                  <Input
+                    value={abn}
+                    onChange={(e) => setAbn(e.target.value)}
+                    placeholder="Australian Business Number"
+                  />
+                </div>
+              )}
 
               <div>
                 <Label>Notes</Label>
                 <Textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
+                  placeholder={
+                    customerType === "Commercial"
+                      ? "Contact person, billing notes, site notes"
+                      : "Access notes, job notes, customer notes"
+                  }
                 />
               </div>
 
@@ -204,7 +272,7 @@ export default function CustomerDatabase() {
                 onClick={handleAddCustomer}
                 className="w-full"
               >
-                Save Customer
+                Create Customer
               </Button>
 
             </div>
