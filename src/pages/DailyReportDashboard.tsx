@@ -363,11 +363,27 @@ const DailyReportDashboard = () => {
         },
     });
 
-
     const approveDailyReport = useMutation({
         mutationFn: async () => {
             if (!reportId) {
                 throw new Error("Daily report ID is missing.");
+            }
+            const labourRecords = report.daily_report_workers || [];
+
+            if (labourRecords.length === 0) {
+                throw new Error(
+                    "Please add labour records before approving this daily report."
+                );
+            }
+
+            const invalidLabourRecords = labourRecords.filter(
+                (worker) => !worker.employee_id || !worker.activity_type_id
+            );
+
+            if (invalidLabourRecords.length > 0) {
+                throw new Error(
+                    "Some labour records are missing employee or activity."
+                );
             }
             const photos =
                 report.daily_report_photos?.filter((photo) => !photo.is_deleted) || [];
@@ -397,6 +413,9 @@ const DailyReportDashboard = () => {
                     "This daily report has rejected photos. Please review photos before approving."
                 );
             }
+
+
+
             const { error } = await supabase
                 .from("daily_reports")
                 .update({
@@ -406,11 +425,38 @@ const DailyReportDashboard = () => {
                 .eq("report_id", reportId);
 
             if (error) throw error;
+
+            const timeLogRows = labourRecords.map((worker) => ({
+                report_id: reportId,
+                employee_id: worker.employee_id,
+                project_id: report.project_id,
+                site_id: report.site_id,
+                area_id: report.area_id,
+                work_order_id: report.work_order_id,
+                activity_type_id: worker.activity_type_id,
+                work_date: report.report_date,
+                regular_hours: Number(worker.regular_hours || 0),
+                overtime_hours: Number(worker.overtime_hours || 0),
+                break_minutes: 0,
+                approved: false,
+                notes: worker.notes || worker.worker_role || null,
+                is_deleted: false,
+            }));
+
+            const { error: timeLogError } = await supabase
+                .from("work_time_logs")
+                .upsert(timeLogRows, {
+                    onConflict: "report_id,employee_id,activity_type_id",
+                });
+
+            if (timeLogError) throw timeLogError;
+
         },
         onSuccess: () => {
-            toast.success("Daily report approved.");
+            toast.success("Daily report approved and work time logs created.");
             queryClient.invalidateQueries({ queryKey: ["daily_report", reportId] });
             queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
+            queryClient.invalidateQueries({ queryKey: ["work_time_logs"] });
         },
         onError: (error) => {
             toast.error(error.message);

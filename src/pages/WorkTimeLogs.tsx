@@ -153,14 +153,32 @@ const WorkTimeLogs = () => {
           *,
           employees (
             employee_code,
-            display_name
+            display_name,
+            first_name,
+            last_name
           ),
           projects (
+            project_no,
             project_name
+          ),
+          project_sites (
+            site_code,
+            site_name
+          ),
+          project_areas (
+            area_code,
+            area_name
           ),
           work_orders (
             work_order_no,
             title
+          ),
+          daily_reports (
+            report_id,
+            report_date
+          ),
+          work_activity_types (
+            activity_name
           )
         `)
         .eq("is_deleted", false)
@@ -426,11 +444,7 @@ const WorkTimeLogs = () => {
             <div className="text-sm text-slate-500">
               {log.projects?.project_name}
             </div>
-
-            <div className="text-sm text-slate-500">
-              {log.projects?.project_name}
-            </div>
-
+            
             {log.work_orders && (
               <div className="text-sm text-slate-500">
                 {log.work_orders.work_order_no} - {log.work_orders.title}
@@ -447,18 +461,29 @@ const WorkTimeLogs = () => {
                 {new Date(log.approved_at).toLocaleString()}
               </div>
             )}
-
+            {log.work_activity_types && (
+              <div className="text-sm text-slate-500">
+                Activity: {log.work_activity_types.activity_name}
+              </div>
+            )}
             <div className="text-sm">
               Regular: {log.regular_hours} hrs |
               OT: {log.overtime_hours} hrs
             </div>
 
             <div className="flex items-center gap-3 mt-2">
-              
+              <div
+                className={`text-xs font-semibold px-3 py-1 rounded-full ${log.daily_report_id
+                  ? "bg-blue-100 text-blue-700"
+                  : "bg-slate-100 text-slate-700"
+                  }`}
+              >
+                {log.daily_report_id ? "Daily Report" : "Manual"}
+              </div>
               <div
                 className={`text-xs font-semibold px-3 py-1 rounded-full ${log.approved
-                    ? "bg-green-100 text-green-700"
-                    : "bg-orange-100 text-orange-700"
+                  ? "bg-green-100 text-green-700"
+                  : "bg-orange-100 text-orange-700"
                   }`}
               >
                 {log.approved ? "Approved" : "Pending Approval"}

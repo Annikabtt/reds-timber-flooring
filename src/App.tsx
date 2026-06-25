@@ -44,6 +44,7 @@ import WorkOrderDashboard from "./pages/WorkOrderDashboard";
 import DailyReports from "./pages/DailyReports";
 import DailyReportDashboard from "./pages/DailyReportDashboard";
 import PayrollPeriodDashboard from "./pages/PayrollPeriodDashboard";
+import WorkTimeLogs from "./pages/WorkTimeLogs";
 import PayrollEntries from "./pages/PayrollEntries";
 import Employees from "./pages/Employees";
 import PayrollPeriods from "./pages/PayrollPeriods";
@@ -98,7 +99,7 @@ const App = () => (
             <Route path="/work-orders/:workOrderId" element={<ProtectedRoute><WorkOrderDashboard /></ProtectedRoute>} />
             <Route path="/daily-reports" element={<ProtectedRoute><DailyReports /></ProtectedRoute>} />
             <Route path="/daily-reports/:reportId" element={<ProtectedRoute><DailyReportDashboard /></ProtectedRoute>} />
-
+            <Route path="/work-time-logs" element={<ProtectedRoute><WorkTimeLogs /></ProtectedRoute>} />
             <Route path="/project-sites/:siteId" element={<ProjectSiteDashboard />} />
             <Route path="/project-areas" element={<ProtectedRoute><ProjectAreas /></ProtectedRoute>} />
             <Route path="/workflow" element={<SystemWorkflow />} />
@@ -129,7 +130,7 @@ const App = () => (
             <Route path="/tech/materials" element={<ProtectedRoute><TechMaterials /></ProtectedRoute>} />
             <Route path="/tech/report" element={<ProtectedRoute><TechReport /></ProtectedRoute>} />
             <Route path="/tech/leave" element={<ProtectedRoute><TechLeave /></ProtectedRoute>} />
-           
+
             <Route
               path="/customers"
               element={

@@ -430,67 +430,7 @@ const DailyReports = () => {
         .insert(workerRows);
 
       if (workerInsertError) throw workerInsertError;
-
-      if (photoFiles.length > 0) {
-        for (const photoFile of photoFiles) {
-          const fileName =
-            `${createdReport.report_id}/${Date.now()}-${photoFile.name}`;
-
-          const { error: uploadError } = await supabase.storage
-            .from("daily-report-photos")
-            .upload(fileName, photoFile, {
-              cacheControl: "3600",
-              upsert: false,
-            });
-
-          if (uploadError) throw uploadError;
-
-          const { data: publicUrlData } = supabase.storage
-            .from("daily-report-photos")
-            .getPublicUrl(fileName);
-
-          const { error: photoInsertError } = await supabase
-            .from("daily_report_photos")
-            .insert({
-              report_id: createdReport.report_id,
-              photo_url: publicUrlData.publicUrl,
-              caption: photoCaption.trim() || null,
-              sort_order: 0,
-              taken_at: new Date().toISOString(),
-              is_deleted: false,
-
-              approval_status: "Pending",
-              approved_by: null,
-              approved_at: null,
-              rejected_reason: null,
-            });
-
-          if (photoInsertError) throw photoInsertError;
-        }
-      }
-
-      if (progress !== null) {
-        let nextStatus = "In Progress";
-
-        if (progress === 0) {
-          nextStatus = "Open";
-        }
-
-        if (progress >= 100) {
-          nextStatus = "Completed";
-        }
-
-        const { error: workOrderError } = await supabase
-          .from("work_orders")
-          .update({
-            status: nextStatus,
-            actual_start_date: progress > 0 ? reportDate : null,
-            actual_end_date: progress >= 100 ? reportDate : null,
-          })
-          .eq("work_order_id", workOrderId);
-
-        if (workOrderError) throw workOrderError;
-      }
+     
     },
     onSuccess: () => {
       toast.success("Daily report created successfully.");
