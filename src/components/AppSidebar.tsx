@@ -21,10 +21,11 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import redsLogo from "@/assets/reds-logo.png";
 
 const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-
+  { title: "Customers", url: "/customers", icon: Users },
   { title: "Projects", url: "/projects", icon: FolderKanban },
   { title: "Project Sites", url: "/project-sites", icon: FolderKanban },
   { title: "Project Areas", url: "/project-areas", icon: FolderKanban },
@@ -52,14 +53,17 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">
-      <div className="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border">
-        <div className="h-9 w-9 rounded-lg bg-sidebar-primary flex items-center justify-center shrink-0">
-          <span className="text-sidebar-primary-foreground font-bold text-sm">R</span>
-        </div>
-        {!collapsed && (
-          <span className="text-lg font-bold text-sidebar-foreground tracking-tight">
-            REDS Timber Flooring
-          </span>
+      <div className="hidden md:flex items-center gap-3 px-4 py-5 border-b border-sidebar-border">
+        {collapsed ? (
+          <div className="h-9 w-9 rounded-lg bg-white flex items-center justify-center shrink-0 overflow-hidden">
+            <img src={redsLogo} alt="REDS Timber Flooring" className="h-7 w-auto" />
+          </div>
+        ) : (
+          <img
+            src={redsLogo}
+            alt="REDS Timber Flooring"
+            className="h-12 w-auto object-contain"
+          />
         )}
       </div>
 
