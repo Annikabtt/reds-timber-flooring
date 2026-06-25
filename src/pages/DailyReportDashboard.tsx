@@ -873,27 +873,28 @@ const DailyReportDashboard = () => {
     }
 
     return (
-        <div className="p-6 space-y-6">
-            <div className="flex items-center justify-between">
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <Button
                     variant="outline"
                     onClick={() => navigate("/daily-reports")}
-                    className="flex items-center gap-2"
+                    className="w-full sm:w-auto flex items-center justify-center gap-2"
                 >
                     <ArrowLeft className="h-4 w-4" />
                     Back
                 </Button>
 
-                <div className="flex gap-3">
+                <div className="grid grid-cols-1 sm:flex gap-2 sm:gap-3 w-full sm:w-auto">
                     {report.approval_status === "Submitted" && (
                         <Button
                             variant="outline"
-                            onClick={() => markReadyForInspection.mutate()}
+                            onClick={() => approveDailyReport.mutate()}
+
                             disabled={markReadyForInspection.isPending}
                         >
                             {markReadyForInspection.isPending
                                 ? "Updating..."
-                                : "Mark Ready for Inspection"}
+                                : "Ready for Inspection"}
                         </Button>
                     )}
 
@@ -912,7 +913,7 @@ const DailyReportDashboard = () => {
                             variant="outline"
                             onClick={() => rejectDailyReport.mutate()}
                             disabled={rejectDailyReport.isPending}
-                            className="text-red-600 hover:text-red-700"
+                            className="w-full sm:w-auto text-red-600 hover:text-red-700"
                         >
                             {rejectDailyReport.isPending ? "Rejecting..." : "Reject"}
                         </Button>
@@ -920,18 +921,18 @@ const DailyReportDashboard = () => {
 
                     <Button
                         onClick={() => setShowEditDialog(true)}
-                        className="bg-red-600 hover:bg-red-700 text-white"
+                        className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
                     >
                         Edit Daily Report
                     </Button>
                 </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6">
                 <div className="flex items-center gap-3">
                     <CalendarDays className="h-8 w-8 text-red-600" />
                     <div>
-                        <h1 className="text-3xl font-bold text-slate-900">
+                        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
                             Daily Report
                         </h1>
                         <p className="text-slate-500 mt-1">
@@ -942,7 +943,7 @@ const DailyReportDashboard = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
                     <h2 className="font-bold text-slate-900 mb-4">Project</h2>
 
                     <div className="space-y-3 text-sm">
@@ -1006,7 +1007,7 @@ const DailyReportDashboard = () => {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
                     <h2 className="font-bold text-slate-900 mb-4">Daily Summary</h2>
 
                     <div className="space-y-3 text-sm">
@@ -1067,7 +1068,7 @@ const DailyReportDashboard = () => {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
                     <h2 className="font-bold text-slate-900 mb-4">
                         Area Progress Summary
                     </h2>
@@ -1157,12 +1158,12 @@ const DailyReportDashboard = () => {
             </div>
 
             {approvalBlockedReasons.length > 0 && (
-                <div className="bg-white rounded-2xl shadow-sm border border-orange-200 p-5">
+                <div className="bg-white rounded-2xl shadow-sm border border-orange-200 p-4 sm:p-5">
                     <h2 className="font-bold text-slate-900 mb-3">
                         Approval Checklist
                     </h2>
 
-                    <div className="rounded-xl bg-orange-50 border border-orange-200 p-4">
+                    <div className="rounded-xl bg-orange-50 border border-orange-200 p-3 sm:p-4">
                         <p className="text-sm font-semibold text-orange-700 mb-2">
                             This daily report cannot be approved yet.
                         </p>
@@ -1176,87 +1177,98 @@ const DailyReportDashboard = () => {
                 </div>
             )}
 
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
                 <h2 className="font-bold text-slate-900 mb-3">Work Activities</h2>
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
                     <h2 className="font-bold text-slate-900 mb-4">Labour Records</h2>
 
                     {report.daily_report_workers?.length ? (
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full text-sm">
-                                <thead>
-                                    <tr className="border-b text-left text-slate-500">
-                                        <th className="py-2 pr-4">Employee</th>
-                                        <th className="py-2 pr-4">Activity</th>
-                                        <th className="py-2 pr-4 text-right">Hours</th>
-                                        <th className="py-2 pr-4 text-right">OT</th>
-                                        <th className="py-2 pr-4 text-right">Qty</th>
-                                        <th className="py-2 pr-4">Role</th>
-                                        <th className="py-2">Notes</th>
-                                    </tr>
-                                </thead>
+                        <div className="space-y-3">
+                            {report.daily_report_workers.map((worker) => (
+                                <div
+                                    key={worker.daily_report_worker_id}
+                                    className="rounded-2xl border border-slate-200 p-4 bg-slate-50"
+                                >
+                                    <div className="flex flex-col gap-3">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <p className="text-sm text-slate-500">Employee</p>
+                                                <p className="font-semibold text-slate-900">
+                                                    {worker.employees?.display_name ||
+                                                        `${worker.employees?.first_name || ""} ${worker.employees?.last_name || ""}`.trim() ||
+                                                        worker.employees?.employee_code ||
+                                                        "-"}
+                                                </p>
+                                            </div>
 
-                                <tbody>
-                                    {report.daily_report_workers.map((worker) => (
-                                        <tr
-                                            key={worker.daily_report_worker_id}
-                                            className="border-b last:border-b-0 align-top"
-                                        >
-                                            <td className="py-3 pr-4 font-medium text-slate-900">
-                                                {worker.employees?.display_name ||
-                                                    `${worker.employees?.first_name || ""} ${worker.employees?.last_name || ""}`.trim() ||
-                                                    worker.employees?.employee_code ||
-                                                    "-"}
-                                            </td>
+                                            <div className="text-right">
+                                                <p className="text-sm text-slate-500">Activity</p>
+                                                <p className="font-medium text-slate-900">
+                                                    {worker.work_activity_types?.activity_name || "-"}
+                                                </p>
+                                            </div>
+                                        </div>
 
-                                            <td className="py-3 pr-4 text-slate-700">
-                                                {worker.work_activity_types?.activity_name || "-"}
-                                            </td>
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                                            <div>
+                                                <p className="text-slate-500">Regular</p>
+                                                <p className="font-medium text-slate-900">
+                                                    {Number(worker.regular_hours || 0).toFixed(2)}
+                                                </p>
+                                            </div>
 
-                                            <td className="py-3 pr-4 text-right text-slate-700">
-                                                {Number(worker.regular_hours || 0).toFixed(2)}
-                                            </td>
+                                            <div>
+                                                <p className="text-slate-500">OT</p>
+                                                <p className="font-medium text-slate-900">
+                                                    {Number(worker.overtime_hours || 0).toFixed(2)}
+                                                </p>
+                                            </div>
 
-                                            <td className="py-3 pr-4 text-right text-slate-700">
-                                                {Number(worker.overtime_hours || 0).toFixed(2)}
-                                            </td>
+                                            <div>
+                                                <p className="text-slate-500">Qty</p>
+                                                <p className="font-medium text-slate-900">
+                                                    {Number(worker.completed_quantity || 0).toFixed(2)}
+                                                </p>
+                                            </div>
 
-                                            <td className="py-3 pr-4 text-right text-slate-700">
-                                                {Number(worker.completed_quantity || 0).toFixed(2)}
-                                            </td>
+                                            <div>
+                                                <p className="text-slate-500">Role</p>
+                                                <p className="font-medium text-slate-900">
+                                                    {worker.worker_role || "-"}
+                                                </p>
+                                            </div>
+                                        </div>
 
-                                            <td className="py-3 pr-4 text-slate-700">
-                                                {worker.worker_role || "-"}
-                                            </td>
-
-                                            <td className="py-3 text-slate-700">
+                                        <div>
+                                            <p className="text-sm text-slate-500">Notes</p>
+                                            <p className="text-sm text-slate-700 whitespace-pre-wrap">
                                                 {worker.notes || "-"}
-                                            </td>
-                                            <td className="py-3 text-right">
-                                                <div className="flex justify-end gap-2">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => startEditLabourRecord(worker)}
-                                                    >
-                                                        Edit
-                                                    </Button>
+                                            </p>
+                                        </div>
 
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => deleteLabourRecord.mutate(worker.daily_report_worker_id)}
-                                                        disabled={deleteLabourRecord.isPending}
-                                                        className="text-red-600 hover:text-red-700"
-                                                    >
-                                                        Delete
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                            <Button
+                                                variant="outline"
+                                                onClick={() => startEditLabourRecord(worker)}
+                                                className="w-full"
+                                            >
+                                                Edit
+                                            </Button>
+
+                                            <Button
+                                                variant="outline"
+                                                onClick={() =>
+                                                    deleteLabourRecord.mutate(worker.daily_report_worker_id)
+                                                }
+                                                disabled={deleteLabourRecord.isPending}
+                                                className="w-full text-red-600 hover:text-red-700"
+                                            >
+                                                Delete
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     ) : (
                         <p className="text-sm text-slate-500">No labour records added.</p>
@@ -1267,7 +1279,7 @@ const DailyReportDashboard = () => {
                             {editingWorkerId ? "Edit Labour Record" : "Add Labour Record"}
                         </h3>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             <div className="space-y-2">
                                 <Label>Employee *</Label>
                                 <Select value={labourEmployeeId} onValueChange={setLabourEmployeeId}>
@@ -1352,7 +1364,7 @@ const DailyReportDashboard = () => {
                                 />
                             </div>
 
-                            <div className="md:col-span-2 space-y-2">
+                            <div className="sm:col-span-2 space-y-2">
                                 <Label>Notes</Label>
                                 <Input
                                     value={labourNotes}
@@ -1362,9 +1374,9 @@ const DailyReportDashboard = () => {
                             </div>
                         </div>
 
-                        <div className="flex justify-end gap-3">
+                        <div className="grid grid-cols-1 sm:flex sm:justify-end gap-3">
                             {editingWorkerId && (
-                                <Button variant="outline" onClick={resetLabourForm}>
+                                <Button variant="outline" className="w-full sm:w-auto" onClick={resetLabourForm}>
                                     Cancel Edit
                                 </Button>
                             )}
@@ -1401,41 +1413,41 @@ const DailyReportDashboard = () => {
                 )}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
                     <h2 className="font-bold text-slate-900 mb-3">Work Completed</h2>
                     <p className="text-sm text-slate-600 whitespace-pre-wrap">
                         {report.work_completed || "No work completed note."}
                     </p>
                 </div>
 
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
                     <h2 className="font-bold text-slate-900 mb-3">Issues Found</h2>
                     <p className="text-sm text-slate-600 whitespace-pre-wrap">
                         {report.issues_found || "No issues found."}
                     </p>
                 </div>
 
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
                     <h2 className="font-bold text-slate-900 mb-3">Next Actions</h2>
                     <p className="text-sm text-slate-600 whitespace-pre-wrap">
                         {report.next_actions || "No next actions."}
                     </p>
                 </div>
 
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
                     <h2 className="font-bold text-slate-900 mb-3">Notes</h2>
                     <p className="text-sm text-slate-600 whitespace-pre-wrap">
                         {report.notes || "No notes."}
                     </p>
                 </div>
                 <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-                    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                    <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>Edit Daily Report</DialogTitle>
                         </DialogHeader>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label>Report Date *</Label>
                                 <Input
@@ -1485,7 +1497,7 @@ const DailyReportDashboard = () => {
                                 />
                             </div>
 
-                            <div className="col-span-2 space-y-2">
+                            <div className="sm:col-span-2 space-y-2">
                                 <Label>Work Completed</Label>
                                 <Textarea
                                     value={editWorkCompleted}
@@ -1494,7 +1506,7 @@ const DailyReportDashboard = () => {
                                 />
                             </div>
 
-                            <div className="col-span-2 space-y-2">
+                            <div className="sm:col-span-2 space-y-2">
                                 <Label>Issues Found</Label>
                                 <Textarea
                                     value={editIssuesFound}
@@ -1503,7 +1515,7 @@ const DailyReportDashboard = () => {
                                 />
                             </div>
 
-                            <div className="col-span-2 space-y-2">
+                            <div className="sm:col-span-2 space-y-2">
                                 <Label>Next Actions</Label>
                                 <Textarea
                                     value={editNextActions}
@@ -1512,7 +1524,7 @@ const DailyReportDashboard = () => {
                                 />
                             </div>
 
-                            <div className="col-span-2 space-y-2">
+                            <div className="sm:col-span-2 space-y-2">
                                 <Label>Notes</Label>
                                 <Textarea
                                     value={editNotes}
@@ -1522,27 +1534,32 @@ const DailyReportDashboard = () => {
                             </div>
                         </div>
 
-                        <div className="flex justify-end gap-3 pt-4">
-                            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+                        <div className="grid grid-cols-1 sm:flex sm:justify-end gap-3 pt-4">
+                            <Button
+                                variant="outline"
+                                className="w-full sm:w-auto"
+                                onClick={() => setShowEditDialog(false)}
+                            >
                                 Cancel
                             </Button>
 
                             <Button
                                 onClick={() => updateDailyReport.mutate()}
                                 disabled={updateDailyReport.isPending}
-                                className="bg-red-600 hover:bg-red-700 text-white"
+                                className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
                             >
                                 {updateDailyReport.isPending ? "Saving..." : "Save Changes"}
                             </Button>
                         </div>
+
                     </DialogContent>
                 </Dialog>
             </div>
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
                 <h2 className="font-bold text-slate-900 mb-4">Photos</h2>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div className="md:col-span-1 space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 sm:mb-6">
+                    <div className="sm:col-span-1 space-y-2">
                         <Label>Photo</Label>
                         <Input
                             type="file"
@@ -1554,7 +1571,7 @@ const DailyReportDashboard = () => {
                         />
                     </div>
 
-                    <div className="md:col-span-2 space-y-2">
+                    <div className="sm:col-span-2 space-y-2">
                         <Label>Caption</Label>
                         <Input
                             value={photoCaption}
@@ -1564,11 +1581,11 @@ const DailyReportDashboard = () => {
                     </div>
                 </div>
 
-                <div className="flex justify-end mb-6">
+                <div className="grid grid-cols-1 sm:flex sm:justify-end mb-6">
                     <Button
                         onClick={() => uploadPhoto.mutate()}
                         disabled={uploadPhoto.isPending}
-                        className="bg-red-600 hover:bg-red-700 text-white"
+                        className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
                     >
                         {uploadPhoto.isPending ? "Uploading..." : "Upload Photo"}
                     </Button>
@@ -1578,7 +1595,7 @@ const DailyReportDashboard = () => {
                     0 ? (
                     <p className="text-sm text-slate-500">No photos uploaded.</p>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         {report.daily_report_photos
                             ?.filter((photo) => !photo.is_deleted)
                             .map((photo) => (
@@ -1589,7 +1606,7 @@ const DailyReportDashboard = () => {
                                     <img
                                         src={photo.photo_url}
                                         alt={photo.caption || "Daily report photo"}
-                                        className="w-full h-48 object-cover"
+                                        className="w-full h-44 sm:h-48 object-cover"
                                     />
                                     <div className="p-3">
                                         <p className="text-sm font-medium text-slate-800">
@@ -1617,7 +1634,7 @@ const DailyReportDashboard = () => {
                                                     disabled={approvePhoto.isPending}
                                                     className="w-full text-green-700 hover:text-green-800"
                                                 >
-                                                    Approve Photo
+                                                    Approve
                                                 </Button>
                                             )}
 
@@ -1629,7 +1646,7 @@ const DailyReportDashboard = () => {
                                                     disabled={rejectPhoto.isPending}
                                                     className="w-full text-orange-700 hover:text-orange-800"
                                                 >
-                                                    Reject Photo
+                                                    Reject
                                                 </Button>
                                             )}
 
