@@ -1010,61 +1010,67 @@ const DailyReportDashboard = () => {
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
                     <h2 className="font-bold text-slate-900 mb-4">Daily Summary</h2>
 
-                    <div className="space-y-3 text-sm">
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                                <p className="text-xs text-slate-500">Completed Today</p>
+                                <p className="text-lg font-bold text-slate-900 mt-1">
+                                    {report.completed_quantity ?? 0}{" "}
+                                    {report.project_areas?.unit_of_measure || ""}
+                                </p>
+                            </div>
 
-                        <div>
-                            <p className="text-slate-500">Approval Status</p>
-                            <p className="font-medium">
+                            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                                <p className="text-xs text-slate-500">Progress</p>
+                                <p className="text-lg font-bold text-slate-900 mt-1">
+                                    {report.progress_percent ?? "-"}%
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="rounded-xl border border-slate-200 p-3">
+                            <p className="text-xs text-slate-500">Approval Status</p>
+                            <p className="text-base font-semibold text-slate-900 mt-1">
                                 {report.approval_status || "-"}
                             </p>
                         </div>
 
-                        <div>
-                            <p className="text-slate-500">Weather</p>
-                            <p className="font-medium">
-                                {report.weather_condition || "-"}
-                            </p>
-                        </div>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                                <p className="text-slate-500">Weather</p>
+                                <p className="font-medium text-slate-900">
+                                    {report.weather_condition || "-"}
+                                </p>
+                            </div>
 
-                        <div>
-                            <p className="text-slate-500">Workers Count</p>
-                            <p className="font-medium">
-                                {report.daily_report_workers?.length
-                                    ? new Set(report.daily_report_workers.map((worker) => worker.employee_id)).size
-                                    : 0}
-                            </p>
-                        </div>
+                            <div>
+                                <p className="text-slate-500">Workers Count</p>
+                                <p className="font-medium text-slate-900">
+                                    {report.daily_report_workers?.length
+                                        ? new Set(
+                                            report.daily_report_workers.map(
+                                                (worker) => worker.employee_id
+                                            )
+                                        ).size
+                                        : 0}
+                                </p>
+                            </div>
 
-                        <div>
-                            <p className="text-slate-500">Completed Today</p>
-                            <p className="font-medium">
-                                {report.completed_quantity ?? 0}{" "}
-                                {report.project_areas?.unit_of_measure || ""}
-                            </p>
-                        </div>
+                            <div>
+                                <p className="text-slate-500">Estimated Area</p>
+                                <p className="font-medium text-slate-900">
+                                    {report.project_areas?.estimated_quantity ?? 0}{" "}
+                                    {report.project_areas?.unit_of_measure || ""}
+                                </p>
+                            </div>
 
-                        <div>
-                            <p className="text-slate-500">Estimated Area</p>
-                            <p className="font-medium">
-                                {report.project_areas?.estimated_quantity ?? 0}{" "}
-                                {report.project_areas?.unit_of_measure || ""}
-                            </p>
+                            <div>
+                                <p className="text-slate-500">Photos</p>
+                                <p className="font-medium text-slate-900">
+                                    {report.daily_report_photos?.filter((photo) => !photo.is_deleted).length || 0}
+                                </p>
+                            </div>
                         </div>
-
-                        <div>
-                            <p className="text-slate-500">Progress</p>
-                            <p className="font-medium">
-                                {report.progress_percent ?? "-"}%
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-slate-500">Photos</p>
-                            <p className="font-medium">
-                                {report.daily_report_photos?.filter((photo) => !photo.is_deleted).length || 0}
-                            </p>
-                        </div>
-
                     </div>
                 </div>
 
@@ -1073,62 +1079,67 @@ const DailyReportDashboard = () => {
                         Area Progress Summary
                     </h2>
 
-                    <div className="space-y-3 text-sm">
-                        <div>
-                            <p className="text-slate-500">Area Estimated</p>
-                            <p className="font-medium">
-                                {areaEstimatedQuantity.toFixed(2)}{" "}
-                                {areaProgress?.unit_of_measure || report.project_areas?.unit_of_measure || ""}
-                            </p>
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                                <p className="text-xs text-slate-500">Official Progress</p>
+                                <p className="text-lg font-bold text-slate-900 mt-1">
+                                    {Number(areaProgress?.progress_percent || 0).toFixed(2)}%
+                                </p>
+                            </div>
+
+                            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                                <p className="text-xs text-slate-500">Remaining</p>
+                                <p className="text-lg font-bold text-slate-900 mt-1">
+                                    {Number(areaProgress?.remaining_quantity || 0).toFixed(2)}{" "}
+                                    {areaProgress?.unit_of_measure || report.project_areas?.unit_of_measure || ""}
+                                </p>
+                            </div>
                         </div>
 
-                        <div>
-                            <p className="text-slate-500">Approved Completed</p>
-                            <p className="font-medium text-green-600">
-                                {areaReportedSummary.approvedCompleted.toFixed(2)}{" "}
-                                {areaProgress?.unit_of_measure || report.project_areas?.unit_of_measure || ""}
-                            </p>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                                <p className="text-slate-500">Area Estimated</p>
+                                <p className="font-medium text-slate-900">
+                                    {areaEstimatedQuantity.toFixed(2)}{" "}
+                                    {areaProgress?.unit_of_measure || report.project_areas?.unit_of_measure || ""}
+                                </p>
+                            </div>
+
+                            <div>
+                                <p className="text-slate-500">Approved Completed</p>
+                                <p className="font-medium text-green-600">
+                                    {areaReportedSummary.approvedCompleted.toFixed(2)}{" "}
+                                    {areaProgress?.unit_of_measure || report.project_areas?.unit_of_measure || ""}
+                                </p>
+                            </div>
+
+                            <div>
+                                <p className="text-slate-500">Pending Review</p>
+                                <p className="font-medium text-orange-600">
+                                    {areaReportedSummary.pendingReview.toFixed(2)}{" "}
+                                    {areaProgress?.unit_of_measure || report.project_areas?.unit_of_measure || ""}
+                                </p>
+                            </div>
+
+                            <div>
+                                <p className="text-slate-500">Total Reported</p>
+                                <p className="font-medium text-blue-600">
+                                    {areaReportedSummary.totalReported.toFixed(2)}{" "}
+                                    {areaProgress?.unit_of_measure || report.project_areas?.unit_of_measure || ""}
+                                </p>
+                            </div>
                         </div>
 
-                        <div>
-                            <p className="text-slate-500">Pending Review</p>
-                            <p className="font-medium text-orange-600">
-                                {areaReportedSummary.pendingReview.toFixed(2)}{" "}
-                                {areaProgress?.unit_of_measure || report.project_areas?.unit_of_measure || ""}
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-slate-500">Total Reported</p>
-                            <p className="font-medium text-blue-600">
-                                {areaReportedSummary.totalReported.toFixed(2)}{" "}
-                                {areaProgress?.unit_of_measure || report.project_areas?.unit_of_measure || ""}
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-slate-500">Remaining Approved</p>
-                            <p className="font-medium">
-                                {Number(areaProgress?.remaining_quantity || 0).toFixed(2)}{" "}
-                                {areaProgress?.unit_of_measure || report.project_areas?.unit_of_measure || ""}
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-slate-500">Official Progress</p>
-                            <p className="font-medium">
-                                {Number(areaProgress?.progress_percent || 0).toFixed(2)}%
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-slate-500">Reported Including Pending</p>
-                            <p className="font-medium text-blue-600">
+                        <div className="rounded-xl border border-slate-200 p-3">
+                            <p className="text-xs text-slate-500">Reported Including Pending</p>
+                            <p className="text-base font-semibold text-blue-600 mt-1">
                                 {areaReportedSummary.totalReported.toFixed(2)}{" "}
                                 {areaProgress?.unit_of_measure || report.project_areas?.unit_of_measure || ""}{" "}
                                 ({reportedIncludingPendingPercent.toFixed(2)}% of estimate)
                             </p>
                         </div>
+
                         {isReportedOverEstimate && (
                             <div className="rounded-xl border border-orange-200 bg-orange-50 p-3">
                                 <p className="text-sm font-semibold text-orange-700">
@@ -1139,6 +1150,7 @@ const DailyReportDashboard = () => {
                                 </p>
                             </div>
                         )}
+
                         {isAreaCompleted && (
                             <div className="border-t pt-3 mt-3">
                                 <p className="text-sm font-semibold text-green-700">
