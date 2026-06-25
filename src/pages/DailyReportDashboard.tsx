@@ -39,6 +39,14 @@ const DailyReportDashboard = () => {
     const [editNotes, setEditNotes] = useState("");
     const [photoFile, setPhotoFile] = useState<File | null>(null);
     const [photoCaption, setPhotoCaption] = useState("");
+    const [editingWorkerId, setEditingWorkerId] = useState("");
+    const [labourEmployeeId, setLabourEmployeeId] = useState("");
+    const [labourActivityTypeId, setLabourActivityTypeId] = useState("");
+    const [labourRegularHours, setLabourRegularHours] = useState("");
+    const [labourOvertimeHours, setLabourOvertimeHours] = useState("");
+    const [labourCompletedQuantity, setLabourCompletedQuantity] = useState("");
+    const [labourWorkerRole, setLabourWorkerRole] = useState("");
+    const [labourNotes, setLabourNotes] = useState("");
 
     const { data: report, isLoading } = useQuery({
         queryKey: ["daily_report", reportId],
@@ -181,6 +189,56 @@ const DailyReportDashboard = () => {
         },
     });
 
+    const { data: employees = [] } = useQuery({
+        queryKey: ["employees_for_daily_report_labour"],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("employees")
+                .select(`
+                employee_id,
+                employee_code,
+                display_name,
+                first_name,
+                last_name
+            `)
+                .eq("is_deleted", false)
+                .eq("is_active", true)
+                .order("display_name", { ascending: true });
+
+            if (error) throw error;
+            return data;
+        },
+    });
+
+    const resetLabourForm = () => {
+        setEditingWorkerId("");
+        setLabourEmployeeId("");
+        setLabourActivityTypeId("");
+        setLabourRegularHours("");
+        setLabourOvertimeHours("");
+        setLabourCompletedQuantity("");
+        setLabourWorkerRole("");
+        setLabourNotes("");
+    };
+
+    const { data: workActivityTypes = [] } = useQuery({
+        queryKey: ["work_activity_types_for_daily_report_labour"],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("work_activity_types")
+                .select(`
+                activity_type_id,
+                activity_name,
+                sort_order
+            `)
+                .eq("is_active", true)
+                .order("sort_order", { ascending: true });
+
+            if (error) throw error;
+            return data;
+        },
+    });
+
     const { data: areaReports = [] } = useQuery({
         queryKey: ["daily_report_area_reports", report?.area_id],
         enabled: !!report?.area_id,
@@ -231,13 +289,174 @@ const DailyReportDashboard = () => {
         0
     );
 
-    const reportedProgressPercent =
+    const reportedIncludingPendingPercent =
         areaEstimatedQuantity > 0
-            ? Math.min(
-                (areaReportedSummary.totalReported / areaEstimatedQuantity) * 100,
-                100
-            )
+            ? (areaReportedSummary.totalReported / areaEstimatedQuantity) * 100
             : 0;
+    const approvedCompletedQuantity = areaReportedSummary.approvedCompleted;
+
+    const isAreaCompleted =
+        areaEstimatedQuantity > 0 &&
+        approvedCompletedQuantity >= areaEstimatedQuantity;
+
+    const isReportedOverEstimate =
+        areaEstimatedQuantity > 0 &&
+        areaReportedSummary.totalReported > areaEstimatedQuantity;
+
+    const activePhotos =
+        report?.daily_report_photos?.filter((photo) => !photo.is_deleted) || [];
+
+    const pendingPhotos = activePhotos.filter(
+        (photo) => photo.approval_status === "Pending"
+    );
+
+    const rejectedPhotos = activePhotos.filter(
+        (photo) => photo.approval_status === "Rejected"
+    );
+
+    const hasLabourRecords = (report?.daily_report_workers?.length || 0) > 0;
+    const hasPhotos = activePhotos.length > 0;
+    const hasPendingPhotos = pendingPhotos.length > 0;
+    const hasRejectedPhotos = rejectedPhotos.length > 0;
+
+    const approvalBlockedReasons = [
+        !hasLabourRecords ? "Labour records missing." : null,
+        !hasPhotos ? "At least one photo is required." : null,
+        hasPendingPhotos ? "Some photos are still pending approval." : null,
+        hasRejectedPhotos ? "Some photos were rejected." : null,
+        isReportedOverEstimate
+            ? "Reported quantity is over the estimated area. Please review before approval."
+            : null,
+    ].filter(Boolean);
+
+    const currentReportCompletedQuantity = Number(report?.completed_quantity || 0);
+
+    const approvedCompletedBeforeThisReport =
+        report?.approval_status === "Approved"
+            ? Math.max(
+                areaReportedSummary.approvedCompleted - currentReportCompletedQuantity,
+                0
+            )
+            : areaReportedSummary.approvedCompleted;
+
+    const saveLabourRecord = useMutation({
+        mutationFn: async () => {
+            if (!reportId) {
+                throw new Error("Daily report ID is missing.");
+            }
+
+            if (!report) {
+                throw new Error("Daily report data is missing.");
+            }
+
+            if (!labourEmployeeId) {
+                throw new Error("Please select employee.");
+            }
+
+            if (!labourActivityTypeId) {
+                throw new Error("Please select activity.");
+            }
+
+            const regularHours = Number(labourRegularHours || 0);
+            const overtimeHours = Number(labourOvertimeHours || 0);
+            const completedQuantity = Number(labourCompletedQuantity || 0);
+
+            if (regularHours < 0) {
+                throw new Error("Regular hours cannot be negative.");
+            }
+
+            if (overtimeHours < 0) {
+                throw new Error("Overtime hours cannot be negative.");
+            }
+
+            if (completedQuantity < 0) {
+                throw new Error("Completed quantity cannot be negative.");
+            }
+
+            const payload = {
+                report_id: reportId,
+                employee_id: labourEmployeeId,
+                activity_type_id: labourActivityTypeId,
+                regular_hours: regularHours,
+                overtime_hours: overtimeHours,
+                completed_quantity: completedQuantity,
+                worker_role: labourWorkerRole.trim() || null,
+                notes: labourNotes.trim() || null,
+            };
+
+            if (editingWorkerId) {
+                const { error } = await supabase
+                    .from("daily_report_workers")
+                    .update(payload)
+                    .eq("daily_report_worker_id", editingWorkerId);
+
+                if (error) throw error;
+            } else {
+                const { error } = await supabase
+                    .from("daily_report_workers")
+                    .insert(payload);
+
+                if (error) throw error;
+            }
+        },
+        onSuccess: () => {
+            toast.success(
+                editingWorkerId
+                    ? "Labour record updated successfully."
+                    : "Labour record added successfully."
+            );
+
+            queryClient.invalidateQueries({ queryKey: ["daily_report", reportId] });
+            queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
+            resetLabourForm();
+        },
+        onError: (error) => {
+            toast.error(error.message);
+        },
+    });
+
+    const deleteLabourRecord = useMutation({
+        mutationFn: async (dailyReportWorkerId: string) => {
+            const { error } = await supabase
+                .from("daily_report_workers")
+                .delete()
+                .eq("daily_report_worker_id", dailyReportWorkerId);
+
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            toast.success("Labour record deleted successfully.");
+            queryClient.invalidateQueries({ queryKey: ["daily_report", reportId] });
+            queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
+            resetLabourForm();
+        },
+        onError: (error) => {
+            toast.error(error.message);
+        },
+    });
+
+    const startEditLabourRecord = (worker: any) => {
+        setEditingWorkerId(worker.daily_report_worker_id);
+        setLabourEmployeeId(worker.employee_id || "");
+        setLabourActivityTypeId(worker.activity_type_id || "");
+        setLabourRegularHours(
+            worker.regular_hours === null || worker.regular_hours === undefined
+                ? ""
+                : String(worker.regular_hours)
+        );
+        setLabourOvertimeHours(
+            worker.overtime_hours === null || worker.overtime_hours === undefined
+                ? ""
+                : String(worker.overtime_hours)
+        );
+        setLabourCompletedQuantity(
+            worker.completed_quantity === null || worker.completed_quantity === undefined
+                ? ""
+                : String(worker.completed_quantity)
+        );
+        setLabourWorkerRole(worker.worker_role || "");
+        setLabourNotes(worker.notes || "");
+    };
 
     const updateDailyReport = useMutation({
         mutationFn: async () => {
@@ -370,6 +589,19 @@ const DailyReportDashboard = () => {
             }
             const labourRecords = report.daily_report_workers || [];
 
+            const estimatedQuantity = areaEstimatedQuantity;
+            const approvedAfterThisApproval =
+                approvedCompletedBeforeThisReport + currentReportCompletedQuantity;
+
+            if (
+                estimatedQuantity > 0 &&
+                approvedAfterThisApproval > estimatedQuantity
+            ) {
+                throw new Error(
+                    "This approval would exceed the estimated area quantity. Please create a variation or adjust the estimate before approval."
+                );
+            }
+
             if (labourRecords.length === 0) {
                 throw new Error(
                     "Please add labour records before approving this daily report."
@@ -443,13 +675,20 @@ const DailyReportDashboard = () => {
                 is_deleted: false,
             }));
 
-            const { error: timeLogError } = await supabase
+            const { error: deleteExistingTimeLogsError } = await supabase
                 .from("work_time_logs")
-                .upsert(timeLogRows, {
-                    onConflict: "report_id,employee_id,activity_type_id",
-                });
+                .delete()
+                .eq("report_id", reportId);
 
-            if (timeLogError) throw timeLogError;
+            if (deleteExistingTimeLogsError) throw deleteExistingTimeLogsError;
+
+            if (timeLogRows.length > 0) {
+                const { error: insertTimeLogsError } = await supabase
+                    .from("work_time_logs")
+                    .insert(timeLogRows);
+
+                if (insertTimeLogsError) throw insertTimeLogsError;
+            }
 
         },
         onSuccess: () => {
@@ -544,6 +783,55 @@ const DailyReportDashboard = () => {
             toast.error(error.message);
         },
     });
+
+    const approvePhoto = useMutation({
+        mutationFn: async (photoId: string) => {
+            const { error } = await supabase
+                .from("daily_report_photos")
+                .update({
+                    approval_status: "Approved",
+                    approved_by: null,
+                    approved_at: new Date().toISOString(),
+                    rejected_reason: null,
+                })
+                .eq("photo_id", photoId);
+
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            toast.success("Photo approved.");
+            queryClient.invalidateQueries({ queryKey: ["daily_report", reportId] });
+            queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
+        },
+        onError: (error) => {
+            toast.error(error.message);
+        },
+    });
+
+    const rejectPhoto = useMutation({
+        mutationFn: async (photoId: string) => {
+            const { error } = await supabase
+                .from("daily_report_photos")
+                .update({
+                    approval_status: "Rejected",
+                    approved_by: null,
+                    approved_at: null,
+                    rejected_reason: "Rejected from daily report review.",
+                })
+                .eq("photo_id", photoId);
+
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            toast.success("Photo rejected.");
+            queryClient.invalidateQueries({ queryKey: ["daily_report", reportId] });
+            queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
+        },
+        onError: (error) => {
+            toast.error(error.message);
+        },
+    });
+
     const deletePhoto = useMutation({
         mutationFn: async (photoId: string) => {
             const { error } = await supabase
@@ -833,15 +1121,60 @@ const DailyReportDashboard = () => {
                         </div>
 
                         <div>
-                            <p className="text-slate-500">Reported Progress</p>
+                            <p className="text-slate-500">Reported Including Pending</p>
                             <p className="font-medium text-blue-600">
-                                {reportedProgressPercent.toFixed(2)}%
+                                {areaReportedSummary.totalReported.toFixed(2)}{" "}
+                                {areaProgress?.unit_of_measure || report.project_areas?.unit_of_measure || ""}{" "}
+                                ({reportedIncludingPendingPercent.toFixed(2)}% of estimate)
                             </p>
                         </div>
+                        {isReportedOverEstimate && (
+                            <div className="rounded-xl border border-orange-200 bg-orange-50 p-3">
+                                <p className="text-sm font-semibold text-orange-700">
+                                    Reported quantity is over the estimated area.
+                                </p>
+                                <p className="text-xs text-orange-700 mt-1">
+                                    Please review pending reports before approval.
+                                </p>
+                            </div>
+                        )}
+                        {isAreaCompleted && (
+                            <div className="border-t pt-3 mt-3">
+                                <p className="text-sm font-semibold text-green-700">
+                                    Area completed: {approvedCompletedQuantity.toFixed(2)} /{" "}
+                                    {areaEstimatedQuantity.toFixed(2)}{" "}
+                                    {areaProgress?.unit_of_measure || report.project_areas?.unit_of_measure || ""}
+                                    {" "}(100%)
+                                </p>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    Approved completed quantity has reached the estimated area quantity.
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
             </div>
+
+            {approvalBlockedReasons.length > 0 && (
+                <div className="bg-white rounded-2xl shadow-sm border border-orange-200 p-5">
+                    <h2 className="font-bold text-slate-900 mb-3">
+                        Approval Checklist
+                    </h2>
+
+                    <div className="rounded-xl bg-orange-50 border border-orange-200 p-4">
+                        <p className="text-sm font-semibold text-orange-700 mb-2">
+                            This daily report cannot be approved yet.
+                        </p>
+
+                        <ul className="list-disc pl-5 space-y-1 text-sm text-orange-700">
+                            {approvalBlockedReasons.map((reason) => (
+                                <li key={reason}>{reason}</li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
+            )}
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
                 <h2 className="font-bold text-slate-900 mb-3">Work Activities</h2>
@@ -899,6 +1232,27 @@ const DailyReportDashboard = () => {
                                             <td className="py-3 text-slate-700">
                                                 {worker.notes || "-"}
                                             </td>
+                                            <td className="py-3 text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => startEditLabourRecord(worker)}
+                                                    >
+                                                        Edit
+                                                    </Button>
+
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => deleteLabourRecord.mutate(worker.daily_report_worker_id)}
+                                                        disabled={deleteLabourRecord.isPending}
+                                                        className="text-red-600 hover:text-red-700"
+                                                    >
+                                                        Delete
+                                                    </Button>
+                                                </div>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -907,6 +1261,128 @@ const DailyReportDashboard = () => {
                     ) : (
                         <p className="text-sm text-slate-500">No labour records added.</p>
                     )}
+
+                    <div className="border-t pt-4 mt-4 space-y-4">
+                        <h3 className="font-semibold text-slate-900">
+                            {editingWorkerId ? "Edit Labour Record" : "Add Labour Record"}
+                        </h3>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="space-y-2">
+                                <Label>Employee *</Label>
+                                <Select value={labourEmployeeId} onValueChange={setLabourEmployeeId}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select employee" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {employees.map((employee) => (
+                                            <SelectItem
+                                                key={employee.employee_id}
+                                                value={employee.employee_id}
+                                            >
+                                                {employee.display_name ||
+                                                    `${employee.first_name || ""} ${employee.last_name || ""}`.trim() ||
+                                                    employee.employee_code}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>Activity *</Label>
+                                <Select
+                                    value={labourActivityTypeId}
+                                    onValueChange={setLabourActivityTypeId}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select activity" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {workActivityTypes.map((activity) => (
+                                            <SelectItem
+                                                key={activity.activity_type_id}
+                                                value={activity.activity_type_id}
+                                            >
+                                                {activity.activity_name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>Regular Hours</Label>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    value={labourRegularHours}
+                                    onChange={(event) => setLabourRegularHours(event.target.value)}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>Overtime Hours</Label>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    value={labourOvertimeHours}
+                                    onChange={(event) => setLabourOvertimeHours(event.target.value)}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>Completed Qty</Label>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    value={labourCompletedQuantity}
+                                    onChange={(event) =>
+                                        setLabourCompletedQuantity(event.target.value)
+                                    }
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>Role</Label>
+                                <Input
+                                    value={labourWorkerRole}
+                                    onChange={(event) => setLabourWorkerRole(event.target.value)}
+                                    placeholder="Installer / Supervisor"
+                                />
+                            </div>
+
+                            <div className="md:col-span-2 space-y-2">
+                                <Label>Notes</Label>
+                                <Input
+                                    value={labourNotes}
+                                    onChange={(event) => setLabourNotes(event.target.value)}
+                                    placeholder="Labour notes"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3">
+                            {editingWorkerId && (
+                                <Button variant="outline" onClick={resetLabourForm}>
+                                    Cancel Edit
+                                </Button>
+                            )}
+
+                            <Button
+                                onClick={() => saveLabourRecord.mutate()}
+                                disabled={saveLabourRecord.isPending}
+                                className="bg-red-600 hover:bg-red-700 text-white"
+                            >
+                                {saveLabourRecord.isPending
+                                    ? "Saving..."
+                                    : editingWorkerId
+                                        ? "Update Labour Record"
+                                        : "Add Labour Record"}
+                            </Button>
+                        </div>
+                    </div>
+
                 </div>
 
                 {report.daily_report_activities?.length ? (
@@ -1119,28 +1595,62 @@ const DailyReportDashboard = () => {
                                         <p className="text-sm font-medium text-slate-800">
                                             {photo.caption || "No caption"}
                                         </p>
+                                        <p className="text-xs mt-2">
+                                            Status:{" "}
+                                            <span className="font-semibold">
+                                                {photo.approval_status || "Pending"}
+                                            </span>
+                                        </p>
                                         <p className="text-xs text-slate-500 mt-1">
                                             {photo.taken_at
                                                 ? new Date(photo.taken_at).toLocaleString()
                                                 : "-"
                                             }
+                                        </p>
+
+                                        <div className="mt-3 grid grid-cols-1 gap-2">
+                                            {photo.approval_status !== "Approved" && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => approvePhoto.mutate(photo.photo_id)}
+                                                    disabled={approvePhoto.isPending}
+                                                    className="w-full text-green-700 hover:text-green-800"
+                                                >
+                                                    Approve Photo
+                                                </Button>
+                                            )}
+
+                                            {photo.approval_status !== "Rejected" && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => rejectPhoto.mutate(photo.photo_id)}
+                                                    disabled={rejectPhoto.isPending}
+                                                    className="w-full text-orange-700 hover:text-orange-800"
+                                                >
+                                                    Reject Photo
+                                                </Button>
+                                            )}
+
                                             <Button
                                                 variant="outline"
                                                 size="sm"
                                                 onClick={() => deletePhoto.mutate(photo.photo_id)}
                                                 disabled={deletePhoto.isPending}
-                                                className="mt-3 w-full text-red-600 hover:text-red-700"
+                                                className="w-full text-red-600 hover:text-red-700"
                                             >
                                                 Delete
                                             </Button>
-                                        </p>
+
+                                        </div>
                                     </div>
                                 </div>
                             ))}
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 };
 
