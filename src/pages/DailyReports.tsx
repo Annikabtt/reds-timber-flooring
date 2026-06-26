@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+
 import {
   Select,
   SelectContent,
@@ -22,6 +22,11 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { MobileFormSection } from "@/components/mobile/MobileFormSection";
+import { MobileWorkerCard } from "@/components/mobile/MobileWorkerCard";
+import { MobileProgressSummary } from "@/components/mobile/MobileProgressSummary";
+import { MobileSiteNotes } from "@/components/mobile/MobileSiteNotes";
+import { MobilePhotoUpload } from "@/components/mobile/MobilePhotoUpload";
+
 
 type LabourRecord = {
   employee_id: string;
@@ -1342,38 +1347,10 @@ const DailyReports = () => {
             <div className="space-y-2">
               <Label>Estimated Progress</Label>
 
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-medium text-slate-500">
-                      Calculated Progress
-                    </p>
-                    <p className="mt-1 text-2xl font-black text-slate-900">
-                      {Number(progressPercent || 0).toFixed(2)}%
-                    </p>
-                  </div>
-
-                  <div className="text-right">
-                    <p className="text-xs text-slate-500">Completed</p>
-                    <p className="mt-1 text-sm font-bold text-slate-900">
-                      {Number(completedQuantity || 0).toFixed(2)} sqm
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 h-2 w-full rounded-full bg-white">
-                  <div
-                    className="h-2 rounded-full bg-red-600"
-                    style={{
-                      width: `${Math.min(Number(progressPercent || 0), 100)}%`,
-                    }}
-                  />
-                </div>
-
-                <p className="mt-3 text-xs text-slate-500">
-                  Based on completed quantity versus selected area estimate.
-                </p>
-              </div>
+              <MobileProgressSummary
+                progressPercent={progressPercent}
+                completedQuantity={completedQuantity}
+              />
             </div>
 
           </MobileFormSection>
@@ -1394,33 +1371,12 @@ const DailyReports = () => {
               </div>
 
               {labourRecords.map((record, index) => (
-                <div
-
+                <MobileWorkerCard
                   key={index}
-                  className="rounded-xl border border-slate-200 bg-white p-4 space-y-3"
+                  workerNumber={index + 1}
+                  canRemove={labourRecords.length > 1}
+                  onRemove={() => removeLabourRecord(index)}
                 >
-                  <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
-                    <div>
-                      <p className="text-sm font-bold text-slate-900">
-                        Worker #{index + 1}
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        Labour, activity, hours, and completed quantity.
-                      </p>
-                    </div>
-
-                    {labourRecords.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeLabourRecord(index)}
-                        className="h-9 rounded-xl px-3 text-red-600 hover:text-red-700"
-                      >
-                        Remove
-                      </Button>
-                    )}
-                  </div>
 
                   <div className="space-y-2">
                     <Label>Employee</Label>
@@ -1513,89 +1469,30 @@ const DailyReports = () => {
                       className="h-11 rounded-xl text-base md:text-sm"
                     />
                   </div>
-                </div>
+                </MobileWorkerCard>
               ))}
             </div>
 
           </MobileFormSection>
 
           <MobileFormSection title="Site Notes">
-            <div className="space-y-2">
-              <Label>Work Completed</Label>
-              <Textarea
-                className="min-h-24 rounded-xl text-base md:text-sm"
-                value={workCompleted}
-                onChange={(e) => setWorkCompleted(e.target.value)}
-                rows={3}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Issues Found</Label>
-              <Textarea
-                className="min-h-24 rounded-xl text-base md:text-sm"
-                value={issuesFound}
-                onChange={(e) => setIssuesFound(e.target.value)}
-                rows={3}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Next Actions</Label>
-              <Textarea
-                className="min-h-24 rounded-xl text-base md:text-sm"
-                value={nextActions}
-                onChange={(e) => setNextActions(e.target.value)}
-                rows={3}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Notes</Label>
-              <Textarea
-                className="min-h-24 rounded-xl text-base md:text-sm"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={3}
-              />
-            </div>
+            <MobileSiteNotes
+              workCompleted={workCompleted}
+              issuesFound={issuesFound}
+              nextActions={nextActions}
+              notes={notes}
+              setWorkCompleted={setWorkCompleted}
+              setIssuesFound={setIssuesFound}
+              setNextActions={setNextActions}
+              setNotes={setNotes}
+            />
           </MobileFormSection>
-          <div className="space-y-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
-            <div className="space-y-1">
-              <Label>Photos</Label>
-              <p className="text-xs text-slate-500">
-                Upload site photos, work progress, issues, or completed areas.
-              </p>
-            </div>
-
-            <Input
-              className="h-12 rounded-xl bg-white text-base md:text-sm"
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={(e) => {
-                const files = Array.from(e.target.files || []);
-                setPhotoFiles(files);
-              }}
-            />
-
-            <div className="rounded-lg bg-white px-3 py-2 text-sm text-slate-600">
-              {photoFiles.length > 0
-                ? `${photoFiles.length} photo(s) selected`
-                : "No photos selected"}
-            </div>
-          </div>
-
-          <div className="col-span-2 space-y-2">
-            <Label>Photo Caption</Label>
-            <Input
-              className="h-11 rounded-xl text-base md:text-sm"
-              value={photoCaption}
-              onChange={(e) => setPhotoCaption(e.target.value)}
-              placeholder="Optional caption for uploaded photos"
-            />
-          </div>
-
+          <MobilePhotoUpload
+            photoFiles={photoFiles}
+            photoCaption={photoCaption}
+            setPhotoFiles={setPhotoFiles}
+            setPhotoCaption={setPhotoCaption}
+          />
           <div className="sticky bottom-0 -mx-4 mt-4 border-t bg-white px-4 py-3 sm:static sm:mx-0 sm:flex sm:justify-end sm:gap-2 sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0">
             <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-2">
               <Button
