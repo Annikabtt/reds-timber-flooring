@@ -803,7 +803,7 @@ const DailyReports = () => {
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         {/* Desktop table header */}
-        <div className="hidden grid-cols-12 gap-3 border-b bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 lg:grid">
+        <div className="hidden grid-cols-12 gap-3 border-b bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 xl:grid">
           <div className="col-span-1">Date</div>
           <div className="col-span-2">Project</div>
           <div className="col-span-2">Site / Area</div>
@@ -862,7 +862,7 @@ const DailyReports = () => {
               {group.reports.map((report) => (
                 <div key={report.report_id}>
                   {/* Mobile card */}
-                  <div className="space-y-4 border-b px-4 py-4 last:border-b-0 lg:hidden">
+                  <div className="space-y-4 border-b px-4 py-4 last:border-b-0 xl:hidden">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-slate-900">
@@ -999,7 +999,7 @@ const DailyReports = () => {
                   </div>
 
                   {/* Desktop row */}
-                  <div className="hidden grid-cols-12 gap-3 border-b px-4 py-4 transition-colors hover:bg-slate-50 last:border-b-0 lg:grid">
+                  <div className="hidden grid-cols-12 gap-3 border-b px-4 py-4 transition-colors hover:bg-slate-50 last:border-b-0 xl:grid">
                     <div className="col-span-1 text-sm text-slate-700">
                       {report.report_date || "-"}
                     </div>
