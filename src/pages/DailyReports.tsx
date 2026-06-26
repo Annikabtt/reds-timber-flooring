@@ -1187,7 +1187,7 @@ const DailyReports = () => {
           </DialogHeader>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            md:col-span-2
+            <div className="space-y-2 md:col-span-2">
               <Label>Project *</Label>
               <Select
                 value={projectId}
@@ -1213,342 +1213,340 @@ const DailyReports = () => {
                 </SelectContent>
               </Select>
             </div>
+            <Select
+              value={siteId}
+              onValueChange={(value) => {
+                setSiteId(value);
+                setAreaId("");
+                setWorkOrderId("");
+              }}
+              disabled={!projectId}
+            >
+              <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                <SelectValue
+                  placeholder={
+                    projectId ? "Select project site" : "Select project first"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredSites.map((site) => (
+                  <SelectItem key={site.site_id} value={site.site_id}>
+                    {site.site_code || "-"} - {site.site_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-            <div className="space-y-2">
-              <Label>Project Site *</Label>
-              <Select
-                value={siteId}
-                onValueChange={(value) => {
-                  setSiteId(value);
-                  setAreaId("");
-                  setWorkOrderId("");
-                }}
-                disabled={!projectId}
+          <div className="space-y-2">
+            <Label>Project Area *</Label>
+            <Select
+              value={areaId}
+              onValueChange={(value) => {
+                setAreaId(value);
+                setWorkOrderId("");
+              }}
+              disabled={!siteId}
+            >
+              <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                <SelectValue
+                  placeholder={
+                    siteId ? "Select project area" : "Select site first"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredAreas.map((area) => (
+                  <SelectItem key={area.area_id} value={area.area_id}>
+                    {area.area_code || "-"} - {area.area_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
+            <Label>Work Order *</Label>
+            <Select
+              value={workOrderId}
+              onValueChange={setWorkOrderId}
+              disabled={!areaId}
+            >
+              <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                <SelectValue
+                  placeholder={
+                    areaId ? "Select work order" : "Select area first"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredWorkOrders.map((workOrder) => (
+                  <SelectItem
+                    key={workOrder.work_order_id}
+                    value={workOrder.work_order_id}
+                  >
+                    {workOrder.work_order_no || "-"} - {workOrder.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Report Date *</Label>
+            <Input
+              className="h-11 rounded-xl text-base md:text-sm"
+              type="date"
+              value={reportDate}
+              onChange={(e) => setReportDate(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Weather</Label>
+            <Select
+              value={weatherCondition}
+              onValueChange={setWeatherCondition}
+            >
+              <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                <SelectValue placeholder="Select weather" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Fine">Fine</SelectItem>
+                <SelectItem value="Cloudy">Cloudy</SelectItem>
+                <SelectItem value="Rain">Rain</SelectItem>
+                <SelectItem value="Storm">Storm</SelectItem>
+                <SelectItem value="Hot">Hot</SelectItem>
+                <SelectItem value="Cold">Cold</SelectItem>
+                <SelectItem value="Other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-3 md:col-span-2">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Label>Labour Records *</Label>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addLabourRecord}
+                className="h-10 w-full sm:w-auto"
               >
-                <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                  <SelectValue
-                    placeholder={
-                      projectId ? "Select project site" : "Select project first"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredSites.map((site) => (
-                    <SelectItem key={site.site_id} value={site.site_id}>
-                      {site.site_code || "-"} - {site.site_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                Add Worker
+              </Button>
             </div>
 
-            <div className="space-y-2">
-              <Label>Project Area *</Label>
-              <Select
-                value={areaId}
-                onValueChange={(value) => {
-                  setAreaId(value);
-                  setWorkOrderId("");
-                }}
-                disabled={!siteId}
+            {labourRecords.map((record, index) => (
+              <div
+                key={index}
+                className="rounded-xl border border-slate-200 bg-white p-4 space-y-3"
               >
-                <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                  <SelectValue
-                    placeholder={
-                      siteId ? "Select project area" : "Select site first"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredAreas.map((area) => (
-                    <SelectItem key={area.area_id} value={area.area_id}>
-                      {area.area_code || "-"} - {area.area_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-slate-900">
+                    Worker #{index + 1}
+                  </p>
 
-            <div className="space-y-2 md:col-span-2">
-              <Label>Work Order *</Label>
-              <Select
-                value={workOrderId}
-                onValueChange={setWorkOrderId}
-                disabled={!areaId}
-              >
-                <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                  <SelectValue
-                    placeholder={
-                      areaId ? "Select work order" : "Select area first"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredWorkOrders.map((workOrder) => (
-                    <SelectItem
-                      key={workOrder.work_order_id}
-                      value={workOrder.work_order_id}
+                  {labourRecords.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeLabourRecord(index)}
+                      className="text-red-600 hover:text-red-700"
                     >
-                      {workOrder.work_order_no || "-"} - {workOrder.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                      Remove
+                    </Button>
+                  )}
+                </div>
 
-            <div className="space-y-2">
-              <Label>Report Date *</Label>
-              <Input
-                className="h-11 rounded-xl text-base md:text-sm"
-                type="date"
-                value={reportDate}
-                onChange={(e) => setReportDate(e.target.value)}
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label>Employee</Label>
+                  <Select
+                    value={record.employee_id}
+                    onValueChange={(value) =>
+                      updateLabourRecord(index, "employee_id", value)
+                    }
+                  >
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Select employee" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employees.map((employee) => (
+                        <SelectItem
+                          key={employee.employee_id}
+                          value={employee.employee_id}
+                        >
+                          {employee.display_name ||
+                            `${employee.first_name} ${employee.last_name}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="space-y-2">
-              <Label>Weather</Label>
-              <Select
-                value={weatherCondition}
-                onValueChange={setWeatherCondition}
-              >
-                <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                  <SelectValue placeholder="Select weather" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Fine">Fine</SelectItem>
-                  <SelectItem value="Cloudy">Cloudy</SelectItem>
-                  <SelectItem value="Rain">Rain</SelectItem>
-                  <SelectItem value="Storm">Storm</SelectItem>
-                  <SelectItem value="Hot">Hot</SelectItem>
-                  <SelectItem value="Cold">Cold</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="space-y-2">
+                  <Label>Activity</Label>
+                  <Input
+                    value={record.activity_type_id}
+                    onChange={(e) =>
+                      updateLabourRecord(index, "activity_type_id", e.target.value)
+                    }
+                    placeholder="e.g. Flooring install"
+                    className="h-11"
+                  />
+                </div>
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Labour Records *</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addLabourRecord}
-                  className="h-9"
-                >
-                  Add Worker
-                </Button>
-              </div>
-
-              {labourRecords.map((record, index) => (
-                <div
-                  key={index}
-                  className="rounded-xl border border-slate-200 bg-white p-4 space-y-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-slate-900">
-                      Worker #{index + 1}
-                    </p>
-
-                    {labourRecords.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeLabourRecord(index)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        Remove
-                      </Button>
-                    )}
-                  </div>
-
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Employee</Label>
-                    <Select
-                      value={record.employee_id}
-                      onValueChange={(value) =>
-                        updateLabourRecord(index, "employee_id", value)
-                      }
-                    >
-                      <SelectTrigger className="h-11">
-                        <SelectValue placeholder="Select employee" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {employees.map((employee) => (
-                          <SelectItem
-                            key={employee.employee_id}
-                            value={employee.employee_id}
-                          >
-                            {employee.display_name ||
-                              `${employee.first_name} ${employee.last_name}`}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Activity</Label>
+                    <Label>Hours</Label>
                     <Input
-                      value={record.activity_type_id}
+                      type="number"
+                      inputMode="decimal"
+                      value={record.regular_hours}
                       onChange={(e) =>
-                        updateLabourRecord(index, "activity_type_id", e.target.value)
+                        updateLabourRecord(index, "regular_hours", e.target.value)
                       }
-                      placeholder="e.g. Flooring install"
+                      placeholder="0"
                       className="h-11"
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label>Hours</Label>
-                      <Input
-                        type="number"
-                        inputMode="decimal"
-                        value={record.regular_hours}
-                        onChange={(e) =>
-                          updateLabourRecord(index, "regular_hours", e.target.value)
-                        }
-                        placeholder="0"
-                        className="h-11"
-                      />
-                    </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Label>OT</Label>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      value={record.overtime_hours}
+                      onChange={(e) =>
+                        updateLabourRecord(index, "overtime_hours", e.target.value)
+                      }
+                      placeholder="0"
+                      className="h-11"
+                    />
+                  </div>
 
-                    <div className="space-y-2">
-                      <Label>OT</Label>
-                      <Input
-                        type="number"
-                        inputMode="decimal"
-                        value={record.overtime_hours}
-                        onChange={(e) =>
-                          updateLabourRecord(index, "overtime_hours", e.target.value)
-                        }
-                        placeholder="0"
-                        className="h-11"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Qty Completed</Label>
-                      <Input
-                        type="number"
-                        inputMode="decimal"
-                        value={record.completed_quantity}
-                        onChange={(e) =>
-                          updateLabourRecord(index, "completed_quantity", e.target.value)
-                        }
-                        placeholder="0"
-                        className="h-11"
-                      />
-                    </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Label>Qty Completed</Label>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      value={record.completed_quantity}
+                      onChange={(e) =>
+                        updateLabourRecord(index, "completed_quantity", e.target.value)
+                      }
+                      placeholder="0"
+                      className="h-11"
+                    />
                   </div>
                 </div>
-              ))}
+              </div>
+            ))}
 
-            </div>
+          </div>
 
-            <div className="space-y-2">
-              <Label>Completed Quantity Today</Label>
-              <Input
-                className="h-11 rounded-xl text-base md:text-sm"
-                type="number"
-                min="0"
-                value={completedQuantity}
-                onChange={(e) => setCompletedQuantity(e.target.value)}
-                placeholder="e.g. 25"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Estimated Progress %</Label>
+          <div className="space-y-2 md:col-span-2">
+            <Label>Completed Quantity Today</Label>
+            <Input
+              className="h-11 rounded-xl text-base md:text-sm"
+              type="number"
+              min="0"
+              value={completedQuantity}
+              onChange={(e) => setCompletedQuantity(e.target.value)}
+              placeholder="e.g. 25"
+            />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label>Estimated Progress %</Label>
 
-              <Input
-                value={progressPercent}
-                readOnly
-                className="h-11 rounded-xl bg-slate-50 text-base md:text-sm"
-              />
+            <Input
+              value={progressPercent}
+              readOnly
+              className="h-11 rounded-xl bg-slate-50 text-base md:text-sm"
+            />
 
+            <p className="text-xs text-slate-500">
+              Calculated from completed quantity versus estimated area quantity.
+            </p>
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
+            <Label>Work Completed</Label>
+            <Textarea
+              className="min-h-24 rounded-xl text-base md:text-sm"
+              value={workCompleted}
+              onChange={(e) => setWorkCompleted(e.target.value)}
+              rows={3}
+            />
+          </div>
+
+          <div className="col-span-2 space-y-2">
+            <Label>Issues Found</Label>
+            <Textarea
+              className="min-h-24 rounded-xl text-base md:text-sm"
+              value={issuesFound}
+              onChange={(e) => setIssuesFound(e.target.value)}
+              rows={3}
+            />
+          </div>
+
+          <div className="col-span-2 space-y-2">
+            <Label>Next Actions</Label>
+            <Textarea
+              className="min-h-24 rounded-xl text-base md:text-sm"
+              value={nextActions}
+              onChange={(e) => setNextActions(e.target.value)}
+              rows={3}
+            />
+          </div>
+
+          <div className="col-span-2 space-y-2">
+            <Label>Notes</Label>
+            <Textarea
+              className="min-h-24 rounded-xl text-base md:text-sm"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <div className="space-y-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
+            <div className="space-y-1">
+              <Label>Photos</Label>
               <p className="text-xs text-slate-500">
-                Calculated from completed quantity versus estimated area quantity.
+                Upload site photos, work progress, issues, or completed areas.
               </p>
             </div>
 
-            <div className="col-span-2 space-y-2">
-              <Label>Work Completed</Label>
-              <Textarea
-                className="min-h-24 rounded-xl text-base md:text-sm"
-                value={workCompleted}
-                onChange={(e) => setWorkCompleted(e.target.value)}
-                rows={3}
-              />
-            </div>
+            <Input
+              className="h-12 rounded-xl bg-white text-base md:text-sm"
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                setPhotoFiles(files);
+              }}
+            />
 
-            <div className="col-span-2 space-y-2">
-              <Label>Issues Found</Label>
-              <Textarea
-                className="min-h-24 rounded-xl text-base md:text-sm"
-                value={issuesFound}
-                onChange={(e) => setIssuesFound(e.target.value)}
-                rows={3}
-              />
+            <div className="rounded-lg bg-white px-3 py-2 text-sm text-slate-600">
+              {photoFiles.length > 0
+                ? `${photoFiles.length} photo(s) selected`
+                : "No photos selected"}
             </div>
+          </div>
 
-            <div className="col-span-2 space-y-2">
-              <Label>Next Actions</Label>
-              <Textarea
-                className="min-h-24 rounded-xl text-base md:text-sm"
-                value={nextActions}
-                onChange={(e) => setNextActions(e.target.value)}
-                rows={3}
-              />
-            </div>
+          <div className="col-span-2 space-y-2">
+            <Label>Photo Caption</Label>
+            <Input
+              className="h-11 rounded-xl text-base md:text-sm"
+              value={photoCaption}
+              onChange={(e) => setPhotoCaption(e.target.value)}
+              placeholder="Optional caption for uploaded photos"
+            />
+          </div>
 
-            <div className="col-span-2 space-y-2">
-              <Label>Notes</Label>
-              <Textarea
-                className="min-h-24 rounded-xl text-base md:text-sm"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={3}
-              />
-            </div>
-            <div className="space-y-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
-              <div className="space-y-1">
-                <Label>Photos</Label>
-                <p className="text-xs text-slate-500">
-                  Upload site photos, work progress, issues, or completed areas.
-                </p>
-              </div>
-
-              <Input
-                className="h-12 rounded-xl bg-white text-base md:text-sm"
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={(e) => {
-                  const files = Array.from(e.target.files || []);
-                  setPhotoFiles(files);
-                }}
-              />
-
-              <div className="rounded-lg bg-white px-3 py-2 text-sm text-slate-600">
-                {photoFiles.length > 0
-                  ? `${photoFiles.length} photo(s) selected`
-                  : "No photos selected"}
-              </div>
-            </div>
-
-            <div className="col-span-2 space-y-2">
-              <Label>Photo Caption</Label>
-              <Input
-                className="h-11 rounded-xl text-base md:text-sm"
-                value={photoCaption}
-                onChange={(e) => setPhotoCaption(e.target.value)}
-                placeholder="Optional caption for uploaded photos"
-              />
-            </div>
-          
           <div className="sticky bottom-0 -mx-4 mt-4 border-t bg-white px-4 py-3 sm:static sm:mx-0 sm:flex sm:justify-end sm:gap-2 sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0">
             <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-2">
               <Button
