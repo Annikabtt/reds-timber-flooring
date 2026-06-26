@@ -71,6 +71,38 @@ const DailyReports = () => {
       notes: "",
     },
   ]);
+
+  const addLabourRecord = () => {
+    setLabourRecords((prev) => [
+      ...prev,
+      {
+        employee_id: "",
+        activity_type_id: "",
+        regular_hours: "8",
+        overtime_hours: "0",
+        completed_quantity: "0",
+        worker_role: "",
+        notes: "",
+      },
+    ]);
+  };
+
+  const removeLabourRecord = (index: number) => {
+    setLabourRecords((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const updateLabourRecord = (
+    index: number,
+    field: keyof LabourRecord,
+    value: string
+  ) => {
+    setLabourRecords((prev) =>
+      prev.map((record, i) =>
+        i === index ? { ...record, [field]: value } : record
+      )
+    );
+  };
+
   const { data: projects = [] } = useQuery({
     queryKey: ["projects-for-daily-reports"],
     queryFn: async () => {
@@ -1263,10 +1295,15 @@ const DailyReports = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="col-span-2 space-y-2">
-              <Label>Work Activities *</Label>
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+              <div className="space-y-1">
+                <Label>Work Activities *</Label>
+                <p className="text-xs text-slate-500">
+                  Select one or more activities completed today.
+                </p>
+              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 rounded-xl border border-slate-200 p-3">
+              <div className="grid grid-cols-1 gap-3">
                 {activityTypes.map((activity) => {
                   const checked = selectedActivityTypeIds.includes(
                     activity.activity_type_id
@@ -1275,7 +1312,7 @@ const DailyReports = () => {
                   return (
                     <label
                       key={activity.activity_type_id}
-                      className="flex items-center gap-2 text-sm text-slate-700"
+                      className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 text-base text-slate-700 md:text-sm"
                     >
                       <input
                         type="checkbox"
@@ -1338,211 +1375,126 @@ const DailyReports = () => {
               </Select>
             </div>
 
-            <div className="col-span-2 space-y-3">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label>Labour Records *</Label>
-
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() =>
-                    setLabourRecords((current) => [
-                      ...current,
-                      {
-                        employee_id: "",
-                        activity_type_id: "",
-                        regular_hours: "8",
-                        overtime_hours: "0",
-                        completed_quantity: "0",
-                        worker_role: "",
-                        notes: "",
-                      },
-                    ])
-                  }
+                  onClick={addLabourRecord}
+                  className="h-9"
                 >
-                  + Add Worker
+                  Add Worker
                 </Button>
               </div>
 
-              <div className="space-y-3">
-                {labourRecords.map((record, index) => (
-                  <div
-                    key={index}
-                    className="grid grid-cols-1 md:grid-cols-12 gap-2 rounded-xl border border-slate-200 p-3"
-                  >
-                    <div className="md:col-span-3 space-y-1">
-                      <Label>Employee</Label>
-                      <Select
-                        value={record.employee_id}
-                        onValueChange={(value) => {
-                          setLabourRecords((current) =>
-                            current.map((item, itemIndex) =>
-                              itemIndex === index
-                                ? { ...item, employee_id: value }
-                                : item
-                            )
-                          );
-                        }}
-                      >
-                        <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                          <SelectValue placeholder="Select employee" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {employees.map((employee) => (
-                            <SelectItem
-                              key={employee.employee_id}
-                              value={employee.employee_id}
-                            >
-                              {employee.display_name ||
-                                `${employee.first_name} ${employee.last_name}`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+              {labourRecords.map((record, index) => (
+                <div
+                  key={index}
+                  className="rounded-xl border border-slate-200 bg-white p-4 space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-slate-900">
+                      Worker #{index + 1}
+                    </p>
 
-                    <div className="md:col-span-3 space-y-1">
-                      <Label>Activity</Label>
-                      <Select
-                        value={record.activity_type_id}
-                        onValueChange={(value) => {
-                          setLabourRecords((current) =>
-                            current.map((item, itemIndex) =>
-                              itemIndex === index
-                                ? { ...item, activity_type_id: value }
-                                : item
-                            )
-                          );
-                        }}
-                      >
-                        <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                          <SelectValue placeholder="Select activity" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {activityTypes.map((activity) => (
-                            <SelectItem
-                              key={activity.activity_type_id}
-                              value={activity.activity_type_id}
-                            >
-                              {activity.activity_name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="md:col-span-1 space-y-1">
-                      <Label>Hours</Label>
-                      <Input
-                        className="h-11 rounded-xl text-base md:text-sm"
-                        type="number"
-                        min="0"
-                        value={record.regular_hours}
-                        onChange={(e) => {
-                          setLabourRecords((current) =>
-                            current.map((item, itemIndex) =>
-                              itemIndex === index
-                                ? { ...item, regular_hours: e.target.value }
-                                : item
-                            )
-                          );
-                        }}
-                      />
-                    </div>
-
-                    <div className="md:col-span-1 space-y-1">
-                      <Label>OT</Label>
-                      <Input
-                        className="h-11 rounded-xl text-base md:text-sm"
-                        type="number"
-                        min="0"
-                        value={record.overtime_hours}
-                        onChange={(e) => {
-                          setLabourRecords((current) =>
-                            current.map((item, itemIndex) =>
-                              itemIndex === index
-                                ? { ...item, overtime_hours: e.target.value }
-                                : item
-                            )
-                          );
-                        }}
-                      />
-                    </div>
-
-                    <div className="md:col-span-1 space-y-1">
-                      <Label>Qty</Label>
-                      <Input
-                        className="h-11 rounded-xl text-base md:text-sm"
-                        type="number"
-                        min="0"
-                        value={record.completed_quantity}
-                        onChange={(e) => {
-                          setLabourRecords((current) =>
-                            current.map((item, itemIndex) =>
-                              itemIndex === index
-                                ? { ...item, completed_quantity: e.target.value }
-                                : item
-                            )
-                          );
-                        }}
-                      />
-                    </div>
-
-                    <div className="md:col-span-2 space-y-1">
-                      <Label>Role</Label>
-                      <Input
-                        className="h-11 rounded-xl text-base md:text-sm"
-                        value={record.worker_role}
-                        onChange={(e) => {
-                          setLabourRecords((current) =>
-                            current.map((item, itemIndex) =>
-                              itemIndex === index
-                                ? { ...item, worker_role: e.target.value }
-                                : item
-                            )
-                          );
-                        }}
-                        placeholder="Installer"
-                      />
-                    </div>
-
-                    <div className="md:col-span-1 flex items-end">
+                    {labourRecords.length > 1 && (
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        disabled={labourRecords.length === 1}
-                        onClick={() =>
-                          setLabourRecords((current) =>
-                            current.filter((_, itemIndex) => itemIndex !== index)
-                          )
-                        }
+                        onClick={() => removeLabourRecord(index)}
+                        className="text-red-600 hover:text-red-700"
                       >
                         Remove
                       </Button>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Employee</Label>
+                    <Select
+                      value={record.employee_id}
+                      onValueChange={(value) =>
+                        updateLabourRecord(index, "employee_id", value)
+                      }
+                    >
+                      <SelectTrigger className="h-11">
+                        <SelectValue placeholder="Select employee" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {employees.map((employee) => (
+                          <SelectItem
+                            key={employee.employee_id}
+                            value={employee.employee_id}
+                          >
+                            {employee.display_name ||
+                              `${employee.first_name} ${employee.last_name}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Activity</Label>
+                    <Input
+                      value={record.activity_type_id}
+                      onChange={(e) =>
+                        updateLabourRecord(index, "activity_type_id", e.target.value)
+                      }
+                      placeholder="e.g. Flooring install"
+                      className="h-11"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Hours</Label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        value={record.regular_hours}
+                        onChange={(e) =>
+                          updateLabourRecord(index, "regular_hours", e.target.value)
+                        }
+                        placeholder="0"
+                        className="h-11"
+                      />
                     </div>
 
-                    <div className="md:col-span-12 space-y-1">
-                      <Label>Notes</Label>
+                    <div className="space-y-2">
+                      <Label>OT</Label>
                       <Input
-                        className="h-11 rounded-xl text-base md:text-sm"
-                        value={record.notes}
-                        onChange={(e) => {
-                          setLabourRecords((current) =>
-                            current.map((item, itemIndex) =>
-                              itemIndex === index
-                                ? { ...item, notes: e.target.value }
-                                : item
-                            )
-                          );
-                        }}
-                        placeholder="Optional notes"
+                        type="number"
+                        inputMode="decimal"
+                        value={record.overtime_hours}
+                        onChange={(e) =>
+                          updateLabourRecord(index, "overtime_hours", e.target.value)
+                        }
+                        placeholder="0"
+                        className="h-11"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Qty Completed</Label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        value={record.completed_quantity}
+                        onChange={(e) =>
+                          updateLabourRecord(index, "completed_quantity", e.target.value)
+                        }
+                        placeholder="0"
+                        className="h-11"
                       />
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
+
             </div>
 
             <div className="space-y-2">
@@ -1609,10 +1561,16 @@ const DailyReports = () => {
                 rows={3}
               />
             </div>
-            <div className="col-span-2 space-y-2">
-              <Label>Photos</Label>
+            <div className="space-y-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
+              <div className="space-y-1">
+                <Label>Photos</Label>
+                <p className="text-xs text-slate-500">
+                  Upload site photos, work progress, issues, or completed areas.
+                </p>
+              </div>
+
               <Input
-                className="h-11 rounded-xl text-base md:text-sm"
+                className="h-12 rounded-xl bg-white text-base md:text-sm"
                 type="file"
                 accept="image/*"
                 multiple
@@ -1621,11 +1579,12 @@ const DailyReports = () => {
                   setPhotoFiles(files);
                 }}
               />
-              <p className="text-xs text-slate-500">
+
+              <div className="rounded-lg bg-white px-3 py-2 text-sm text-slate-600">
                 {photoFiles.length > 0
                   ? `${photoFiles.length} photo(s) selected`
                   : "No photos selected"}
-              </p>
+              </div>
             </div>
 
             <div className="col-span-2 space-y-2">
@@ -1638,29 +1597,33 @@ const DailyReports = () => {
               />
             </div>
           </div>
-          <div className="flex justify-end gap-3 pt-4">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowAddDialog(false);
-                resetForm();
+          <div className="sticky bottom-0 -mx-4 mt-4 border-t bg-white px-4 py-3 sm:static sm:mx-0 sm:flex sm:justify-end sm:gap-2 sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0">
+            <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowAddDialog(false);
+                  resetForm();
+                }}
+                disabled={createDailyReport.isPending}
+                className="h-11 w-full sm:w-auto"
+              >
+                Cancel
+              </Button>
 
-              }}
-            >
-              Cancel
-            </Button>
-
-            <Button
-              onClick={() => createDailyReport.mutate()}
-              disabled={createDailyReport.isPending}
-              className="bg-red-600 hover:bg-red-700 text-white"
-            >
-              {createDailyReport.isPending ? "Saving..." : "Save Report"}
-            </Button>
+              <Button
+                onClick={() => createDailyReport.mutate()}
+                disabled={createDailyReport.isPending}
+                className="h-11 w-full bg-red-600 text-white hover:bg-red-700 sm:w-auto"
+              >
+                {createDailyReport.isPending ? "Saving..." : "Save Report"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
-    </div >
+    </div>
   );
 };
 
