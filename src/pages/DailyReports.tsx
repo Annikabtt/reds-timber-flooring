@@ -1187,7 +1187,7 @@ const DailyReports = () => {
           </DialogHeader>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-2 md:col-span-2">
+            md:col-span-2
               <Label>Project *</Label>
               <Select
                 value={projectId}
@@ -1548,7 +1548,7 @@ const DailyReports = () => {
                 placeholder="Optional caption for uploaded photos"
               />
             </div>
-          </div>
+          
           <div className="sticky bottom-0 -mx-4 mt-4 border-t bg-white px-4 py-3 sm:static sm:mx-0 sm:flex sm:justify-end sm:gap-2 sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0">
             <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-2">
               <Button
