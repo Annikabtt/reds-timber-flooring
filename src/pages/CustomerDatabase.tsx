@@ -36,6 +36,7 @@ type Customer = {
 export default function CustomerDatabase() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
+  const [typeFilter, setTypeFilter] = useState("All");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerType, setCustomerType] = useState("Residential");
@@ -114,9 +115,14 @@ export default function CustomerDatabase() {
   const filteredCustomers = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase();
 
-    if (!keyword) return customers;
+    const typeMatchedCustomers =
+      typeFilter === "All"
+        ? customers
+        : customers.filter((customer) => customer.customer_type === typeFilter);
 
-    return customers.filter((customer) => {
+    if (!keyword) return typeMatchedCustomers;
+
+    return typeMatchedCustomers.filter((customer) => {
       return (
         customer.customer_code.toLowerCase().includes(keyword) ||
         customer.customer_name.toLowerCase().includes(keyword) ||
@@ -125,7 +131,7 @@ export default function CustomerDatabase() {
         (customer.phone || "").toLowerCase().includes(keyword)
       );
     });
-  }, [customers, searchTerm]);
+  }, [customers, searchTerm, typeFilter]);
 
   return (
     <div className="space-y-5">
@@ -305,14 +311,20 @@ export default function CustomerDatabase() {
             />
           </div>
 
-          <Button
-            disabled
-            variant="outline"
-            className="mt-3 h-11 w-full rounded-xl border-slate-200 text-slate-600 md:mt-0 md:w-auto"
-          >
-            <Filter className="mr-2 h-4 w-4" />
-            Filter
-          </Button>
+          <div className="mt-3 md:mt-0 md:w-56">
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                <Filter className="mr-2 h-4 w-4 text-slate-400" />
+                <SelectValue placeholder="Filter" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All Customers</SelectItem>
+                <SelectItem value="Residential">Residential</SelectItem>
+                <SelectItem value="Commercial">Commercial</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
