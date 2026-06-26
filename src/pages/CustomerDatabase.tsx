@@ -128,25 +128,32 @@ export default function CustomerDatabase() {
   }, [customers, searchTerm]);
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans p-4 md:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-              <Building2 className="text-red-600" size={32} />
-              Customer Management
-            </h1>
-            <p className="text-slate-500 mt-1">
-              Manage customer records from REDS database.
-            </p>
+    <div className="space-y-5">
+      <div className="mx-auto w-full max-w-7xl space-y-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-50">
+                <Building2 className="h-6 w-6 text-red-600" />
+              </div>
+
+              <div className="min-w-0">
+                <h1 className="text-2xl font-black leading-tight text-slate-900 md:text-3xl">
+                  Customers
+                </h1>
+                <p className="mt-0.5 text-sm text-slate-500">
+                  Manage residential and commercial customers.
+                </p>
+              </div>
+            </div>
           </div>
 
           <Button
             onClick={() => setShowAddDialog(true)}
-            className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-xl shadow-lg shadow-red-200 transition-all flex items-center gap-2"
+            className="h-11 w-full rounded-xl bg-red-600 px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700 md:w-auto md:px-6"
           >
-            <Plus size={20} />
-            Add New Customer
+            <Plus className="mr-2 h-4 w-4" />
+            Add Customer
           </Button>
         </div>
 
@@ -154,20 +161,20 @@ export default function CustomerDatabase() {
           open={showAddDialog}
           onOpenChange={setShowAddDialog}
         >
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-h-[90vh] w-[calc(100vw-24px)] max-w-lg overflow-y-auto rounded-2xl p-4 sm:p-6">
             <DialogHeader>
-              <DialogTitle>
+              <DialogTitle className="text-lg font-bold text-slate-900">
                 Quick Add Customer
               </DialogTitle>
             </DialogHeader>
 
-            <div className="space-y-4">
-
+            <div className="space-y-4 text-sm">
               <div>
                 <Label>
                   {customerType === "Commercial" ? "Business / Company Name" : "Customer Name"}
                 </Label>
                 <Input
+                  className="h-11 rounded-xl text-base md:text-sm"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   placeholder={
@@ -189,7 +196,7 @@ export default function CustomerDatabase() {
                     }
                   }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
                     <SelectValue placeholder="Select customer type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -204,6 +211,7 @@ export default function CustomerDatabase() {
                   {customerType === "Commercial" ? "Business Phone" : "Phone"}
                 </Label>
                 <Input
+                  className="h-11 rounded-xl text-base md:text-sm"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder={
@@ -219,6 +227,7 @@ export default function CustomerDatabase() {
                   {customerType === "Commercial" ? "Business Address" : "Address"}
                 </Label>
                 <Input
+                  className="h-11 rounded-xl text-base md:text-sm"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   placeholder={
@@ -234,6 +243,7 @@ export default function CustomerDatabase() {
                   {customerType === "Commercial" ? "Business Email" : "Email"}
                 </Label>
                 <Input
+                  className="h-11 rounded-xl text-base md:text-sm"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={
@@ -248,6 +258,7 @@ export default function CustomerDatabase() {
                 <div>
                   <Label>ABN</Label>
                   <Input
+                    className="h-11 rounded-xl text-base md:text-sm"
                     value={abn}
                     onChange={(e) => setAbn(e.target.value)}
                     placeholder="Australian Business Number"
@@ -258,6 +269,7 @@ export default function CustomerDatabase() {
               <div>
                 <Label>Notes</Label>
                 <Textarea
+                  className="min-h-24 rounded-xl text-base md:text-sm"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder={
@@ -270,17 +282,16 @@ export default function CustomerDatabase() {
 
               <Button
                 onClick={handleAddCustomer}
-                className="w-full"
+                className="h-11 w-full rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700"
               >
                 Create Customer
               </Button>
-
             </div>
           </DialogContent>
         </Dialog>
 
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="relative w-full md:w-96">
+        <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm md:p-4">
+          <div className="relative w-full">
             <Search
               className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
               size={20}
@@ -297,9 +308,9 @@ export default function CustomerDatabase() {
           <Button
             disabled
             variant="outline"
-            className="w-full md:w-auto flex items-center gap-2 text-slate-600 border-slate-200"
+            className="mt-3 h-11 w-full rounded-xl border-slate-200 text-slate-600 md:mt-0 md:w-auto"
           >
-            <Filter size={18} />
+            <Filter className="mr-2 h-4 w-4" />
             Filter
           </Button>
         </div>
@@ -318,87 +329,145 @@ export default function CustomerDatabase() {
               No customers found.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-slate-900 text-white">
-                  <tr>
-                    <th className="px-6 py-4 font-bold uppercase tracking-wider">
-                      Customer
-                    </th>
-                    <th className="px-6 py-4 font-bold uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="px-6 py-4 font-bold uppercase tracking-wider">
-                      Contact
-                    </th>
-                    <th className="px-6 py-4 font-bold uppercase tracking-wider">
-                      ABN
-                    </th>
-                    <th className="px-6 py-4 font-bold uppercase tracking-wider">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
+            <>
+              {/* Mobile cards */}
+              <div className="divide-y divide-slate-100 md:hidden">
+                {filteredCustomers.map((customer) => (
+                  <div
+                    key={customer.customer_id}
+                    className="space-y-3 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-base font-bold text-slate-900 break-words">
+                          {customer.customer_name}
+                        </p>
+                        <p className="mt-1 text-xs font-mono text-slate-400">
+                          {customer.customer_code}
+                        </p>
+                      </div>
 
-                <tbody className="divide-y divide-slate-100">
-                  {filteredCustomers.map((customer) => (
-                    <tr
-                      key={customer.customer_id}
-                      className="hover:bg-slate-50 transition-colors"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="font-bold text-slate-900 text-base">
-                            {customer.customer_name}
-                          </span>
-                          <span className="text-slate-400 text-xs font-mono mt-1">
-                            {customer.customer_code}
-                          </span>
-                        </div>
-                      </td>
+                      <span
+                        className={
+                          customer.is_active
+                            ? "shrink-0 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700"
+                            : "shrink-0 inline-flex rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-500"
+                        }
+                      >
+                        {customer.is_active ? "Active" : "Inactive"}
+                      </span>
+                    </div>
 
-                      <td className="px-6 py-4">
-                        <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold border bg-slate-100 text-slate-700 border-slate-200">
-                          {customer.customer_type}
+                    <div className="flex flex-wrap gap-2">
+                      <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
+                        {customer.customer_type}
+                      </span>
+
+                      {customer.abn && (
+                        <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600">
+                          ABN: {customer.abn}
                         </span>
-                      </td>
+                      )}
+                    </div>
 
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col gap-1.5 text-slate-600 text-xs">
-                          <div className="flex items-center gap-2">
-                            <Phone size={14} className="text-slate-400" />
-                            {customer.phone || "-"}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Mail size={14} className="text-slate-400" />
-                            {customer.email || "-"}
-                          </div>
-                        </div>
-                      </td>
+                    <div className="space-y-2 text-sm text-slate-600">
+                      <div className="flex items-center gap-2">
+                        <Phone size={14} className="shrink-0 text-slate-400" />
+                        <span className="break-all">{customer.phone || "-"}</span>
+                      </div>
 
-                      <td className="px-6 py-4 text-slate-600">
-                        {customer.abn || "-"}
-                      </td>
+                      <div className="flex items-center gap-2">
+                        <Mail size={14} className="shrink-0 text-slate-400" />
+                        <span className="break-all">{customer.email || "-"}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
-                      <td className="px-6 py-4">
-                        <span
-                          className={
-                            customer.is_active
-                              ? "inline-flex px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : "inline-flex px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200"
-                          }
-                        >
-                          {customer.is_active ? "Active" : "Inactive"}
-                        </span>
-                      </td>
+              {/* Desktop table */}
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full text-left text-sm whitespace-nowrap">
+                  <thead className="bg-slate-900 text-white">
+                    <tr>
+                      <th className="px-6 py-4 font-bold uppercase tracking-wider">
+                        Customer
+                      </th>
+                      <th className="px-6 py-4 font-bold uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th className="px-6 py-4 font-bold uppercase tracking-wider">
+                        Contact
+                      </th>
+                      <th className="px-6 py-4 font-bold uppercase tracking-wider">
+                        ABN
+                      </th>
+                      <th className="px-6 py-4 font-bold uppercase tracking-wider">
+                        Status
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredCustomers.map((customer) => (
+                      <tr
+                        key={customer.customer_id}
+                        className="hover:bg-slate-50 transition-colors"
+                      >
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-900 text-base">
+                              {customer.customer_name}
+                            </span>
+                            <span className="text-slate-400 text-xs font-mono mt-1">
+                              {customer.customer_code}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold border bg-slate-100 text-slate-700 border-slate-200">
+                            {customer.customer_type}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col gap-1.5 text-slate-600 text-xs">
+                            <div className="flex items-center gap-2">
+                              <Phone size={14} className="text-slate-400" />
+                              {customer.phone || "-"}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Mail size={14} className="text-slate-400" />
+                              {customer.email || "-"}
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-4 text-slate-600">
+                          {customer.abn || "-"}
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <span
+                            className={
+                              customer.is_active
+                                ? "inline-flex px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : "inline-flex px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200"
+                            }
+                          >
+                            {customer.is_active ? "Active" : "Inactive"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>
-    </div>
+    </div >
   );
 }
