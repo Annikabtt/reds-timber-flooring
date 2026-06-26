@@ -1187,7 +1187,7 @@ const DailyReports = () => {
           </DialogHeader>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="col-span-2 space-y-2">
+            <div className="space-y-2 md:col-span-2">
               <Label>Project *</Label>
               <Select
                 value={projectId}
@@ -1269,7 +1269,7 @@ const DailyReports = () => {
               </Select>
             </div>
 
-            <div className="col-span-2 space-y-2">
+            <div className="space-y-2 md:col-span-2">
               <Label>Work Order *</Label>
               <Select
                 value={workOrderId}
@@ -1295,7 +1295,7 @@ const DailyReports = () => {
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div className="space-y-2">
               <Label>Report Date *</Label>
               <Input
