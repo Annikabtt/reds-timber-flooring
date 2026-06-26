@@ -801,8 +801,9 @@ const DailyReports = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="grid grid-cols-12 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500 px-4 py-3 border-b gap-3">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        {/* Desktop table header */}
+        <div className="hidden grid-cols-12 gap-3 border-b bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 lg:grid">
           <div className="col-span-1">Date</div>
           <div className="col-span-2">Project</div>
           <div className="col-span-2">Site / Area</div>
@@ -821,8 +822,8 @@ const DailyReports = () => {
         ) : (
           groupedDailyReports.map((group) => (
             <div key={group.areaKey} className="border-b last:border-b-0">
-              <div className="bg-slate-100 px-4 py-3 border-b">
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
+              <div className="border-b bg-slate-100 px-4 py-3">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <p className="font-bold text-slate-900">
                       {group.areaCode} - {group.areaName}
@@ -859,146 +860,289 @@ const DailyReports = () => {
               </div>
 
               {group.reports.map((report) => (
-                <div
-                  key={report.report_id}
-                  className="grid grid-cols-12 px-4 py-4 border-b last:border-b-0 hover:bg-slate-50 transition-colors gap-3"
-                >
-                  <div className="col-span-1 text-sm text-slate-700">
-                    {report.report_date || "-"}
-                  </div>
+                <div key={report.report_id}>
+                  {/* Mobile card */}
+                  <div className="space-y-4 border-b px-4 py-4 last:border-b-0 lg:hidden">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-900">
+                          {report.report_date || "-"}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-600">
+                          {report.projects?.project_name || "-"}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {report.projects?.project_no || "-"} ·{" "}
+                          {report.projects?.customers?.customer_name || "-"}
+                        </p>
+                      </div>
 
-                  <div className="col-span-2">
-                    <p className="font-medium text-slate-800">
-                      {report.projects?.project_name || "-"}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {report.projects?.project_no || "-"} ·{" "}
-                      {report.projects?.customers?.customer_name || "-"}
-                    </p>
-                  </div>
-
-                  <div className="col-span-2 text-slate-700">
-                    <p className="font-medium text-slate-800">
-                      {report.work_completed || "No work summary"}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      Issues: {report.issues_found || "-"}
-                    </p>
-                  </div>
-
-                  <div className="col-span-2 text-slate-700">
-                    <p>{report.work_orders?.title || "-"}</p>
-                    <p className="text-xs text-slate-500">
-                      {report.work_orders?.work_order_no || "-"} ·{" "}
-                      {report.work_orders?.status || "-"}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Activities:{" "}
-                      {report.daily_report_activities?.length
-                        ? report.daily_report_activities
-                          .map((item) => item.work_activity_types?.activity_name)
-                          .filter(Boolean)
-                          .join(", ")
-                        : "-"}
-                    </p>
-                  </div>
-
-                  <div className="col-span-1 text-slate-700">
-                    {report.weather_condition || "-"}
-                  </div>
-
-                  <div className="col-span-1 text-slate-700">
-                    <p>
-                      {report.daily_report_workers?.length
-                        ? new Set(
-                          report.daily_report_workers.map(
-                            (worker) => worker.employee_id
-                          )
-                        ).size
-                        : report.workers_count ?? "-"}{" "}
-                      workers
-                    </p>
-
-                    <p className="text-xs text-slate-500">
-                      Hours:{" "}
-                      {report.daily_report_workers?.length
-                        ? report.daily_report_workers
-                          .reduce(
-                            (sum, worker) =>
-                              sum +
-                              Number(worker.regular_hours || 0) +
-                              Number(worker.overtime_hours || 0),
-                            0
-                          )
-                          .toFixed(2)
-                        : "0.00"}
-                    </p>
-
-                    <p className="text-xs text-slate-500">
-                      Qty:{" "}
-                      {report.daily_report_workers?.length
-                        ? report.daily_report_workers
-                          .reduce(
-                            (sum, worker) =>
-                              sum + Number(worker.completed_quantity || 0),
-                            0
-                          )
-                          .toFixed(2)
-                        : "0.00"}
-                    </p>
-                  </div>
-
-                  <div className="col-span-1 text-slate-700">
-                    <p className="font-semibold text-slate-900">
-                      {Number(report.progress_percent || 0).toFixed(2)}%
-                    </p>
-
-                    <div className="mt-2 h-2 w-full rounded-full bg-slate-100">
-                      <div
-                        className="h-2 rounded-full bg-red-600"
-                        style={{
-                          width: `${Math.min(Number(report.progress_percent || 0), 100)}%`,
-                        }}
-                      />
+                      <span
+                        className={`inline-flex shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold ${getApprovalStatusClass(
+                          report.approval_status
+                        )}`}
+                      >
+                        {report.approval_status || "-"}
+                      </span>
                     </div>
 
-                    <p className="text-xs text-slate-500 mt-2">
-                      {Number(report.completed_quantity || 0).toFixed(2)} /{" "}
-                      {Number(report.project_areas?.estimated_quantity || 0).toFixed(2)}{" "}
-                      {report.project_areas?.unit_of_measure || ""}
-                    </p>
-                  </div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs text-slate-500">Weather</p>
+                        <p className="mt-1 font-medium text-slate-900">
+                          {report.weather_condition || "-"}
+                        </p>
+                      </div>
 
-                  <div className="col-span-1 text-slate-700">
-                    <span
-                      className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${getApprovalStatusClass(
-                        report.approval_status
-                      )}`}
-                    >
-                      {report.approval_status || "-"}
-                    </span>
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs text-slate-500">Workers</p>
+                        <p className="mt-1 font-medium text-slate-900">
+                          {report.daily_report_workers?.length
+                            ? new Set(
+                              report.daily_report_workers.map(
+                                (worker) => worker.employee_id
+                              )
+                            ).size
+                            : report.workers_count ?? "-"}{" "}
+                          workers
+                        </p>
+                      </div>
+                    </div>
 
-                    <p className="text-xs text-slate-500 mt-2">
-                      Photos:{" "}
-                      {report.daily_report_photos?.filter((photo) => !photo.is_deleted).length || 0}
-                    </p>
-                  </div>
+                    <div className="rounded-xl border border-slate-200 p-3">
+                      <p className="text-xs text-slate-500">Work Order</p>
+                      <p className="mt-1 font-medium text-slate-900">
+                        {report.work_orders?.title || "-"}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {report.work_orders?.work_order_no || "-"} ·{" "}
+                        {report.work_orders?.status || "-"}
+                      </p>
+                    </div>
 
-                  <div className="col-span-1">
+                    <div className="rounded-xl border border-slate-200 p-3">
+                      <p className="text-xs text-slate-500">Work Completed</p>
+                      <p className="mt-1 text-sm text-slate-800">
+                        {report.work_completed || "No work summary"}
+                      </p>
+                      <p className="mt-2 text-xs text-slate-500">
+                        Issues: {report.issues_found || "-"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs text-slate-500">Progress</p>
+                          <p className="mt-1 text-base font-bold text-slate-900">
+                            {Number(report.progress_percent || 0).toFixed(2)}%
+                          </p>
+                        </div>
+
+                        <div className="text-right text-xs text-slate-500">
+                          {Number(report.completed_quantity || 0).toFixed(2)} /{" "}
+                          {Number(
+                            report.project_areas?.estimated_quantity || 0
+                          ).toFixed(2)}{" "}
+                          {report.project_areas?.unit_of_measure || ""}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 h-2 w-full rounded-full bg-slate-100">
+                        <div
+                          className="h-2 rounded-full bg-red-600"
+                          style={{
+                            width: `${Math.min(
+                              Number(report.progress_percent || 0),
+                              100
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs text-slate-500">Hours</p>
+                        <p className="mt-1 font-medium text-slate-900">
+                          {report.daily_report_workers?.length
+                            ? report.daily_report_workers
+                              .reduce(
+                                (sum, worker) =>
+                                  sum +
+                                  Number(worker.regular_hours || 0) +
+                                  Number(worker.overtime_hours || 0),
+                                0
+                              )
+                              .toFixed(2)
+                            : "0.00"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs text-slate-500">Photos</p>
+                        <p className="mt-1 font-medium text-slate-900">
+                          {report.daily_report_photos?.filter(
+                            (photo) => !photo.is_deleted
+                          ).length || 0}
+                        </p>
+                      </div>
+                    </div>
+
                     <Button
                       variant="outline"
-                      size="sm"
+                      className="h-11 w-full rounded-xl"
                       onClick={() => navigate(`/daily-reports/${report.report_id}`)}
                     >
-                      View
+                      View Report
                     </Button>
+                  </div>
+
+                  {/* Desktop row */}
+                  <div className="hidden grid-cols-12 gap-3 border-b px-4 py-4 transition-colors hover:bg-slate-50 last:border-b-0 lg:grid">
+                    <div className="col-span-1 text-sm text-slate-700">
+                      {report.report_date || "-"}
+                    </div>
+
+                    <div className="col-span-2">
+                      <p className="font-medium text-slate-800">
+                        {report.projects?.project_name || "-"}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {report.projects?.project_no || "-"} ·{" "}
+                        {report.projects?.customers?.customer_name || "-"}
+                      </p>
+                    </div>
+
+                    <div className="col-span-2 text-slate-700">
+                      <p className="font-medium text-slate-800">
+                        {report.work_completed || "No work summary"}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Issues: {report.issues_found || "-"}
+                      </p>
+                    </div>
+
+                    <div className="col-span-2 text-slate-700">
+                      <p>{report.work_orders?.title || "-"}</p>
+                      <p className="text-xs text-slate-500">
+                        {report.work_orders?.work_order_no || "-"} ·{" "}
+                        {report.work_orders?.status || "-"}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Activities:{" "}
+                        {report.daily_report_activities?.length
+                          ? report.daily_report_activities
+                            .map((item) => item.work_activity_types?.activity_name)
+                            .filter(Boolean)
+                            .join(", ")
+                          : "-"}
+                      </p>
+                    </div>
+
+                    <div className="col-span-1 text-slate-700">
+                      {report.weather_condition || "-"}
+                    </div>
+
+                    <div className="col-span-1 text-slate-700">
+                      <p>
+                        {report.daily_report_workers?.length
+                          ? new Set(
+                            report.daily_report_workers.map(
+                              (worker) => worker.employee_id
+                            )
+                          ).size
+                          : report.workers_count ?? "-"}{" "}
+                        workers
+                      </p>
+
+                      <p className="text-xs text-slate-500">
+                        Hours:{" "}
+                        {report.daily_report_workers?.length
+                          ? report.daily_report_workers
+                            .reduce(
+                              (sum, worker) =>
+                                sum +
+                                Number(worker.regular_hours || 0) +
+                                Number(worker.overtime_hours || 0),
+                              0
+                            )
+                            .toFixed(2)
+                          : "0.00"}
+                      </p>
+
+                      <p className="text-xs text-slate-500">
+                        Qty:{" "}
+                        {report.daily_report_workers?.length
+                          ? report.daily_report_workers
+                            .reduce(
+                              (sum, worker) =>
+                                sum + Number(worker.completed_quantity || 0),
+                              0
+                            )
+                            .toFixed(2)
+                          : "0.00"}
+                      </p>
+                    </div>
+
+                    <div className="col-span-1 text-slate-700">
+                      <p className="font-semibold text-slate-900">
+                        {Number(report.progress_percent || 0).toFixed(2)}%
+                      </p>
+
+                      <div className="mt-2 h-2 w-full rounded-full bg-slate-100">
+                        <div
+                          className="h-2 rounded-full bg-red-600"
+                          style={{
+                            width: `${Math.min(
+                              Number(report.progress_percent || 0),
+                              100
+                            )}%`,
+                          }}
+                        />
+                      </div>
+
+                      <p className="mt-2 text-xs text-slate-500">
+                        {Number(report.completed_quantity || 0).toFixed(2)} /{" "}
+                        {Number(
+                          report.project_areas?.estimated_quantity || 0
+                        ).toFixed(2)}{" "}
+                        {report.project_areas?.unit_of_measure || ""}
+                      </p>
+                    </div>
+
+                    <div className="col-span-1 text-slate-700">
+                      <span
+                        className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${getApprovalStatusClass(
+                          report.approval_status
+                        )}`}
+                      >
+                        {report.approval_status || "-"}
+                      </span>
+
+                      <p className="mt-2 text-xs text-slate-500">
+                        Photos:{" "}
+                        {report.daily_report_photos?.filter(
+                          (photo) => !photo.is_deleted
+                        ).length || 0}
+                      </p>
+                    </div>
+
+                    <div className="col-span-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/daily-reports/${report.report_id}`)}
+                      >
+                        View
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           ))
         )}
-
       </div>
 
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
