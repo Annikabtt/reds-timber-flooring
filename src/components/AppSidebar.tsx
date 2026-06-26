@@ -43,7 +43,7 @@ const navItems = [
 ];
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const { user, signOut } = useAuth();
 
@@ -53,7 +53,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">
-      <div className="hidden md:flex items-center gap-3 px-4 py-5 border-b border-sidebar-border">
+      <div className="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border">
         {collapsed ? (
           <div className="h-9 w-9 rounded-lg bg-white flex items-center justify-center shrink-0 overflow-hidden">
             <img src={redsLogo} alt="REDS Timber Flooring" className="h-7 w-auto" />
@@ -67,18 +67,29 @@ export function AppSidebar() {
         )}
       </div>
 
-      <SidebarContent className="px-2 py-4">
+      <SidebarContent className="px-3 py-4">
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton
+                    asChild
+                    onClick={() => {
+                      if (isMobile) {
+                        setOpenMobile(false);
+                      }
+                    }}
+                  >
                     <NavLink
                       to={item.url}
                       end={item.url === "/"}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
-                      activeClassName="bg-sidebar-accent text-sidebar-primary font-semibold"
+                      onClick={() => {
+                        window.setTimeout(() => {
+                          setOpenMobile(false);
+                        }, 0);
+                      }}
+                      className="flex min-h-11 items-center gap-3 rounded-xl px-3 py-3 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground md:min-h-0 md:py-2.5"
                     >
                       <item.icon className="h-5 w-5 shrink-0" />
                       {!collapsed && <span>{item.title}</span>}
