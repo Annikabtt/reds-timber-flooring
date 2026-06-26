@@ -640,31 +640,36 @@ const DailyReports = () => {
 
   };
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0">
           <div className="flex items-center gap-3">
-            <CalendarDays className="h-8 w-8 text-red-600" />
-            <h1 className="text-3xl font-bold text-slate-900">
-              Daily Reports
-            </h1>
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-50">
+              <CalendarDays className="h-6 w-6 text-red-600" />
+            </div>
+
+            <div className="min-w-0">
+              <h1 className="text-2xl font-black leading-tight text-slate-900 md:text-3xl">
+                Daily Reports
+              </h1>
+              <p className="mt-0.5 text-sm text-slate-500">
+                Record site progress, labour, weather, and issues.
+              </p>
+            </div>
           </div>
-          <p className="text-slate-500 mt-1">
-            Record site progress, labour count, weather, and daily issues.
-          </p>
         </div>
 
         <Button
           onClick={() => setShowAddDialog(true)}
-          className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-xl shadow-lg shadow-red-200 transition-all flex items-center gap-2"
+          className="h-11 w-full rounded-xl bg-red-600 px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700 md:w-auto md:px-6"
         >
-          <Plus className="h-5 w-5" />
+          <Plus className="mr-2 h-4 w-4" />
           Add Report
         </Button>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+      <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm space-y-4 md:p-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
           <Select
             value={filterProjectId}
             onValueChange={(value) => {
@@ -673,7 +678,7 @@ const DailyReports = () => {
               setFilterAreaId("all");
             }}
           >
-            <SelectTrigger>
+            <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
               <SelectValue placeholder="Project" />
             </SelectTrigger>
             <SelectContent>
@@ -736,7 +741,7 @@ const DailyReports = () => {
             </SelectContent>
           </Select>
 
-          <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+          <label className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm text-slate-700">
             <input
               type="checkbox"
               checked={showLatestOnly}
@@ -750,13 +755,13 @@ const DailyReports = () => {
           <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
           <Input
             placeholder="Search by date, project, site, area, work order..."
-            className="pl-10"
+            className="h-11 rounded-xl pl-10 text-base md:text-sm"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 border-t pt-4">
+        <div className="rounded-xl bg-slate-50 p-3">
           <div>
             <p className="text-xs text-slate-500">Approved Progress</p>
             <p className="font-bold text-slate-900">
@@ -765,28 +770,28 @@ const DailyReports = () => {
             </p>
           </div>
 
-          <div>
+          <div className="rounded-xl bg-slate-50 p-3">
             <p className="text-xs text-slate-500">Pending Review</p>
             <p className="font-bold text-amber-700">
               {areaSummary.pendingReview.toFixed(2)} sqm
             </p>
           </div>
 
-          <div>
+          <div className="rounded-xl bg-slate-50 p-3">
             <p className="text-xs text-slate-500">Remaining</p>
             <p className="font-bold text-slate-900">
               {areaSummary.remaining.toFixed(2)} sqm
             </p>
           </div>
 
-          <div>
+          <div className="rounded-xl bg-slate-50 p-3">
             <p className="text-xs text-slate-500">Latest Report</p>
             <p className="font-bold text-slate-900">
               {areaSummary.latestReport}
             </p>
           </div>
 
-          <div>
+          <div className="rounded-xl bg-slate-50 p-3">
             <p className="text-xs text-slate-500">Pending Reports</p>
             <p className="font-bold text-slate-900">
               {areaSummary.pendingReports}
