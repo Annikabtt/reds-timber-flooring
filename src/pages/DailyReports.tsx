@@ -1295,55 +1295,7 @@ const DailyReports = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-              <div className="space-y-1">
-                <Label>Work Activities *</Label>
-                <p className="text-xs text-slate-500">
-                  Select one or more activities completed today.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3">
-                {activityTypes.map((activity) => {
-                  const checked = selectedActivityTypeIds.includes(
-                    activity.activity_type_id
-                  );
-
-                  return (
-                    <label
-                      key={activity.activity_type_id}
-                      className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 text-base text-slate-700 md:text-sm"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedActivityTypeIds((current) => [
-                              ...current,
-                              activity.activity_type_id,
-                            ]);
-                            return;
-                          }
-
-                          setSelectedActivityTypeIds((current) =>
-                            current.filter(
-                              (activityTypeId) =>
-                                activityTypeId !== activity.activity_type_id
-                            )
-                          );
-                        }}
-                      />
-                      <span>{activity.activity_name}</span>
-                    </label>
-                  );
-                })}
-              </div>
-
-              <p className="text-xs text-slate-500">
-                Select one or more activities completed today.
-              </p>
-            </div>
+            
             <div className="space-y-2">
               <Label>Report Date *</Label>
               <Input
