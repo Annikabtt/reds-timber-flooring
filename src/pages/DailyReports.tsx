@@ -698,7 +698,7 @@ const DailyReports = () => {
               setFilterAreaId("all");
             }}
           >
-            <SelectTrigger>
+            <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
               <SelectValue placeholder="Site" />
             </SelectTrigger>
             <SelectContent>
@@ -712,8 +712,8 @@ const DailyReports = () => {
           </Select>
 
           <Select value={filterAreaId} onValueChange={setFilterAreaId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Area" />
+            <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+              <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Areas</SelectItem>
@@ -726,8 +726,8 @@ const DailyReports = () => {
           </Select>
 
           <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger>
-              <SelectValue placeholder="Status" />
+            <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+              <SelectValue placeholder="Area" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
@@ -1147,12 +1147,14 @@ const DailyReports = () => {
 
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
 
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[92vh] w-[calc(100vw-24px)] max-w-4xl overflow-y-auto rounded-2xl p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>Add Daily Report</DialogTitle>
+            <DialogTitle className="text-lg font-bold text-slate-900">
+              Add Daily Report
+            </DialogTitle>
           </DialogHeader>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="col-span-2 space-y-2">
               <Label>Project *</Label>
               <Select
@@ -1164,7 +1166,7 @@ const DailyReports = () => {
                   setWorkOrderId("");
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
                   <SelectValue placeholder="Select project" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1191,7 +1193,7 @@ const DailyReports = () => {
                 }}
                 disabled={!projectId}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
                   <SelectValue
                     placeholder={
                       projectId ? "Select project site" : "Select project first"
@@ -1218,7 +1220,7 @@ const DailyReports = () => {
                 }}
                 disabled={!siteId}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
                   <SelectValue
                     placeholder={
                       siteId ? "Select project area" : "Select site first"
@@ -1242,7 +1244,7 @@ const DailyReports = () => {
                 onValueChange={setWorkOrderId}
                 disabled={!areaId}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
                   <SelectValue
                     placeholder={
                       areaId ? "Select work order" : "Select area first"
@@ -1308,6 +1310,7 @@ const DailyReports = () => {
             <div className="space-y-2">
               <Label>Report Date *</Label>
               <Input
+                className="h-11 rounded-xl text-base md:text-sm"
                 type="date"
                 value={reportDate}
                 onChange={(e) => setReportDate(e.target.value)}
@@ -1320,7 +1323,7 @@ const DailyReports = () => {
                 value={weatherCondition}
                 onValueChange={setWeatherCondition}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
                   <SelectValue placeholder="Select weather" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1382,7 +1385,7 @@ const DailyReports = () => {
                           );
                         }}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
                           <SelectValue placeholder="Select employee" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1413,7 +1416,7 @@ const DailyReports = () => {
                           );
                         }}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
                           <SelectValue placeholder="Select activity" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1432,6 +1435,7 @@ const DailyReports = () => {
                     <div className="md:col-span-1 space-y-1">
                       <Label>Hours</Label>
                       <Input
+                        className="h-11 rounded-xl text-base md:text-sm"
                         type="number"
                         min="0"
                         value={record.regular_hours}
@@ -1450,6 +1454,7 @@ const DailyReports = () => {
                     <div className="md:col-span-1 space-y-1">
                       <Label>OT</Label>
                       <Input
+                        className="h-11 rounded-xl text-base md:text-sm"
                         type="number"
                         min="0"
                         value={record.overtime_hours}
@@ -1468,6 +1473,7 @@ const DailyReports = () => {
                     <div className="md:col-span-1 space-y-1">
                       <Label>Qty</Label>
                       <Input
+                        className="h-11 rounded-xl text-base md:text-sm"
                         type="number"
                         min="0"
                         value={record.completed_quantity}
@@ -1486,6 +1492,7 @@ const DailyReports = () => {
                     <div className="md:col-span-2 space-y-1">
                       <Label>Role</Label>
                       <Input
+                        className="h-11 rounded-xl text-base md:text-sm"
                         value={record.worker_role}
                         onChange={(e) => {
                           setLabourRecords((current) =>
@@ -1519,6 +1526,7 @@ const DailyReports = () => {
                     <div className="md:col-span-12 space-y-1">
                       <Label>Notes</Label>
                       <Input
+                        className="h-11 rounded-xl text-base md:text-sm"
                         value={record.notes}
                         onChange={(e) => {
                           setLabourRecords((current) =>
@@ -1540,6 +1548,7 @@ const DailyReports = () => {
             <div className="space-y-2">
               <Label>Completed Quantity Today</Label>
               <Input
+                className="h-11 rounded-xl text-base md:text-sm"
                 type="number"
                 min="0"
                 value={completedQuantity}
@@ -1553,7 +1562,7 @@ const DailyReports = () => {
               <Input
                 value={progressPercent}
                 readOnly
-                className="bg-slate-50"
+                className="h-11 rounded-xl bg-slate-50 text-base md:text-sm"
               />
 
               <p className="text-xs text-slate-500">
@@ -1564,6 +1573,7 @@ const DailyReports = () => {
             <div className="col-span-2 space-y-2">
               <Label>Work Completed</Label>
               <Textarea
+                className="min-h-24 rounded-xl text-base md:text-sm"
                 value={workCompleted}
                 onChange={(e) => setWorkCompleted(e.target.value)}
                 rows={3}
@@ -1573,6 +1583,7 @@ const DailyReports = () => {
             <div className="col-span-2 space-y-2">
               <Label>Issues Found</Label>
               <Textarea
+                className="min-h-24 rounded-xl text-base md:text-sm"
                 value={issuesFound}
                 onChange={(e) => setIssuesFound(e.target.value)}
                 rows={3}
@@ -1582,6 +1593,7 @@ const DailyReports = () => {
             <div className="col-span-2 space-y-2">
               <Label>Next Actions</Label>
               <Textarea
+                className="min-h-24 rounded-xl text-base md:text-sm"
                 value={nextActions}
                 onChange={(e) => setNextActions(e.target.value)}
                 rows={3}
@@ -1591,6 +1603,7 @@ const DailyReports = () => {
             <div className="col-span-2 space-y-2">
               <Label>Notes</Label>
               <Textarea
+                className="min-h-24 rounded-xl text-base md:text-sm"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
@@ -1599,6 +1612,7 @@ const DailyReports = () => {
             <div className="col-span-2 space-y-2">
               <Label>Photos</Label>
               <Input
+                className="h-11 rounded-xl text-base md:text-sm"
                 type="file"
                 accept="image/*"
                 multiple
@@ -1617,6 +1631,7 @@ const DailyReports = () => {
             <div className="col-span-2 space-y-2">
               <Label>Photo Caption</Label>
               <Input
+                className="h-11 rounded-xl text-base md:text-sm"
                 value={photoCaption}
                 onChange={(e) => setPhotoCaption(e.target.value)}
                 placeholder="Optional caption for uploaded photos"
