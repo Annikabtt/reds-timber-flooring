@@ -492,14 +492,16 @@ const DailyReports = () => {
 
       if (workerInsertError) throw workerInsertError;
 
-      if (photoFiles.length > 0) {
-        for (const file of photoFiles) {
-          const fileExt = file.name.split(".").pop();
-          const fileName = `${createdReport.report_id}/${crypto.randomUUID()}.${fileExt}`;
+      if (pendingPhotos.length > 0) {
+        for (const photo of pendingPhotos) {
+          const fileExt = photo.file.name.split(".").pop();
+
+          const fileName =
+            `${createdReport.report_id}/${crypto.randomUUID()}.${fileExt}`;
 
           const { error: uploadError } = await supabase.storage
             .from("daily-report-photos")
-            .upload(fileName, file);
+            .upload(fileName, photo.file);
 
           if (uploadError) throw uploadError;
 
@@ -507,13 +509,24 @@ const DailyReports = () => {
             .from("daily_report_photos")
             .insert({
               report_id: createdReport.report_id,
+
               photo_url: fileName,
-              caption: photoCaption.trim() || null,
-              is_deleted: false,
+
+              caption: photo.caption?.trim() || null,
+
+              taken_at: photo.takenAt
+                ? new Date(photo.takenAt).toISOString()
+                : null,
+
               approval_status: "Pending",
+
               approved_by: null,
+
               approved_at: null,
+
               rejected_reason: null,
+
+              is_deleted: false,
             });
 
           if (photoInsertError) throw photoInsertError;
