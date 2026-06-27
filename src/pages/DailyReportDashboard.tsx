@@ -40,6 +40,7 @@ const DailyReportDashboard = () => {
     const [photoFile, setPhotoFile] = useState<File | null>(null);
     const [photoCaption, setPhotoCaption] = useState("");
     const [editingWorkerId, setEditingWorkerId] = useState("");
+    const [showLabourForm, setShowLabourForm] = useState(false);
     const [labourEmployeeId, setLabourEmployeeId] = useState("");
     const [labourActivityTypeId, setLabourActivityTypeId] = useState("");
     const [labourRegularHours, setLabourRegularHours] = useState("");
@@ -219,6 +220,7 @@ const DailyReportDashboard = () => {
         setLabourCompletedQuantity("");
         setLabourWorkerRole("");
         setLabourNotes("");
+        setShowLabourForm(false);
     };
 
     const { data: workActivityTypes = [] } = useQuery({
@@ -483,6 +485,7 @@ const DailyReportDashboard = () => {
         );
         setLabourWorkerRole(worker.worker_role || "");
         setLabourNotes(worker.notes || "");
+        setShowLabourForm(true);
     };
 
     const updateDailyReport = useMutation({
@@ -1335,130 +1338,151 @@ const DailyReportDashboard = () => {
                     ) : (
                         <p className="text-sm text-slate-500">No labour records added.</p>
                     )}
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h3 className="font-semibold text-slate-900">
+                                {editingWorkerId ? "Edit Worker" : "Workers"}
+                            </h3>
+                            <p className="mt-1 text-xs text-slate-500">
+                                Tip: Combine the same worker and activity into one record. Use Notes to record locations and quantities completed.
+                            </p>
+                        </div>
 
-                    <div className="border-t pt-4 mt-4 space-y-4">
-                        <h3 className="font-semibold text-slate-900">
-                            {editingWorkerId ? "Edit Worker Record" : "Add Worker Record"}
-                        </h3>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div className="space-y-2">
-                                <Label>Employee *</Label>
-                                <Select value={labourEmployeeId} onValueChange={setLabourEmployeeId}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select employee" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {employees.map((employee) => (
-                                            <SelectItem
-                                                key={employee.employee_id}
-                                                value={employee.employee_id}
-                                            >
-                                                {employee.display_name ||
-                                                    `${employee.first_name || ""} ${employee.last_name || ""}`.trim() ||
-                                                    employee.employee_code}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>Activity *</Label>
-                                <Select
-                                    value={labourActivityTypeId}
-                                    onValueChange={setLabourActivityTypeId}
+                        {!showLabourForm && (
+                            <div className="border-t pt-4 mt-4 space-y-4">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setShowLabourForm(true)}
+                                    className="w-auto"
                                 >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select activity" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {workActivityTypes.map((activity) => (
-                                            <SelectItem
-                                                key={activity.activity_type_id}
-                                                value={activity.activity_type_id}
-                                            >
-                                                {activity.activity_name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>Regular Hours</Label>
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    value={labourRegularHours}
-                                    onChange={(event) => setLabourRegularHours(event.target.value)}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>Overtime Hours</Label>
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    value={labourOvertimeHours}
-                                    onChange={(event) => setLabourOvertimeHours(event.target.value)}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>Completed Qty</Label>
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    value={labourCompletedQuantity}
-                                    onChange={(event) =>
-                                        setLabourCompletedQuantity(event.target.value)
-                                    }
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>Role</Label>
-                                <Input
-                                    value={labourWorkerRole}
-                                    onChange={(event) => setLabourWorkerRole(event.target.value)}
-                                    placeholder="Installer / Supervisor"
-                                />
-                            </div>
-
-                            <div className="sm:col-span-2 space-y-2">
-                                <Label>Notes</Label>
-                                <Input
-                                    value={labourNotes}
-                                    onChange={(event) => setLabourNotes(event.target.value)}
-                                    placeholder="Labour notes"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:flex sm:justify-end gap-3">
-                            {editingWorkerId && (
-                                <Button variant="outline" className="w-full sm:w-auto" onClick={resetLabourForm}>
-                                    Cancel Edit
+                                    + Add Worker
                                 </Button>
-                            )}
+                            </div>
+                        )}
 
-                            <Button
-                                onClick={() => saveLabourRecord.mutate()}
-                                disabled={saveLabourRecord.isPending}
-                                className="bg-red-600 hover:bg-red-700 text-white"
-                            >
-                                {saveLabourRecord.isPending
-                                    ? "Saving..."
-                                    : editingWorkerId
-                                        ? "Update Labour Record"
-                                        : "Add Labour Record"}
-                            </Button>
-                        </div>
+                        {showLabourForm && (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>Employee *</Label>
+                                        <Select value={labourEmployeeId} onValueChange={setLabourEmployeeId}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select employee" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {employees.map((employee) => (
+                                                    <SelectItem
+                                                        key={employee.employee_id}
+                                                        value={employee.employee_id}
+                                                    >
+                                                        {employee.display_name ||
+                                                            `${employee.first_name || ""} ${employee.last_name || ""}`.trim() ||
+                                                            employee.employee_code}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Activity *</Label>
+                                        <Select
+                                            value={labourActivityTypeId}
+                                            onValueChange={setLabourActivityTypeId}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select activity" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {workActivityTypes.map((activity) => (
+                                                    <SelectItem
+                                                        key={activity.activity_type_id}
+                                                        value={activity.activity_type_id}
+                                                    >
+                                                        {activity.activity_name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Regular Hours</Label>
+                                        <Input
+                                            type="number"
+                                            min="0"
+                                            value={labourRegularHours}
+                                            onChange={(event) => setLabourRegularHours(event.target.value)}
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Overtime Hours</Label>
+                                        <Input
+                                            type="number"
+                                            min="0"
+                                            value={labourOvertimeHours}
+                                            onChange={(event) => setLabourOvertimeHours(event.target.value)}
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Completed Qty</Label>
+                                        <Input
+                                            type="number"
+                                            min="0"
+                                            value={labourCompletedQuantity}
+                                            onChange={(event) =>
+                                                setLabourCompletedQuantity(event.target.value)
+                                            }
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Role</Label>
+                                        <Input
+                                            value={labourWorkerRole}
+                                            onChange={(event) => setLabourWorkerRole(event.target.value)}
+                                            placeholder="Installer / Supervisor"
+                                        />
+                                    </div>
+
+                                    <div className="sm:col-span-2 space-y-2">
+                                        <Label>Notes</Label>
+                                        <Input
+                                            value={labourNotes}
+                                            onChange={(event) => setLabourNotes(event.target.value)}
+                                            placeholder="Labour notes"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:flex sm:justify-end gap-3">
+                                    <Button
+                                        variant="outline"
+                                        className="w-full sm:w-auto"
+                                        onClick={resetLabourForm}
+                                    >
+                                        Cancel
+                                    </Button>
+
+                                    <Button
+                                        onClick={() => saveLabourRecord.mutate()}
+                                        disabled={saveLabourRecord.isPending}
+                                        className="bg-red-600 hover:bg-red-700 text-white"
+                                    >
+                                        {saveLabourRecord.isPending
+                                            ? "Saving..."
+                                            : editingWorkerId
+                                                ? "Update Worker"
+                                                : "Save Worker"}
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                 </div>
-
                 {report.daily_report_activities?.length ? (
                     <div className="flex flex-wrap gap-2">
                         {report.daily_report_activities.map((item) => (
