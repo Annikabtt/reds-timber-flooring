@@ -25,7 +25,10 @@ import { MobileFormSection } from "@/components/mobile/MobileFormSection";
 import { MobileWorkerCard } from "@/components/mobile/MobileWorkerCard";
 import { MobileProgressSummary } from "@/components/mobile/MobileProgressSummary";
 import { MobileSiteNotes } from "@/components/mobile/MobileSiteNotes";
-import { MobilePhotoUpload } from "@/components/mobile/MobilePhotoUpload";
+import {
+  MobilePhotoUpload,
+  type PendingPhoto,
+} from "@/components/mobile/MobilePhotoUpload";
 
 
 type LabourRecord = {
@@ -63,8 +66,12 @@ const DailyReports = () => {
   const [issuesFound, setIssuesFound] = useState("");
   const [nextActions, setNextActions] = useState("");
   const [notes, setNotes] = useState("");
-  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
-  const [photoCaption, setPhotoCaption] = useState("");
+  const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([]);
+
+  // ใช้ชั่วคราวระหว่างการ Refactor
+  const photoFiles = pendingPhotos.map((photo) => photo.file);
+  const photoCaption = "";
+  const setPhotoCaption = () => { };
   const [selectedActivityTypeIds, setSelectedActivityTypeIds] = useState<string[]>([]);
   const [labourRecords, setLabourRecords] = useState<LabourRecord[]>([
     {
@@ -380,8 +387,7 @@ const DailyReports = () => {
     setIssuesFound("");
     setNextActions("");
     setNotes("");
-    setPhotoFiles([]);
-    setPhotoCaption("");
+    setPendingPhotos([]);
     setSelectedActivityTypeIds([]);
     setLabourRecords([
       {
@@ -1517,10 +1523,8 @@ const DailyReports = () => {
             />
           </MobileFormSection>
           <MobilePhotoUpload
-            photoFiles={photoFiles}
-            photoCaption={photoCaption}
-            setPhotoFiles={setPhotoFiles}
-            setPhotoCaption={setPhotoCaption}
+            pendingPhotos={pendingPhotos}
+            setPendingPhotos={setPendingPhotos}
           />
           <div className="sticky bottom-0 -mx-4 mt-4 border-t bg-white px-4 py-3 sm:static sm:mx-0 sm:flex sm:justify-end sm:gap-2 sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0">
             <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-2">
