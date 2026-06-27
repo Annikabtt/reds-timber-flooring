@@ -492,51 +492,94 @@ const DailyReports = () => {
 
       if (workerInsertError) throw workerInsertError;
 
+      let uploadedPhotoCount = 0;
+      let failedPhotoCount = 0;
+
       if (pendingPhotos.length > 0) {
         for (const photo of pendingPhotos) {
-          const fileExt = photo.file.name.split(".").pop();
+          setPendingPhotos((prev) =>
+            prev.map((item) =>
+              item.id === photo.id
+                ? { ...item, status: "uploading", error: "" }
+                : item
+            )
+          );
 
-          const fileName =
-            `${createdReport.report_id}/${crypto.randomUUID()}.${fileExt}`;
+          try {
+            const fileExt = photo.file.name.split(".").pop();
 
-          const { error: uploadError } = await supabase.storage
-            .from("daily-report-photos")
-            .upload(fileName, photo.file);
+            const fileName =
+              `${createdReport.report_id}/${crypto.randomUUID()}.${fileExt}`;
 
-          if (uploadError) throw uploadError;
+            const { error: uploadError } = await supabase.storage
+              .from("daily-report-photos")
+              .upload(fileName, photo.file);
 
-          const { error: photoInsertError } = await supabase
-            .from("daily_report_photos")
-            .insert({
-              report_id: createdReport.report_id,
+            if (uploadError) throw uploadError;
 
-              photo_url: fileName,
+            const { error: photoInsertError } = await supabase
+              .from("daily_report_photos")
+              .insert({
+                report_id: createdReport.report_id,
+                photo_url: fileName,
+                caption: photo.caption?.trim() || null,
+                taken_at: photo.takenAt
+                  ? new Date(photo.takenAt).toISOString()
+                  : null,
+                approval_status: "Pending",
+                approved_by: null,
+                approved_at: null,
+                rejected_reason: null,
+                is_deleted: false,
+              });
 
-              caption: photo.caption?.trim() || null,
+            if (photoInsertError) throw photoInsertError;
 
-              taken_at: photo.takenAt
-                ? new Date(photo.takenAt).toISOString()
-                : null,
+            uploadedPhotoCount += 1;
 
-              approval_status: "Pending",
+            setPendingPhotos((prev) =>
+              prev.map((item) =>
+                item.id === photo.id
+                  ? { ...item, status: "uploaded", error: "" }
+                  : item
+              )
+            );
+          } catch (error) {
+            failedPhotoCount += 1;
 
-              approved_by: null,
-
-              approved_at: null,
-
-              rejected_reason: null,
-
-              is_deleted: false,
-            });
-
-          if (photoInsertError) throw photoInsertError;
+            setPendingPhotos((prev) =>
+              prev.map((item) =>
+                item.id === photo.id
+                  ? {
+                    ...item,
+                    status: "uploaded",
+                    error:
+                      error instanceof Error
+                        ? error.message
+                        : "Photo upload failed.",
+                  }
+                  : item
+              )
+            );
+          }
         }
       }
 
-    },
-    onSuccess: () => {
+      return {
+        uploadedPhotoCount,
+        failedPhotoCount,
+      };
 
-      toast.success("Daily report created successfully.");
+    },
+    onSuccess: (result) => {
+
+      if (result.failedPhotoCount > 0) {
+        toast.warning(
+          `Daily report saved. ${result.uploadedPhotoCount} photo(s) uploaded, ${result.failedPhotoCount} failed.`
+        );
+      } else {
+        toast.success("Daily report created successfully.");
+      }
       queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
       queryClient.invalidateQueries({
         queryKey: ["work-orders-for-daily-reports"],
