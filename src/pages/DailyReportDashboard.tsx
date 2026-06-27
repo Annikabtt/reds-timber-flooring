@@ -303,6 +303,20 @@ const DailyReportDashboard = () => {
         areaEstimatedQuantity > 0 &&
         areaReportedSummary.totalReported > areaEstimatedQuantity;
 
+    const getDailyReportPhotoUrl = (photoUrl?: string | null) => {
+        if (!photoUrl) return "";
+
+        if (photoUrl.startsWith("http")) {
+            return photoUrl;
+        }
+
+        const { data } = supabase.storage
+            .from("daily-report-photos")
+            .getPublicUrl(photoUrl);
+
+        return data.publicUrl;
+    };
+
     const activePhotos =
         report?.daily_report_photos?.filter((photo) => !photo.is_deleted) || [];
 
@@ -1643,7 +1657,7 @@ const DailyReportDashboard = () => {
                     0 ? (
                     <p className="text-sm text-slate-500">No photos uploaded.</p>
                 ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
                         {report.daily_report_photos
                             ?.filter((photo) => !photo.is_deleted)
                             .map((photo) => (
@@ -1652,7 +1666,7 @@ const DailyReportDashboard = () => {
                                     className="border rounded-xl overflow-hidden bg-white"
                                 >
                                     <img
-                                        src={photo.photo_url}
+                                        src={getDailyReportPhotoUrl(photo.photo_url)}
                                         alt={photo.caption || "Daily report photo"}
                                         className="w-full h-44 sm:h-48 object-cover"
                                     />
