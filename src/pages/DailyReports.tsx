@@ -486,8 +486,37 @@ const DailyReports = () => {
 
       if (workerInsertError) throw workerInsertError;
 
+      if (photoFiles.length > 0) {
+        for (const file of photoFiles) {
+          const fileExt = file.name.split(".").pop();
+          const fileName = `${createdReport.report_id}/${crypto.randomUUID()}.${fileExt}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from("daily-report-photos")
+            .upload(fileName, file);
+
+          if (uploadError) throw uploadError;
+
+          const { error: photoInsertError } = await supabase
+            .from("daily_report_photos")
+            .insert({
+              report_id: createdReport.report_id,
+              photo_url: fileName,
+              caption: photoCaption.trim() || null,
+              is_deleted: false,
+              approval_status: "Pending",
+              approved_by: null,
+              approved_at: null,
+              rejected_reason: null,
+            });
+
+          if (photoInsertError) throw photoInsertError;
+        }
+      }
+
     },
     onSuccess: () => {
+
       toast.success("Daily report created successfully.");
       queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
       queryClient.invalidateQueries({
