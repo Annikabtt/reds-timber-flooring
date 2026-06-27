@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { DollarSign, FolderKanban, FileText, Users, Shield } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +9,42 @@ const money = (value: number) =>
     style: "currency",
     currency: "AUD",
   }).format(value || 0);
+
+function DashboardSection({
+  title,
+  description,
+  tone = "slate",
+  children,
+}: {
+  title: string;
+  description?: string;
+  tone?: "blue" | "green" | "purple" | "sky" | "red" | "slate";
+  children: ReactNode;
+}) {
+  const toneClass = {
+    blue: "border-l-blue-500 bg-blue-50/30",
+    green: "border-l-green-500 bg-green-50/30",
+    purple: "border-l-purple-500 bg-purple-50/30",
+    sky: "border-l-sky-500 bg-sky-50/30",
+    red: "border-l-red-500 bg-red-50/30",
+    slate: "border-l-slate-400 bg-slate-50/30",
+  }[tone];
+
+  return (
+    <section
+      className={`rounded-2xl border border-slate-200 border-l-4 bg-white p-4 shadow-sm sm:p-5 ${toneClass}`}
+    >
+      <div className="mb-4">
+        <h2 className="text-lg font-bold text-slate-900">{title}</h2>
+        {description && (
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        )}
+      </div>
+
+      {children}
+    </section>
+  );
+}
 
 function MetricCard({
   title,
@@ -22,7 +58,7 @@ function MetricCard({
   note?: string;
 }) {
   return (
-    <Card className="rounded-2xl shadow-sm">
+    <Card className="rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium text-slate-500">
           {title}
@@ -359,59 +395,65 @@ export default function PortalDashboard() {
       </div>
 
       <section>
-        <h2 className="text-lg font-semibold text-slate-800 mb-3">
-          General KPI
-        </h2>
+        <DashboardSection
+          title="General KPI"
+          description="Core business numbers at a glance."
+          tone="blue"
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
+            <MetricCard
+              title="Total Invoices"
+              value={String(summary.totalInvoices)}
+              icon={FileText}
+            />
 
-        <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(250px,1fr))]">
+            <MetricCard
+              title="Revenue Invoiced"
+              value={money(summary.revenue)}
+              icon={DollarSign}
+            />
 
-          <MetricCard
-            title="Total Invoices"
-            value={String(summary.totalInvoices)}
-            icon={FileText}
-          />
-          <MetricCard
-            title="Revenue Invoiced"
-            value={money(summary.revenue)}
-            icon={DollarSign}
-          />
+            <MetricCard
+              title="Active Employees"
+              value={String(summary.activeEmployees)}
+              icon={Users}
+            />
+          </div>
+        </DashboardSection>
 
-          <MetricCard
-            title="Active Employees"
-            value={String(summary.activeEmployees)}
-            icon={Users}
-          />
-        </div>
-
-        <section>
-          <h2 className="text-lg font-semibold text-slate-800 mb-3">
-            Cash Flow
-          </h2>
-
-          <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(250px,1fr))]">
+        <DashboardSection
+          title="Cash Flow"
+          description="Cash received, outstanding invoices and upcoming obligations."
+          tone="green"
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
             <MetricCard
               title="Payments Received"
               value={money(summary.received)}
               icon={DollarSign}
             />
+
             <MetricCard
               title="Collection Rate"
               value={`${summary.collectionRate.toFixed(1)}%`}
               icon={DollarSign}
               note="Payments received divided by invoices"
             />
+
             <MetricCard
               title="Outstanding"
               value={money(summary.outstanding)}
               icon={DollarSign}
               note="Invoice amount minus payments received"
             />
+
             <MetricCard
               title="Overdue"
               value={money(summary.overdueAmount)}
               icon={DollarSign}
               note="Unpaid invoices past due date"
             />
+
             <MetricCard
               title="Due Next 7 Days"
               value={money(summary.dueNext7Days)}
@@ -425,6 +467,7 @@ export default function PortalDashboard() {
               icon={DollarSign}
               note="Unpaid invoices due this month"
             />
+
             {canViewFinancialSensitiveData && (
               <MetricCard
                 title="Payroll Due"
@@ -433,6 +476,7 @@ export default function PortalDashboard() {
                 note="Estimated payroll amount"
               />
             )}
+
             {canViewFinancialSensitiveData && (
               <MetricCard
                 title="Net Cash Position"
@@ -442,15 +486,15 @@ export default function PortalDashboard() {
               />
             )}
           </div>
-        </section>
+        </DashboardSection>
 
       </section>
-      <section>
-        <h2 className="text-lg font-semibold text-slate-800 mb-3">
-          Project KPI
-        </h2>
-
-        <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(250px,1fr))]">
+      <DashboardSection
+        title="Project KPI"
+        description="Overall project performance and contract values."
+        tone="purple"
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
           <MetricCard
             title="Total Projects"
             value={String(summary.totalProjects)}
@@ -462,16 +506,19 @@ export default function PortalDashboard() {
             value={String(summary.activeProjects)}
             icon={FolderKanban}
           />
+
           <MetricCard
             title="Completed Projects"
             value={String(summary.completedProjects)}
             icon={FolderKanban}
           />
+
           <MetricCard
             title="Contract Value"
             value={money(summary.contractValue)}
             icon={DollarSign}
           />
+
           <MetricCard
             title="Project Outstanding"
             value={money(summary.projectOutstanding)}
@@ -479,12 +526,12 @@ export default function PortalDashboard() {
             note="Total unpaid invoice balance"
           />
         </div>
-      </section>
-      <section>
-        <h2 className="text-lg font-semibold text-slate-800 mb-3">
-          Project Status Summary
-        </h2>
-
+      </DashboardSection>
+      <DashboardSection
+        title="Project Status Summary"
+        description="Current number of projects grouped by project status."
+        tone="slate"
+      >
         <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(250px,1fr))]">
           {Object.entries(summary.projectStatusSummary).map(
             ([status, count]) => (
@@ -497,19 +544,19 @@ export default function PortalDashboard() {
             )
           )}
         </div>
-      </section>
-      <section>
-        <h2 className="text-lg font-semibold text-slate-800 mb-3">
-          Revenue Trend
-        </h2>
-
+      </DashboardSection>
+      <DashboardSection
+        title="Revenue Trend"
+        description="Revenue performance compared with the previous month."
+        tone="sky"
+      >
         <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(250px,1fr))]">
           <MetricCard
             title="Revenue This Month"
             value={money(summary.revenueThisMonth)}
             icon={DollarSign}
-
           />
+
           <MetricCard
             title="Revenue Last Month"
             value={money(summary.revenueLastMonth)}
@@ -521,14 +568,13 @@ export default function PortalDashboard() {
             value={`${summary.revenueGrowth.toFixed(1)}%`}
             icon={DollarSign}
           />
-
         </div>
-      </section>
-      <section>
-        <h2 className="text-lg font-semibold text-slate-800 mb-3">
-          Top Projects
-        </h2>
-
+      </DashboardSection>
+      <DashboardSection
+        title="Top Projects"
+        description="Largest projects ranked by contract value."
+        tone="slate"
+      >
         <Card className="rounded-2xl shadow-sm">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -577,12 +623,12 @@ export default function PortalDashboard() {
             </div>
           </CardContent>
         </Card>
-      </section>
-      <section>
-        <h2 className="text-lg font-semibold text-slate-800 mb-3">
-          Top Customers
-        </h2>
-
+      </DashboardSection>
+      <DashboardSection
+        title="Top Customers"
+        description="Customers ranked by revenue and outstanding balance."
+        tone="slate"
+      >
         <Card className="rounded-2xl shadow-sm">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -636,42 +682,42 @@ export default function PortalDashboard() {
             </div>
           </CardContent>
         </Card>
-      </section>
+      </DashboardSection>
       {canViewFinancialSensitiveData && (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <Shield className="h-5 w-5 text-red-600" />
-            <h2 className="text-lg font-semibold text-slate-800">
-              Executive KPI
-            </h2>
-          </div>
-
-          <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(250px,1fr))]">
+        <DashboardSection
+          title="Executive KPI"
+          description="Sensitive financial performance available to executive roles only."
+          tone="red"
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
             <MetricCard
               title="Contract Value"
               value={money(summary.contractValue)}
               icon={DollarSign}
             />
+
             <MetricCard
               title="Payroll Cost"
               value={money(summary.payrollCost)}
               icon={DollarSign}
               note="Hidden from non-executive users"
             />
+
             <MetricCard
               title="Profit"
               value={money(summary.profit)}
               icon={DollarSign}
               note="Revenue minus payroll cost"
             />
+
             <MetricCard
               title="Margin"
               value={`${summary.margin.toFixed(2)}%`}
               icon={DollarSign}
             />
           </div>
-        </section>
+        </DashboardSection>
       )}
-    </div>
+    </div >
   );
 }
