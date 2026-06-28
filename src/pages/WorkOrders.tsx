@@ -312,22 +312,18 @@ work_assignments (
       if (error) throw error;
 
       if (selectedEmployeeIds.length > 0) {
-        const assignmentRows = selectedEmployeeIds.map((employeeId) => ({
-          employee_id: employeeId,
-          project_id: projectId,
-          site_id: siteId,
-          area_id: areaId || null,
-          work_order_id: newWorkOrder.work_order_id,
-          assigned_date: plannedStartDate || new Date().toISOString().slice(0, 10),
-          notes: null,
-          is_deleted: false,
-        }));
+        for (const employeeId of selectedEmployeeIds) {
+          const { error: assignmentError } = await supabase.rpc("create_work_assignment", {
+            p_employee_id: employeeId,
+            p_project_id: projectId,
+            p_site_id: siteId,
+            p_area_id: areaId || null,
+            p_work_order_id: newWorkOrder.work_order_id,
+            p_notes: null,
+          });
 
-        const { error: assignmentError } = await supabase
-          .from("work_assignments")
-          .insert(assignmentRows);
-
-        if (assignmentError) throw assignmentError;
+          if (assignmentError) throw assignmentError;
+        }
       }
     },
     onSuccess: () => {
@@ -527,12 +523,24 @@ work_assignments (
       </div>
 
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Work Order</DialogTitle>
           </DialogHeader>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <div className="border-b pb-2">
+                <h3 className="text-sm font-bold text-slate-900">
+                  Work Order Details
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Select the project location and basic work information.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+              </div>
+            </div>
             <div className="col-span-2 space-y-2">
               <Label>Project *</Label>
               <Select
@@ -680,103 +688,126 @@ work_assignments (
                 onChange={(e) => setPlannedEndDate(e.target.value)}
               />
             </div>
-            <div className="col-span-2 space-y-3">
-              <Label>Assign Workers to this Work Order</Label>
+          </div>
 
-              <Input
-                value={workerSearchTerm}
-                onChange={(event) => setWorkerSearchTerm(event.target.value)}
-                placeholder="Search worker by code or name"
-              />
+          <div className="space-y-3">
+            <div className="border-b pb-2">
+              <h3 className="text-sm font-bold text-slate-900">
+                Worker Assignment
+              </h3>
+              <p className="text-xs text-slate-500">
+                Select workers who will be assigned after this work order is saved.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <Label>Assign Workers to this Work Order</Label>
 
-              <Select
-                key={selectedEmployeeIds.join("-")}
-                onValueChange={(employeeId) => {
-                  if (!selectedEmployeeIds.includes(employeeId)) {
-                    setSelectedEmployeeIds((current) => [...current, employeeId]);
-                  }
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select worker to assign" />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredWorkers.map((employee) => {
+            <Input
+              value={workerSearchTerm}
+              onChange={(event) => setWorkerSearchTerm(event.target.value)}
+              placeholder="Search worker by code or name"
+            />
+
+            <Select
+              key={selectedEmployeeIds.join("-")}
+              onValueChange={(employeeId) => {
+                if (!selectedEmployeeIds.includes(employeeId)) {
+                  setSelectedEmployeeIds((current) => [...current, employeeId]);
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select worker to assign" />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredWorkers.map((employee) => {
+                  const employeeName =
+                    employee.display_name ||
+                    `${employee.first_name || ""} ${employee.last_name || ""}`.trim() ||
+                    employee.employee_code;
+
+                  return (
+                    <SelectItem
+                      key={employee.employee_id}
+                      value={employee.employee_id}
+                      disabled={selectedEmployeeIds.includes(employee.employee_id)}
+                    >
+                      {employee.employee_code || "-"} - {employeeName}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+              <p className="text-sm font-semibold text-slate-900">
+                Selected Workers
+              </p>
+
+              {selectedEmployeeIds.length === 0 ? (
+                <p className="text-sm text-slate-500">
+                  No workers selected.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {selectedEmployeeIds.map((employeeId) => {
+                    const employee = employees.find(
+                      (item) => item.employee_id === employeeId
+                    );
+
                     const employeeName =
-                      employee.display_name ||
-                      `${employee.first_name || ""} ${employee.last_name || ""}`.trim() ||
-                      employee.employee_code;
+                      employee?.display_name ||
+                      `${employee?.first_name || ""} ${employee?.last_name || ""}`.trim() ||
+                      employee?.employee_code ||
+                      "-";
 
                     return (
-                      <SelectItem
-                        key={employee.employee_id}
-                        value={employee.employee_id}
-                        disabled={selectedEmployeeIds.includes(employee.employee_id)}
+                      <div
+                        key={employeeId}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2"
                       >
-                        {employee.employee_code || "-"} - {employeeName}
-                      </SelectItem>
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">
+                            {employee?.employee_code || "-"} - {employeeName}
+                          </p>
+                          <p className="text-xs text-green-700">
+                            Pending assignment
+                          </p>
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-orange-600 hover:text-orange-700"
+                          onClick={() =>
+                            setSelectedEmployeeIds((current) =>
+                              current.filter((id) => id !== employeeId)
+                            )
+                          }
+                        >
+                          End Assignment
+                        </Button>
+                      </div>
                     );
                   })}
-                </SelectContent>
-              </Select>
-
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
-                <p className="text-sm font-semibold text-slate-900">
-                  Active Workers
-                </p>
-
-                {selectedEmployeeIds.length === 0 ? (
-                  <p className="text-sm text-slate-500">
-                    No active workers.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {selectedEmployeeIds.map((employeeId) => {
-                      const employee = employees.find(
-                        (item) => item.employee_id === employeeId
-                      );
-
-                      const employeeName =
-                        employee?.display_name ||
-                        `${employee?.first_name || ""} ${employee?.last_name || ""}`.trim() ||
-                        employee?.employee_code ||
-                        "-";
-
-                      return (
-                        <div
-                          key={employeeId}
-                          className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2"
-                        >
-                          <div>
-                            <p className="text-sm font-medium text-slate-900">
-                              {employee?.employee_code || "-"} - {employeeName}
-                            </p>
-                            <p className="text-xs text-green-700">
-                              🟢 Active since: {plannedStartDate || "Today"}
-                            </p>
-                          </div>
-
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="text-red-600 hover:text-red-700"
-                            onClick={() =>
-                              setSelectedEmployeeIds((current) =>
-                                current.filter((id) => id !== employeeId)
-                              )
-                            }
-                          >
-                            Remove
-                          </Button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
-            <div className="col-span-2 space-y-2">
+          </div>
+
+          <div className="space-y-3">
+            <div className="border-b pb-2">
+              <h3 className="text-sm font-bold text-slate-900">
+                Additional Information
+              </h3>
+              <p className="text-xs text-slate-500">
+                Add work details, notes, or instructions for the team.
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <Label>Description</Label>
               <Textarea
                 value={description}
@@ -785,13 +816,14 @@ work_assignments (
               />
             </div>
 
-            <div className="col-span-2 space-y-2">
+            <div className="space-y-2">
               <Label>Notes</Label>
               <Textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
               />
+
             </div>
           </div>
 
@@ -816,7 +848,7 @@ work_assignments (
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   );
 };
 

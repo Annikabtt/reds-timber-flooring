@@ -4,6 +4,14 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
     Dialog,
     DialogContent,
     DialogHeader,
@@ -45,6 +53,34 @@ const getStatusBadgeClass = (status: string | null) => {
     }
 };
 
+const formatAssignmentDateTime = (value: string | null) => {
+    if (!value) return "-";
+
+    return new Intl.DateTimeFormat("en-AU", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+    }).format(new Date(value));
+};
+
+const getAssignmentDurationText = (
+    assignedDate: string | null,
+    endedDate: string | null
+) => {
+    if (!assignedDate || !endedDate) return "-";
+
+    const startDate = new Date(assignedDate);
+    const endDate = new Date(endedDate);
+
+    const diffTime = endDate.getTime() - startDate.getTime();
+    const diffDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
+
+    return `${diffDays} Days`;
+};
+
 const getPriorityBadgeClass = (priority: string | null) => {
     switch (priority) {
         case "Low":
@@ -65,6 +101,9 @@ const WorkOrderDashboard = () => {
     const { workOrderId } = useParams();
 
     const [showEditDialog, setShowEditDialog] = useState(false);
+    const [showAssignWorkerDialog, setShowAssignWorkerDialog] = useState(false);
+    const [selectedWorkerId, setSelectedWorkerId] = useState("");
+    const [workerSearchTerm, setWorkerSearchTerm] = useState("");
     const [editPriority, setEditPriority] = useState("Normal");
     const [editStatus, setEditStatus] = useState("Open");
     const [editPlannedStartDate, setEditPlannedStartDate] = useState("");
@@ -111,10 +150,13 @@ const WorkOrderDashboard = () => {
           ),
           work_assignments (
             work_assignment_id,
+            assigned_at,
+            ended_at,
             is_deleted,
             employees (
-              employee_code,
-              display_name,
+            employee_id,
+            employee_code,
+            display_name,
               first_name,
               last_name
             )
@@ -123,6 +165,27 @@ const WorkOrderDashboard = () => {
                 .eq("work_order_id", workOrderId)
                 .eq("is_deleted", false)
                 .single();
+
+            if (error) throw error;
+            return data;
+        },
+    });
+
+    const { data: employees = [] } = useQuery({
+        queryKey: ["employees-for-work-order-dashboard"],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("employees")
+                .select(`
+                employee_id,
+                employee_code,
+                first_name,
+                last_name,
+                display_name
+            `)
+                .eq("is_deleted", false)
+                .eq("is_active", true)
+                .order("employee_code", { ascending: true });
 
             if (error) throw error;
             return data;
@@ -143,6 +206,29 @@ const WorkOrderDashboard = () => {
 
             return data;
         },
+    });
+
+    const activeEmployeeIds = new Set(
+        workOrder?.work_assignments
+            ?.filter((assignment) => !assignment.is_deleted && !assignment.ended_at)
+            .map((assignment) => assignment.employees?.employee_id) || []
+    );
+
+    const filteredWorkers = employees.filter((employee) => {
+        const keyword = workerSearchTerm.toLowerCase().trim();
+
+        const employeeName =
+            employee.display_name ||
+            `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
+
+        const matchesSearch =
+            !keyword ||
+            employee.employee_code?.toLowerCase().includes(keyword) ||
+            employeeName.toLowerCase().includes(keyword);
+
+        const isAlreadyActive = activeEmployeeIds.has(employee.employee_id);
+
+        return matchesSearch && !isAlreadyActive;
     });
 
     const assignedEmployees =
@@ -190,6 +276,58 @@ const WorkOrderDashboard = () => {
             toast.error(error.message);
         },
     });
+
+    const assignWorker = useMutation({
+        mutationFn: async () => {
+            if (!workOrder) {
+                throw new Error("Work order is missing.");
+            }
+
+            if (!selectedWorkerId) {
+                throw new Error("Please select worker.");
+            }
+
+            const { error } = await supabase.rpc("create_work_assignment", {
+                p_employee_id: selectedWorkerId,
+                p_project_id: workOrder.project_id,
+                p_site_id: workOrder.site_id,
+                p_area_id: workOrder.area_id || null,
+                p_work_order_id: workOrder.work_order_id,
+                p_notes: null,
+            });
+
+            if (error) throw error;
+        },
+        onSuccess: async () => {
+            toast.success("Worker assigned.");
+
+            await queryClient.invalidateQueries({ queryKey: ["work_order", workOrderId] });
+            await queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+
+            setShowAssignWorkerDialog(false);
+            setSelectedWorkerId("");
+            setWorkerSearchTerm("");
+        },
+    });
+
+    const endAssignment = useMutation({
+        mutationFn: async (workAssignmentId: string) => {
+            const { error } = await supabase.rpc("end_work_assignment", {
+                p_work_assignment_id: workAssignmentId,
+            });
+
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            toast.success("Assignment ended.");
+            queryClient.invalidateQueries({ queryKey: ["work_order", workOrderId] });
+            queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+        },
+        onError: (error) => {
+            toast.error(error.message);
+        },
+    });
+
     const updateWorkOrderStatus = useMutation({
         mutationFn: async (nextStatus: string) => {
             if (!workOrderId) {
@@ -298,18 +436,38 @@ const WorkOrderDashboard = () => {
                     </Button>
                 )}
 
-                <Button
-                    onClick={() => setShowEditDialog(true)}
-                    className="bg-red-600 hover:bg-red-700 text-white"
-                >
-                    Edit Work Order
-                </Button>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button className="bg-red-600 hover:bg-red-700 text-white">
+                            Manage Work Order
+                        </Button>
+                    </DropdownMenuTrigger>
 
-                <Button onClick={() => setShowEditDialog(true)}
-                    className="bg-red-600 hover:bg-red-700 text-white"
-                >
-                    Edit Work Order
-                </Button>
+                    <DropdownMenuContent align="end" className="w-56">
+                        <DropdownMenuLabel>Work Order Actions</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+
+                        <DropdownMenuItem onClick={() => setShowAssignWorkerDialog(true)}>
+                            Assign Worker
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem onClick={() => setShowEditDialog(true)}>
+                            Edit Work Order
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem disabled>
+                            + Daily Report
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem disabled>
+                            Close Work Order
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem disabled>
+                            Send Customer
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
 
             </div>
 
@@ -457,15 +615,15 @@ const WorkOrderDashboard = () => {
 
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
                     <h2 className="font-bold text-slate-900 mb-4">
-                        Assigned Employees
+                        Assignment History
                     </h2>
 
                     {assignedEmployees.length === 0 ? (
                         <p className="text-sm text-slate-500">
-                            No employees assigned.
+                            No assignment history.
                         </p>
                     ) : (
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                             {assignedEmployees.map((assignment) => {
                                 const employee = assignment.employees;
                                 const employeeName = employee
@@ -476,14 +634,44 @@ const WorkOrderDashboard = () => {
                                 return (
                                     <div
                                         key={assignment.work_assignment_id}
-                                        className="text-sm border rounded-xl px-3 py-2"
+                                        className="text-sm border rounded-xl px-3 py-3 bg-slate-50"
                                     >
-                                        <p className="font-medium text-slate-800">
-                                            {employeeName}
+                                        <p className="font-semibold text-slate-900">
+                                            👷 {employeeName}
                                         </p>
+
                                         <p className="text-xs text-slate-500">
                                             {employee?.employee_code || "-"}
                                         </p>
+
+                                        <div className="mt-2 space-y-1 text-xs">
+                                            <p className="text-green-700">
+                                                🟢 Active Assigned: {formatAssignmentDateTime(assignment.assigned_at)}
+                                            </p>
+
+                                            {assignment.ended_at ? (
+                                                <>
+                                                    <p className="text-red-700">
+                                                        🔴 Ended Assigned: {formatAssignmentDateTime(assignment.ended_at)}
+                                                    </p>
+
+                                                    <p className="text-slate-500">
+                                                        Duration: {getAssignmentDurationText(assignment.assigned_at, assignment.ended_at)}
+                                                    </p>
+                                                </>
+                                            ) : (
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="mt-2 text-red-600 hover:text-red-700"
+                                                    onClick={() => endAssignment.mutate(assignment.work_assignment_id)}
+                                                    disabled={endAssignment.isPending}
+                                                >
+                                                    End Assigned
+                                                </Button>
+                                            )}
+                                        </div>
                                     </div>
                                 );
                             })}
@@ -498,6 +686,83 @@ const WorkOrderDashboard = () => {
                     {workOrder.notes || "No notes."}
                 </p>
             </div>
+            <Dialog
+                open={showAssignWorkerDialog}
+                onOpenChange={(open) => {
+                    setShowAssignWorkerDialog(open);
+
+                    if (!open) {
+                        setSelectedWorkerId("");
+                        setWorkerSearchTerm("");
+                    }
+                }}
+            >
+                <DialogContent className="max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle>Assign Worker</DialogTitle>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label>Search Worker</Label>
+                            <Input
+                                value={workerSearchTerm}
+                                onChange={(event) => setWorkerSearchTerm(event.target.value)}
+                                placeholder="Search by worker code or name"
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>Worker</Label>
+                            <Select value={selectedWorkerId} onValueChange={setSelectedWorkerId}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select worker" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {filteredWorkers.map((employee) => {
+                                        const employeeName =
+                                            employee.display_name ||
+                                            `${employee.first_name || ""} ${employee.last_name || ""}`.trim() ||
+                                            employee.employee_code;
+
+                                        return (
+                                            <SelectItem
+                                                key={employee.employee_id}
+                                                value={employee.employee_id}
+                                            >
+                                                {employee.employee_code || "-"} - {employeeName}
+                                            </SelectItem>
+                                        );
+                                    })}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4">
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setShowAssignWorkerDialog(false);
+                                setSelectedWorkerId("");
+                                setWorkerSearchTerm("");
+                                document.body.style.pointerEvents = "";
+                                document.body.style.overflow = "";
+                            }}
+                        >
+                            Cancel
+                        </Button>
+
+                        <Button
+                            onClick={() => assignWorker.mutate()}
+                            disabled={assignWorker.isPending || !selectedWorkerId}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                        >
+                            {assignWorker.isPending ? "Assigning..." : "Assign Worker"}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
             <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
                 <DialogContent className="max-w-2xl">
                     <DialogHeader>

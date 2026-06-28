@@ -31,7 +31,7 @@ const navItems = [
   { title: "Project Areas", url: "/project-areas", icon: FolderKanban },
 
   { title: "Work Orders", url: "/work-orders", icon: FolderKanban },
-  { title: "Daily Reports", url: "/daily-reports", icon: Camera },
+  { title: "Daily Progress Review", url: "/daily-reports", icon: Camera },
 
   { title: "Employees", url: "/employees", icon: Users },
   { title: "Payroll Periods", url: "/payroll-periods", icon: DollarSign },
