@@ -58,7 +58,9 @@ const WorkOrders = () => {
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("Normal");
   const [status, setStatus] = useState("Open");
-  const [plannedStartDate, setPlannedStartDate] = useState("");
+  const [plannedStartDate, setPlannedStartDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
   const [plannedEndDate, setPlannedEndDate] = useState("");
   const [notes, setNotes] = useState("");
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
@@ -232,24 +234,12 @@ work_assignments (
   }, [sites, projectId]);
 
   const filteredWorkers = useMemo(() => {
-    const keyword = workerSearchTerm.toLowerCase().trim();
-
-    if (!keyword) return employees;
-
-    return employees.filter((employee) => {
-      const employeeCode = employee.employee_code || "";
-      const displayName = employee.display_name || "";
-      const firstName = employee.first_name || "";
-      const lastName = employee.last_name || "";
-      const fullName = `${firstName} ${lastName}`.trim();
-
-      return (
-        employeeCode.toLowerCase().includes(keyword) ||
-        displayName.toLowerCase().includes(keyword) ||
-        fullName.toLowerCase().includes(keyword)
-      );
+    return [...employees].sort((a, b) => {
+      const aCode = a.employee_code || "";
+      const bCode = b.employee_code || "";
+      return aCode.localeCompare(bCode);
     });
-  }, [employees, workerSearchTerm]);
+  }, [employees]);
 
   const filteredAreas = useMemo(() => {
     return areas.filter(
@@ -266,7 +256,7 @@ work_assignments (
     setDescription("");
     setPriority("Normal");
     setStatus("Open");
-    setPlannedStartDate("");
+    setPlannedStartDate(new Date().toISOString().split("T")[0]);
     setPlannedEndDate("");
     setSelectedEmployeeIds([]);
     setWorkerSearchTerm("");
@@ -700,14 +690,9 @@ work_assignments (
               </p>
             </div>
           </div>
+
           <div className="space-y-3">
             <Label>Assign Workers to this Work Order</Label>
-
-            <Input
-              value={workerSearchTerm}
-              onChange={(event) => setWorkerSearchTerm(event.target.value)}
-              placeholder="Search worker by code or name"
-            />
 
             <Select
               key={selectedEmployeeIds.join("-")}
@@ -716,29 +701,37 @@ work_assignments (
                   setSelectedEmployeeIds((current) => [...current, employeeId]);
                 }
               }}
+
             >
+
               <SelectTrigger>
-                <SelectValue placeholder="Select worker to assign" />
+                <SelectValue placeholder="Select worker" />
               </SelectTrigger>
               <SelectContent>
-                {filteredWorkers.map((employee) => {
-                  const employeeName =
-                    employee.display_name ||
-                    `${employee.first_name || ""} ${employee.last_name || ""}`.trim() ||
-                    employee.employee_code;
+                {filteredWorkers
+                  .filter((employee) => !selectedEmployeeIds.includes(employee.employee_id))
+                  .map((employee) => {
+                    const employeeName =
+                      employee.display_name ||
+                      `${employee.first_name || ""} ${employee.last_name || ""}`.trim() ||
+                      employee.employee_code;
 
-                  return (
-                    <SelectItem
-                      key={employee.employee_id}
-                      value={employee.employee_id}
-                      disabled={selectedEmployeeIds.includes(employee.employee_id)}
-                    >
-                      {employee.employee_code || "-"} - {employeeName}
-                    </SelectItem>
-                  );
-                })}
+                    return (
+                      <SelectItem
+                        key={employee.employee_id}
+                        value={employee.employee_id}
+                      >
+                        {employee.employee_code || "-"} - {employeeName}
+                      </SelectItem>
+                    );
+                  })}
               </SelectContent>
+
             </Select>
+
+            <p className="text-xs text-slate-500">
+              Workers already selected are hidden from this list.
+            </p>
 
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
               <p className="text-sm font-semibold text-slate-900">
@@ -787,13 +780,14 @@ work_assignments (
                             )
                           }
                         >
-                          End Assignment
+                          Remove
                         </Button>
                       </div>
                     );
                   })}
                 </div>
               )}
+
             </div>
           </div>
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { CalendarDays, Plus, Search } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -44,6 +44,8 @@ type LabourRecord = {
 const DailyReports = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const workOrderIdFromUrl = searchParams.get("workOrderId");
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -364,6 +366,13 @@ const DailyReports = () => {
     setProgressPercent(calculatedProgress.toFixed(2));
   }, [completedQuantity, selectedArea]);
 
+  useEffect(() => {
+    if (!workOrderIdFromUrl) return;
+
+    setShowAddDialog(true);
+
+  }, [workOrderIdFromUrl]);
+
   const filteredWorkOrders = useMemo(() => {
     return workOrders.filter(
       (workOrder) =>
@@ -372,6 +381,32 @@ const DailyReports = () => {
         workOrder.area_id === areaId
     );
   }, [workOrders, projectId, siteId, areaId]);
+
+  const selectedWorkOrder = useMemo(() => {
+    if (!workOrderIdFromUrl) return null;
+
+    return (
+      workOrders.find(
+        (workOrder) =>
+          workOrder.work_order_id === workOrderIdFromUrl
+      ) || null
+    );
+
+  }, [workOrders, workOrderIdFromUrl]);
+
+  useEffect(() => {
+    if (!selectedWorkOrder) return;
+
+    setProjectId(selectedWorkOrder.project_id || "");
+    setSiteId(selectedWorkOrder.site_id || "");
+    setAreaId(selectedWorkOrder.area_id || "");
+    setWorkOrderId(selectedWorkOrder.work_order_id || "");
+
+    if (!reportDate) {
+      setReportDate(new Date().toISOString().slice(0, 10));
+    }
+
+  }, [selectedWorkOrder, reportDate]);
 
   const resetForm = () => {
     setProjectId("");
@@ -779,7 +814,7 @@ const DailyReports = () => {
 
             <div className="min-w-0">
               <h1 className="text-2xl font-black leading-tight text-slate-900 md:text-3xl">
-                Daily Reports
+                Daily Progress Review
               </h1>
               <p className="mt-0.5 text-sm text-slate-500">
                 Record site progress, labour, weather, and issues.
@@ -890,47 +925,150 @@ const DailyReports = () => {
           />
         </div>
 
-        <div className="rounded-xl bg-slate-50 p-3">
-          <div>
-            <p className="text-xs text-slate-500">Approved Progress</p>
-            <p className="font-bold text-slate-900">
-              {areaSummary.approvedProgress.toFixed(2)} /{" "}
-              {areaSummary.estimatedQuantity.toFixed(2)} sqm
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+            <p className="text-sm font-bold text-slate-900">
+                Area Progress Summary
             </p>
-          </div>
-
-          <div className="rounded-xl bg-slate-50 p-3">
-            <p className="text-xs text-slate-500">Pending Review</p>
-            <p className="font-bold text-amber-700">
-              {areaSummary.pendingReview.toFixed(2)} sqm
+            <p className="mt-1 text-xs text-slate-500">
+                Approved, pending review, Remaining From Estimate, and latest report status.
             </p>
-          </div>
-
-          <div className="rounded-xl bg-slate-50 p-3">
-            <p className="text-xs text-slate-500">Remaining</p>
-            <p className="font-bold text-slate-900">
-              {areaSummary.remaining.toFixed(2)} sqm
-            </p>
-          </div>
-
-          <div className="rounded-xl bg-slate-50 p-3">
-            <p className="text-xs text-slate-500">Latest Report</p>
-            <p className="font-bold text-slate-900">
-              {areaSummary.latestReport}
-            </p>
-          </div>
-
-          <div className="rounded-xl bg-slate-50 p-3">
-            <p className="text-xs text-slate-500">Pending Reports</p>
-            <p className="font-bold text-slate-900">
-              {areaSummary.pendingReports}
-            </p>
-
-          </div>
         </div>
-      </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="text-sm text-slate-500">
+        Latest Report:{" "}
+        <span className="font-semibold text-slate-900">
+            {areaSummary.latestReport}
+        </span>
+    </div>
+</div>
+
+{filterAreaId === "all" ? (
+    <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+        <p className="text-sm font-semibold text-slate-900">
+            Select an area to view area-level progress.
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+            The list below is currently showing reports across all selected areas.
+        </p>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-xl bg-slate-50 p-3">
+                <p className="text-xs font-medium text-slate-500">
+                    Approved Progress
+                </p>
+                <p className="mt-2 text-lg font-black text-slate-900">
+                    {areaSummary.approvedProgress.toFixed(2)} sqm
+                </p>
+            </div>
+
+            <div className="rounded-xl bg-amber-50 p-3">
+                <p className="text-xs font-medium text-amber-700">
+                    Pending Review
+                </p>
+                <p className="mt-2 text-lg font-black text-amber-700">
+                    {areaSummary.pendingReview.toFixed(2)} sqm
+                </p>
+            </div>
+
+            <div className="rounded-xl bg-slate-50 p-3">
+                <p className="text-xs font-medium text-slate-500">
+                    Pending Reports
+                </p>
+                <p className="mt-2 text-lg font-black text-slate-900">
+                    {areaSummary.pendingReports}
+                </p>
+            </div>
+        </div>
+    </div>
+) : (
+    <>
+        <div className="mt-4 max-w-3xl">
+            <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
+                <span>Approved Progress</span>
+                <span className="font-semibold text-slate-900">
+                    {areaSummary.estimatedQuantity > 0
+                        ? `${Math.min(
+                              (areaSummary.approvedProgress /
+                                  areaSummary.estimatedQuantity) *
+                                  100,
+                              100
+                          ).toFixed(2)}%`
+                        : "0.00%"}
+                </span>
+            </div>
+
+            <div className="mt-2 h-3 w-full rounded-full bg-slate-200">
+                <div
+                    className="h-3 rounded-full bg-red-600"
+                    style={{
+                        width: `${
+                            areaSummary.estimatedQuantity > 0
+                                ? Math.min(
+                                      (areaSummary.approvedProgress /
+                                          areaSummary.estimatedQuantity) *
+                                          100,
+                                      100
+                                  )
+                                : 0
+                        }%`,
+                    }}
+                />
+            </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-medium text-slate-500">
+                    Approved Progress
+                </p>
+                <p className="mt-2 text-xl font-black text-slate-900">
+                    {areaSummary.approvedProgress.toFixed(2)} sqm
+                </p>
+            </div>
+
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-xs font-medium text-amber-700">
+                    Pending Review
+                </p>
+                <p className="mt-2 text-xl font-black text-amber-700">
+                    {areaSummary.pendingReview.toFixed(2)} sqm
+                </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-medium text-slate-500">
+                    Remaining
+                </p>
+                <p className="mt-2 text-xl font-black text-slate-900">
+                    {areaSummary.remaining.toFixed(2)} sqm
+                </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-medium text-slate-500">
+                    Estimated Quantity
+                </p>
+                <p className="mt-2 text-xl font-black text-slate-900">
+                    {areaSummary.estimatedQuantity.toFixed(2)} sqm
+                </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-medium text-slate-500">
+                    Pending Reports
+                </p>
+                <p className="mt-2 text-xl font-black text-slate-900">
+                    {areaSummary.pendingReports}
+                </p>
+            </div>
+        </div>
+    </>
+)}
+
+</div>
+
         {/* Desktop table header */}
         <div className="hidden grid-cols-12 gap-3 border-b bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 xl:grid">
           <div className="col-span-1">Date</div>
@@ -1282,6 +1420,15 @@ const DailyReports = () => {
               Add Daily Report
             </DialogTitle>
           </DialogHeader>
+
+          {selectedWorkOrder && (
+            <p className="text-sm text-slate-500">
+              This report is linked to work order{" "}
+              <span className="font-semibold text-slate-700">
+                {selectedWorkOrder.work_order_no || "-"}
+              </span>
+            </p>
+          )}
 
           <div className="space-y-4">
             <MobileFormSection title="Project Details">
