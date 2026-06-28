@@ -354,7 +354,7 @@ export default function Projects() {
           <CardContent className="p-0">
             <Table>
               <TableHeader className="bg-slate-100">
-                <TableRow className="hover:bg-slate-100">npm run dev
+                <TableRow className="hover:bg-slate-100">
                   <TableHead>Project No</TableHead>
                   <TableHead>Project Name</TableHead>
                   <TableHead>Customer</TableHead>

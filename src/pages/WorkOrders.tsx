@@ -62,6 +62,8 @@ const WorkOrders = () => {
   const [plannedEndDate, setPlannedEndDate] = useState("");
   const [notes, setNotes] = useState("");
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
+  const [workerSearchTerm, setWorkerSearchTerm] = useState("");
+
 
   const { data: projects = [] } = useQuery({
     queryKey: ["projects-for-work-orders"],
@@ -229,6 +231,26 @@ work_assignments (
     return sites.filter((site) => site.project_id === projectId);
   }, [sites, projectId]);
 
+  const filteredWorkers = useMemo(() => {
+    const keyword = workerSearchTerm.toLowerCase().trim();
+
+    if (!keyword) return employees;
+
+    return employees.filter((employee) => {
+      const employeeCode = employee.employee_code || "";
+      const displayName = employee.display_name || "";
+      const firstName = employee.first_name || "";
+      const lastName = employee.last_name || "";
+      const fullName = `${firstName} ${lastName}`.trim();
+
+      return (
+        employeeCode.toLowerCase().includes(keyword) ||
+        displayName.toLowerCase().includes(keyword) ||
+        fullName.toLowerCase().includes(keyword)
+      );
+    });
+  }, [employees, workerSearchTerm]);
+
   const filteredAreas = useMemo(() => {
     return areas.filter(
       (area) => area.project_id === projectId && area.site_id === siteId
@@ -247,6 +269,7 @@ work_assignments (
     setPlannedStartDate("");
     setPlannedEndDate("");
     setSelectedEmployeeIds([]);
+    setWorkerSearchTerm("");
   };
 
   const createWorkOrder = useMutation({
@@ -657,49 +680,99 @@ work_assignments (
                 onChange={(e) => setPlannedEndDate(e.target.value)}
               />
             </div>
-            <div className="col-span-2 space-y-2">
-              <Label>Assign Employees</Label>
+            <div className="col-span-2 space-y-3">
+              <Label>Assign Workers to this Work Order</Label>
 
-              <div className="grid grid-cols-2 gap-2 border rounded-xl p-3 max-h-48 overflow-y-auto">
-                {employees.length === 0 ? (
-                  <p className="col-span-2 text-sm text-slate-500">
-                    No active employees found.
-                  </p>
-                ) : (
-                  employees.map((employee) => {
+              <Input
+                value={workerSearchTerm}
+                onChange={(event) => setWorkerSearchTerm(event.target.value)}
+                placeholder="Search worker by code or name"
+              />
+
+              <Select
+                key={selectedEmployeeIds.join("-")}
+                onValueChange={(employeeId) => {
+                  if (!selectedEmployeeIds.includes(employeeId)) {
+                    setSelectedEmployeeIds((current) => [...current, employeeId]);
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select worker to assign" />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredWorkers.map((employee) => {
                     const employeeName =
                       employee.display_name ||
-                      `${employee.first_name} ${employee.last_name}`;
-
-                    const checked = selectedEmployeeIds.includes(employee.employee_id);
+                      `${employee.first_name || ""} ${employee.last_name || ""}`.trim() ||
+                      employee.employee_code;
 
                     return (
-                      <label
+                      <SelectItem
                         key={employee.employee_id}
-                        className="flex items-center gap-2 text-sm cursor-pointer"
+                        value={employee.employee_id}
+                        disabled={selectedEmployeeIds.includes(employee.employee_id)}
                       >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(event) => {
-                            if (event.target.checked) {
-                              setSelectedEmployeeIds((current) => [
-                                ...current,
-                                employee.employee_id,
-                              ]);
-                            } else {
-                              setSelectedEmployeeIds((current) =>
-                                current.filter((id) => id !== employee.employee_id)
-                              );
-                            }
-                          }}
-                        />
-                        <span>
-                          {employee.employee_code} - {employeeName}
-                        </span>
-                      </label>
+                        {employee.employee_code || "-"} - {employeeName}
+                      </SelectItem>
                     );
-                  })
+                  })}
+                </SelectContent>
+              </Select>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                <p className="text-sm font-semibold text-slate-900">
+                  Assigned Workers
+                </p>
+
+                {selectedEmployeeIds.length === 0 ? (
+                  <p className="text-sm text-slate-500">
+                    No workers assigned yet.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {selectedEmployeeIds.map((employeeId) => {
+                      const employee = employees.find(
+                        (item) => item.employee_id === employeeId
+                      );
+
+                      const employeeName =
+                        employee?.display_name ||
+                        `${employee?.first_name || ""} ${employee?.last_name || ""}`.trim() ||
+                        employee?.employee_code ||
+                        "-";
+
+                      return (
+                        <div
+                          key={employeeId}
+                          className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2"
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-slate-900">
+                              {employee?.employee_code || "-"} - {employeeName}
+                            </p>
+                            <p className="text-xs text-green-700">
+                              🟢 Assigned: {plannedStartDate || "Today"}
+                            </p>
+                          </div>
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() =>
+                              setSelectedEmployeeIds((current) =>
+                                current.filter((id) => id !== employeeId)
+                              )
+                            }
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </div>
