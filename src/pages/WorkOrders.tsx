@@ -722,12 +722,12 @@ work_assignments (
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
                 <p className="text-sm font-semibold text-slate-900">
-                  Assigned Workers
+                  Active Workers
                 </p>
 
                 {selectedEmployeeIds.length === 0 ? (
                   <p className="text-sm text-slate-500">
-                    No workers assigned yet.
+                    No active workers.
                   </p>
                 ) : (
                   <div className="space-y-2">
@@ -752,7 +752,7 @@ work_assignments (
                               {employee?.employee_code || "-"} - {employeeName}
                             </p>
                             <p className="text-xs text-green-700">
-                              🟢 Assigned: {plannedStartDate || "Today"}
+                              🟢 Active since: {plannedStartDate || "Today"}
                             </p>
                           </div>
 
