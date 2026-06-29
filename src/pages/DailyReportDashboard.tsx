@@ -711,7 +711,7 @@ const DailyReportDashboard = () => {
 
         if ((approvedTimeLogs || []).length > 0) {
             throw new Error(
-                "This daily report already has approved payroll time logs. Please unapprove payroll time before syncing."
+                "This daily report already has approved payroll time logs.  Please unapprove payroll time before updating this daily report."
             );
         }
 
@@ -822,11 +822,10 @@ const DailyReportDashboard = () => {
 
             if (error) throw error;
 
-            await syncWorkTimeLogs(report, labourRecords);
-
+            
         },
         onSuccess: () => {
-            toast.success("Daily report approved and work time logs created.");
+            toast.success("Daily report approved.");
             queryClient.invalidateQueries({ queryKey: ["daily_report", reportId] });
             queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
             queryClient.invalidateQueries({ queryKey: ["work_time_logs"] });
