@@ -596,7 +596,32 @@ const DailyReports = () => {
         .insert(workerRows);
 
       if (workerInsertError) throw workerInsertError;
+      const timeLogRows = validLabourRecords.map((record) => ({
+        report_id: createdReport.report_id,
+        employee_id: record.employee_id,
+        project_id: projectId,
+        site_id: siteId,
+        area_id: areaId,
+        work_order_id: workOrderId,
+        activity_type_id: record.activity_type_id,
+        work_date: reportDate,
+        regular_hours: Number(record.regular_hours || 0),
+        overtime_hours: Number(record.overtime_hours || 0),
+        break_minutes: Number(record.break_minutes || 0),
+        approved: false,
+        time_status: "Needs Review",
+        notes: record.notes.trim() || record.worker_role.trim() || null,
+        is_deleted: false,
+      }));
 
+      if (timeLogRows.length > 0) {
+        const { error: timeLogInsertError } = await supabase
+          .from("work_time_logs")
+          .insert(timeLogRows);
+
+        if (timeLogInsertError) throw timeLogInsertError;
+      }
+      
       let uploadedPhotoCount = 0;
       let failedPhotoCount = 0;
 
@@ -1819,7 +1844,7 @@ const DailyReports = () => {
                       className="h-11 rounded-xl text-base md:text-sm"
                     />
                   </div>
-                  
+
                 </MobileWorkerCard>
               ))}
             </div>

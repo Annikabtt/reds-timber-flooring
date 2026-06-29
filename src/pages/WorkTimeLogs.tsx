@@ -370,7 +370,7 @@ const WorkTimeLogs = () => {
 
           reviewed_at: new Date().toISOString(),
 
-          time_status: "Pending",
+          time_status: "Reviewed",
         })
         .eq("work_time_log_id", reviewLog.work_time_log_id);
 
@@ -403,7 +403,9 @@ const WorkTimeLogs = () => {
       if (!currentUserId) {
         throw new Error("Current user not found.");
       }
-
+      if (log.time_status !== "Reviewed") {
+        throw new Error("Please review and save approved time before payroll approval.");
+      }
       const approvedClockIn = log.approved_clock_in || log.clock_in;
       const approvedClockOut = log.approved_clock_out || log.clock_out;
       const approvedBreakMinutes =
@@ -507,6 +509,10 @@ const WorkTimeLogs = () => {
   const getTimeStatus = (log: any) => {
     if (log.approved) return "Approved";
 
+    if (log.time_status === "Reviewed") {
+      return "Reviewed";
+    }
+
     if (!log.clock_in || !log.clock_out) {
       return "Missing CheckIn-Checkout";
     }
@@ -518,18 +524,24 @@ const WorkTimeLogs = () => {
       return "Need Review";
     }
 
-    return "Pending";
+    return "Needs Review";
   };
 
   const getTimeStatusClass = (status: string) => {
     switch (status) {
       case "Approved":
         return "bg-green-100 text-green-700";
+
+      case "Reviewed":
+        return "bg-blue-100 text-blue-700";
+
       case "Missing CheckIn-Checkout":
         return "bg-red-100 text-red-700";
+
       case "Need Review":
+      case "Needs Review":
         return "bg-amber-100 text-amber-700";
-      case "Pending":
+
       default:
         return "bg-orange-100 text-orange-700";
     }
@@ -555,7 +567,7 @@ const WorkTimeLogs = () => {
           className="bg-red-600 hover:bg-red-700"
         >
           <Plus className="h-4 w-4 mr-2" />
-          Add Time Log
+          Manual Time Entry
         </Button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -627,46 +639,151 @@ const WorkTimeLogs = () => {
               {log.work_date}
             </div>
 
-            <div className="mt-2 text-sm text-slate-700">
-              <span className="font-medium">Time:</span>{" "}
-              {log.clock_in ? new Date(log.clock_in).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              }) : "-"}
-              {" → "}
-              {log.clock_out ? new Date(log.clock_out).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              }) : "-"}
+            <div className="mt-3 rounded-lg border border-slate-200 p-3">
+
+              <div className="flex items-center justify-between">
+
+                <div className="font-semibold text-slate-900">
+                  {log.approved
+                    ? "Approved Time"
+                    : "Original Time"}
+                </div>
+
+                <div
+                  className={`text-xs font-semibold px-2 py-1 rounded-full ${log.approved
+                    ? "bg-green-100 text-green-700"
+                    : "bg-amber-100 text-amber-700"
+                    }`}
+                >
+                  {log.approved
+                    ? "Approved"
+                    : "Needs Review"}
+                </div>
+
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mt-3">
+
+                <div>
+
+                  <div className="text-xs text-slate-500">
+                    Clock In
+                  </div>
+
+                  <div className="font-semibold">
+
+                    {new Date(
+                      log.approved && log.approved_clock_in
+                        ? log.approved_clock_in
+                        : log.clock_in
+                    ).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+
+                  </div>
+
+                </div>
+
+                <div>
+
+                  <div className="text-xs text-slate-500">
+                    Clock Out
+                  </div>
+
+                  <div className="font-semibold">
+
+                    {new Date(
+                      log.approved && log.approved_clock_out
+                        ? log.approved_clock_out
+                        : log.clock_out
+                    ).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+
+                  </div>
+
+                </div>
+
+              </div>
+
             </div>
 
             <div className="text-sm text-slate-500">
               Break: {Number(log.break_minutes || 0)} min
             </div>
 
-            {log.approved_at && (
-              <div className="text-xs text-slate-500">
-                Approved:{" "}
-                {new Date(log.approved_at).toLocaleString()}
+            <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="text-sm font-semibold text-slate-900">
+                Review History
               </div>
-            )}
+
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <div className="text-slate-500">Reviewed At</div>
+                  <div className="font-medium text-slate-900">
+                    {log.reviewed_at
+                      ? new Date(log.reviewed_at).toLocaleString()
+                      : "-"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-slate-500">Approved At</div>
+                  <div className="font-medium text-slate-900">
+                    {log.approved_at
+                      ? new Date(log.approved_at).toLocaleString()
+                      : "-"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-slate-500">Reviewed By</div>
+                  <div className="font-medium text-slate-900">
+                    {log.reviewed_by ? "Recorded" : "-"}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-slate-500">Approved By</div>
+                  <div className="font-medium text-slate-900">
+                    {log.approved_by ? "Recorded" : "-"}
+                  </div>
+                </div>
+              </div>
+            </div>
             {log.work_activity_types && (
               <div className="text-sm text-slate-500">
                 Activity: {log.work_activity_types.activity_name}
               </div>
             )}
-            <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+            <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
               <div>
-                <span className="text-slate-500">Regular</span>
+                <span className="text-slate-500">
+                  {log.approved ? "Approved Regular" : "Original Regular"}
+                </span>
+
                 <div className="font-semibold">
-                  {Number(log.regular_hours || 0).toFixed(2)} h
+                  {Number(
+                    log.approved && log.approved_regular_hours !== null && log.approved_regular_hours !== undefined
+                      ? log.approved_regular_hours
+                      : log.regular_hours || 0
+                  ).toFixed(2)} h
                 </div>
               </div>
 
               <div>
-                <span className="text-slate-500">OT</span>
+                <span className="text-slate-500">
+                  {log.approved ? "Approved OT" : "Original OT"}
+                </span>
+
                 <div className="font-semibold text-red-600">
-                  {Number(log.overtime_hours || 0).toFixed(2)} h
+                  {Number(
+                    log.approved && log.approved_overtime_hours !== null && log.approved_overtime_hours !== undefined
+                      ? log.approved_overtime_hours
+                      : log.overtime_hours || 0
+                  ).toFixed(2)} h
                 </div>
               </div>
             </div>
@@ -688,25 +805,37 @@ const WorkTimeLogs = () => {
                 {getTimeStatus(log)}
               </div>
 
-              {!log.approved && (
+              {!log.approved ? (
                 <>
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => openReviewDialog(log)}
                   >
-                    Review
+                    {getTimeStatus(log) === "Reviewed" ? "Edit Review" : "Review Time"}
                   </Button>
 
                   <Button
                     size="sm"
+                    className="bg-green-600 hover:bg-green-700 disabled:bg-slate-200 disabled:text-slate-500"
+                    disabled={getTimeStatus(log) !== "Reviewed"}
                     onClick={() =>
                       approveTimeLog.mutate(log)
                     }
                   >
-                    Approve
+                    Approve Payroll Time
                   </Button>
+
+                  {getTimeStatus(log) !== "Reviewed" && (
+                    <div className="text-xs text-slate-500">
+                      Please review and save before approval.
+                    </div>
+                  )}
                 </>
+              ) : (
+                <div className="text-xs font-semibold text-green-700">
+                  ✓ Payroll Approved
+                </div>
               )}
             </div>
           </div>
@@ -724,8 +853,11 @@ const WorkTimeLogs = () => {
       >
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add Time Log</DialogTitle>
+            <DialogTitle>Manual Time Entry</DialogTitle>
           </DialogHeader>
+          <p className="text-sm text-slate-500">
+            Use this only for admin correction or special cases. Normal work time should come from Daily Progress Review.
+          </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -905,7 +1037,7 @@ const WorkTimeLogs = () => {
               onClick={() => createTimeLog.mutate()}
               disabled={createTimeLog.isPending}
             >
-              {createTimeLog.isPending ? "Saving..." : "Save Time Log"}
+             {createTimeLog.isPending ? "Saving..." : "Save Manual Time Entry"} 
             </Button>
           </div>
         </DialogContent>
@@ -996,17 +1128,26 @@ const WorkTimeLogs = () => {
             </div>
 
             <div className="border-t border-slate-200 pt-4">
-              <p className="text-sm font-semibold text-slate-900">
-                Approved Time
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Adjust the time below if the original clock in/out needs supervisor correction.
-              </p>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    Approved Time
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    This is the supervisor-reviewed time that will be used for Payroll.
+                  </p>
+                </div>
+
+                <div className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+                  Payroll Time
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Clock In</Label>
+                <Label>Approved Clock In</Label>
                 <Input
                   type="datetime-local"
                   value={reviewClockIn}
@@ -1015,7 +1156,7 @@ const WorkTimeLogs = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Clock Out</Label>
+                <Label>Approved Clock Out</Label>
                 <Input
                   type="datetime-local"
                   value={reviewClockOut}
@@ -1024,7 +1165,7 @@ const WorkTimeLogs = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Break Minutes</Label>
+                <Label>Approved Break Minutes</Label>
                 <Input
                   type="number"
                   min="0"

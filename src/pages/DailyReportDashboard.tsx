@@ -692,6 +692,62 @@ const DailyReportDashboard = () => {
         },
     });
 
+    const syncWorkTimeLogs = async (
+        targetReport: any,
+        labourRecords: any[]
+    ) => {
+        if (!targetReport?.report_id) {
+            throw new Error("Daily report ID is missing.");
+        }
+
+        const { data: approvedTimeLogs, error: approvedTimeLogsError } =
+            await supabase
+                .from("work_time_logs")
+                .select("work_time_log_id")
+                .eq("report_id", targetReport.report_id)
+                .eq("approved", true);
+
+        if (approvedTimeLogsError) throw approvedTimeLogsError;
+
+        if ((approvedTimeLogs || []).length > 0) {
+            throw new Error(
+                "This daily report already has approved payroll time logs. Please unapprove payroll time before syncing."
+            );
+        }
+
+        const timeLogRows = labourRecords.map((worker) => ({
+            report_id: targetReport.report_id,
+            employee_id: worker.employee_id,
+            project_id: targetReport.project_id,
+            site_id: targetReport.site_id,
+            area_id: targetReport.area_id,
+            work_order_id: targetReport.work_order_id,
+            activity_type_id: worker.activity_type_id,
+            work_date: targetReport.report_date,
+            regular_hours: Number(worker.regular_hours || 0),
+            overtime_hours: Number(worker.overtime_hours || 0),
+            break_minutes: 0,
+            approved: false,
+            notes: worker.notes || worker.worker_role || null,
+            is_deleted: false,
+        }));
+
+        const { error: deleteExistingTimeLogsError } = await supabase
+            .from("work_time_logs")
+            .delete()
+            .eq("report_id", targetReport.report_id);
+
+        if (deleteExistingTimeLogsError) throw deleteExistingTimeLogsError;
+
+        if (timeLogRows.length > 0) {
+            const { error: insertTimeLogsError } = await supabase
+                .from("work_time_logs")
+                .insert(timeLogRows);
+
+            if (insertTimeLogsError) throw insertTimeLogsError;
+        }
+    };
+
     const approveDailyReport = useMutation({
         mutationFn: async () => {
             if (!reportId) {
@@ -756,8 +812,6 @@ const DailyReportDashboard = () => {
                 );
             }
 
-
-
             const { error } = await supabase
                 .from("daily_reports")
                 .update({
@@ -768,37 +822,7 @@ const DailyReportDashboard = () => {
 
             if (error) throw error;
 
-            const timeLogRows = labourRecords.map((worker) => ({
-                report_id: reportId,
-                employee_id: worker.employee_id,
-                project_id: report.project_id,
-                site_id: report.site_id,
-                area_id: report.area_id,
-                work_order_id: report.work_order_id,
-                activity_type_id: worker.activity_type_id,
-                work_date: report.report_date,
-                regular_hours: Number(worker.regular_hours || 0),
-                overtime_hours: Number(worker.overtime_hours || 0),
-                break_minutes: 0,
-                approved: false,
-                notes: worker.notes || worker.worker_role || null,
-                is_deleted: false,
-            }));
-
-            const { error: deleteExistingTimeLogsError } = await supabase
-                .from("work_time_logs")
-                .delete()
-                .eq("report_id", reportId);
-
-            if (deleteExistingTimeLogsError) throw deleteExistingTimeLogsError;
-
-            if (timeLogRows.length > 0) {
-                const { error: insertTimeLogsError } = await supabase
-                    .from("work_time_logs")
-                    .insert(timeLogRows);
-
-                if (insertTimeLogsError) throw insertTimeLogsError;
-            }
+            await syncWorkTimeLogs(report, labourRecords);
 
         },
         onSuccess: () => {
