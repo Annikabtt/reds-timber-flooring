@@ -621,7 +621,7 @@ const DailyReports = () => {
 
         if (timeLogInsertError) throw timeLogInsertError;
       }
-      
+
       let uploadedPhotoCount = 0;
       let failedPhotoCount = 0;
 
@@ -708,7 +708,7 @@ const DailyReports = () => {
           `Daily report saved. ${result.uploadedPhotoCount} photo(s) uploaded, ${result.failedPhotoCount} failed.`
         );
       } else {
-        toast.success("Daily report created successfully.");
+        toast.success("Daily report submitted and time logs created for review.");
       }
       queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
       queryClient.invalidateQueries({
