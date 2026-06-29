@@ -1551,6 +1551,19 @@ const DailyReportDashboard = () => {
                                     </div>
                                 </div>
 
+                                <div className="space-y-2">
+                                    <Label>Clock Out</Label>
+                                    <Input
+                                        type="time"
+                                        value={labourClockOut}
+                                        onChange={(event) => {
+                                            const value = event.target.value;
+                                            setLabourClockOut(value);
+                                            calculateLabourHours(labourClockIn, value, labourBreakMinutes);
+                                        }}
+                                    />
+                                </div>
+
                                 <div className="grid grid-cols-1 sm:flex sm:justify-end gap-3">
                                     <Button variant="outline" className="w-full sm:w-auto" onClick={resetLabourForm}>
                                         Cancel
