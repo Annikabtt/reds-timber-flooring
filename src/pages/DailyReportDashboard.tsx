@@ -1,4 +1,4 @@
-import { ArrowLeft, CalendarDays } from "lucide-react";
+import { ArrowLeft, CalendarDays, Pencil, Trash2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,6 +43,9 @@ const DailyReportDashboard = () => {
     const [showLabourForm, setShowLabourForm] = useState(false);
     const [labourEmployeeId, setLabourEmployeeId] = useState("");
     const [labourActivityTypeId, setLabourActivityTypeId] = useState("");
+    const [labourClockIn, setLabourClockIn] = useState("");
+    const [labourClockOut, setLabourClockOut] = useState("");
+    const [labourBreakMinutes, setLabourBreakMinutes] = useState("60");
     const [labourRegularHours, setLabourRegularHours] = useState("");
     const [labourOvertimeHours, setLabourOvertimeHours] = useState("");
     const [labourCompletedQuantity, setLabourCompletedQuantity] = useState("");
@@ -210,11 +213,85 @@ const DailyReportDashboard = () => {
             return data;
         },
     });
+    const calculateLabourHours = (
+        clockIn: string,
+        clockOut: string,
+        breakMinutesText: string
+    ) => {
+        if (!clockIn || !clockOut) {
+            setLabourRegularHours("");
+            setLabourOvertimeHours("");
+            return;
+        }
 
+        const [clockInHour, clockInMinute] = clockIn.split(":").map(Number);
+        const [clockOutHour, clockOutMinute] = clockOut.split(":").map(Number);
+
+        const clockInMinutes = clockInHour * 60 + clockInMinute;
+        const clockOutMinutes = clockOutHour * 60 + clockOutMinute;
+
+        if (clockOutMinutes <= clockInMinutes) {
+            setLabourRegularHours("");
+            setLabourOvertimeHours("");
+            return;
+        }
+
+        const breakMinutes = Math.max(Number(breakMinutesText || 0), 0);
+        const totalHours = Math.max(
+            (clockOutMinutes - clockInMinutes - breakMinutes) / 60,
+            0
+        );
+
+        const regularHours = Math.min(totalHours, 8);
+        const overtimeHours = Math.max(totalHours - 8, 0);
+
+        setLabourRegularHours(regularHours.toFixed(2));
+        setLabourOvertimeHours(overtimeHours.toFixed(2));
+
+        const calculateLabourHours = (
+            clockIn: string,
+            clockOut: string,
+            breakMinutesText: string
+        ) => {
+            if (!clockIn || !clockOut) {
+                setLabourRegularHours("");
+                setLabourOvertimeHours("");
+                return;
+            }
+
+            const [clockInHour, clockInMinute] = clockIn.split(":").map(Number);
+            const [clockOutHour, clockOutMinute] = clockOut.split(":").map(Number);
+
+            const clockInMinutes = clockInHour * 60 + clockInMinute;
+            const clockOutMinutes = clockOutHour * 60 + clockOutMinute;
+
+            if (clockOutMinutes <= clockInMinutes) {
+                setLabourRegularHours("");
+                setLabourOvertimeHours("");
+                return;
+            }
+
+            const breakMinutes = Math.max(Number(breakMinutesText || 0), 0);
+            const totalHours = Math.max(
+                (clockOutMinutes - clockInMinutes - breakMinutes) / 60,
+                0
+            );
+
+            const regularHours = Math.min(totalHours, 8);
+            const overtimeHours = Math.max(totalHours - 8, 0);
+
+            setLabourRegularHours(regularHours.toFixed(2));
+            setLabourOvertimeHours(overtimeHours.toFixed(2));
+        };
+
+    };
     const resetLabourForm = () => {
         setEditingWorkerId("");
         setLabourEmployeeId("");
         setLabourActivityTypeId("");
+        setLabourClockIn("");
+        setLabourClockOut("");
+        setLabourBreakMinutes("60");
         setLabourRegularHours("");
         setLabourOvertimeHours("");
         setLabourCompletedQuantity("");
@@ -468,6 +545,9 @@ const DailyReportDashboard = () => {
         setEditingWorkerId(worker.daily_report_worker_id);
         setLabourEmployeeId(worker.employee_id || "");
         setLabourActivityTypeId(worker.activity_type_id || "");
+        setLabourClockIn("");
+        setLabourClockOut("");
+        setLabourBreakMinutes("60");
         setLabourRegularHours(
             worker.regular_hours === null || worker.regular_hours === undefined
                 ? ""
@@ -1255,23 +1335,35 @@ const DailyReportDashboard = () => {
                                     className="rounded-2xl border border-slate-200 p-4 bg-slate-50"
                                 >
                                     <div className="flex flex-col gap-3">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div>
-                                                <p className="text-sm text-slate-500">Employee</p>
-                                                <p className="font-semibold text-slate-900">
-                                                    {worker.employees?.display_name ||
-                                                        `${worker.employees?.first_name || ""} ${worker.employees?.last_name || ""}`.trim() ||
-                                                        worker.employees?.employee_code ||
-                                                        "-"}
-                                                </p>
+                                        <div className="rounded-xl border border-slate-200 bg-white p-3">
+                                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                                <div>
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                                        Worker
+                                                    </p>
+
+                                                    <p className="mt-1 text-base font-bold text-slate-900">
+                                                        {worker.employees?.display_name ||
+                                                            `${worker.employees?.first_name || ""} ${worker.employees?.last_name || ""}`.trim() ||
+                                                            worker.employees?.employee_code ||
+                                                            "-"}
+                                                    </p>
+                                                </div>
+
+                                                <div className="sm:text-right">
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                                        Activity
+                                                    </p>
+
+                                                    <p className="mt-1 text-sm font-semibold text-slate-800">
+                                                        {worker.work_activity_types?.activity_name || "-"}
+                                                    </p>
+                                                </div>
                                             </div>
 
-                                            <div className="text-right">
-                                                <p className="text-sm text-slate-500">Activity</p>
-                                                <p className="font-medium text-slate-900">
-                                                    {worker.work_activity_types?.activity_name || "-"}
-                                                </p>
-                                            </div>
+                                            <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                                                Labour, activity, hours, and completed quantity for this worker.
+                                            </p>
                                         </div>
 
                                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
@@ -1311,23 +1403,35 @@ const DailyReportDashboard = () => {
                                             </p>
                                         </div>
 
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                        <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
                                             <Button
+                                                type="button"
                                                 variant="outline"
+                                                size="sm"
                                                 onClick={() => startEditLabourRecord(worker)}
-                                                className="w-full"
+                                                className="h-9 rounded-lg border-blue-200 bg-blue-50 px-3 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
                                             >
+                                                <Pencil className="mr-1.5 h-4 w-4" />
                                                 Edit
                                             </Button>
 
                                             <Button
+                                                type="button"
                                                 variant="outline"
-                                                onClick={() =>
-                                                    deleteLabourRecord.mutate(worker.daily_report_worker_id)
-                                                }
+                                                size="sm"
+                                                onClick={() => {
+                                                    const confirmed = window.confirm(
+                                                        "Are you sure you want to delete this labour record?"
+                                                    );
+
+                                                    if (!confirmed) return;
+
+                                                    deleteLabourRecord.mutate(worker.daily_report_worker_id);
+                                                }}
                                                 disabled={deleteLabourRecord.isPending}
-                                                className="w-full text-red-600 hover:text-red-700"
+                                                className="h-9 rounded-lg border-red-200 bg-red-50 px-3 text-red-700 hover:bg-red-100 hover:text-red-800"
                                             >
+                                                <Trash2 className="mr-1.5 h-4 w-4" />
                                                 Delete
                                             </Button>
                                         </div>
@@ -1338,22 +1442,23 @@ const DailyReportDashboard = () => {
                     ) : (
                         <p className="text-sm text-slate-500">No labour records added.</p>
                     )}
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
+                    <div className="mt-5 border-t border-slate-200 pt-5">
+                        <div className="flex flex-col gap-2">
                             <h3 className="font-semibold text-slate-900">
-                                {editingWorkerId ? "Edit Worker" : "Workers"}
+                                {editingWorkerId ? "Edit Worker" : "Add Worker"}
                             </h3>
-                            <p className="mt-1 text-xs text-slate-500">
-                                Tip: Combine the same worker and activity into one record. Use Notes to record locations and quantities completed.
+
+                            <p className="text-xs text-slate-500">
+                                Add or edit labour records for this daily progress review.
                             </p>
                         </div>
 
                         {!showLabourForm && (
-                            <div className="border-t pt-4 mt-4 space-y-4">
+                            <div className="mt-4 flex justify-end">
                                 <Button
                                     variant="outline"
                                     onClick={() => setShowLabourForm(true)}
-                                    className="w-auto"
+                                    className="w-auto rounded-lg border-slate-300 bg-white px-4 font-semibold text-slate-700 hover:bg-slate-50"
                                 >
                                     + Add Worker
                                 </Button>
@@ -1361,8 +1466,17 @@ const DailyReportDashboard = () => {
                         )}
 
                         {showLabourForm && (
-                            <div className="space-y-4">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-5">
+                                <div className="border-b border-slate-200 pb-3">
+                                    <p className="font-semibold text-slate-900">
+                                        {editingWorkerId ? "Edit Worker Details" : "Add Worker Details"}
+                                    </p>
+                                    <p className="mt-1 text-xs text-slate-500">
+                                        Select worker, activity, role, time, completed quantity, and notes.
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     <div className="space-y-2">
                                         <Label>Employee *</Label>
                                         <Select value={labourEmployeeId} onValueChange={setLabourEmployeeId}>
@@ -1371,10 +1485,7 @@ const DailyReportDashboard = () => {
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {employees.map((employee) => (
-                                                    <SelectItem
-                                                        key={employee.employee_id}
-                                                        value={employee.employee_id}
-                                                    >
+                                                    <SelectItem key={employee.employee_id} value={employee.employee_id}>
                                                         {employee.display_name ||
                                                             `${employee.first_name || ""} ${employee.last_name || ""}`.trim() ||
                                                             employee.employee_code}
@@ -1386,19 +1497,13 @@ const DailyReportDashboard = () => {
 
                                     <div className="space-y-2">
                                         <Label>Activity *</Label>
-                                        <Select
-                                            value={labourActivityTypeId}
-                                            onValueChange={setLabourActivityTypeId}
-                                        >
+                                        <Select value={labourActivityTypeId} onValueChange={setLabourActivityTypeId}>
                                             <SelectTrigger>
                                                 <SelectValue placeholder="Select activity" />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {workActivityTypes.map((activity) => (
-                                                    <SelectItem
-                                                        key={activity.activity_type_id}
-                                                        value={activity.activity_type_id}
-                                                    >
+                                                    <SelectItem key={activity.activity_type_id} value={activity.activity_type_id}>
                                                         {activity.activity_name}
                                                     </SelectItem>
                                                 ))}
@@ -1407,62 +1512,47 @@ const DailyReportDashboard = () => {
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label>Regular Hours</Label>
-                                        <Input
-                                            type="number"
-                                            min="0"
-                                            value={labourRegularHours}
-                                            onChange={(event) => setLabourRegularHours(event.target.value)}
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label>Overtime Hours</Label>
-                                        <Input
-                                            type="number"
-                                            min="0"
-                                            value={labourOvertimeHours}
-                                            onChange={(event) => setLabourOvertimeHours(event.target.value)}
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label>Completed Qty</Label>
-                                        <Input
-                                            type="number"
-                                            min="0"
-                                            value={labourCompletedQuantity}
-                                            onChange={(event) =>
-                                                setLabourCompletedQuantity(event.target.value)
-                                            }
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
                                         <Label>Role</Label>
-                                        <Input
-                                            value={labourWorkerRole}
-                                            onChange={(event) => setLabourWorkerRole(event.target.value)}
-                                            placeholder="Installer / Supervisor"
-                                        />
+                                        <Select value={labourWorkerRole} onValueChange={setLabourWorkerRole}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select role" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="Installer">Installer</SelectItem>
+                                                <SelectItem value="Supervisor">Supervisor</SelectItem>
+                                                <SelectItem value="Team Leader">Team Leader</SelectItem>
+                                                <SelectItem value="Labourer">Labourer</SelectItem>
+                                                <SelectItem value="Helper">Helper</SelectItem>
+                                                <SelectItem value="Apprentice">Apprentice</SelectItem>
+                                                <SelectItem value="Other">Other</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                     </div>
+                                </div>
 
-                                    <div className="sm:col-span-2 space-y-2">
-                                        <Label>Notes</Label>
-                                        <Input
-                                            value={labourNotes}
-                                            onChange={(event) => setLabourNotes(event.target.value)}
-                                            placeholder="Labour notes"
-                                        />
+                                <div>
+                                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Time and Quantity
+                                    </p>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Clock In</Label>
+                                            <Input
+                                                type="time"
+                                                value={labourClockIn}
+                                                onChange={(event) => {
+                                                    const value = event.target.value;
+                                                    setLabourClockIn(value);
+                                                    calculateLabourHours(value, labourClockOut, labourBreakMinutes);
+                                                }}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:flex sm:justify-end gap-3">
-                                    <Button
-                                        variant="outline"
-                                        className="w-full sm:w-auto"
-                                        onClick={resetLabourForm}
-                                    >
+                                    <Button variant="outline" className="w-full sm:w-auto" onClick={resetLabourForm}>
                                         Cancel
                                     </Button>
 
@@ -1482,21 +1572,36 @@ const DailyReportDashboard = () => {
                         )}
                     </div>
 
-                </div>
-                {report.daily_report_activities?.length ? (
-                    <div className="flex flex-wrap gap-2">
-                        {report.daily_report_activities.map((item) => (
-                            <span
-                                key={item.daily_report_activity_id}
-                                className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700"
-                            >
-                                {item.work_activity_types?.activity_name || "-"}
-                            </span>
-                        ))}
+                    <div className="mt-6 border-t border-slate-200 pt-5">
+                        <h3 className="font-semibold text-slate-900">Work Activities</h3>
+
+                        <p className="mt-1 text-xs text-slate-500">
+                            Select one or more work activities completed in this daily report.
+                        </p>
+
+                        {report.daily_report_activities?.length ? (
+                            <div className="mt-4 flex flex-wrap gap-2">
+                                {report.daily_report_activities.map((item) => (
+                                    <span
+                                        key={item.daily_report_activity_id}
+                                        className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700"
+                                    >
+                                        {item.work_activity_types?.activity_name || "-"}
+                                    </span>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                                <p className="font-medium text-amber-800">
+                                    No work activities selected.
+                                </p>
+                                <p className="mt-1 text-sm text-amber-700">
+                                    Please select one or more work activities for this daily progress review.
+                                </p>
+                            </div>
+                        )}
                     </div>
-                ) : (
-                    <p className="text-sm text-slate-500">No work activities selected.</p>
-                )}
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">

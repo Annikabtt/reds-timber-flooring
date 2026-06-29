@@ -31,14 +31,84 @@ import {
 } from "@/components/mobile/MobilePhotoUpload";
 
 
+type TimeStatus =
+  | "Pending"
+  | "Missing CheckIn-Checkout"
+  | "Need Review"
+  | "Approved";
+
 type LabourRecord = {
   employee_id: string;
   activity_type_id: string;
+  clock_in: string;
+  clock_out: string;
+  break_minutes: string;
+  time_status: TimeStatus;
   regular_hours: string;
   overtime_hours: string;
   completed_quantity: string;
   worker_role: string;
   notes: string;
+};
+
+const STANDARD_WORK_HOURS = 8;
+const NEED_REVIEW_HOURS_LIMIT = 12;
+
+const createEmptyLabourRecord = (): LabourRecord => ({
+  employee_id: "",
+  activity_type_id: "",
+  clock_in: "",
+  clock_out: "",
+  break_minutes: "60",
+  time_status: "Pending",
+  regular_hours: "0",
+  overtime_hours: "0",
+  completed_quantity: "0",
+  worker_role: "",
+  notes: "",
+});
+
+const calculateLabourTime = (record: LabourRecord): LabourRecord => {
+  if (!record.clock_in || !record.clock_out) {
+    return {
+      ...record,
+      time_status: "Missing CheckIn-Checkout",
+      regular_hours: "0",
+      overtime_hours: "0",
+    };
+  }
+
+  const [clockInHour, clockInMinute] = record.clock_in.split(":").map(Number);
+  const [clockOutHour, clockOutMinute] = record.clock_out.split(":").map(Number);
+
+  const clockInMinutes = clockInHour * 60 + clockInMinute;
+  const clockOutMinutes = clockOutHour * 60 + clockOutMinute;
+
+  if (clockOutMinutes <= clockInMinutes) {
+    return {
+      ...record,
+      time_status: "Need Review",
+      regular_hours: "0",
+      overtime_hours: "0",
+    };
+  }
+
+  const breakMinutes = Math.max(Number(record.break_minutes || 0), 0);
+  const totalHours = Math.max(
+    (clockOutMinutes - clockInMinutes - breakMinutes) / 60,
+    0
+  );
+
+  const regularHours = Math.min(totalHours, STANDARD_WORK_HOURS);
+  const overtimeHours = Math.max(totalHours - STANDARD_WORK_HOURS, 0);
+
+  return {
+    ...record,
+    time_status:
+      totalHours > NEED_REVIEW_HOURS_LIMIT ? "Need Review" : "Pending",
+    regular_hours: regularHours.toFixed(2),
+    overtime_hours: overtimeHours.toFixed(2),
+  };
 };
 
 const DailyReports = () => {
@@ -76,30 +146,11 @@ const DailyReports = () => {
   const setPhotoCaption = () => { };
   const [selectedActivityTypeIds, setSelectedActivityTypeIds] = useState<string[]>([]);
   const [labourRecords, setLabourRecords] = useState<LabourRecord[]>([
-    {
-      employee_id: "",
-      activity_type_id: "",
-      regular_hours: "8",
-      overtime_hours: "0",
-      completed_quantity: "0",
-      worker_role: "",
-      notes: "",
-    },
+    createEmptyLabourRecord(),
   ]);
 
   const addLabourRecord = () => {
-    setLabourRecords((prev) => [
-      ...prev,
-      {
-        employee_id: "",
-        activity_type_id: "",
-        regular_hours: "8",
-        overtime_hours: "0",
-        completed_quantity: "0",
-        worker_role: "",
-        notes: "",
-      },
-    ]);
+    setLabourRecords((prev) => [...prev, createEmptyLabourRecord()]);
   };
 
   const removeLabourRecord = (index: number) => {
@@ -112,10 +163,39 @@ const DailyReports = () => {
     value: string
   ) => {
     setLabourRecords((prev) =>
-      prev.map((record, i) =>
-        i === index ? { ...record, [field]: value } : record
-      )
+      prev.map((record, i) => {
+        if (i !== index) return record;
+
+        const updatedRecord = {
+          ...record,
+          [field]: value,
+        };
+
+        if (
+          field === "clock_in" ||
+          field === "clock_out" ||
+          field === "break_minutes"
+        ) {
+          return calculateLabourTime(updatedRecord);
+        }
+
+        return updatedRecord;
+      })
     );
+  };
+
+  const getTimeStatusClass = (status: TimeStatus) => {
+    switch (status) {
+      case "Approved":
+        return "bg-green-100 text-green-700 border-green-200";
+      case "Need Review":
+        return "bg-amber-100 text-amber-700 border-amber-200";
+      case "Missing CheckIn-Checkout":
+        return "bg-red-100 text-red-700 border-red-200";
+      case "Pending":
+      default:
+        return "bg-slate-100 text-slate-700 border-slate-200";
+    }
   };
 
   const { data: projects = [] } = useQuery({
@@ -424,17 +504,7 @@ const DailyReports = () => {
     setNotes("");
     setPendingPhotos([]);
     setSelectedActivityTypeIds([]);
-    setLabourRecords([
-      {
-        employee_id: "",
-        activity_type_id: "",
-        regular_hours: "8",
-        overtime_hours: "0",
-        completed_quantity: "0",
-        worker_role: "",
-        notes: "",
-      },
-    ]);
+    setLabourRecords([createEmptyLabourRecord()]);
   };
 
   const createDailyReport = useMutation({
@@ -926,148 +996,147 @@ const DailyReports = () => {
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-            <p className="text-sm font-bold text-slate-900">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-sm font-bold text-slate-900">
                 Area Progress Summary
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
                 Approved, pending review, Remaining From Estimate, and latest report status.
-            </p>
-        </div>
+              </p>
+            </div>
 
-    <div className="text-sm text-slate-500">
-        Latest Report:{" "}
-        <span className="font-semibold text-slate-900">
-            {areaSummary.latestReport}
-        </span>
-    </div>
-</div>
+            <div className="text-sm text-slate-500">
+              Latest Report:{" "}
+              <span className="font-semibold text-slate-900">
+                {areaSummary.latestReport}
+              </span>
+            </div>
+          </div>
 
-{filterAreaId === "all" ? (
-    <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
-        <p className="text-sm font-semibold text-slate-900">
-            Select an area to view area-level progress.
-        </p>
-        <p className="mt-1 text-xs text-slate-500">
-            The list below is currently showing reports across all selected areas.
-        </p>
+          {filterAreaId === "all" ? (
+            <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+              <p className="text-sm font-semibold text-slate-900">
+                Select an area to view area-level progress.
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                The list below is currently showing reports across all selected areas.
+              </p>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-xs font-medium text-slate-500">
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <p className="text-xs font-medium text-slate-500">
                     Approved Progress
-                </p>
-                <p className="mt-2 text-lg font-black text-slate-900">
+                  </p>
+                  <p className="mt-2 text-lg font-black text-slate-900">
                     {areaSummary.approvedProgress.toFixed(2)} sqm
-                </p>
-            </div>
+                  </p>
+                </div>
 
-            <div className="rounded-xl bg-amber-50 p-3">
-                <p className="text-xs font-medium text-amber-700">
+                <div className="rounded-xl bg-amber-50 p-3">
+                  <p className="text-xs font-medium text-amber-700">
                     Pending Review
-                </p>
-                <p className="mt-2 text-lg font-black text-amber-700">
+                  </p>
+                  <p className="mt-2 text-lg font-black text-amber-700">
                     {areaSummary.pendingReview.toFixed(2)} sqm
-                </p>
-            </div>
+                  </p>
+                </div>
 
-            <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-xs font-medium text-slate-500">
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <p className="text-xs font-medium text-slate-500">
                     Pending Reports
-                </p>
-                <p className="mt-2 text-lg font-black text-slate-900">
+                  </p>
+                  <p className="mt-2 text-lg font-black text-slate-900">
                     {areaSummary.pendingReports}
-                </p>
+                  </p>
+                </div>
+              </div>
             </div>
-        </div>
-    </div>
-) : (
-    <>
-        <div className="mt-4 max-w-3xl">
-            <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
-                <span>Approved Progress</span>
-                <span className="font-semibold text-slate-900">
+          ) : (
+            <>
+              <div className="mt-4 max-w-3xl">
+                <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
+                  <span>Approved Progress</span>
+                  <span className="font-semibold text-slate-900">
                     {areaSummary.estimatedQuantity > 0
-                        ? `${Math.min(
-                              (areaSummary.approvedProgress /
-                                  areaSummary.estimatedQuantity) *
-                                  100,
-                              100
-                          ).toFixed(2)}%`
-                        : "0.00%"}
-                </span>
-            </div>
+                      ? `${Math.min(
+                        (areaSummary.approvedProgress /
+                          areaSummary.estimatedQuantity) *
+                        100,
+                        100
+                      ).toFixed(2)}%`
+                      : "0.00%"}
+                  </span>
+                </div>
 
-            <div className="mt-2 h-3 w-full rounded-full bg-slate-200">
-                <div
+                <div className="mt-2 h-3 w-full rounded-full bg-slate-200">
+                  <div
                     className="h-3 rounded-full bg-red-600"
                     style={{
-                        width: `${
-                            areaSummary.estimatedQuantity > 0
-                                ? Math.min(
-                                      (areaSummary.approvedProgress /
-                                          areaSummary.estimatedQuantity) *
-                                          100,
-                                      100
-                                  )
-                                : 0
+                      width: `${areaSummary.estimatedQuantity > 0
+                        ? Math.min(
+                          (areaSummary.approvedProgress /
+                            areaSummary.estimatedQuantity) *
+                          100,
+                          100
+                        )
+                        : 0
                         }%`,
                     }}
-                />
-            </div>
-        </div>
+                  />
+                </div>
+              </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs font-medium text-slate-500">
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-medium text-slate-500">
                     Approved Progress
-                </p>
-                <p className="mt-2 text-xl font-black text-slate-900">
+                  </p>
+                  <p className="mt-2 text-xl font-black text-slate-900">
                     {areaSummary.approvedProgress.toFixed(2)} sqm
-                </p>
-            </div>
+                  </p>
+                </div>
 
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                <p className="text-xs font-medium text-amber-700">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-xs font-medium text-amber-700">
                     Pending Review
-                </p>
-                <p className="mt-2 text-xl font-black text-amber-700">
+                  </p>
+                  <p className="mt-2 text-xl font-black text-amber-700">
                     {areaSummary.pendingReview.toFixed(2)} sqm
-                </p>
-            </div>
+                  </p>
+                </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs font-medium text-slate-500">
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-medium text-slate-500">
                     Remaining
-                </p>
-                <p className="mt-2 text-xl font-black text-slate-900">
+                  </p>
+                  <p className="mt-2 text-xl font-black text-slate-900">
                     {areaSummary.remaining.toFixed(2)} sqm
-                </p>
-            </div>
+                  </p>
+                </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs font-medium text-slate-500">
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-medium text-slate-500">
                     Estimated Quantity
-                </p>
-                <p className="mt-2 text-xl font-black text-slate-900">
+                  </p>
+                  <p className="mt-2 text-xl font-black text-slate-900">
                     {areaSummary.estimatedQuantity.toFixed(2)} sqm
-                </p>
-            </div>
+                  </p>
+                </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs font-medium text-slate-500">
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-medium text-slate-500">
                     Pending Reports
-                </p>
-                <p className="mt-2 text-xl font-black text-slate-900">
+                  </p>
+                  <p className="mt-2 text-xl font-black text-slate-900">
                     {areaSummary.pendingReports}
-                </p>
-            </div>
-        </div>
-    </>
-)}
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
 
-</div>
+        </div>
 
         {/* Desktop table header */}
         <div className="hidden grid-cols-12 gap-3 border-b bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 xl:grid">
@@ -1667,31 +1736,74 @@ const DailyReports = () => {
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div className="space-y-2">
-                      <Label>Hours</Label>
+                      <Label>Clock In</Label>
+                      <Input
+                        type="time"
+                        value={record.clock_in}
+                        onChange={(e) =>
+                          updateLabourRecord(index, "clock_in", e.target.value)
+                        }
+                        className="h-11 rounded-xl text-base md:text-sm"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Clock Out</Label>
+                      <Input
+                        type="time"
+                        value={record.clock_out}
+                        onChange={(e) =>
+                          updateLabourRecord(index, "clock_out", e.target.value)
+                        }
+                        className="h-11 rounded-xl text-base md:text-sm"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Break Minutes</Label>
                       <Input
                         type="number"
-                        inputMode="decimal"
-                        value={record.regular_hours}
+                        inputMode="numeric"
+                        min="0"
+                        value={record.break_minutes}
                         onChange={(e) =>
-                          updateLabourRecord(index, "regular_hours", e.target.value)
+                          updateLabourRecord(index, "break_minutes", e.target.value)
                         }
-                        placeholder="0"
+                        placeholder="60"
                         className="h-11 rounded-xl text-base md:text-sm"
                       />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>OT</Label>
-                    <Input
-                      type="number"
-                      inputMode="decimal"
-                      value={record.overtime_hours}
-                      onChange={(e) =>
-                        updateLabourRecord(index, "overtime_hours", e.target.value)
-                      }
-                      placeholder="0"
-                      className="h-11 rounded-xl text-base md:text-sm"
-                    />
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label>Regular Hours</Label>
+                      <Input
+                        value={record.regular_hours}
+                        readOnly
+                        className="h-11 rounded-xl bg-slate-50 text-base md:text-sm"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>OT Hours</Label>
+                      <Input
+                        value={record.overtime_hours}
+                        readOnly
+                        className="h-11 rounded-xl bg-slate-50 text-base md:text-sm"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Time Status</Label>
+                      <div
+                        className={`flex h-11 items-center rounded-xl border px-3 text-sm font-semibold ${getTimeStatusClass(
+                          record.time_status
+                        )}`}
+                      >
+                        {record.time_status}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -1707,6 +1819,7 @@ const DailyReports = () => {
                       className="h-11 rounded-xl text-base md:text-sm"
                     />
                   </div>
+                  
                 </MobileWorkerCard>
               ))}
             </div>
