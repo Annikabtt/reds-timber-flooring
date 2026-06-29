@@ -822,7 +822,7 @@ const DailyReportDashboard = () => {
 
             if (error) throw error;
 
-            
+
         },
         onSuccess: () => {
             toast.success("Daily report approved.");
@@ -1021,7 +1021,7 @@ const DailyReportDashboard = () => {
                     {report.approval_status === "Submitted" && (
                         <Button
                             variant="outline"
-                            onClick={() => approveDailyReport.mutate()}
+                            onClick={() => markReadyForInspection.mutate()}
 
                             disabled={markReadyForInspection.isPending}
                         >
