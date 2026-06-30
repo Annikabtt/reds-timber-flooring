@@ -653,6 +653,23 @@ const DailyReportDashboard = () => {
 
             if (error) throw error;
 
+            const { data: latestLabourRecords, error: latestLabourRecordsError } =
+                await supabase
+                    .from("daily_report_workers")
+                    .select("*")
+                    .eq("report_id", reportId);
+
+            if (latestLabourRecordsError) throw latestLabourRecordsError;
+
+            await syncWorkTimeLogs(
+                {
+                    ...report,
+                    report_id: reportId,
+                    report_date: editReportDate,
+                },
+                latestLabourRecords || []
+            );
+
             if (progress !== null && report.work_order_id) {
                 let nextStatus = "In Progress";
 
