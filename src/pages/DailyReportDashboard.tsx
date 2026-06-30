@@ -479,6 +479,8 @@ const DailyReportDashboard = () => {
                 throw new Error("Completed quantity cannot be negative.");
             }
 
+            await ensurePayrollTimeLogsAreEditable(reportId);
+
             const payload = {
                 report_id: reportId,
                 employee_id: labourEmployeeId,
@@ -504,6 +506,15 @@ const DailyReportDashboard = () => {
 
                 if (error) throw error;
             }
+            const { data: latestLabourRecords, error: latestLabourRecordsError } =
+                await supabase
+                    .from("daily_report_workers")
+                    .select("*")
+                    .eq("report_id", reportId);
+
+            if (latestLabourRecordsError) throw latestLabourRecordsError;
+
+            await syncWorkTimeLogs(report, latestLabourRecords || []);
         },
         onSuccess: () => {
             toast.success(
@@ -523,12 +534,23 @@ const DailyReportDashboard = () => {
 
     const deleteLabourRecord = useMutation({
         mutationFn: async (dailyReportWorkerId: string) => {
+            await ensurePayrollTimeLogsAreEditable(reportId);
+
             const { error } = await supabase
                 .from("daily_report_workers")
                 .delete()
                 .eq("daily_report_worker_id", dailyReportWorkerId);
 
             if (error) throw error;
+            const { data: latestLabourRecords, error: latestLabourRecordsError } =
+                await supabase
+                    .from("daily_report_workers")
+                    .select("*")
+                    .eq("report_id", reportId);
+
+            if (latestLabourRecordsError) throw latestLabourRecordsError;
+
+            await syncWorkTimeLogs(report, latestLabourRecords || []);
         },
         onSuccess: () => {
             toast.success("Labour record deleted successfully.");
@@ -692,6 +714,22 @@ const DailyReportDashboard = () => {
         },
     });
 
+    const ensurePayrollTimeLogsAreEditable = async (targetReportId: string) => {
+        const { data: approvedTimeLogs, error } = await supabase
+            .from("work_time_logs")
+            .select("work_time_log_id")
+            .eq("report_id", targetReportId)
+            .eq("approved", true);
+
+        if (error) throw error;
+
+        if ((approvedTimeLogs || []).length > 0) {
+            throw new Error(
+                "This daily report already has approved payroll time logs. Please unapprove payroll time before editing labour records."
+            );
+        }
+    };
+
     const syncWorkTimeLogs = async (
         targetReport: any,
         labourRecords: any[]
@@ -726,8 +764,9 @@ const DailyReportDashboard = () => {
             work_date: targetReport.report_date,
             regular_hours: Number(worker.regular_hours || 0),
             overtime_hours: Number(worker.overtime_hours || 0),
-            break_minutes: 0,
+            break_minutes: Number(worker.break_minutes || 0),
             approved: false,
+            time_status: "Needs Review",
             notes: worker.notes || worker.worker_role || null,
             is_deleted: false,
         }));
