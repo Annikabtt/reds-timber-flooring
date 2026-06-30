@@ -144,6 +144,49 @@ const DailyReportDashboard = () => {
             return data;
         },
     });
+
+    // เพิ่ม Linked Work Time Logs เป็น query แยก เพื่อใช้แสดงในหน้า Dashboard สำหรับ UAT
+
+    const { data: linkedWorkTimeLogs = [] } = useQuery({
+        queryKey: ["linked_work_time_logs", reportId],
+        enabled: !!reportId,
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("work_time_logs")
+                .select(`
+                work_time_log_id,
+                report_id,
+                employee_id,
+                activity_type_id,
+                work_date,
+                regular_hours,
+                overtime_hours,
+                break_minutes,
+                approved,
+                time_status,
+                notes,
+                employees (
+                    employee_code,
+                    display_name,
+                    first_name,
+                    last_name
+                ),
+                work_activity_types (
+                    activity_name
+                )
+            `)
+                .eq("report_id", reportId)
+                .eq("is_deleted", false)
+                .order("work_date", { ascending: true });
+
+            if (error) throw error;
+
+            return data || [];
+        },
+    });
+
+    // จบโค้ดบันทัดนี้ เพิ่ม Linked Work Time Logs เป็น query แยก เพื่อใช้แสดงในหน้า Dashboard สำหรับ UAT
+
     useEffect(() => {
         if (!report) return;
 
@@ -1195,6 +1238,80 @@ const DailyReportDashboard = () => {
                         </div>
                     </div>
                 </div>
+
+                // เพิ่ม Card แสดง Linked Work Time Logs
+                
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                        <div>
+                            <h2 className="font-bold text-slate-900">Linked Work Time Logs</h2>
+                            <p className="text-sm text-slate-500">
+                                Read-only check for this Daily Report. Use this section during UAT to confirm labour records and payroll time match.
+                            </p>
+                        </div>
+                        <span className="text-sm font-semibold text-slate-700">
+                            {linkedWorkTimeLogs.length} log(s)
+                        </span>
+                    </div>
+
+                    {linkedWorkTimeLogs.length === 0 ? (
+                        <p className="text-sm text-slate-500">
+                            No linked work time logs found for this daily report.
+                        </p>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="border-b border-slate-200 text-left text-slate-500">
+                                        <th className="py-2 pr-3 font-medium">Employee</th>
+                                        <th className="py-2 pr-3 font-medium">Activity</th>
+                                        <th className="py-2 pr-3 font-medium">Work Date</th>
+                                        <th className="py-2 pr-3 font-medium">Regular</th>
+                                        <th className="py-2 pr-3 font-medium">OT</th>
+                                        <th className="py-2 pr-3 font-medium">Break</th>
+                                        <th className="py-2 pr-3 font-medium">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {linkedWorkTimeLogs.map((log: any) => {
+                                        const employeeName =
+                                            log.employees?.display_name ||
+                                            `${log.employees?.first_name || ""} ${log.employees?.last_name || ""}`.trim() ||
+                                            log.employees?.employee_code ||
+                                            "-";
+
+                                        return (
+                                            <tr key={log.work_time_log_id} className="border-b border-slate-100">
+                                                <td className="py-2 pr-3 font-medium text-slate-900">
+                                                    {employeeName}
+                                                </td>
+                                                <td className="py-2 pr-3 text-slate-700">
+                                                    {log.work_activity_types?.activity_name || "-"}
+                                                </td>
+                                                <td className="py-2 pr-3 text-slate-700">
+                                                    {log.work_date || "-"}
+                                                </td>
+                                                <td className="py-2 pr-3 text-slate-700">
+                                                    {Number(log.regular_hours || 0).toFixed(2)}
+                                                </td>
+                                                <td className="py-2 pr-3 text-slate-700">
+                                                    {Number(log.overtime_hours || 0).toFixed(2)}
+                                                </td>
+                                                <td className="py-2 pr-3 text-slate-700">
+                                                    {Number(log.break_minutes || 0)}
+                                                </td>
+                                                <td className="py-2 pr-3 text-slate-700">
+                                                    {log.approved ? "Payroll Approved" : log.time_status || "Needs Review"}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+                //จบเพิ่ม Card แสดง Linked Work Time Logs
 
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
                     <h2 className="font-bold text-slate-900 mb-4">Daily Summary</h2>
