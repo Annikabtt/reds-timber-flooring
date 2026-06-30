@@ -1240,18 +1240,43 @@ const DailyReportDashboard = () => {
                 </div>
 
                 // เพิ่ม Card แสดง Linked Work Time Logs
-                
+
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
                         <div>
-                            <h2 className="font-bold text-slate-900">Linked Work Time Logs</h2>
+                            <h2 className="font-bold text-slate-900">Work Time Log Verification</h2>
                             <p className="text-sm text-slate-500">
-                                Read-only check for this Daily Report. Use this section during UAT to confirm labour records and payroll time match.
+                                Compare labour records with linked work time logs before payroll review.
                             </p>
                         </div>
                         <span className="text-sm font-semibold text-slate-700">
                             {linkedWorkTimeLogs.length} log(s)
                         </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <p className="text-xs text-slate-500">Labour Records</p>
+                            <p className="mt-1 text-lg font-bold text-slate-900">
+                                {report.daily_report_workers?.length || 0}
+                            </p>
+                        </div>
+
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <p className="text-xs text-slate-500">Work Time Logs</p>
+                            <p className="mt-1 text-lg font-bold text-slate-900">
+                                {linkedWorkTimeLogs.length}
+                            </p>
+                        </div>
+
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <p className="text-xs text-slate-500">Verification</p>
+                            <p className="mt-1 text-lg font-bold text-slate-900">
+                                {(report.daily_report_workers?.length || 0) === linkedWorkTimeLogs.length
+                                    ? "PASS"
+                                    : "CHECK"}
+                            </p>
+                        </div>
                     </div>
 
                     {linkedWorkTimeLogs.length === 0 ? (
