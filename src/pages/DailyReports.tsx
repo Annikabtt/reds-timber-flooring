@@ -39,6 +39,7 @@ type TimeStatus =
 
 type LabourRecord = {
   employee_id: string;
+  work_assignment_id: string;
   activity_type_id: string;
   clock_in: string;
   clock_out: string;
@@ -56,6 +57,7 @@ const NEED_REVIEW_HOURS_LIMIT = 12;
 
 const createEmptyLabourRecord = (): LabourRecord => ({
   employee_id: "",
+  work_assignment_id: "",
   activity_type_id: "",
   clock_in: "",
   clock_out: "",
@@ -67,7 +69,6 @@ const createEmptyLabourRecord = (): LabourRecord => ({
   worker_role: "",
   notes: "",
 });
-
 const calculateLabourTime = (record: LabourRecord): LabourRecord => {
   if (!record.clock_in || !record.clock_out) {
     return {
@@ -145,12 +146,17 @@ const DailyReports = () => {
   const photoCaption = "";
   const setPhotoCaption = () => { };
   const [selectedActivityTypeIds, setSelectedActivityTypeIds] = useState<string[]>([]);
+  const [openWorkerCardIndexes, setOpenWorkerCardIndexes] = useState<number[]>([0]);
   const [labourRecords, setLabourRecords] = useState<LabourRecord[]>([
     createEmptyLabourRecord(),
   ]);
 
   const addLabourRecord = () => {
-    setLabourRecords((prev) => [...prev, createEmptyLabourRecord()]);
+    setLabourRecords((prev) => {
+      const nextIndex = prev.length;
+      setOpenWorkerCardIndexes((current) => [...current, nextIndex]);
+      return [...prev, createEmptyLabourRecord()];
+    });
   };
 
   const removeLabourRecord = (index: number) => {
@@ -182,6 +188,39 @@ const DailyReports = () => {
         return updatedRecord;
       })
     );
+  };
+
+  const getWorkerCompletionStatus = (record: LabourRecord) => {
+    if (!record.employee_id && !record.activity_type_id && !record.clock_in) {
+      return {
+        label: "Not Started",
+        className: "bg-slate-100 text-slate-600 border-slate-200",
+      };
+    }
+
+    if (record.clock_in && !record.clock_out) {
+      return {
+        label: "Missing Check Out",
+        className: "bg-red-100 text-red-700 border-red-200",
+      };
+    }
+
+    if (
+      record.employee_id &&
+      record.activity_type_id &&
+      record.clock_in &&
+      record.clock_out
+    ) {
+      return {
+        label: "Complete",
+        className: "bg-green-100 text-green-700 border-green-200",
+      };
+    }
+
+    return {
+      label: "In Progress",
+      className: "bg-amber-100 text-amber-700 border-amber-200",
+    };
   };
 
   const getTimeStatusClass = (status: TimeStatus) => {
@@ -306,14 +345,34 @@ const DailyReports = () => {
       const { data, error } = await supabase
         .from("work_orders")
         .select(`
-          work_order_id,
-          work_order_no,
+        work_order_id,
+        work_order_no,
+        project_id,
+        site_id,
+        area_id,
+        title,
+        status,
+        work_assignments (
+          work_assignment_id,
+          employee_id,
           project_id,
           site_id,
           area_id,
-          title,
-          status
-        `)
+          work_order_id,
+          assigned_date,
+          assigned_at,
+          ended_date,
+          ended_at,
+          is_deleted,
+          employees (
+            employee_id,
+            employee_code,
+            display_name,
+            first_name,
+            last_name
+          )
+        )
+      `)
         .eq("is_deleted", false)
         .order("created_at", { ascending: false });
 
@@ -417,6 +476,15 @@ const DailyReports = () => {
       return matchProject && matchSite;
     });
   }, [areas, filterProjectId, filterSiteId]);
+
+  const selectedProject = useMemo(() => {
+    return projects.find((project) => project.project_id === projectId);
+  }, [projects, projectId]);
+
+  const selectedSite = useMemo(() => {
+    return sites.find((site) => site.site_id === siteId);
+  }, [sites, siteId]);
+
   const selectedArea = useMemo(() => {
     return areas.find((area) => area.area_id === areaId);
   }, [areas, areaId]);
@@ -473,6 +541,14 @@ const DailyReports = () => {
     );
 
   }, [workOrders, workOrderIdFromUrl]);
+
+  const selectedWorkOrderForForm = useMemo(() => {
+    return (
+      workOrders.find((workOrder) => workOrder.work_order_id === workOrderId) ||
+      selectedWorkOrder ||
+      null
+    );
+  }, [workOrders, workOrderId, selectedWorkOrder]);
 
   useEffect(() => {
     if (!selectedWorkOrder) return;
@@ -1515,340 +1591,383 @@ const DailyReports = () => {
             </DialogTitle>
           </DialogHeader>
 
-          {selectedWorkOrder && (
-            <p className="text-sm text-slate-500">
-              This report is linked to work order{" "}
-              <span className="font-semibold text-slate-700">
-                {selectedWorkOrder.work_order_no || "-"}
-              </span>
-            </p>
-          )}
-
           <div className="space-y-4">
-            <MobileFormSection title="Project Details">
-              <div className="space-y-2">
-                <Label>Project *</Label>
-                <Select
-                  value={projectId}
-                  onValueChange={(value) => {
-                    setProjectId(value);
-                    setSiteId("");
-                    setAreaId("");
-                    setWorkOrderId("");
-                  }}
-                >
-                  <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                    <SelectValue placeholder="Select project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((project) => (
-                      <SelectItem key={project.project_id} value={project.project_id}>
-                        {project.project_no || "-"} - {project.project_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <MobileFormSection title="Project Information">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="space-y-3">
+                  <div className="rounded-xl bg-red-50 border border-red-200 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-red-600">
+                      WORK ORDER
+                    </p>
 
-              <div className="space-y-2">
-                <Label>Project Site *</Label>
-                <Select
-                  value={siteId}
-                  onValueChange={(value) => {
-                    setSiteId(value);
-                    setAreaId("");
-                    setWorkOrderId("");
-                  }}
-                  disabled={!projectId}
-                >
-                  <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                    <SelectValue
-                      placeholder={
-                        projectId ? "Select project site" : "Select project first"
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredSites.map((site) => (
-                      <SelectItem key={site.site_id} value={site.site_id}>
-                        {site.site_code || "-"} - {site.site_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                    <p className="mt-1 text-xl font-black text-slate-900">
+                      {selectedWorkOrderForForm?.work_order_no || "-"}
+                    </p>
 
-              <div className="space-y-2">
-                <Label>Project Area *</Label>
-                <Select
-                  value={areaId}
-                  onValueChange={(value) => {
-                    setAreaId(value);
-                    setWorkOrderId("");
-                  }}
-                  disabled={!siteId}
-                >
-                  <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                    <SelectValue
-                      placeholder={siteId ? "Select project area" : "Select site first"}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredAreas.map((area) => (
-                      <SelectItem key={area.area_id} value={area.area_id}>
-                        {area.area_code || "-"} - {area.area_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                    <p className="mt-2 text-base font-bold text-slate-900">
+                      {selectedProject?.project_name || "-"}
+                    </p>
 
-              <div className="space-y-2">
-                <Label>Work Order *</Label>
-                <Select
-                  value={workOrderId}
-                  onValueChange={setWorkOrderId}
-                  disabled={!areaId}
-                >
-                  <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                    <SelectValue
-                      placeholder={areaId ? "Select work order" : "Select area first"}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredWorkOrders.map((workOrder) => (
-                      <SelectItem
-                        key={workOrder.work_order_id}
-                        value={workOrder.work_order_id}
-                      >
-                        {workOrder.work_order_no || "-"} - {workOrder.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                    <div className="mt-3 space-y-2">
 
+                      <div className="flex gap-3">
+                        <p className="w-24 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Site
+                        </p>
+
+                        <p className="text-sm font-semibold text-slate-900">
+                          {selectedSite?.site_name || "-"}
+                        </p>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <p className="w-24 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Area
+                        </p>
+
+                        <p className="text-sm font-semibold text-slate-900">
+                          {selectedArea?.area_name || "-"}
+                        </p>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <p className="w-24 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Activity
+                        </p>
+
+                        <p className="text-sm font-semibold text-slate-900">
+                          {selectedWorkOrderForForm?.title || "-"}
+                        </p>
+                      </div>
+
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Project
+                      </p>
+                      <p className="mt-1 text-base font-bold text-slate-900">
+                        {selectedProject?.project_name || "-"}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {selectedProject?.customers?.customer_name || "-"}
+                      </p>
+                      <div className="rounded-xl border border-slate-200 bg-white p-4">
+                        <div className="space-y-3">
+
+                          <div className="flex flex-col gap-1 md:flex-row">
+                            <p className="w-32 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Site
+                            </p>
+
+                            <p className="font-semibold text-slate-900">
+                              {selectedSite?.site_code || "-"} - {selectedSite?.site_name || "-"}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-col gap-1 md:flex-row">
+                            <p className="w-32 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Area
+                            </p>
+
+                            <p className="font-semibold text-slate-900">
+                              {selectedArea?.area_code || "-"} - {selectedArea?.area_name || "-"}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-col gap-1 md:flex-row">
+                            <p className="w-32 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Work Order
+                            </p>
+
+                            <p className="font-semibold text-slate-900">
+                              {selectedWorkOrderForForm?.title || "-"}
+                            </p>
+                          </div>
+
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                </div>
+              </div>
             </MobileFormSection>
           </div>
 
-          <MobileFormSection title="Daily Report">
+          <MobileFormSection title="Report Date / Weather">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Report Date *</Label>
+                <Input
+                  className="h-11 rounded-xl text-base md:text-sm"
+                  type="date"
+                  value={reportDate}
+                  onChange={(e) => setReportDate(e.target.value)}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label>Report Date *</Label>
-              <Input
-                className="h-11 rounded-xl text-base md:text-sm"
-                type="date"
-                value={reportDate}
-                onChange={(e) => setReportDate(e.target.value)}
-              />
+              <div className="space-y-2">
+                <Label>Weather</Label>
+                <Select
+                  value={weatherCondition}
+                  onValueChange={setWeatherCondition}
+                >
+                  <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                    <SelectValue placeholder="Select weather" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Fine">Fine</SelectItem>
+                    <SelectItem value="Cloudy">Cloudy</SelectItem>
+                    <SelectItem value="Rain">Rain</SelectItem>
+                    <SelectItem value="Storm">Storm</SelectItem>
+                    <SelectItem value="Hot">Hot</SelectItem>
+                    <SelectItem value="Cold">Cold</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-
-            <div className="space-y-2">
-              <Label>Weather</Label>
-              <Select
-                value={weatherCondition}
-                onValueChange={setWeatherCondition}
-              >
-                <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                  <SelectValue placeholder="Select weather" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Fine">Fine</SelectItem>
-                  <SelectItem value="Cloudy">Cloudy</SelectItem>
-                  <SelectItem value="Rain">Rain</SelectItem>
-                  <SelectItem value="Storm">Storm</SelectItem>
-                  <SelectItem value="Hot">Hot</SelectItem>
-                  <SelectItem value="Cold">Cold</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Completed Quantity Today</Label>
-              <Input
-                className="h-11 rounded-xl text-base md:text-sm"
-                type="number"
-                min="0"
-                value={completedQuantity}
-                onChange={(e) => setCompletedQuantity(e.target.value)}
-                placeholder="e.g. 25"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Estimated Progress</Label>
-
-              <MobileProgressSummary
-                progressPercent={progressPercent}
-                completedQuantity={completedQuantity}
-              />
-            </div>
-
           </MobileFormSection>
 
-          <MobileFormSection title="Labour Records">
+          <MobileFormSection title="Worker Cards">
             <div className="space-y-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <Label>Labour Records *</Label>
+                <Label>Worker Cards *</Label>
+
                 <Button
                   type="button"
                   variant="outline"
                   onClick={addLabourRecord}
-                  className="h-11 w-full rounded-xl text-sm font-semibold"
+                  className="h-11 w-full rounded-xl text-sm font-semibold sm:w-auto"
                 >
                   <Plus className="h-4 w-4" />
-                  Add Worker
+                  Add Additional Worker
                 </Button>
               </div>
 
-              {labourRecords.map((record, index) => (
-                <MobileWorkerCard
-                  key={index}
-                  workerNumber={index + 1}
-                  canRemove={labourRecords.length > 1}
-                  onRemove={() => removeLabourRecord(index)}
-                >
+              {labourRecords.map((record, index) => {
+                const workerStatus = getWorkerCompletionStatus(record);
+                const isOpen = openWorkerCardIndexes.includes(index);
+                const isAssignedWorker = index === 0;
 
-                  <div className="space-y-2">
-                    <Label>Employee</Label>
-                    <Select
-                      value={record.employee_id}
-                      onValueChange={(value) =>
-                        updateLabourRecord(index, "employee_id", value)
-                      }
+                const selectedEmployee = employees.find(
+                  (employee) => employee.employee_id === record.employee_id
+                );
+
+                const workerName =
+                  selectedEmployee?.display_name ||
+                  `${selectedEmployee?.first_name || ""} ${selectedEmployee?.last_name || ""}`.trim() ||
+                  "Select worker";
+
+                return (
+                  <div
+                    key={index}
+                    className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpenWorkerCardIndexes((current) =>
+                          current.includes(index)
+                            ? current.filter((item) => item !== index)
+                            : [...current, index]
+                        );
+                      }}
+                      className="flex w-full flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-left sm:flex-row sm:items-center sm:justify-between"
                     >
-                      <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                        <SelectValue placeholder="Select employee" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {employees.map((employee) => (
-                          <SelectItem
-                            key={employee.employee_id}
-                            value={employee.employee_id}
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-bold text-slate-900">
+                            Worker #{index + 1}
+                          </p>
+
+                          <p className="text-sm font-semibold text-slate-700">
+                            {workerName}
+                          </p>
+
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${workerStatus.className}`}
                           >
-                            {employee.display_name ||
-                              `${employee.first_name} ${employee.last_name}`}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                            {workerStatus.label}
+                          </span>
+                        </div>
 
-                  <div className="space-y-2">
-                    <Label>Activity</Label>
-                    <Select
-                      value={record.activity_type_id}
-                      onValueChange={(value) =>
-                        updateLabourRecord(index, "activity_type_id", value)
-                      }
-                    >
-                      <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                        <SelectValue placeholder="Select activity" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {activityTypes.map((activityType) => (
-                          <SelectItem
-                            key={activityType.activity_type_id}
-                            value={activityType.activity_type_id}
-                          >
-                            {activityType.activity_code || "-"} - {activityType.activity_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <div className="space-y-2">
-                      <Label>Clock In</Label>
-                      <Input
-                        type="time"
-                        value={record.clock_in}
-                        onChange={(e) =>
-                          updateLabourRecord(index, "clock_in", e.target.value)
-                        }
-                        className="h-11 rounded-xl text-base md:text-sm"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Clock Out</Label>
-                      <Input
-                        type="time"
-                        value={record.clock_out}
-                        onChange={(e) =>
-                          updateLabourRecord(index, "clock_out", e.target.value)
-                        }
-                        className="h-11 rounded-xl text-base md:text-sm"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Break Minutes</Label>
-                      <Input
-                        type="number"
-                        inputMode="numeric"
-                        min="0"
-                        value={record.break_minutes}
-                        onChange={(e) =>
-                          updateLabourRecord(index, "break_minutes", e.target.value)
-                        }
-                        placeholder="60"
-                        className="h-11 rounded-xl text-base md:text-sm"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <div className="space-y-2">
-                      <Label>Regular Hours</Label>
-                      <Input
-                        value={record.regular_hours}
-                        readOnly
-                        className="h-11 rounded-xl bg-slate-50 text-base md:text-sm"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>OT Hours</Label>
-                      <Input
-                        value={record.overtime_hours}
-                        readOnly
-                        className="h-11 rounded-xl bg-slate-50 text-base md:text-sm"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Time Status</Label>
-                      <div
-                        className={`flex h-11 items-center rounded-xl border px-3 text-sm font-semibold ${getTimeStatusClass(
-                          record.time_status
-                        )}`}
-                      >
-                        {record.time_status}
+                        <p className="mt-1 text-xs text-slate-500">
+                          {isAssignedWorker
+                            ? "Assigned From Work Order"
+                            : "Additional Worker - Needs Review"}
+                        </p>
                       </div>
-                    </div>
-                  </div>
 
-                  <div className="space-y-2">
-                    <Label>Qty Completed</Label>
-                    <Input
-                      type="number"
-                      inputMode="decimal"
-                      value={record.completed_quantity}
-                      onChange={(e) =>
-                        updateLabourRecord(index, "completed_quantity", e.target.value)
-                      }
-                      placeholder="0"
-                      className="h-11 rounded-xl text-base md:text-sm"
-                    />
-                  </div>
+                      <span className="text-xs font-semibold text-slate-500">
+                        {isOpen ? "Hide Details" : "Show Details"}
+                      </span>
+                    </button>
 
-                </MobileWorkerCard>
-              ))}
+                    {isOpen && (
+                      <div className="space-y-4 p-4">
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>Employee</Label>
+                            <Select
+                              value={record.employee_id}
+                              onValueChange={(value) =>
+                                updateLabourRecord(index, "employee_id", value)
+                              }
+                            >
+                              <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                                <SelectValue placeholder="Select employee" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {employees.map((employee) => (
+                                  <SelectItem
+                                    key={employee.employee_id}
+                                    value={employee.employee_id}
+                                  >
+                                    {employee.display_name ||
+                                      `${employee.first_name} ${employee.last_name}`}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Activity</Label>
+                            <Select
+                              value={record.activity_type_id}
+                              onValueChange={(value) =>
+                                updateLabourRecord(index, "activity_type_id", value)
+                              }
+                            >
+                              <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                                <SelectValue placeholder="Select activity" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {activityTypes.map((activityType) => (
+                                  <SelectItem
+                                    key={activityType.activity_type_id}
+                                    value={activityType.activity_type_id}
+                                  >
+                                    {activityType.activity_code || "-"} -{" "}
+                                    {activityType.activity_name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-slate-200 p-3">
+                          <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                            Regular Time
+                          </p>
+
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                            <div className="space-y-2">
+                              <Label>Check In</Label>
+                              <Input
+                                type="time"
+                                value={record.clock_in}
+                                onChange={(e) =>
+                                  updateLabourRecord(index, "clock_in", e.target.value)
+                                }
+                                className="h-11 rounded-xl text-base md:text-sm"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Check Out</Label>
+                              <Input
+                                type="time"
+                                value={record.clock_out}
+                                onChange={(e) =>
+                                  updateLabourRecord(index, "clock_out", e.target.value)
+                                }
+                                className="h-11 rounded-xl text-base md:text-sm"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Break Minutes</Label>
+                              <Input
+                                type="number"
+                                inputMode="numeric"
+                                min="0"
+                                value={record.break_minutes}
+                                onChange={(e) =>
+                                  updateLabourRecord(index, "break_minutes", e.target.value)
+                                }
+                                placeholder="60"
+                                className="h-11 rounded-xl text-base md:text-sm"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                          <div className="space-y-2">
+                            <Label>Regular Hours</Label>
+                            <Input
+                              value={record.regular_hours}
+                              readOnly
+                              className="h-11 rounded-xl bg-slate-50 text-base md:text-sm"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>OT Hours</Label>
+                            <Input
+                              value={record.overtime_hours}
+                              readOnly
+                              className="h-11 rounded-xl bg-slate-50 text-base md:text-sm"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Time Status</Label>
+                            <div
+                              className={`flex h-11 items-center rounded-xl border px-3 text-sm font-semibold ${getTimeStatusClass(
+                                record.time_status
+                              )}`}
+                            >
+                              {record.time_status}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Qty Completed</Label>
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            value={record.completed_quantity}
+                            onChange={(e) =>
+                              updateLabourRecord(index, "completed_quantity", e.target.value)
+                            }
+                            placeholder="0"
+                            className="h-11 rounded-xl text-base md:text-sm"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Worker Notes</Label>
+                          <textarea
+                            value={record.notes}
+                            onChange={(e) =>
+                              updateLabourRecord(index, "notes", e.target.value)
+                            }
+                            placeholder="Worker notes..."
+                            className="min-h-24 w-full rounded-xl border border-slate-200 px-3 py-2 text-base outline-none focus:border-red-300 md:text-sm"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-
           </MobileFormSection>
 
           <MobileFormSection title="Site Notes">
