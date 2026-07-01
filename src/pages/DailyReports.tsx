@@ -37,9 +37,17 @@ type TimeStatus =
   | "Need Review"
   | "Approved";
 
+type WorkerSource =
+  | "Assigned"
+  | "Additional"
+  | "Replacement";
+type AttendanceStatus = "Present" | "Not Attended" | "Replaced";
+
 type LabourRecord = {
   employee_id: string;
   work_assignment_id: string;
+  worker_source: WorkerSource;
+  attendance_status: AttendanceStatus;
   activity_type_id: string;
   clock_in: string;
   clock_out: string;
@@ -58,6 +66,8 @@ const NEED_REVIEW_HOURS_LIMIT = 12;
 const createEmptyLabourRecord = (): LabourRecord => ({
   employee_id: "",
   work_assignment_id: "",
+  worker_source: "Additional",
+  attendance_status: "Present",
   activity_type_id: "",
   clock_in: "",
   clock_out: "",
@@ -222,6 +232,48 @@ const DailyReports = () => {
       label: "In Progress",
       className: "bg-amber-100 text-amber-700 border-amber-200",
     };
+  };
+
+  const getWorkerSourceBadge = (source: WorkerSource) => {
+    switch (source) {
+      case "Assigned":
+        return {
+          label: "Assigned Worker",
+          className: "bg-blue-100 text-blue-700 border-blue-200",
+        };
+      case "Replacement":
+        return {
+          label: "Replacement Worker",
+          className: "bg-purple-100 text-purple-700 border-purple-200",
+        };
+      case "Additional":
+      default:
+        return {
+          label: "Additional Worker",
+          className: "bg-slate-100 text-slate-700 border-slate-200",
+        };
+    }
+  };
+
+  const getAttendanceBadge = (status: AttendanceStatus) => {
+    switch (status) {
+      case "Present":
+        return {
+          label: "Present",
+          className: "bg-green-100 text-green-700 border-green-200",
+        };
+      case "Replaced":
+        return {
+          label: "Replaced",
+          className: "bg-amber-100 text-amber-700 border-amber-200",
+        };
+      case "Not Attended":
+      default:
+        return {
+          label: "Not Attended",
+          className: "bg-red-100 text-red-700 border-red-200",
+        };
+    }
   };
 
   const getTimeStatusClass = (status: TimeStatus) => {
@@ -568,12 +620,15 @@ const DailyReports = () => {
       setLabourRecords([createEmptyLabourRecord()]);
       setOpenWorkerCardIndexes([0]);
       return;
+
     }
 
     const assignedLabourRecords = activeAssignments.map((assignment) => ({
       ...createEmptyLabourRecord(),
       employee_id: assignment.employee_id || "",
       work_assignment_id: assignment.work_assignment_id || "",
+      worker_source: "Assigned" as WorkerSource,
+      attendance_status: "Present" as AttendanceStatus,
       worker_role: "Assigned Worker",
     }));
 
@@ -1765,8 +1820,9 @@ const DailyReports = () => {
 
               {labourRecords.map((record, index) => {
                 const workerStatus = getWorkerCompletionStatus(record);
+                const workerSourceBadge = getWorkerSourceBadge(record.worker_source);
+                const attendanceBadge = getAttendanceBadge(record.attendance_status);
                 const isOpen = openWorkerCardIndexes.includes(index);
-                const isAssignedWorker = index === 0;
 
                 const selectedEmployee = employees.find(
                   (employee) => employee.employee_id === record.employee_id
@@ -1802,6 +1858,20 @@ const DailyReports = () => {
                           <p className="text-sm font-semibold text-slate-700">
                             {workerName}
                           </p>
+                        </div>
+
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${workerSourceBadge.className}`}
+                          >
+                            {workerSourceBadge.label}
+                          </span>
+
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${attendanceBadge.className}`}
+                          >
+                            {attendanceBadge.label}
+                          </span>
 
                           <span
                             className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${workerStatus.className}`}
@@ -1809,12 +1879,6 @@ const DailyReports = () => {
                             {workerStatus.label}
                           </span>
                         </div>
-
-                        <p className="mt-1 text-xs text-slate-500">
-                          {isAssignedWorker
-                            ? "Assigned From Work Order"
-                            : "Additional Worker - Needs Review"}
-                        </p>
                       </div>
 
                       <span className="text-xs font-semibold text-slate-500">
@@ -1824,6 +1888,46 @@ const DailyReports = () => {
 
                     {isOpen && (
                       <div className="space-y-4 p-4">
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>Worker Source</Label>
+                            <Select
+                              value={record.worker_source}
+                              onValueChange={(value) =>
+                                updateLabourRecord(index, "worker_source", value as WorkerSource)
+                              }
+                            >
+                              <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                                <SelectValue placeholder="Worker Source" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Assigned">Assigned Worker</SelectItem>
+                                <SelectItem value="Additional">Additional Worker</SelectItem>
+                                <SelectItem value="Replacement">Replacement Worker</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Attendance</Label>
+                            <Select
+                              value={record.attendance_status}
+                              onValueChange={(value) =>
+                                updateLabourRecord(index, "attendance_status", value as AttendanceStatus)
+                              }
+                            >
+                              <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                                <SelectValue placeholder="Select attendance" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Present">Present</SelectItem>
+                                <SelectItem value="Not Attended">Not Attended</SelectItem>
+                                <SelectItem value="Replaced">Replaced</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
                         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                           <div className="space-y-2">
                             <Label>Employee</Label>
@@ -1843,7 +1947,8 @@ const DailyReports = () => {
                                     value={employee.employee_id}
                                   >
                                     {employee.display_name ||
-                                      `${employee.first_name} ${employee.last_name}`}
+                                      `${employee.first_name || ""} ${employee.last_name || ""}`.trim() ||
+                                      employee.employee_code}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -1867,8 +1972,7 @@ const DailyReports = () => {
                                     key={activityType.activity_type_id}
                                     value={activityType.activity_type_id}
                                   >
-                                    {activityType.activity_code || "-"} -{" "}
-                                    {activityType.activity_name}
+                                    {activityType.activity_code || "-"} - {activityType.activity_name}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
