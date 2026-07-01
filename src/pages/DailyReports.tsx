@@ -76,6 +76,7 @@ const calculateLabourTime = (record: LabourRecord): LabourRecord => {
       time_status: "Missing CheckIn-Checkout",
       regular_hours: "0",
       overtime_hours: "0",
+
     };
   }
 
@@ -359,12 +360,8 @@ const DailyReports = () => {
           site_id,
           area_id,
           work_order_id,
-          assigned_date,
-          assigned_at,
-          ended_date,
-          ended_at,
-          is_deleted,
-          employees (
+            is_deleted,
+            employees (
             employee_id,
             employee_code,
             display_name,
@@ -562,6 +559,26 @@ const DailyReports = () => {
       setReportDate(new Date().toISOString().slice(0, 10));
     }
 
+    const activeAssignments =
+      selectedWorkOrder.work_assignments?.filter(
+        (assignment) => !assignment.is_deleted
+      ) || [];
+
+    if (activeAssignments.length === 0) {
+      setLabourRecords([createEmptyLabourRecord()]);
+      setOpenWorkerCardIndexes([0]);
+      return;
+    }
+
+    const assignedLabourRecords = activeAssignments.map((assignment) => ({
+      ...createEmptyLabourRecord(),
+      employee_id: assignment.employee_id || "",
+      work_assignment_id: assignment.work_assignment_id || "",
+      worker_role: "Assigned Worker",
+    }));
+
+    setLabourRecords(assignedLabourRecords);
+    setOpenWorkerCardIndexes(assignedLabourRecords.map((_, index) => index));
   }, [selectedWorkOrder, reportDate]);
 
   const resetForm = () => {
