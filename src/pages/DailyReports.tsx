@@ -209,6 +209,20 @@ const DailyReports = () => {
   };
 
   const getWorkerCompletionStatus = (record: LabourRecord) => {
+    if (record.attendance_status === "Not Attended") {
+      return {
+        label: "Not Attended",
+        className: "bg-red-100 text-red-700 border-red-200",
+      };
+    }
+
+    if (record.attendance_status === "Replaced") {
+      return {
+        label: "Replaced",
+        className: "bg-purple-100 text-purple-700 border-purple-200",
+      };
+    }
+
     if (!record.employee_id && !record.activity_type_id && !record.clock_in) {
       return {
         label: "Not Started",
@@ -1872,15 +1886,17 @@ const DailyReports = () => {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <Label>Worker Cards *</Label>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={addLabourRecord}
-                  className="h-11 w-full rounded-xl text-sm font-semibold sm:w-auto"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Additional Worker
-                </Button>
+                {userCanManageWorkers && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={addLabourRecord}
+                    className="h-11 w-full rounded-xl text-sm font-semibold sm:w-auto"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Additional Worker
+                  </Button>
+                )}
               </div>
 
               {[...labourRecords]
@@ -1916,6 +1932,37 @@ const DailyReports = () => {
                     selectedEmployee?.display_name ||
                     `${selectedEmployee?.first_name || ""} ${selectedEmployee?.last_name || ""}`.trim() ||
                     "Select worker";
+                  const selectedActivityType = activityTypes.find(
+                    (activityType) => activityType.activity_type_id === record.activity_type_id
+                  );
+
+                  const workerActivityName =
+                    selectedActivityType?.activity_name || "No activity selected";
+
+                  const workerTimeSummary =
+                    record.clock_in || record.clock_out
+                      ? `${record.clock_in || "--:--"} - ${record.clock_out || "--:--"}`
+                      : "No time recorded";
+
+                  const workerTotalHours =
+                    Number(record.regular_hours || 0) + Number(record.overtime_hours || 0);
+
+                  const replacingWorker = assignedWorkerOptions.find(
+                    (worker) =>
+                      worker.work_assignment_id === record.replaces_work_assignment_id
+                  );
+
+                  const replacingEmployee = employees.find(
+                    (employee) =>
+                      employee.employee_id === replacingWorker?.employee_id
+                  );
+
+                  const replacingWorkerName =
+                    replacingEmployee?.display_name ||
+                    `${replacingEmployee?.first_name || ""} ${replacingEmployee?.last_name || ""}`.trim() ||
+                    replacingEmployee?.employee_code ||
+                    "";
+
                   const isCurrentWorker =
                     !!currentEmployee &&
                     record.employee_id === currentEmployee.employee_id;
@@ -1924,6 +1971,10 @@ const DailyReports = () => {
 
                   const canEditWorkerLog =
                     userCanManageWorkers || isCurrentWorker;
+
+                  const canRemoveWorker =
+                    userCanManageWorkers &&
+                    record.worker_source !== "Assigned";
 
                   return (
                     <div
@@ -1987,6 +2038,48 @@ const DailyReports = () => {
                               {workerStatus.label}
                             </span>
                           </div>
+
+                          <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                            <div className="rounded-xl bg-white/70 px-3 py-2">
+                              <p className="font-semibold text-slate-500">Activity</p>
+                              <p className="mt-1 truncate font-bold text-slate-900">
+                                {workerActivityName}
+                              </p>
+                            </div>
+                            {record.worker_source === "Replacement" &&
+                              replacingWorkerName && (
+                                <div className="mt-3 rounded-xl border border-purple-200 bg-purple-50 px-3 py-2">
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">
+                                    Replacing
+                                  </p>
+
+                                  <p className="mt-1 font-bold text-purple-900">
+                                    {replacingWorkerName}
+                                  </p>
+                                </div>
+                              )}
+                            <div className="rounded-xl bg-white/70 px-3 py-2">
+                              <p className="font-semibold text-slate-500">Time</p>
+                              <p className="mt-1 font-bold text-slate-900">
+                                {workerTimeSummary}
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl bg-white/70 px-3 py-2">
+                              <p className="font-semibold text-slate-500">Hours</p>
+                              <p className="mt-1 font-bold text-slate-900">
+                                {workerTotalHours.toFixed(2)}
+                              </p>
+                            </div>
+
+                            <div className="rounded-xl bg-white/70 px-3 py-2">
+                              <p className="font-semibold text-slate-500">Qty</p>
+                              <p className="mt-1 font-bold text-slate-900">
+                                {Number(record.completed_quantity || 0).toFixed(2)}
+                              </p>
+                            </div>
+                          </div>
+
                         </div>
 
                         <span className="text-xs font-semibold text-slate-500">
@@ -1996,6 +2089,18 @@ const DailyReports = () => {
 
                       {isOpen && (
                         <div className="space-y-4 p-4">
+                          {canRemoveWorker && (
+                            <div className="flex justify-end">
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                onClick={() => removeLabourRecord(index)}
+                                className="h-10 rounded-xl text-sm font-semibold"
+                              >
+                                Remove Worker
+                              </Button>
+                            </div>
+                          )}
                           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                             <div className="space-y-2">
                               <Label>Worker Source</Label>

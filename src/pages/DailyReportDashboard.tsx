@@ -1238,9 +1238,7 @@ const DailyReportDashboard = () => {
                         </div>
                     </div>
                 </div>
-
-                // เพิ่ม Card แสดง Linked Work Time Logs
-
+               
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
                         <div>
@@ -1336,8 +1334,7 @@ const DailyReportDashboard = () => {
                         </div>
                     )}
                 </div>
-                //จบเพิ่ม Card แสดง Linked Work Time Logs
-
+            
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
                     <h2 className="font-bold text-slate-900 mb-4">Daily Summary</h2>
 
