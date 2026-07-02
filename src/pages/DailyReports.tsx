@@ -4,6 +4,8 @@ import { CalendarDays, Plus, Search } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { canManageWorkers } from "@/lib/permissions";
+import { type AppRole, normalizeAppRole } from "@/lib/roles";
 import {
   Dialog,
   DialogContent,
@@ -153,6 +155,9 @@ const DailyReports = () => {
   const [nextActions, setNextActions] = useState("");
   const [notes, setNotes] = useState("");
   const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([]);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [currentAppRole, setCurrentAppRole] = useState<AppRole>("viewer");
+  const userCanManageWorkers = canManageWorkers(currentAppRole);
 
   // ใช้ชั่วคราวระหว่างการ Refactor
   const photoFiles = pendingPhotos.map((photo) => photo.file);
@@ -292,6 +297,17 @@ const DailyReports = () => {
     }
   };
 
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      const { data } = await supabase.auth.getUser();
+
+      setCurrentUserEmail(data.user?.email ?? null);
+      setCurrentAppRole(normalizeAppRole(data.user?.app_metadata?.app_role));
+    };
+
+    loadCurrentUser();
+  }, []);
+
   const { data: projects = [] } = useQuery({
     queryKey: ["projects-for-daily-reports"],
     queryFn: async () => {
@@ -365,7 +381,8 @@ const DailyReports = () => {
         employee_code,
         display_name,
         first_name,
-        last_name
+        last_name,
+        email
       `)
         .eq("is_deleted", false)
         .eq("is_active", true)
@@ -375,6 +392,17 @@ const DailyReports = () => {
       return data;
     },
   });
+
+  const currentEmployee = useMemo(() => {
+    if (!currentUserEmail) return null;
+
+    return (
+      employees.find(
+        (employee) =>
+          employee.email?.toLowerCase() === currentUserEmail.toLowerCase()
+      ) || null
+    );
+  }, [employees, currentUserEmail]);
 
   const { data: activityTypes = [] } = useQuery({
     queryKey: ["work-activity-types-for-daily-reports"],
@@ -407,6 +435,9 @@ const DailyReports = () => {
         area_id,
         title,
         status,
+        priority,
+        planned_start_date,
+        planned_end_date,
         work_assignments (
           work_assignment_id,
           employee_id,
@@ -635,8 +666,17 @@ const DailyReports = () => {
     }));
 
     setLabourRecords(assignedLabourRecords);
-    setOpenWorkerCardIndexes(assignedLabourRecords.map((_, index) => index));
-  }, [selectedWorkOrder, reportDate]);
+
+    const currentWorkerIndex = assignedLabourRecords.findIndex(
+      (record) =>
+        currentEmployee &&
+        record.employee_id === currentEmployee.employee_id
+    );
+
+    setOpenWorkerCardIndexes(
+      currentWorkerIndex >= 0 ? [currentWorkerIndex] : [0]
+    );
+  }, [selectedWorkOrder, reportDate, currentEmployee]);
 
   const resetForm = () => {
     setProjectId("");
@@ -790,7 +830,7 @@ const DailyReports = () => {
         regular_hours: Number(record.regular_hours || 0),
         overtime_hours: Number(record.overtime_hours || 0),
         break_minutes: Number(record.break_minutes || 0),
-        
+
         approved: false,
         time_status: "Needs Review",
         notes: record.notes.trim() || record.worker_role.trim() || null,
@@ -1101,13 +1141,15 @@ const DailyReports = () => {
           </div>
         </div>
 
-        <Button
-          onClick={() => setShowAddDialog(true)}
-          className="h-11 w-full rounded-xl bg-red-600 px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700 md:w-auto md:px-6"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Add Report
-        </Button>
+        {userCanManageWorkers && (
+          <Button
+            onClick={() => setShowAddDialog(true)}
+            className="h-11 w-full rounded-xl bg-red-600 px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700 md:w-auto md:px-6"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add Report
+          </Button>
+        )}
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm space-y-4 md:p-4">
@@ -1699,102 +1741,90 @@ const DailyReports = () => {
           </DialogHeader>
 
           <div className="space-y-4">
-            <MobileFormSection title="Project Information">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <MobileFormSection title="Work Order Summary">
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-red-600">
+                  Work Order
+                </p>
+
+                <p className="mt-1 text-2xl font-black text-slate-900">
+                  {selectedWorkOrderForForm?.work_order_no || "-"}
+                </p>
+
+                <p className="mt-2 text-base font-bold text-slate-900">
+                  {selectedWorkOrderForForm?.title || "-"}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <div className="space-y-3">
-                  <div className="rounded-xl bg-red-50 border border-red-200 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-red-600">
-                      WORK ORDER
+                  <div className="flex flex-col gap-1">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Project
                     </p>
-
-                    <p className="mt-1 text-xl font-black text-slate-900">
-                      {selectedWorkOrderForForm?.work_order_no || "-"}
-                    </p>
-
-                    <p className="mt-2 text-base font-bold text-slate-900">
+                    <p className="font-semibold text-slate-900">
                       {selectedProject?.project_name || "-"}
                     </p>
+                    <p className="text-xs text-slate-500">
+                      {selectedProject?.customers?.customer_name || "-"}
+                    </p>
+                  </div>
 
-                    <div className="mt-3 space-y-2">
-
-                      <div className="flex gap-3">
-                        <p className="w-24 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Site
-                        </p>
-
-                        <p className="text-sm font-semibold text-slate-900">
-                          {selectedSite?.site_name || "-"}
-                        </p>
-                      </div>
-
-                      <div className="flex gap-3">
-                        <p className="w-24 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Area
-                        </p>
-
-                        <p className="text-sm font-semibold text-slate-900">
-                          {selectedArea?.area_name || "-"}
-                        </p>
-                      </div>
-
-                      <div className="flex gap-3">
-                        <p className="w-24 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Activity
-                        </p>
-
-                        <p className="text-sm font-semibold text-slate-900">
-                          {selectedWorkOrderForForm?.title || "-"}
-                        </p>
-                      </div>
-
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Site
+                      </p>
+                      <p className="font-semibold text-slate-900">
+                        {selectedSite?.site_code || "-"} - {selectedSite?.site_name || "-"}
+                      </p>
                     </div>
 
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Project
+                        Area
                       </p>
-                      <p className="mt-1 text-base font-bold text-slate-900">
-                        {selectedProject?.project_name || "-"}
+                      <p className="font-semibold text-slate-900">
+                        {selectedArea?.area_code || "-"} - {selectedArea?.area_name || "-"}
                       </p>
-                      <p className="text-xs text-slate-500">
-                        {selectedProject?.customers?.customer_name || "-"}
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Priority
                       </p>
-                      <div className="rounded-xl border border-slate-200 bg-white p-4">
-                        <div className="space-y-3">
+                      <p className="font-semibold text-slate-900">
+                        {selectedWorkOrderForForm?.priority || "-"}
+                      </p>
+                    </div>
 
-                          <div className="flex flex-col gap-1 md:flex-row">
-                            <p className="w-32 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                              Site
-                            </p>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Status
+                      </p>
+                      <p className="font-semibold text-slate-900">
+                        {selectedWorkOrderForForm?.status || "-"}
+                      </p>
+                    </div>
 
-                            <p className="font-semibold text-slate-900">
-                              {selectedSite?.site_code || "-"} - {selectedSite?.site_name || "-"}
-                            </p>
-                          </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Planned Start
+                      </p>
+                      <p className="font-semibold text-slate-900">
+                        {selectedWorkOrderForForm?.planned_start_date || "-"}
+                      </p>
+                    </div>
 
-                          <div className="flex flex-col gap-1 md:flex-row">
-                            <p className="w-32 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                              Area
-                            </p>
-
-                            <p className="font-semibold text-slate-900">
-                              {selectedArea?.area_code || "-"} - {selectedArea?.area_name || "-"}
-                            </p>
-                          </div>
-
-                          <div className="flex flex-col gap-1 md:flex-row">
-                            <p className="w-32 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                              Work Order
-                            </p>
-
-                            <p className="font-semibold text-slate-900">
-                              {selectedWorkOrderForForm?.title || "-"}
-                            </p>
-                          </div>
-
-                        </div>
-                      </div>
-
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Assigned Workers
+                      </p>
+                      <p className="font-semibold text-slate-900">
+                        {selectedWorkOrderForForm?.work_assignments?.filter(
+                          (assignment) => !assignment.is_deleted
+                        ).length || 0}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1853,342 +1883,386 @@ const DailyReports = () => {
                 </Button>
               </div>
 
-              {labourRecords.map((record, index) => {
-                const workerStatus = getWorkerCompletionStatus(record);
-                const workerSourceBadge = getWorkerSourceBadge(record.worker_source);
-                const attendanceBadge = getAttendanceBadge(record.attendance_status);
-                const isOpen = openWorkerCardIndexes.includes(index);
+              {[...labourRecords]
+                .sort((a, b) => {
+                  if (!currentEmployee) return 0;
 
-                const assignedWorkerOptions = labourRecords.filter(
-                  (worker) =>
-                    worker.worker_source === "Assigned" &&
-                    worker.work_assignment_id &&
-                    worker.employee_id
-                );
+                  const aIsCurrent = a.employee_id === currentEmployee.employee_id;
+                  const bIsCurrent = b.employee_id === currentEmployee.employee_id;
 
-                const selectedEmployee = employees.find(
-                  (employee) => employee.employee_id === record.employee_id
-                );
+                  if (aIsCurrent && !bIsCurrent) return -1;
+                  if (!aIsCurrent && bIsCurrent) return 1;
 
-                const workerName =
-                  selectedEmployee?.display_name ||
-                  `${selectedEmployee?.first_name || ""} ${selectedEmployee?.last_name || ""}`.trim() ||
-                  "Select worker";
+                  return 0;
+                })
+                .map((record, index) => {
+                  const workerStatus = getWorkerCompletionStatus(record);
+                  const workerSourceBadge = getWorkerSourceBadge(record.worker_source);
+                  const attendanceBadge = getAttendanceBadge(record.attendance_status);
+                  const isOpen = openWorkerCardIndexes.includes(index);
 
-                return (
-                  <div
-                    key={index}
-                    className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOpenWorkerCardIndexes((current) =>
-                          current.includes(index)
-                            ? current.filter((item) => item !== index)
-                            : [...current, index]
-                        );
-                      }}
-                      className="flex w-full flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-left sm:flex-row sm:items-center sm:justify-between"
+                  const assignedWorkerOptions = labourRecords.filter(
+                    (worker) =>
+                      worker.worker_source === "Assigned" &&
+                      worker.work_assignment_id &&
+                      worker.employee_id
+                  );
+
+                  const selectedEmployee = employees.find(
+                    (employee) => employee.employee_id === record.employee_id
+                  );
+
+                  const workerName =
+                    selectedEmployee?.display_name ||
+                    `${selectedEmployee?.first_name || ""} ${selectedEmployee?.last_name || ""}`.trim() ||
+                    "Select worker";
+                  const isCurrentWorker =
+                    !!currentEmployee &&
+                    record.employee_id === currentEmployee.employee_id;
+
+                  const canManageWorkerAssignment = userCanManageWorkers;
+
+                  const canEditWorkerLog =
+                    userCanManageWorkers || isCurrentWorker;
+
+                  return (
+                    <div
+                      key={index}
+                      className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
                     >
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-bold text-slate-900">
-                            Worker #{index + 1}
-                          </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpenWorkerCardIndexes((current) =>
+                            current.includes(index)
+                              ? current.filter((item) => item !== index)
+                              : [...current, index]
+                          );
+                        }}
+                        className={`flex w-full flex-col gap-3 border-b px-4 py-3 text-left sm:flex-row sm:items-center sm:justify-between ${isCurrentWorker
+                          ? "border-blue-200 bg-blue-50"
+                          : "border-slate-200 bg-slate-50"
+                          }`}
+                      >
+                        <div>
+                          {isCurrentWorker && (
+                            <p className="mb-1 text-xs font-bold uppercase tracking-wide text-blue-700">
+                              Your Work
+                            </p>
+                          )}
 
-                          <p className="text-sm font-semibold text-slate-700">
-                            {workerName}
-                          </p>
-                        </div>
-
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <span
-                            className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${workerSourceBadge.className}`}
-                          >
-                            {workerSourceBadge.label}
-                          </span>
-
-                          <span
-                            className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${attendanceBadge.className}`}
-                          >
-                            {attendanceBadge.label}
-                          </span>
-
-                          <span
-                            className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${workerStatus.className}`}
-                          >
-                            {workerStatus.label}
-                          </span>
-                        </div>
-                      </div>
-
-                      <span className="text-xs font-semibold text-slate-500">
-                        {isOpen ? "Hide Details" : "Show Details"}
-                      </span>
-                    </button>
-
-                    {isOpen && (
-                      <div className="space-y-4 p-4">
-                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label>Worker Source</Label>
-                            <Select
-                              value={record.worker_source}
-                              onValueChange={(value) => {
-                                updateLabourRecord(index, "worker_source", value as WorkerSource);
-
-                                if (value !== "Replacement") {
-                                  updateLabourRecord(index, "replaces_work_assignment_id", "");
-                                }
-                              }}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p
+                              className={`font-black ${isCurrentWorker
+                                ? "text-lg text-blue-950"
+                                : "text-base text-slate-900"
+                                }`}
                             >
-                              <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                                <SelectValue placeholder="Worker Source" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Assigned">Assigned Worker</SelectItem>
-                                <SelectItem value="Additional">Additional Worker</SelectItem>
-                                <SelectItem value="Replacement">Replacement Worker</SelectItem>
-                              </SelectContent>
-                            </Select>
+                              {workerName}
+                            </p>
+
+                            {!isCurrentWorker && (
+                              <p className="text-xs font-semibold text-slate-500">
+                                Worker #{index + 1}
+                              </p>
+                            )}
                           </div>
 
-                          <div className="space-y-2">
-                            <Label>Attendance</Label>
-                            <Select
-                              value={record.attendance_status}
-                              onValueChange={(value) =>
-                                updateLabourRecord(index, "attendance_status", value as AttendanceStatus)
-                              }
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span
+                              className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${workerSourceBadge.className}`}
                             >
-                              <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                                <SelectValue placeholder="Select attendance" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Present">Present</SelectItem>
-                                <SelectItem value="Not Attended">Not Attended</SelectItem>
-                                <SelectItem value="Replaced">Replaced</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
+                              {workerSourceBadge.label}
+                            </span>
 
-                          {record.worker_source === "Replacement" && (
-                            <div className="space-y-2 md:col-span-2">
-                              <Label>Replaces Assigned Worker</Label>
+                            <span
+                              className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${attendanceBadge.className}`}
+                            >
+                              {attendanceBadge.label}
+                            </span>
+
+                            <span
+                              className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${workerStatus.className}`}
+                            >
+                              {workerStatus.label}
+                            </span>
+                          </div>
+                        </div>
+
+                        <span className="text-xs font-semibold text-slate-500">
+                          {isOpen ? "Hide Details" : "Show Details"}
+                        </span>
+                      </button>
+
+                      {isOpen && (
+                        <div className="space-y-4 p-4">
+                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label>Worker Source</Label>
                               <Select
-                                value={record.replaces_work_assignment_id}
-                                onValueChange={(value) =>
-                                  updateLabourRecord(index, "replaces_work_assignment_id", value)
-                                }
+                                value={record.worker_source}
+                                disabled={!canManageWorkerAssignment}
+                                onValueChange={(value) => {
+                                  updateLabourRecord(index, "worker_source", value as WorkerSource);
+
+                                  if (value !== "Replacement") {
+                                    updateLabourRecord(index, "replaces_work_assignment_id", "");
+                                  }
+                                }}
                               >
                                 <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                                  <SelectValue placeholder="Select assigned worker being replaced" />
+                                  <SelectValue placeholder="Worker Source" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {assignedWorkerOptions.map((assignedWorker) => {
-                                    const assignedEmployee = employees.find(
-                                      (employee) =>
-                                        employee.employee_id === assignedWorker.employee_id
-                                    );
-
-                                    const assignedWorkerName =
-                                      assignedEmployee?.display_name ||
-                                      `${assignedEmployee?.first_name || ""} ${assignedEmployee?.last_name || ""}`.trim() ||
-                                      assignedEmployee?.employee_code ||
-                                      "Assigned worker";
-
-                                    return (
-                                      <SelectItem
-                                        key={assignedWorker.work_assignment_id}
-                                        value={assignedWorker.work_assignment_id}
-                                      >
-                                        {assignedWorkerName}
-                                      </SelectItem>
-                                    );
-                                  })}
+                                  <SelectItem value="Assigned">Assigned Worker</SelectItem>
+                                  <SelectItem value="Additional">Additional Worker</SelectItem>
+                                  <SelectItem value="Replacement">Replacement Worker</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
-                          )}
-                        </div>
 
-                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label>Employee</Label>
-                            <Select
-                              value={record.employee_id}
-                              onValueChange={(value) =>
-                                updateLabourRecord(index, "employee_id", value)
-                              }
-                            >
-                              <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                                <SelectValue placeholder="Select employee" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {employees.map((employee) => (
-                                  <SelectItem
-                                    key={employee.employee_id}
-                                    value={employee.employee_id}
-                                  >
-                                    {employee.display_name ||
-                                      `${employee.first_name || ""} ${employee.last_name || ""}`.trim() ||
-                                      employee.employee_code}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="space-y-2">
+                              <Label>Attendance</Label>
+                              <Select
+                                value={record.attendance_status}
+                                disabled={!canManageWorkerAssignment}
+                                onValueChange={(value) =>
+                                  updateLabourRecord(index, "attendance_status", value as AttendanceStatus)
+                                }
+                              >
+                                <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                                  <SelectValue placeholder="Select attendance" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Present">Present</SelectItem>
+                                  <SelectItem value="Not Attended">Not Attended</SelectItem>
+                                  <SelectItem value="Replaced">Replaced</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {record.worker_source === "Replacement" && (
+                              <div className="space-y-2 md:col-span-2">
+                                <Label>Replaces Assigned Worker</Label>
+                                <Select
+                                  value={record.replaces_work_assignment_id}
+                                  disabled={!canManageWorkerAssignment}
+                                  onValueChange={(value) =>
+                                    updateLabourRecord(index, "replaces_work_assignment_id", value)
+                                  }
+                                >
+                                  <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                                    <SelectValue placeholder="Select assigned worker being replaced" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {assignedWorkerOptions.map((assignedWorker) => {
+                                      const assignedEmployee = employees.find(
+                                        (employee) =>
+                                          employee.employee_id === assignedWorker.employee_id
+                                      );
+
+                                      const assignedWorkerName =
+                                        assignedEmployee?.display_name ||
+                                        `${assignedEmployee?.first_name || ""} ${assignedEmployee?.last_name || ""}`.trim() ||
+                                        assignedEmployee?.employee_code ||
+                                        "Assigned worker";
+
+                                      return (
+                                        <SelectItem
+                                          key={assignedWorker.work_assignment_id}
+                                          value={assignedWorker.work_assignment_id}
+                                        >
+                                          {assignedWorkerName}
+                                        </SelectItem>
+                                      );
+                                    })}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
                           </div>
 
-                          <div className="space-y-2">
-                            <Label>Activity</Label>
-                            <Select
-                              value={record.activity_type_id}
-                              onValueChange={(value) =>
-                                updateLabourRecord(index, "activity_type_id", value)
-                              }
-                            >
-                              <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                                <SelectValue placeholder="Select activity" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {activityTypes.map((activityType) => (
-                                  <SelectItem
-                                    key={activityType.activity_type_id}
-                                    value={activityType.activity_type_id}
-                                  >
-                                    {activityType.activity_code || "-"} - {activityType.activity_name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
+                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label>Employee</Label>
+                              <Select
+                                value={record.employee_id}
+                                disabled={!canManageWorkerAssignment}
+                                onValueChange={(value) =>
+                                  updateLabourRecord(index, "employee_id", value)
+                                }
+                              >
+                                <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                                  <SelectValue placeholder="Select employee" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {employees.map((employee) => (
+                                    <SelectItem
+                                      key={employee.employee_id}
+                                      value={employee.employee_id}
+                                    >
+                                      {employee.display_name ||
+                                        `${employee.first_name || ""} ${employee.last_name || ""}`.trim() ||
+                                        employee.employee_code}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
 
-                        <div className="rounded-xl border border-slate-200 p-3">
-                          <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">
-                            Regular Time
-                          </p>
+                            <div className="space-y-2">
+                              <Label>Activity</Label>
+                              <Select
+                                value={record.activity_type_id}
+                                disabled={!canEditWorkerLog}
+                                onValueChange={(value) =>
+                                  updateLabourRecord(index, "activity_type_id", value)
+                                }
+                              >
+                                <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                                  <SelectValue placeholder="Select activity" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {activityTypes.map((activityType) => (
+                                    <SelectItem
+                                      key={activityType.activity_type_id}
+                                      value={activityType.activity_type_id}
+                                    >
+                                      {activityType.activity_code || "-"} - {activityType.activity_name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+
+                          <div className="rounded-xl border border-slate-200 p-3">
+                            <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                              Regular Time
+                            </p>
+
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                              <div className="space-y-2">
+                                <Label>Check In</Label>
+                                <Input
+                                  type="time"
+                                  value={record.clock_in}
+                                  disabled={!canEditWorkerLog}
+                                  onChange={(e) =>
+                                    updateLabourRecord(index, "clock_in", e.target.value)
+                                  }
+                                  className="h-11 rounded-xl text-base md:text-sm"
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label>Check Out</Label>
+                                <Input
+                                  type="time"
+                                  value={record.clock_out}
+                                  disabled={!canEditWorkerLog}
+                                  onChange={(e) =>
+                                    updateLabourRecord(index, "clock_out", e.target.value)
+                                  }
+                                  className="h-11 rounded-xl text-base md:text-sm"
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label>Break Minutes</Label>
+                                <Input
+                                  type="number"
+                                  inputMode="numeric"
+                                  min="0"
+                                  value={record.break_minutes}
+                                  disabled={!canEditWorkerLog}
+                                  onChange={(e) =>
+                                    updateLabourRecord(index, "break_minutes", e.target.value)
+                                  }
+                                  placeholder="60"
+                                  className="h-11 rounded-xl text-base md:text-sm"
+                                />
+                              </div>
+                            </div>
+                          </div>
 
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                             <div className="space-y-2">
-                              <Label>Check In</Label>
+                              <Label>Regular Hours</Label>
                               <Input
-                                type="time"
-                                value={record.clock_in}
-                                onChange={(e) =>
-                                  updateLabourRecord(index, "clock_in", e.target.value)
-                                }
-                                className="h-11 rounded-xl text-base md:text-sm"
+                                value={record.regular_hours}
+                                readOnly
+                                className="h-11 rounded-xl bg-slate-50 text-base md:text-sm"
                               />
                             </div>
 
                             <div className="space-y-2">
-                              <Label>Check Out</Label>
+                              <Label>OT Hours</Label>
                               <Input
-                                type="time"
-                                value={record.clock_out}
-                                onChange={(e) =>
-                                  updateLabourRecord(index, "clock_out", e.target.value)
-                                }
-                                className="h-11 rounded-xl text-base md:text-sm"
+                                value={record.overtime_hours}
+                                readOnly
+                                className="h-11 rounded-xl bg-slate-50 text-base md:text-sm"
                               />
                             </div>
 
                             <div className="space-y-2">
-                              <Label>Break Minutes</Label>
-                              <Input
-                                type="number"
-                                inputMode="numeric"
-                                min="0"
-                                value={record.break_minutes}
-                                onChange={(e) =>
-                                  updateLabourRecord(index, "break_minutes", e.target.value)
-                                }
-                                placeholder="60"
-                                className="h-11 rounded-xl text-base md:text-sm"
-                              />
+                              <Label>Time Status</Label>
+                              <div
+                                className={`flex h-11 items-center rounded-xl border px-3 text-sm font-semibold ${getTimeStatusClass(
+                                  record.time_status
+                                )}`}
+                              >
+                                {record.time_status}
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                           <div className="space-y-2">
-                            <Label>Regular Hours</Label>
+                            <Label>Qty Completed</Label>
                             <Input
-                              value={record.regular_hours}
-                              readOnly
-                              className="h-11 rounded-xl bg-slate-50 text-base md:text-sm"
+                              type="number"
+                              inputMode="decimal"
+                              value={record.completed_quantity}
+                              disabled={!canEditWorkerLog}
+                              onChange={(e) =>
+                                updateLabourRecord(index, "completed_quantity", e.target.value)
+                              }
+                              placeholder="0"
+                              className="h-11 rounded-xl text-base md:text-sm"
                             />
                           </div>
 
                           <div className="space-y-2">
-                            <Label>OT Hours</Label>
-                            <Input
-                              value={record.overtime_hours}
-                              readOnly
-                              className="h-11 rounded-xl bg-slate-50 text-base md:text-sm"
+                            <Label>Worker Notes</Label>
+                            <textarea
+                              value={record.notes}
+                              disabled={!canEditWorkerLog}
+                              onChange={(e) =>
+                                updateLabourRecord(index, "notes", e.target.value)
+                              }
+                              placeholder="Worker notes..."
+                              className="min-h-24 w-full rounded-xl border border-slate-200 px-3 py-2 text-base outline-none focus:border-red-300 md:text-sm"
                             />
                           </div>
-
-                          <div className="space-y-2">
-                            <Label>Time Status</Label>
-                            <div
-                              className={`flex h-11 items-center rounded-xl border px-3 text-sm font-semibold ${getTimeStatusClass(
-                                record.time_status
-                              )}`}
-                            >
-                              {record.time_status}
-                            </div>
-                          </div>
                         </div>
-
-                        <div className="space-y-2">
-                          <Label>Qty Completed</Label>
-                          <Input
-                            type="number"
-                            inputMode="decimal"
-                            value={record.completed_quantity}
-                            onChange={(e) =>
-                              updateLabourRecord(index, "completed_quantity", e.target.value)
-                            }
-                            placeholder="0"
-                            className="h-11 rounded-xl text-base md:text-sm"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Worker Notes</Label>
-                          <textarea
-                            value={record.notes}
-                            onChange={(e) =>
-                              updateLabourRecord(index, "notes", e.target.value)
-                            }
-                            placeholder="Worker notes..."
-                            className="min-h-24 w-full rounded-xl border border-slate-200 px-3 py-2 text-base outline-none focus:border-red-300 md:text-sm"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                      )}
+                    </div>
+                  );
+                })}
             </div>
           </MobileFormSection>
 
           <MobileFormSection title="Site Notes">
             <MobileSiteNotes
-              workCompleted={workCompleted}
               issuesFound={issuesFound}
-              nextActions={nextActions}
               notes={notes}
-              setWorkCompleted={setWorkCompleted}
               setIssuesFound={setIssuesFound}
-              setNextActions={setNextActions}
               setNotes={setNotes}
             />
           </MobileFormSection>
+
           <MobilePhotoUpload
+
             pendingPhotos={pendingPhotos}
             setPendingPhotos={setPendingPhotos}
           />
