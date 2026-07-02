@@ -46,6 +46,7 @@ type AttendanceStatus = "Present" | "Not Attended" | "Replaced";
 type LabourRecord = {
   employee_id: string;
   work_assignment_id: string;
+  replaces_work_assignment_id: string;
   worker_source: WorkerSource;
   attendance_status: AttendanceStatus;
   activity_type_id: string;
@@ -66,6 +67,7 @@ const NEED_REVIEW_HOURS_LIMIT = 12;
 const createEmptyLabourRecord = (): LabourRecord => ({
   employee_id: "",
   work_assignment_id: "",
+  replaces_work_assignment_id: "",
   worker_source: "Additional",
   attendance_status: "Present",
   activity_type_id: "",
@@ -662,12 +664,26 @@ const DailyReports = () => {
       if (!areaId) throw new Error("Please select a project area.");
       if (!workOrderId) throw new Error("Please select a work order.");
       if (!reportDate) throw new Error("Please select report date.");
-      const validLabourRecords = labourRecords.filter(
-        (record) => record.employee_id && record.activity_type_id
+      const dailyReportWorkers = labourRecords.filter(
+        (record) => record.employee_id
       );
 
-      if (validLabourRecords.length === 0) {
-        throw new Error("Please add at least one labour record.");
+      const timeLogWorkers = dailyReportWorkers.filter(
+        (record) =>
+          record.attendance_status === "Present" &&
+          record.activity_type_id &&
+          record.clock_in &&
+          record.clock_out
+      );
+
+      if (dailyReportWorkers.length === 0) {
+        throw new Error("Please add at least one worker.");
+      }
+
+      if (timeLogWorkers.length === 0) {
+        throw new Error(
+          "Please add at least one present worker with activity, check in, and check out."
+        );
       }
       const completedToday = Number(completedQuantity || 0);
 
@@ -700,7 +716,7 @@ const DailyReports = () => {
           work_order_id: workOrderId,
           report_date: reportDate,
           weather_condition: weatherCondition || null,
-          workers_count: new Set(validLabourRecords.map((record) => record.employee_id)).size,
+          workers_count: new Set(timeLogWorkers.map((record) => record.employee_id)).size,
           approval_status: "Submitted",
           progress_percent: progress,
           completed_quantity: completedToday,
@@ -728,13 +744,24 @@ const DailyReports = () => {
         .insert(activityRows);
 
       if (activityInsertError) throw activityInsertError;
-      const workerRows = validLabourRecords.map((record) => ({
+      const workerRows = dailyReportWorkers.map((record) => ({
         report_id: createdReport.report_id,
+
         employee_id: record.employee_id,
+        work_assignment_id: record.work_assignment_id || null,
+        replaces_work_assignment_id:
+          record.replaces_work_assignment_id || null,
+
+        worker_source: record.worker_source,
+        attendance_status: record.attendance_status,
+
         activity_type_id: record.activity_type_id,
+
         regular_hours: Number(record.regular_hours || 0),
         overtime_hours: Number(record.overtime_hours || 0),
+
         completed_quantity: Number(record.completed_quantity || 0),
+
         worker_role: record.worker_role.trim() || null,
         notes: record.notes.trim() || null,
       }));
@@ -744,9 +771,16 @@ const DailyReports = () => {
         .insert(workerRows);
 
       if (workerInsertError) throw workerInsertError;
-      const timeLogRows = validLabourRecords.map((record) => ({
+      const timeLogRows = timeLogWorkers.map((record) => ({
         report_id: createdReport.report_id,
         employee_id: record.employee_id,
+        work_assignment_id: record.work_assignment_id || null,
+        replaces_work_assignment_id:
+          record.replaces_work_assignment_id || null,
+
+        worker_source: record.worker_source,
+        attendance_status: record.attendance_status,
+
         project_id: projectId,
         site_id: siteId,
         area_id: areaId,
@@ -756,6 +790,7 @@ const DailyReports = () => {
         regular_hours: Number(record.regular_hours || 0),
         overtime_hours: Number(record.overtime_hours || 0),
         break_minutes: Number(record.break_minutes || 0),
+        
         approved: false,
         time_status: "Needs Review",
         notes: record.notes.trim() || record.worker_role.trim() || null,
@@ -1824,6 +1859,13 @@ const DailyReports = () => {
                 const attendanceBadge = getAttendanceBadge(record.attendance_status);
                 const isOpen = openWorkerCardIndexes.includes(index);
 
+                const assignedWorkerOptions = labourRecords.filter(
+                  (worker) =>
+                    worker.worker_source === "Assigned" &&
+                    worker.work_assignment_id &&
+                    worker.employee_id
+                );
+
                 const selectedEmployee = employees.find(
                   (employee) => employee.employee_id === record.employee_id
                 );
@@ -1893,9 +1935,13 @@ const DailyReports = () => {
                             <Label>Worker Source</Label>
                             <Select
                               value={record.worker_source}
-                              onValueChange={(value) =>
-                                updateLabourRecord(index, "worker_source", value as WorkerSource)
-                              }
+                              onValueChange={(value) => {
+                                updateLabourRecord(index, "worker_source", value as WorkerSource);
+
+                                if (value !== "Replacement") {
+                                  updateLabourRecord(index, "replaces_work_assignment_id", "");
+                                }
+                              }}
                             >
                               <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
                                 <SelectValue placeholder="Worker Source" />
@@ -1926,6 +1972,45 @@ const DailyReports = () => {
                               </SelectContent>
                             </Select>
                           </div>
+
+                          {record.worker_source === "Replacement" && (
+                            <div className="space-y-2 md:col-span-2">
+                              <Label>Replaces Assigned Worker</Label>
+                              <Select
+                                value={record.replaces_work_assignment_id}
+                                onValueChange={(value) =>
+                                  updateLabourRecord(index, "replaces_work_assignment_id", value)
+                                }
+                              >
+                                <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                                  <SelectValue placeholder="Select assigned worker being replaced" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {assignedWorkerOptions.map((assignedWorker) => {
+                                    const assignedEmployee = employees.find(
+                                      (employee) =>
+                                        employee.employee_id === assignedWorker.employee_id
+                                    );
+
+                                    const assignedWorkerName =
+                                      assignedEmployee?.display_name ||
+                                      `${assignedEmployee?.first_name || ""} ${assignedEmployee?.last_name || ""}`.trim() ||
+                                      assignedEmployee?.employee_code ||
+                                      "Assigned worker";
+
+                                    return (
+                                      <SelectItem
+                                        key={assignedWorker.work_assignment_id}
+                                        value={assignedWorker.work_assignment_id}
+                                      >
+                                        {assignedWorkerName}
+                                      </SelectItem>
+                                    );
+                                  })}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
