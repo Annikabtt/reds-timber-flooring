@@ -249,6 +249,7 @@ const DailyReports = () => {
   const [openOvertimeCardIndexes, setOpenOvertimeCardIndexes] = useState<number[]>([]);
   const [labourRecords, setLabourRecords] = useState<LabourRecord[]>([]);
   const [activeDraftReportId, setActiveDraftReportId] = useState<string | null>(null);
+  const [isManualBackdatedEntry, setIsManualBackdatedEntry] = useState(false);
   const formatHoursMinutes = (regularHours: string, overtimeHours: string) => {
     const totalHours =
       Number(regularHours || 0) + Number(overtimeHours || 0);
@@ -951,6 +952,7 @@ const DailyReports = () => {
     setSelectedActivityTypeIds([]);
     setLabourRecords([createEmptyLabourRecord()]);
     setActiveDraftReportId(null);
+    setIsManualBackdatedEntry(false);
 
   };
 
@@ -1283,7 +1285,23 @@ const DailyReports = () => {
         (record) => record.employee_id
       );
 
-      const timeLogWorkers = dailyReportWorkers.filter(
+      const normalizedDailyReportWorkers = dailyReportWorkers.map((record) => {
+        const calculatedRecord = calculateLabourTime(record);
+
+        if (!isManualBackdatedEntry) {
+          return calculatedRecord;
+        }
+
+        return {
+          ...calculatedRecord,
+          time_status: "Need Review" as TimeStatus,
+          notes:
+            calculatedRecord.notes.trim() ||
+            "Manual / backdated time entry. Please review before payroll approval.",
+        };
+      });
+
+      const timeLogWorkers = normalizedDailyReportWorkers.filter(
         (record) =>
           record.attendance_status === "Present" &&
           record.activity_type_id &&
@@ -1397,7 +1415,7 @@ const DailyReports = () => {
         if (activityInsertError) throw activityInsertError;
       }
       if (!activeDraftReportId) {
-        const workerRows = dailyReportWorkers.map((record) => ({
+        const workerRows = normalizedDailyReportWorkers.map((record) => ({
           report_id: finalReportId,
           employee_id: record.employee_id,
           work_assignment_id: record.work_assignment_id || null,
@@ -1460,7 +1478,7 @@ const DailyReports = () => {
         }
       }
       if (activeDraftReportId) {
-        for (const record of dailyReportWorkers) {
+        for (const record of normalizedDailyReportWorkers) {
           if (record.daily_report_worker_id) {
             const { error: workerUpdateError } = await supabase
               .from("daily_report_workers")
@@ -2109,7 +2127,8 @@ const DailyReports = () => {
                 <div className="col-span-1">Date</div>
                 <div className="col-span-2">Project</div>
                 <div className="col-span-2">Work Summary</div>
-                <div className="col-span-2">Work Order</div>
+                <div className="col-span-2">Work O
+                  rder</div>
                 <div className="col-span-2">Worker Report</div>
                 <div className="col-span-1">Progress</div>
                 <div className="col-span-1">Status</div>
@@ -2598,10 +2617,45 @@ const DailyReports = () => {
                 </Select>
               </div>
             </div>
+
+            <label className="mt-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <input
+                type="checkbox"
+                checked={isManualBackdatedEntry}
+                onChange={(event) =>
+                  setIsManualBackdatedEntry(event.target.checked)
+                }
+                className="mt-1"
+              />
+
+              <div>
+                <p className="text-sm font-semibold text-amber-800">
+                  Manual / Backdated Entry
+                </p>
+
+                <p className="mt-1 text-xs leading-5 text-amber-700">
+                  Use this when entering past work records or correcting time manually.
+                  Saved time logs will be marked as Need Review and not payroll approved.
+                  Add the reason in worker notes.
+                </p>
+              </div>
+            </label>
           </MobileFormSection>
 
           <MobileFormSection title="Worker Cards">
             <div className="space-y-3">
+              {isManualBackdatedEntry && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-sm font-semibold text-amber-800">
+                    Manual time entry is enabled.
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-amber-700">
+                    Enter the actual Check In and Check Out times for the selected report date.
+                    Use worker notes to explain the reason, for example site access delay,
+                    missed check-in, phone issue, or supervisor correction.
+                  </p>
+                </div>
+              )}
 
               {[...labourRecords]
                 .sort((a, b) => {
@@ -2968,73 +3022,112 @@ const DailyReports = () => {
                           </div>
 
                           <div className="rounded-xl border border-slate-200 p-3">
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                <Label>Check In</Label>
+                            {isManualBackdatedEntry ? (
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                                  <Label>Manual Check In</Label>
 
-                                <Button
-                                  type="button"
-                                  variant={record.clock_in ? "outline" : "default"}
-                                  disabled={
-                                    !canEditWorkerLog ||
-                                    startDraftReport.isPending ||
-                                    !!record.clock_in ||
-                                    !!record.daily_report_worker_id ||
-                                    !!record.work_time_log_id
-                                  }
-
-                                  onClick={() => {
-                                    if (record.clock_in) {
-                                      updateLabourRecord(index, "clock_in", getCurrentTimeValue());
-                                      return;
+                                  <Input
+                                    type="time"
+                                    value={record.clock_in}
+                                    disabled={!canEditWorkerLog}
+                                    onChange={(event) =>
+                                      updateLabourRecord(index, "clock_in", event.target.value)
                                     }
+                                    className="mt-2 h-11 rounded-xl text-base md:text-sm"
+                                  />
 
-                                    startDraftReport.mutate({
-                                      record,
-                                      recordIndex: index,
-                                    });
-                                  }}
-                                  className="mt-2 h-11 w-full rounded-xl text-sm font-semibold"
-                                >
-                                  {record.clock_in ? "Update Check In" : "Check In Now"}
-                                </Button>
+                                  <p className="mt-2 text-xs text-amber-700">
+                                    Enter the actual start time for the selected report date.
+                                  </p>
+                                </div>
 
-                                <p className="mt-2 text-sm font-bold text-slate-900">
-                                  {record.clock_in || "Not checked in"}
-                                </p>
+                                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                                  <Label>Manual Check Out</Label>
+
+                                  <Input
+                                    type="time"
+                                    value={record.clock_out}
+                                    disabled={!canEditWorkerLog}
+                                    onChange={(event) =>
+                                      updateLabourRecord(index, "clock_out", event.target.value)
+                                    }
+                                    className="mt-2 h-11 rounded-xl text-base md:text-sm"
+                                  />
+
+                                  <p className="mt-2 text-xs text-amber-700">
+                                    Saved as Need Review and not payroll approved.
+                                  </p>
+                                </div>
                               </div>
+                            ) : (
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                  <Label>Check In</Label>
 
-                              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                <Label>Check Out</Label>
+                                  <Button
+                                    type="button"
+                                    variant={record.clock_in ? "outline" : "default"}
+                                    disabled={
+                                      !canEditWorkerLog ||
+                                      startDraftReport.isPending ||
+                                      !!record.clock_in ||
+                                      !!record.daily_report_worker_id ||
+                                      !!record.work_time_log_id
+                                    }
+                                    onClick={() => {
+                                      if (record.clock_in) {
+                                        updateLabourRecord(index, "clock_in", getCurrentTimeValue());
+                                        return;
+                                      }
 
-                                <Button
-                                  type="button"
-                                  variant={record.clock_out ? "outline" : "default"}
-                                  disabled={
-                                    !canEditWorkerLog ||
-                                    !record.clock_in ||
-                                    finishDraftReport.isPending
-                                  }
-                                  onClick={() =>
-                                    finishDraftReport.mutate({
-                                      record,
-                                      recordIndex: index,
-                                    })
-                                  }
-                                  className="mt-2 h-11 w-full rounded-xl text-sm font-semibold"
-                                >
-                                  {record.clock_out
-                                    ? "Update Check Out"
-                                    : record.clock_in
-                                      ? "Check Out Now"
-                                      : "Check In First"}
-                                </Button>
+                                      startDraftReport.mutate({
+                                        record,
+                                        recordIndex: index,
+                                      });
+                                    }}
+                                    className="mt-2 h-11 w-full rounded-xl text-sm font-semibold"
+                                  >
+                                    {record.clock_in ? "Update Check In" : "Check In Now"}
+                                  </Button>
 
-                                <p className="mt-2 text-sm font-bold text-slate-900">
-                                  {record.clock_out || "Not checked out"}
-                                </p>
+                                  <p className="mt-2 text-sm font-bold text-slate-900">
+                                    {record.clock_in || "Not checked in"}
+                                  </p>
+                                </div>
+
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                  <Label>Check Out</Label>
+
+                                  <Button
+                                    type="button"
+                                    variant={record.clock_out ? "outline" : "default"}
+                                    disabled={
+                                      !canEditWorkerLog ||
+                                      !record.clock_in ||
+                                      finishDraftReport.isPending
+                                    }
+                                    onClick={() =>
+                                      finishDraftReport.mutate({
+                                        record,
+                                        recordIndex: index,
+                                      })
+                                    }
+                                    className="mt-2 h-11 w-full rounded-xl text-sm font-semibold"
+                                  >
+                                    {record.clock_out
+                                      ? "Update Check Out"
+                                      : record.clock_in
+                                        ? "Check Out Now"
+                                        : "Check In First"}
+                                  </Button>
+
+                                  <p className="mt-2 text-sm font-bold text-slate-900">
+                                    {record.clock_out || "Not checked out"}
+                                  </p>
+                                </div>
                               </div>
-                            </div>
+                            )}
 
                             <div className="mt-3 space-y-2">
                               <Label>Break Minutes</Label>

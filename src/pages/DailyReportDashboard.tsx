@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { canManageWorkers } from "@/lib/permissions";
+import { type AppRole, normalizeAppRole } from "@/lib/roles";
 import {
     Dialog,
     DialogContent,
@@ -54,6 +56,28 @@ const DailyReportDashboard = () => {
     const [labourCompletedQuantity, setLabourCompletedQuantity] = useState("");
     const [labourWorkerRole, setLabourWorkerRole] = useState("");
     const [labourNotes, setLabourNotes] = useState("");
+    const [currentAppRole, setCurrentAppRole] = useState<AppRole>("viewer");
+    const userCanCorrectWorkerTime = canManageWorkers(currentAppRole);
+    const [showTimeCorrectionForm, setShowTimeCorrectionForm] = useState(false);
+    const [timeCorrectionWorkerId, setTimeCorrectionWorkerId] = useState("");
+    const [timeCorrectionTimeLogId, setTimeCorrectionTimeLogId] = useState("");
+    const [timeCorrectionClockIn, setTimeCorrectionClockIn] = useState("");
+    const [timeCorrectionClockOut, setTimeCorrectionClockOut] = useState("");
+    const [timeCorrectionBreakMinutes, setTimeCorrectionBreakMinutes] = useState("60");
+    const [timeCorrectionOtStart, setTimeCorrectionOtStart] = useState("");
+    const [timeCorrectionOtFinish, setTimeCorrectionOtFinish] = useState("");
+    const [timeCorrectionRegularHours, setTimeCorrectionRegularHours] = useState("");
+    const [timeCorrectionOvertimeHours, setTimeCorrectionOvertimeHours] = useState("");
+    const [timeCorrectionNotes, setTimeCorrectionNotes] = useState("");
+    useEffect(() => {
+        const loadCurrentUserRole = async () => {
+            const { data } = await supabase.auth.getUser();
+
+            setCurrentAppRole(normalizeAppRole(data.user?.app_metadata?.app_role));
+        };
+
+        loadCurrentUserRole();
+    }, []);
 
     const { data: report, isLoading } = useQuery({
         queryKey: ["daily_report", reportId],
@@ -326,6 +350,105 @@ const DailyReportDashboard = () => {
         setLabourRegularHours(regularHours.toFixed(2));
         setLabourOvertimeHours(overtimeHours.toFixed(2));
     };
+
+    const getMinutesFromTimeValue = (timeValue: string) => {
+        const [hour, minute] = timeValue.split(":").map(Number);
+
+        if (Number.isNaN(hour) || Number.isNaN(minute)) {
+            return null;
+        }
+
+        return hour * 60 + minute;
+    };
+
+    const calculateCorrectedTimeHours = (
+        clockIn: string,
+        clockOut: string,
+        breakMinutesText: string,
+        otStart = "",
+        otFinish = ""
+    ) => {
+        if (!clockIn || !clockOut) {
+            setTimeCorrectionRegularHours("");
+            setTimeCorrectionOvertimeHours("");
+            return;
+        }
+
+        const [clockInHour, clockInMinute] = clockIn.split(":").map(Number);
+        const [clockOutHour, clockOutMinute] = clockOut.split(":").map(Number);
+
+        if (
+            Number.isNaN(clockInHour) ||
+            Number.isNaN(clockInMinute) ||
+            Number.isNaN(clockOutHour) ||
+            Number.isNaN(clockOutMinute)
+        ) {
+            setTimeCorrectionRegularHours("");
+            setTimeCorrectionOvertimeHours("");
+            return;
+        }
+
+        const clockInMinutes = clockInHour * 60 + clockInMinute;
+        const clockOutMinutes = clockOutHour * 60 + clockOutMinute;
+
+        if (clockOutMinutes <= clockInMinutes) {
+            setTimeCorrectionRegularHours("");
+            setTimeCorrectionOvertimeHours("");
+            return;
+        }
+
+        const breakMinutes = Math.max(Number(breakMinutesText || 0), 0);
+        const normalFinishMinutes =
+            clockInMinutes + breakMinutes + STANDARD_DAILY_HOURS * 60;
+
+        const totalWorkedHours = Math.max(
+            (clockOutMinutes - clockInMinutes - breakMinutes) / 60,
+            0
+        );
+
+        let overtimeHours = 0;
+
+        if (otStart && otFinish) {
+            const [otStartHour, otStartMinute] = otStart.split(":").map(Number);
+            const [otFinishHour, otFinishMinute] = otFinish.split(":").map(Number);
+
+            if (
+                !Number.isNaN(otStartHour) &&
+                !Number.isNaN(otStartMinute) &&
+                !Number.isNaN(otFinishHour) &&
+                !Number.isNaN(otFinishMinute)
+            ) {
+                const otStartMinutes = otStartHour * 60 + otStartMinute;
+                const otFinishMinutes = otFinishHour * 60 + otFinishMinute;
+
+                if (
+                    otFinishMinutes > otStartMinutes &&
+                    otStartMinutes >= normalFinishMinutes &&
+                    otFinishMinutes <= clockOutMinutes
+                ) {
+                    overtimeHours = Math.max(
+                        (otFinishMinutes - otStartMinutes) / 60,
+                        0
+                    );
+                }
+            }
+        }
+
+        const automaticOvertimeHours = Math.max(
+            totalWorkedHours - STANDARD_DAILY_HOURS,
+            0
+        );
+
+        const finalOvertimeHours = Math.max(overtimeHours, automaticOvertimeHours);
+        const regularHours = Math.min(
+            Math.max(totalWorkedHours - finalOvertimeHours, 0),
+            STANDARD_DAILY_HOURS
+        );
+
+        setTimeCorrectionRegularHours(regularHours.toFixed(2));
+        setTimeCorrectionOvertimeHours(finalOvertimeHours.toFixed(2));
+    };
+
     const resetLabourForm = () => {
         setEditingWorkerId("");
         setLabourEmployeeId("");
@@ -339,6 +462,56 @@ const DailyReportDashboard = () => {
         setLabourWorkerRole("");
         setLabourNotes("");
         setShowLabourForm(false);
+    };
+
+    const resetTimeCorrectionForm = () => {
+        setShowTimeCorrectionForm(false);
+        setTimeCorrectionWorkerId("");
+        setTimeCorrectionTimeLogId("");
+        setTimeCorrectionClockIn("");
+        setTimeCorrectionClockOut("");
+        setTimeCorrectionBreakMinutes("60");
+        setTimeCorrectionOtStart("");
+        setTimeCorrectionOtFinish("");
+        setTimeCorrectionRegularHours("");
+        setTimeCorrectionOvertimeHours("");
+        setTimeCorrectionNotes("");
+    };
+
+    const startTimeCorrection = (
+        worker: NonNullable<NonNullable<typeof report>["daily_report_workers"]>[number],
+        linkedTimeLog: NonNullable<typeof linkedWorkTimeLogs>[number] | null
+    ) => {
+        setTimeCorrectionWorkerId(worker.daily_report_worker_id);
+        setTimeCorrectionTimeLogId(linkedTimeLog?.work_time_log_id || "");
+        setTimeCorrectionClockIn(linkedTimeLog?.clock_in || "");
+        setTimeCorrectionClockOut(linkedTimeLog?.clock_out || "");
+        setTimeCorrectionBreakMinutes(
+            linkedTimeLog?.break_minutes === null ||
+                linkedTimeLog?.break_minutes === undefined
+                ? "60"
+                : String(linkedTimeLog.break_minutes)
+        );
+        setTimeCorrectionOtStart(linkedTimeLog?.ot_start || worker.ot_start || "");
+        setTimeCorrectionOtFinish(linkedTimeLog?.ot_finish || worker.ot_finish || "");
+        setTimeCorrectionRegularHours(
+            linkedTimeLog?.regular_hours === null ||
+                linkedTimeLog?.regular_hours === undefined
+                ? String(worker.regular_hours || 0)
+                : String(linkedTimeLog.regular_hours)
+        );
+        setTimeCorrectionOvertimeHours(
+            linkedTimeLog?.overtime_hours === null ||
+                linkedTimeLog?.overtime_hours === undefined
+                ? String(worker.overtime_hours || 0)
+                : String(linkedTimeLog.overtime_hours)
+        );
+        setTimeCorrectionNotes(
+            linkedTimeLog?.notes ||
+            worker.notes ||
+            "Manual time correction. Please review before payroll approval."
+        );
+        setShowTimeCorrectionForm(true);
     };
 
     const { data: workActivityTypes = [] } = useQuery({
@@ -833,11 +1006,11 @@ const DailyReportDashboard = () => {
 
     const saveLabourRecord = useMutation({
         mutationFn: async () => {
-            if (!reportId) {
-                throw new Error("Daily report ID is missing.");
+            if (!userCanCorrectWorkerTime) {
+                throw new Error("You do not have permission to correct worker time.");
             }
 
-            if (!report) {
+            if (!reportId) {
                 throw new Error("Daily report data is missing.");
             }
 
@@ -912,6 +1085,231 @@ const DailyReportDashboard = () => {
             queryClient.invalidateQueries({ queryKey: ["daily_report", reportId] });
             queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
             resetLabourForm();
+        },
+        onError: (error) => {
+            toast.error(error.message);
+        },
+    });
+
+    const saveTimeCorrection = useMutation({
+        mutationFn: async () => {
+            if (!userCanCorrectWorkerTime) {
+                throw new Error("You do not have permission to correct worker time.");
+            }
+
+            if (!reportId) {
+                throw new Error("Daily report ID is missing.");
+            }
+
+            if (!report) {
+                throw new Error("Daily report data is missing.");
+            }
+
+            if (!report.project_id) {
+                throw new Error("Project ID is missing.");
+            }
+
+            if (!report.site_id) {
+                throw new Error("Site ID is missing.");
+            }
+
+            if (!report.report_date) {
+                throw new Error("Report date is missing.");
+            }
+
+            if (!timeCorrectionWorkerId) {
+                throw new Error("Worker record is missing.");
+            }
+
+            if (!timeCorrectionClockIn) {
+                throw new Error("Please enter corrected check in time.");
+            }
+
+            if (!timeCorrectionClockOut) {
+                throw new Error("Please enter corrected check out time.");
+            }
+
+            const correctedClockInMinutes = getMinutesFromTimeValue(timeCorrectionClockIn);
+            const correctedClockOutMinutes = getMinutesFromTimeValue(timeCorrectionClockOut);
+
+            if (
+                correctedClockInMinutes === null ||
+                correctedClockOutMinutes === null
+            ) {
+                throw new Error("Corrected check in / check out time is invalid.");
+            }
+
+            if (correctedClockOutMinutes <= correctedClockInMinutes) {
+                throw new Error("Corrected check out must be later than check in.");
+            }
+
+            if (
+                (timeCorrectionOtStart && !timeCorrectionOtFinish) ||
+                (!timeCorrectionOtStart && timeCorrectionOtFinish)
+            ) {
+                throw new Error("Please enter both OT start and OT finish, or leave both blank.");
+            }
+
+            if (timeCorrectionOtStart && timeCorrectionOtFinish) {
+                const correctedOtStartMinutes = getMinutesFromTimeValue(
+                    timeCorrectionOtStart
+                );
+                const correctedOtFinishMinutes = getMinutesFromTimeValue(
+                    timeCorrectionOtFinish
+                );
+
+                if (
+                    correctedOtStartMinutes < correctedClockInMinutes ||
+                    correctedOtFinishMinutes > correctedClockOutMinutes
+                ) {
+                    throw new Error("OT time must be within corrected check in / check out time.");
+                }
+
+                const breakMinutesForNormalFinish = Math.max(
+                    Number(timeCorrectionBreakMinutes || 0),
+                    0
+                );
+                const normalFinishMinutes =
+                    correctedClockInMinutes +
+                    breakMinutesForNormalFinish +
+                    STANDARD_DAILY_HOURS * 60;
+
+                if (correctedOtStartMinutes < normalFinishMinutes) {
+                    throw new Error(
+                        "OT start must be after normal working hours are completed."
+                    );
+                }
+
+                if (correctedOtFinishMinutes <= correctedOtStartMinutes) {
+                    throw new Error("OT finish must be later than OT start.");
+                }
+
+                if (
+                    correctedOtStartMinutes < correctedClockInMinutes ||
+                    correctedOtFinishMinutes > correctedClockOutMinutes
+                ) {
+                    throw new Error("OT time must be within corrected check in / check out time.");
+                }
+            }
+
+            if (!timeCorrectionNotes.trim()) {
+                throw new Error("Please enter the reason for correcting time.");
+            }
+
+            const regularHours = Number(timeCorrectionRegularHours || 0);
+            const overtimeHours = Number(timeCorrectionOvertimeHours || 0);
+            const breakMinutes = Number(timeCorrectionBreakMinutes || 0);
+
+            if (regularHours < 0) {
+                throw new Error("Regular hours cannot be negative.");
+            }
+
+            if (overtimeHours < 0) {
+                throw new Error("Overtime hours cannot be negative.");
+            }
+
+            if (breakMinutes < 0) {
+                throw new Error("Break minutes cannot be negative.");
+            }
+
+            await ensurePayrollTimeLogsAreEditable(reportId);
+
+            const { data: worker, error: workerFetchError } = await supabase
+                .from("daily_report_workers")
+                .select(`
+                    daily_report_worker_id,
+                    employee_id,
+                    work_assignment_id,
+                    replaces_work_assignment_id,
+                    worker_source,
+                    attendance_status,
+                    activity_type_id,
+                    completed_quantity,
+                    ot_start,
+                    ot_finish,
+                    ot_completed_quantity,
+                    worker_role
+                `)
+                .eq("daily_report_worker_id", timeCorrectionWorkerId)
+                .single();
+
+            if (workerFetchError) throw workerFetchError;
+
+            if (!worker.employee_id) {
+                throw new Error("Employee ID is missing from this worker record.");
+            }
+
+            if (!worker.activity_type_id) {
+                throw new Error("Activity type is missing from this worker record.");
+            }
+
+            const correctionNotes = timeCorrectionNotes.trim();
+
+            const { error: workerUpdateError } = await supabase
+                .from("daily_report_workers")
+                .update({
+                    regular_hours: regularHours,
+                    overtime_hours: overtimeHours,
+                    ot_start: timeCorrectionOtStart || null,
+                    ot_finish: timeCorrectionOtFinish || null,
+                    notes: correctionNotes,
+                })
+                .eq("daily_report_worker_id", timeCorrectionWorkerId);
+
+            if (workerUpdateError) throw workerUpdateError;
+
+            const timeLogPayload = {
+                report_id: reportId,
+                employee_id: worker.employee_id,
+                work_assignment_id: worker.work_assignment_id || null,
+                replaces_work_assignment_id:
+                    worker.replaces_work_assignment_id || null,
+                worker_source: worker.worker_source || null,
+                attendance_status: worker.attendance_status || null,
+                project_id: report.project_id,
+                site_id: report.site_id,
+                area_id: report.area_id || null,
+                work_order_id: report.work_order_id || null,
+                activity_type_id: worker.activity_type_id,
+                work_date: report.report_date,
+                clock_in: timeCorrectionClockIn,
+                clock_out: timeCorrectionClockOut,
+                break_minutes: breakMinutes,
+                regular_hours: regularHours,
+                overtime_hours: overtimeHours,
+                ot_start: timeCorrectionOtStart || null,
+                ot_finish: timeCorrectionOtFinish || null,
+                ot_completed_quantity: Number(worker.ot_completed_quantity || 0),
+                approved: false,
+                time_status: "Needs Review",
+                notes: correctionNotes,
+                is_deleted: false,
+            };
+
+            if (timeCorrectionTimeLogId) {
+                const { error: timeLogUpdateError } = await supabase
+                    .from("work_time_logs")
+                    .update(timeLogPayload)
+                    .eq("work_time_log_id", timeCorrectionTimeLogId);
+
+                if (timeLogUpdateError) throw timeLogUpdateError;
+            } else {
+                const { error: timeLogInsertError } = await supabase
+                    .from("work_time_logs")
+                    .insert(timeLogPayload);
+
+                if (timeLogInsertError) throw timeLogInsertError;
+            }
+        },
+        onSuccess: () => {
+            toast.success("Time correction saved. Payroll review is required.");
+
+            queryClient.invalidateQueries({ queryKey: ["daily_report", reportId] });
+            queryClient.invalidateQueries({ queryKey: ["linked_work_time_logs", reportId] });
+            queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
+            queryClient.invalidateQueries({ queryKey: ["work_time_logs"] });
+
+            resetTimeCorrectionForm();
         },
         onError: (error) => {
             toast.error(error.message);
@@ -2564,6 +2962,201 @@ const DailyReportDashboard = () => {
                                         <p className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">
                                             {worker.notes || linkedTimeLog?.notes || "-"}
                                         </p>
+                                    </div>
+                                    <div className="mt-6 border-t border-slate-200 pt-4">
+                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                            <div>
+                                                <p className="text-sm font-semibold text-slate-900">
+                                                    Time Correction
+                                                </p>
+                                                <p className="mt-1 text-xs leading-5 text-slate-500">
+                                                    Supervisor or manager can correct Check In / Check Out when the
+                                                    original time is missing or incorrect. Correction will require
+                                                    payroll review again.
+                                                </p>
+                                            </div>
+
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                disabled={!userCanCorrectWorkerTime || saveTimeCorrection.isPending}
+                                                onClick={() =>
+                                                    startTimeCorrection(worker, linkedTimeLog)
+                                                }
+                                                className="rounded-xl"
+                                            >
+                                                Correct Time
+                                            </Button>
+                                        </div>
+
+                                        {showTimeCorrectionForm &&
+                                            timeCorrectionWorkerId === worker.daily_report_worker_id && (
+                                                <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                                        <div className="space-y-2">
+                                                            <Input
+                                                                type="time"
+                                                                value={timeCorrectionClockIn}
+                                                                onChange={(event) => {
+                                                                    const nextClockIn = event.target.value;
+                                                                    setTimeCorrectionClockIn(nextClockIn);
+                                                                    calculateCorrectedTimeHours(
+                                                                        nextClockIn,
+                                                                        timeCorrectionClockOut,
+                                                                        timeCorrectionBreakMinutes,
+                                                                        timeCorrectionOtStart,
+                                                                        timeCorrectionOtFinish
+                                                                    );
+                                                                }}
+                                                                className="h-11 rounded-xl text-base md:text-sm"
+                                                            />
+                                                        </div>
+
+                                                        <div className="space-y-2">
+                                                            <Label>Corrected Check Out *</Label>
+                                                            <Input
+                                                                type="time"
+                                                                value={timeCorrectionClockOut}
+                                                                onChange={(event) => {
+                                                                    const nextClockOut = event.target.value;
+                                                                    setTimeCorrectionClockOut(nextClockOut);
+                                                                    calculateCorrectedTimeHours(
+                                                                        timeCorrectionClockIn,
+                                                                        nextClockOut,
+                                                                        timeCorrectionBreakMinutes,
+                                                                        timeCorrectionOtStart,
+                                                                        timeCorrectionOtFinish
+                                                                    );
+                                                                }}
+                                                                className="h-11 rounded-xl text-base md:text-sm"
+                                                            />
+                                                        </div>
+
+                                                        <div className="space-y-2">
+                                                            <Label>Break Minutes</Label>
+                                                            <Input
+                                                                type="number"
+                                                                min="0"
+                                                                value={timeCorrectionBreakMinutes}
+                                                                onChange={(event) => {
+                                                                    const nextBreakMinutes = event.target.value;
+                                                                    setTimeCorrectionBreakMinutes(nextBreakMinutes);
+                                                                    calculateCorrectedTimeHours(
+                                                                        timeCorrectionClockIn,
+                                                                        timeCorrectionClockOut,
+                                                                        nextBreakMinutes,
+                                                                        timeCorrectionOtStart,
+                                                                        timeCorrectionOtFinish
+                                                                    );
+                                                                }}
+                                                                className="h-11 rounded-xl text-base md:text-sm"
+                                                            />
+                                                        </div>
+
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <div className="space-y-2">
+                                                                <Label>OT Start</Label>
+                                                                <Input
+                                                                    type="time"
+                                                                    value={timeCorrectionOtStart}
+                                                                    onChange={(event) => {
+                                                                        const nextOtStart = event.target.value;
+                                                                        setTimeCorrectionOtStart(nextOtStart);
+                                                                        calculateCorrectedTimeHours(
+                                                                            timeCorrectionClockIn,
+                                                                            timeCorrectionClockOut,
+                                                                            timeCorrectionBreakMinutes,
+                                                                            nextOtStart,
+                                                                            timeCorrectionOtFinish
+                                                                        );
+                                                                    }}
+                                                                    className="h-11 rounded-xl text-base md:text-sm"
+                                                                />
+                                                            </div>
+
+                                                            <div className="space-y-2">
+                                                                <Label>OT Finish</Label>
+                                                                <Input
+                                                                    type="time"
+                                                                    value={timeCorrectionOtFinish}
+                                                                    onChange={(event) => {
+                                                                        const nextOtFinish = event.target.value;
+                                                                        setTimeCorrectionOtFinish(nextOtFinish);
+                                                                        calculateCorrectedTimeHours(
+                                                                            timeCorrectionClockIn,
+                                                                            timeCorrectionClockOut,
+                                                                            timeCorrectionBreakMinutes,
+                                                                            timeCorrectionOtStart,
+                                                                            nextOtFinish
+                                                                        );
+                                                                    }}
+                                                                    className="h-11 rounded-xl text-base md:text-sm"
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-2 gap-3 md:col-span-2">
+                                                            <div className="space-y-2">
+                                                                <Label>Regular Hours</Label>
+                                                                <Input
+                                                                    value={timeCorrectionRegularHours}
+                                                                    readOnly
+                                                                    className="h-11 rounded-xl bg-white text-base md:text-sm"
+                                                                />
+                                                            </div>
+
+                                                            <div className="space-y-2">
+                                                                <Label>Overtime Hours</Label>
+                                                                <Input
+                                                                    value={timeCorrectionOvertimeHours}
+                                                                    readOnly
+                                                                    className="h-11 rounded-xl bg-white text-base md:text-sm"
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="space-y-2 md:col-span-2">
+                                                            <Label>Reason / Notes *</Label>
+                                                            <Textarea
+                                                                value={timeCorrectionNotes}
+                                                                onChange={(event) =>
+                                                                    setTimeCorrectionNotes(event.target.value)
+                                                                }
+                                                                placeholder="Example: Worker arrived at 07:00 but site access was delayed because key was not available."
+                                                                className="min-h-[96px] rounded-xl text-base md:text-sm"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="mt-4 rounded-xl border border-amber-300 bg-white p-3 text-xs leading-5 text-amber-800">
+                                                        Saving this correction will set payroll status to Need Review
+                                                        and mark the time log as not approved.
+                                                    </div>
+
+                                                    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            onClick={resetTimeCorrectionForm}
+                                                            disabled={saveTimeCorrection.isPending}
+                                                            className="rounded-xl"
+                                                        >
+                                                            Cancel
+                                                        </Button>
+
+                                                        <Button
+                                                            type="button"
+                                                            onClick={() => saveTimeCorrection.mutate()}
+                                                            disabled={!userCanCorrectWorkerTime || saveTimeCorrection.isPending}
+                                                            className="rounded-xl"
+                                                        >
+                                                            {saveTimeCorrection.isPending
+                                                                ? "Saving..."
+                                                                : "Save Correction"}
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            )}
                                     </div>
                                 </div>
                             );
