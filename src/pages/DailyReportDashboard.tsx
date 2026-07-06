@@ -22,6 +22,8 @@ import {
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 
+const STANDARD_DAILY_HOURS = 8.00;
+
 const DailyReportDashboard = () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
@@ -39,6 +41,7 @@ const DailyReportDashboard = () => {
     const [editNotes, setEditNotes] = useState("");
     const [photoFile, setPhotoFile] = useState<File | null>(null);
     const [photoCaption, setPhotoCaption] = useState("");
+    const [photoInputKey, setPhotoInputKey] = useState(0);
     const [editingWorkerId, setEditingWorkerId] = useState("");
     const [showLabourForm, setShowLabourForm] = useState(false);
     const [labourEmployeeId, setLabourEmployeeId] = useState("");
@@ -291,6 +294,17 @@ const DailyReportDashboard = () => {
         const [clockInHour, clockInMinute] = clockIn.split(":").map(Number);
         const [clockOutHour, clockOutMinute] = clockOut.split(":").map(Number);
 
+        if (
+            Number.isNaN(clockInHour) ||
+            Number.isNaN(clockInMinute) ||
+            Number.isNaN(clockOutHour) ||
+            Number.isNaN(clockOutMinute)
+        ) {
+            setLabourRegularHours("");
+            setLabourOvertimeHours("");
+            return;
+        }
+
         const clockInMinutes = clockInHour * 60 + clockInMinute;
         const clockOutMinutes = clockOutHour * 60 + clockOutMinute;
 
@@ -306,59 +320,11 @@ const DailyReportDashboard = () => {
             0
         );
 
-        const regularHours = Math.min(totalHours, 8);
-        const overtimeHours = Math.max(totalHours - 8, 0);
+        const regularHours = Math.min(totalHours, STANDARD_DAILY_HOURS);
+        const overtimeHours = Math.max(totalHours - STANDARD_DAILY_HOURS, 0);
 
         setLabourRegularHours(regularHours.toFixed(2));
         setLabourOvertimeHours(overtimeHours.toFixed(2));
-
-        const calculateLabourHours = (
-            clockIn: string,
-            clockOut: string,
-            breakMinutesText: string
-        ) => {
-            if (!clockIn || !clockOut) {
-                setLabourRegularHours("");
-                setLabourOvertimeHours("");
-                return;
-            }
-
-            const [clockInHour, clockInMinute] = clockIn.split(":").map(Number);
-            const [clockOutHour, clockOutMinute] = clockOut.split(":").map(Number);
-
-            if (
-                Number.isNaN(clockInHour) ||
-                Number.isNaN(clockInMinute) ||
-                Number.isNaN(clockOutHour) ||
-                Number.isNaN(clockOutMinute)
-            ) {
-                setLabourRegularHours("");
-                setLabourOvertimeHours("");
-                return;
-            }
-
-            const clockInMinutes = clockInHour * 60 + clockInMinute;
-            const clockOutMinutes = clockOutHour * 60 + clockOutMinute;
-
-            if (clockOutMinutes <= clockInMinutes) {
-                setLabourRegularHours("");
-                setLabourOvertimeHours("");
-                return;
-            }
-
-            const breakMinutes = Math.max(Number(breakMinutesText || 0), 0);
-            const totalHours = Math.max(
-                (clockOutMinutes - clockInMinutes - breakMinutes) / 60,
-                0
-            );
-
-            const regularHours = Math.min(totalHours, 8);
-            const overtimeHours = Math.max(totalHours - 8, 0);
-
-            setLabourRegularHours(regularHours.toFixed(2));
-            setLabourOvertimeHours(overtimeHours.toFixed(2));
-        };
-
     };
     const resetLabourForm = () => {
         setEditingWorkerId("");
@@ -520,20 +486,46 @@ const DailyReportDashboard = () => {
     const pendingReviewQuantity = areaReportedSummary.pendingReview;
     const totalReportedQuantity = areaReportedSummary.totalReported;
 
-    const remainingQuantity = Math.max(
+    const officialRemainingQuantity = Math.max(
+        areaEstimatedQuantity - approvedCompletedQuantity,
+        0
+    );
+
+    const remainingIncludingPendingQuantity = Math.max(
         areaEstimatedQuantity - totalReportedQuantity,
         0
     );
 
-    const reportedIncludingPendingPercent =
+    const remainingQuantity = remainingIncludingPendingQuantity;
+
+    const overEstimateQuantity = Math.max(
+        totalReportedQuantity - areaEstimatedQuantity,
+        0
+    );
+
+    const reportedIncludingPendingPercentRaw =
         areaEstimatedQuantity > 0
-            ? Math.min((totalReportedQuantity / areaEstimatedQuantity) * 100, 100)
+            ? (totalReportedQuantity / areaEstimatedQuantity) * 100
             : 0;
 
-    const approvedProgressPercent =
+    const reportedIncludingPendingPercentDisplay = Math.min(
+        reportedIncludingPendingPercentRaw,
+        100
+    );
+
+    const reportedIncludingPendingPercent = reportedIncludingPendingPercentDisplay;
+
+    const approvedProgressPercentRaw =
         areaEstimatedQuantity > 0
-            ? Math.min((approvedCompletedQuantity / areaEstimatedQuantity) * 100, 100)
+            ? (approvedCompletedQuantity / areaEstimatedQuantity) * 100
             : 0;
+
+    const approvedProgressPercentDisplay = Math.min(
+        approvedProgressPercentRaw,
+        100
+    );
+
+    const approvedProgressPercent = approvedProgressPercentDisplay;
 
     const progressReportDaysWithQuantity = new Set(
         areaReports
@@ -629,6 +621,14 @@ const DailyReportDashboard = () => {
 
     const currentReportCompletedQuantity = Number(report?.completed_quantity || 0);
 
+    const currentReportLabourQuantity = (report?.daily_report_workers || []).reduce(
+        (total, worker) => total + Number(worker.completed_quantity || 0),
+        0
+    );
+
+    const isReportQtyMismatch =
+        Math.abs(currentReportCompletedQuantity - currentReportLabourQuantity) > 0.01;
+
     const siteAddress = [
         report?.project_sites?.address_line_1,
         report?.project_sites?.address_line_2,
@@ -642,8 +642,29 @@ const DailyReportDashboard = () => {
 
     const getLinkedTimeLogForWorker = (
         employeeId?: string | null,
-        activityTypeId?: string | null
+        activityTypeId?: string | null,
+        workAssignmentId?: string | null,
+        replacesWorkAssignmentId?: string | null
     ) => {
+        const matchedByWorkAssignment =
+            workAssignmentId
+                ? linkedWorkTimeLogs.find(
+                    (timeLog) => timeLog.work_assignment_id === workAssignmentId
+                )
+                : null;
+
+        if (matchedByWorkAssignment) return matchedByWorkAssignment;
+
+        const matchedByReplacement =
+            replacesWorkAssignmentId
+                ? linkedWorkTimeLogs.find(
+                    (timeLog) =>
+                        timeLog.replaces_work_assignment_id === replacesWorkAssignmentId
+                )
+                : null;
+
+        if (matchedByReplacement) return matchedByReplacement;
+
         return (
             linkedWorkTimeLogs.find((timeLog) => {
                 const sameEmployee = timeLog.employee_id === employeeId;
@@ -669,6 +690,138 @@ const DailyReportDashboard = () => {
             completedQuantity: 0,
         }
     );
+
+    const primaryWorker = report?.daily_report_workers?.[0] || null;
+
+    const primaryWorkerName =
+        primaryWorker?.employees?.display_name ||
+        `${primaryWorker?.employees?.first_name || ""} ${primaryWorker?.employees?.last_name || ""}`.trim() ||
+        primaryWorker?.employees?.employee_code ||
+        "";
+
+    const reportPageTitle = primaryWorkerName
+        ? `Daily Report — ${primaryWorkerName}`
+        : "Daily Report Detail";
+
+    const primaryWorkerActivityName =
+        primaryWorker?.work_activity_types?.activity_name ||
+        report?.daily_report_activities
+            ?.map((activity) => activity.work_activity_types?.activity_name)
+            .filter(Boolean)
+            .join(", ") ||
+        "-";
+
+    const primaryWorkerRole = primaryWorker?.worker_role || "-";
+    const primaryWorkerSource = primaryWorker?.worker_source || "-";
+    const primaryWorkerAttendance = primaryWorker?.attendance_status || "-";
+
+    const primaryLinkedTimeLog = primaryWorker
+        ? getLinkedTimeLogForWorker(
+            primaryWorker.employee_id,
+            primaryWorker.activity_type_id,
+            primaryWorker.work_assignment_id,
+            primaryWorker.replaces_work_assignment_id
+        )
+        : null;
+
+    const primaryWorkerRegularHours = Number(primaryWorker?.regular_hours || 0);
+    const primaryWorkerOvertimeHours = Number(primaryWorker?.overtime_hours || 0);
+    const primaryWorkerCompletedQuantity = Number(
+        primaryWorker?.completed_quantity || 0
+    );
+
+    const workerReportSubtitle = [
+        primaryWorkerActivityName,
+        report?.project_areas?.area_name,
+        report?.report_date,
+    ]
+        .filter((item) => item && item !== "-")
+        .join(" · ");
+
+    const { data: workerHistoryReports = [] } = useQuery({
+        queryKey: [
+            "daily_report_worker_history_in_work_order",
+            report?.work_order_id,
+            primaryWorker?.employee_id,
+        ],
+        enabled: !!report?.work_order_id && !!primaryWorker?.employee_id,
+        queryFn: async () => {
+            const workOrderId = report?.work_order_id;
+            const employeeId = primaryWorker?.employee_id;
+
+            if (!workOrderId || !employeeId) return [];
+
+            const { data, error } = await supabase
+                .from("daily_reports")
+                .select(`
+                    report_id,
+                    report_date,
+                    approval_status,
+                    completed_quantity,
+                    daily_report_workers (
+                        daily_report_worker_id,
+                        employee_id,
+                        work_assignment_id,
+                        replaces_work_assignment_id,
+                        activity_type_id,
+                        regular_hours,
+                        overtime_hours,
+                        completed_quantity,
+                        work_activity_types (
+                            activity_name
+                        )
+                    )
+                `)
+                .eq("work_order_id", workOrderId)
+                .eq("is_deleted", false)
+                .order("report_date", { ascending: true });
+
+            if (error) throw error;
+
+            return (data || []).filter((historyReport) =>
+                historyReport.daily_report_workers?.some(
+                    (worker) => worker.employee_id === employeeId
+                )
+            );
+        },
+    });
+
+    const { data: workerHistoryTimeLogs = [] } = useQuery({
+        queryKey: [
+            "daily_report_worker_history_time_logs",
+            report?.work_order_id,
+            primaryWorker?.employee_id,
+        ],
+        enabled: !!report?.work_order_id && !!primaryWorker?.employee_id,
+        queryFn: async () => {
+            const workOrderId = report?.work_order_id;
+            const employeeId = primaryWorker?.employee_id;
+
+            if (!workOrderId || !employeeId) return [];
+
+            const { data, error } = await supabase
+                .from("work_time_logs")
+                .select(`
+                    work_time_log_id,
+                    report_id,
+                    employee_id,
+                    work_assignment_id,
+                    replaces_work_assignment_id,
+                    activity_type_id,
+                    regular_hours,
+                    overtime_hours,
+                    approved,
+                    time_status
+                `)
+                .eq("work_order_id", workOrderId)
+                .eq("employee_id", employeeId)
+                .eq("is_deleted", false);
+
+            if (error) throw error;
+
+            return data || [];
+        },
+    });
 
     const approvedCompletedBeforeThisReport =
         report?.approval_status === "Approved"
@@ -905,28 +1058,6 @@ const DailyReportDashboard = () => {
                 latestLabourRecords || []
             );
 
-            if (progress !== null && report.work_order_id) {
-                let nextStatus = "In Progress";
-
-                if (progress === 0) {
-                    nextStatus = "Open";
-                }
-
-                if (progress >= 100) {
-                    nextStatus = "Completed";
-                }
-
-                const { error: workOrderError } = await supabase
-                    .from("work_orders")
-                    .update({
-                        status: nextStatus,
-                        actual_start_date: progress > 0 ? editReportDate : null,
-                        actual_end_date: progress >= 100 ? editReportDate : null,
-                    })
-                    .eq("work_order_id", report.work_order_id);
-
-                if (workOrderError) throw workOrderError;
-            }
         },
         onSuccess: () => {
             toast.success("Daily report updated successfully.");
@@ -983,12 +1114,50 @@ const DailyReportDashboard = () => {
         }
     };
 
+    type SyncWorkTimeLogReport = {
+        report_id: string;
+        project_id: string | null;
+        site_id: string | null;
+        area_id: string | null;
+        work_order_id: string | null;
+        report_date: string | null;
+    };
+
+    type SyncWorkTimeLogLabourRecord = {
+        employee_id: string | null;
+        work_assignment_id?: string | null;
+        replaces_work_assignment_id?: string | null;
+        worker_source?: string | null;
+        attendance_status?: string | null;
+        activity_type_id: string | null;
+        regular_hours: number | string | null;
+        overtime_hours: number | string | null;
+        break_minutes?: number | string | null;
+        ot_start?: string | null;
+        ot_finish?: string | null;
+        ot_completed_quantity?: number | string | null;
+        notes?: string | null;
+        worker_role?: string | null;
+    };
+
     const syncWorkTimeLogs = async (
-        targetReport: any,
-        labourRecords: any[]
+        targetReport: SyncWorkTimeLogReport,
+        labourRecords: SyncWorkTimeLogLabourRecord[]
     ) => {
-        if (!targetReport?.report_id) {
+        if (!targetReport.report_id) {
             throw new Error("Daily report ID is missing.");
+        }
+
+        if (!targetReport.project_id) {
+            throw new Error("Project ID is missing.");
+        }
+
+        if (!targetReport.site_id) {
+            throw new Error("Site ID is missing.");
+        }
+
+        if (!targetReport.report_date) {
+            throw new Error("Report date is missing.");
         }
 
         const { data: approvedTimeLogs, error: approvedTimeLogsError } =
@@ -1002,27 +1171,44 @@ const DailyReportDashboard = () => {
 
         if ((approvedTimeLogs || []).length > 0) {
             throw new Error(
-                "This daily report already has approved payroll time logs.  Please unapprove payroll time before updating this daily report."
+                "This daily report already has approved payroll time logs. Please unapprove payroll time before updating this daily report."
             );
         }
 
-        const timeLogRows = labourRecords.map((worker) => ({
-            report_id: targetReport.report_id,
-            employee_id: worker.employee_id,
-            project_id: targetReport.project_id,
-            site_id: targetReport.site_id,
-            area_id: targetReport.area_id,
-            work_order_id: targetReport.work_order_id,
-            activity_type_id: worker.activity_type_id,
-            work_date: targetReport.report_date,
-            regular_hours: Number(worker.regular_hours || 0),
-            overtime_hours: Number(worker.overtime_hours || 0),
-            break_minutes: Number(worker.break_minutes || 0),
-            approved: false,
-            time_status: "Needs Review",
-            notes: worker.notes || worker.worker_role || null,
-            is_deleted: false,
-        }));
+        const timeLogRows = labourRecords.map((worker) => {
+            if (!worker.employee_id) {
+                throw new Error("Employee ID is missing from a labour record.");
+            }
+
+            if (!worker.activity_type_id) {
+                throw new Error("Activity type is missing from a labour record.");
+            }
+
+            return {
+                report_id: targetReport.report_id,
+                employee_id: worker.employee_id,
+                work_assignment_id: worker.work_assignment_id || null,
+                replaces_work_assignment_id: worker.replaces_work_assignment_id || null,
+                worker_source: worker.worker_source || null,
+                attendance_status: worker.attendance_status || null,
+                project_id: targetReport.project_id,
+                site_id: targetReport.site_id,
+                area_id: targetReport.area_id,
+                work_order_id: targetReport.work_order_id,
+                activity_type_id: worker.activity_type_id,
+                work_date: targetReport.report_date,
+                regular_hours: Number(worker.regular_hours || 0),
+                overtime_hours: Number(worker.overtime_hours || 0),
+                break_minutes: Number(worker.break_minutes || 0),
+                ot_start: worker.ot_start || null,
+                ot_finish: worker.ot_finish || null,
+                ot_completed_quantity: Number(worker.ot_completed_quantity || 0),
+                approved: false,
+                time_status: "Needs Review",
+                notes: worker.notes || worker.worker_role || null,
+                is_deleted: false,
+            };
+        });
 
         const { error: deleteExistingTimeLogsError } = await supabase
             .from("work_time_logs")
@@ -1046,6 +1232,12 @@ const DailyReportDashboard = () => {
                 throw new Error("Daily report ID is missing.");
             }
             const labourRecords = report.daily_report_workers || [];
+
+            if (isReportQtyMismatch) {
+                throw new Error(
+                    "Report quantity does not match worker completed quantity. Please check worker records before approving this daily report."
+                );
+            }
 
             const estimatedQuantity = areaEstimatedQuantity;
             const approvedAfterThisApproval =
@@ -1203,6 +1395,7 @@ const DailyReportDashboard = () => {
             queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
             setPhotoFile(null);
             setPhotoCaption("");
+            setPhotoInputKey((currentKey) => currentKey + 1);
         },
         onError: (error) => {
             toast.error(error.message);
@@ -1311,34 +1504,78 @@ const DailyReportDashboard = () => {
                     </Button>
 
                     <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
-                        Daily Report Management View
+                        {reportPageTitle}
                     </h1>
+
                     <p className="text-sm text-slate-500 mt-1">
-                        Review progress, labour, photos, issues, and forecast up to this report date.
+                        {workerReportSubtitle || "Worker daily report detail"}
                     </p>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                            Status: {report.approval_status || "-"}
+                        </span>
+
+                        <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                            Weather: {report.weather_condition || "-"}
+                        </span>
+
+                        <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                            Report No: {report.report_id?.slice(0, 8) || "-"}
+                        </span>
+                    </div>
                 </div>
 
+                <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                    {report.approval_status === "Submitted" && (
+                        <Button
+                            variant="outline"
+                            onClick={() => markReadyForInspection.mutate()}
+                            disabled={markReadyForInspection.isPending}
+                            className="w-full sm:w-auto"
+                        >
+                            {markReadyForInspection.isPending
+                                ? "Updating..."
+                                : "Ready for Inspection"}
+                        </Button>
+                    )}
+
+                    <Button
+                        onClick={() => setShowEditDialog(true)}
+                        className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
+                    >
+                        Edit Daily Report
+                    </Button>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 xl:col-span-2">
                     <div className="flex items-center gap-3 mb-4">
                         <CalendarDays className="h-7 w-7 text-red-600" />
                         <div>
                             <h2 className="font-bold text-slate-900">
-                                Report Summary
+                                Worker Report Summary
                             </h2>
                             <p className="text-xs text-slate-500">
-                                Daily report status and basic information
+                                Main worker, activity, attendance, time, hours, and completed quantity for this report.
                             </p>
                         </div>
                     </div>
 
-                    <div className="space-y-3 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+
                         <div>
-                            <p className="text-slate-500">Report No.</p>
+                            <p className="text-slate-500">Worker</p>
                             <p className="font-medium text-slate-900">
-                                {report.report_id?.slice(0, 8) || "-"}
+                                {primaryWorkerName || "Worker record missing"}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-slate-500">Activity</p>
+                            <p className="font-medium text-slate-900">
+                                {primaryWorkerActivityName}
                             </p>
                         </div>
 
@@ -1350,31 +1587,206 @@ const DailyReportDashboard = () => {
                         </div>
 
                         <div>
-                            <p className="text-slate-500">Weather</p>
+                            <p className="text-slate-500">Attendance</p>
                             <p className="font-medium text-slate-900">
-                                {report.weather_condition || "-"}
+                                {primaryWorkerAttendance}
                             </p>
                         </div>
 
                         <div>
-                            <p className="text-slate-500">Status</p>
-                            <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                            <p className="text-slate-500">Check In</p>
+                            <p className="font-medium text-slate-900">
+                                {primaryLinkedTimeLog?.clock_in || "-"}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-slate-500">Check Out</p>
+                            <p className="font-medium text-slate-900">
+                                {primaryLinkedTimeLog?.clock_out || "-"}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-slate-500">Regular Hours</p>
+                            <p className="font-bold text-slate-900">
+                                {primaryWorkerRegularHours.toFixed(2)} hr
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-slate-500">OT Hours</p>
+                            <p className="font-bold text-slate-900">
+                                {primaryWorkerOvertimeHours.toFixed(2)} hr
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-slate-500">Completed Qty</p>
+                            <p className="font-bold text-slate-900">
+                                {primaryWorkerCompletedQuantity.toFixed(2)} {areaUnitOfMeasure}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-slate-500">Worker Source</p>
+                            <p className="font-medium text-slate-900">
+                                {primaryWorkerSource}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-slate-500">Role</p>
+                            <p className="font-medium text-slate-900">
+                                {primaryWorkerRole}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-slate-500">Payroll Status</p>
+                            <p className="font-medium text-slate-900">
+                                {primaryLinkedTimeLog?.time_status || "-"}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 border-t border-slate-100 pt-4">
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <p className="text-xs text-slate-500">Photos</p>
+                            <p className="mt-1 text-sm font-bold text-slate-900">
+                                {activePhotos.length} uploaded
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                                {pendingPhotos.length} pending · {rejectedPhotos.length} rejected
+                            </p>
+                        </div>
+
+                        <div
+                            className={
+                                isReportQtyMismatch
+                                    ? "rounded-xl border border-red-200 bg-red-50 p-3"
+                                    : "rounded-xl border border-green-200 bg-green-50 p-3"
+                            }
+                        >
+                            <p
+                                className={
+                                    isReportQtyMismatch
+                                        ? "text-xs text-red-700"
+                                        : "text-xs text-green-700"
+                                }
+                            >
+                                Qty Check
+                            </p>
+                            <p
+                                className={
+                                    isReportQtyMismatch
+                                        ? "mt-1 text-sm font-bold text-red-700"
+                                        : "mt-1 text-sm font-bold text-green-700"
+                                }
+                            >
+                                {isReportQtyMismatch ? "Mismatch" : "Matched"}
+                            </p>
+                            <p
+                                className={
+                                    isReportQtyMismatch
+                                        ? "mt-1 text-xs text-red-700"
+                                        : "mt-1 text-xs text-green-700"
+                                }
+                            >
+                                Report {currentReportCompletedQuantity.toFixed(2)} / Worker{" "}
+                                {currentReportLabourQuantity.toFixed(2)} {areaUnitOfMeasure}
+                            </p>
+                        </div>
+
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <p className="text-xs text-slate-500">Payroll Approved</p>
+                            <p className="mt-1 text-sm font-bold text-slate-900">
+                                {primaryLinkedTimeLog?.approved ? "Yes" : "No"}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                                {primaryLinkedTimeLog?.time_status || "No linked time log"}
+                            </p>
+                        </div>
+
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <p className="text-xs text-slate-500">Approval Status</p>
+                            <p className="mt-1 text-sm font-bold text-slate-900">
                                 {report.approval_status || "-"}
-                            </span>
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                                Worker report approval state
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p className="text-sm font-semibold text-slate-900">
+                                    Approval / Actions
+                                </p>
+                                <p className="mt-1 text-xs text-slate-500">
+                                    Review worker quantity, photos, payroll status, and checklist before approval.
+                                </p>
+                            </div>
+
+                            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                                {report.approval_status === "Submitted" && (
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => markReadyForInspection.mutate()}
+                                        disabled={markReadyForInspection.isPending}
+                                        className="w-full sm:w-auto"
+                                    >
+                                        {markReadyForInspection.isPending
+                                            ? "Updating..."
+                                            : "Ready for Inspection"}
+                                    </Button>
+                                )}
+
+                                {report.approval_status === "Ready for Inspection" && (
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => approveDailyReport.mutate()}
+                                        disabled={approveDailyReport.isPending}
+                                        className="w-full sm:w-auto"
+                                    >
+                                        {approveDailyReport.isPending ? "Approving..." : "Approve"}
+                                    </Button>
+                                )}
+
+                                {report.approval_status === "Ready for Inspection" && (
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => rejectDailyReport.mutate()}
+                                        disabled={rejectDailyReport.isPending}
+                                        className="w-full sm:w-auto text-red-600 hover:text-red-700"
+                                    >
+                                        {rejectDailyReport.isPending ? "Rejecting..." : "Reject"}
+                                    </Button>
+                                )}
+
+                                <Button
+                                    onClick={() => setShowEditDialog(true)}
+                                    className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
+                                >
+                                    Edit Daily Report
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 xl:col-span-2">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
                     <h2 className="font-bold text-slate-900 mb-4">
-                        Project Detail
+                        Project / Work Order Context
                     </h2>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                    <div className="space-y-3 text-sm">
                         <div>
                             <p className="text-slate-500">Customer</p>
                             <p className="font-medium text-slate-900">
-                                {report.projects?.customers?.customer_name || "-"}
+                                {report?.projects?.customers?.customer_name || "-"}
                             </p>
                         </div>
 
@@ -1397,94 +1809,40 @@ const DailyReportDashboard = () => {
                         <div>
                             <p className="text-slate-500">Area / Location</p>
                             <p className="font-medium text-slate-900">
-                                {report.project_areas?.area_code || "-"} -{" "}
-                                {report.project_areas?.area_name || "-"}
+                                {report?.project_areas?.area_code || "-"} -{" "}
+                                {report?.project_areas?.area_name || "-"}
                             </p>
                         </div>
 
-                        <div>
-                            <p className="text-slate-500">Contact Name</p>
+                        <div className="border-t border-slate-100 pt-3">
+                            <p className="text-slate-500">Work Order</p>
                             <p className="font-medium text-slate-900">
-                                {report.project_sites?.contact_name || "-"}
+                                {report?.work_orders?.work_order_no || "-"} -{" "}
+                                {report?.work_orders?.title || "-"}
                             </p>
                         </div>
 
-                        <div>
-                            <p className="text-slate-500">Contact Phone</p>
-                            <p className="font-medium text-slate-900">
-                                {report.project_sites?.contact_phone || "-"}
-                            </p>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <p className="text-slate-500">WO Status</p>
+                                <p className="font-medium text-slate-900">
+                                    {report?.work_orders?.status || "-"}
+                                </p>
+                            </div>
+
+                            <div>
+                                <p className="text-slate-500">Priority</p>
+                                <p className="font-medium text-slate-900">
+                                    {report?.work_orders?.priority || "-"}
+                                </p>
+                            </div>
                         </div>
 
-                        <div className="sm:col-span-2">
+                        <div className="border-t border-slate-100 pt-3">
                             <p className="text-slate-500">Address</p>
                             <p className="font-medium text-slate-900">
                                 {siteAddress || "-"}
                             </p>
-                        </div>
-
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
-                    <h2 className="font-bold text-slate-900 mb-4">
-                        Work Order & Task
-                    </h2>
-
-                    <div className="space-y-3 text-sm">
-                        <div>
-                            <p className="text-slate-500">Work Order No.</p>
-                            <p className="font-medium text-slate-900">
-                                {report.work_orders?.work_order_no || "-"}
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-slate-500">Work Order Title</p>
-                            <p className="font-medium text-slate-900">
-                                {report.work_orders?.title || "-"}
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-slate-500">Task / Activity</p>
-                            <p className="font-medium text-slate-900">
-                                {report.daily_report_activities
-                                    ?.map((activity) => activity.work_activity_types?.activity_name)
-                                    .filter(Boolean)
-                                    .join(", ") || "-"}
-                            </p>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3 pt-3 border-t">
-                            <div>
-                                <p className="text-slate-500">Workers</p>
-                                <p className="font-bold text-slate-900">
-                                    {report.daily_report_workers?.length || 0}
-                                </p>
-                            </div>
-
-                            <div>
-                                <p className="text-slate-500">Qty</p>
-                                <p className="font-bold text-slate-900">
-                                    {labourSummary.completedQuantity.toFixed(2)}{" "}
-                                    {areaUnitOfMeasure}
-                                </p>
-                            </div>
-
-                            <div>
-                                <p className="text-slate-500">Regular</p>
-                                <p className="font-bold text-slate-900">
-                                    {labourSummary.regularHours.toFixed(2)} hr
-                                </p>
-                            </div>
-
-                            <div>
-                                <p className="text-slate-500">OT</p>
-                                <p className="font-bold text-slate-900">
-                                    {labourSummary.overtimeHours.toFixed(2)} hr
-                                </p>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -1503,7 +1861,7 @@ const DailyReportDashboard = () => {
                         </div>
 
                         <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-                            Including Pending: {reportedIncludingPendingPercent.toFixed(2)}%
+                            Including Pending: {reportedIncludingPendingPercentRaw.toFixed(2)}%
                         </span>
                     </div>
 
@@ -1539,17 +1897,33 @@ const DailyReportDashboard = () => {
                             </p>
                         </div>
 
-                        <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 sm:col-span-2">
-                            <p className="text-xs text-slate-500">Remaining</p>
+                        <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                            <p className="text-xs text-slate-500">Official Remaining</p>
                             <p className="text-lg font-bold text-slate-900 mt-1">
-                                {remainingQuantity.toFixed(2)} {areaUnitOfMeasure}
+                                {officialRemainingQuantity.toFixed(2)} {areaUnitOfMeasure}
+                            </p>
+                            <p className="text-xs text-slate-500 mt-1">
+                                Estimated - Approved
+                            </p>
+                        </div>
+
+                        <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                            <p className="text-xs text-slate-500">Remaining Including Pending</p>
+                            <p className="text-lg font-bold text-slate-900 mt-1">
+                                {remainingIncludingPendingQuantity.toFixed(2)} {areaUnitOfMeasure}
+                            </p>
+                            <p className="text-xs text-slate-500 mt-1">
+                                Estimated - Total Reported
                             </p>
                         </div>
 
                         <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 sm:col-span-2">
                             <p className="text-xs text-slate-500">Reported Including Pending</p>
                             <p className="text-lg font-bold text-slate-900 mt-1">
-                                {reportedIncludingPendingPercent.toFixed(2)}%
+                                {reportedIncludingPendingPercentRaw.toFixed(2)}%
+                            </p>
+                            <p className="text-xs text-slate-500 mt-1">
+                                Total Reported / Estimated Area
                             </p>
                         </div>
                     </div>
@@ -1557,10 +1931,31 @@ const DailyReportDashboard = () => {
                     {isReportedOverEstimate && (
                         <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50 p-3">
                             <p className="text-sm font-semibold text-orange-700">
-                                Reported quantity is over the estimated area.
+                                Reported quantity is over the estimated area by{" "}
+                                {overEstimateQuantity.toFixed(2)} {areaUnitOfMeasure}.
+                            </p>
+                            <p className="text-xs text-orange-700 mt-1">
+                                Estimated: {areaEstimatedQuantity.toFixed(2)} {areaUnitOfMeasure} ·
+                                Total Reported: {totalReportedQuantity.toFixed(2)} {areaUnitOfMeasure}
                             </p>
                             <p className="text-xs text-orange-700 mt-1">
                                 Please review pending reports before approval.
+                            </p>
+                        </div>
+                    )}
+
+                    {isReportQtyMismatch && (
+                        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3">
+                            <p className="text-sm font-semibold text-red-700">
+                                Report quantity does not match worker completed quantity.
+                            </p>
+                            <p className="text-xs text-red-700 mt-1">
+                                Report Qty: {currentReportCompletedQuantity.toFixed(2)}{" "}
+                                {areaUnitOfMeasure} · Worker Qty:{" "}
+                                {currentReportLabourQuantity.toFixed(2)} {areaUnitOfMeasure}
+                            </p>
+                            <p className="text-xs text-red-700 mt-1">
+                                Please check the worker records before approving this daily report.
                             </p>
                         </div>
                     )}
@@ -1576,6 +1971,25 @@ const DailyReportDashboard = () => {
                             </p>
                         </div>
                     )}
+
+                    {approvalBlockedReasons.length > 0 && (
+                        <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50 p-3">
+                            <p className="text-sm font-semibold text-orange-700">
+                                Approval Checklist
+                            </p>
+
+                            <p className="mt-1 text-xs text-orange-700">
+                                This daily report cannot be approved yet.
+                            </p>
+
+                            <ul className="mt-2 list-disc pl-5 space-y-1 text-sm text-orange-700">
+                                {approvalBlockedReasons.map((reason) => (
+                                    <li key={reason}>{reason}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
                 </div>
 
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
@@ -1595,7 +2009,10 @@ const DailyReportDashboard = () => {
                             <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
                                 <p className="text-xs text-slate-500">Remaining Work</p>
                                 <p className="text-lg font-bold text-slate-900 mt-1">
-                                    {remainingQuantity.toFixed(2)} {areaUnitOfMeasure}
+                                    {remainingIncludingPendingQuantity.toFixed(2)} {areaUnitOfMeasure}
+                                </p>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    Forecast uses remaining including pending.
                                 </p>
                             </div>
 
@@ -1631,26 +2048,6 @@ const DailyReportDashboard = () => {
                     )}
                 </div>
             </div>
-
-            {approvalBlockedReasons.length > 0 && (
-                <div className="bg-white rounded-2xl shadow-sm border border-orange-200 p-4 sm:p-5">
-                    <h2 className="font-bold text-slate-900 mb-3">
-                        Approval Checklist
-                    </h2>
-
-                    <div className="rounded-xl bg-orange-50 border border-orange-200 p-3 sm:p-4">
-                        <p className="text-sm font-semibold text-orange-700 mb-2">
-                            This daily report cannot be approved yet.
-                        </p>
-
-                        <ul className="list-disc pl-5 space-y-1 text-sm text-orange-700">
-                            {approvalBlockedReasons.map((reason) => (
-                                <li key={reason}>{reason}</li>
-                            ))}
-                        </ul>
-                    </div>
-                </div>
-            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
@@ -1748,6 +2145,166 @@ const DailyReportDashboard = () => {
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-4">
                     <div>
                         <h2 className="font-bold text-slate-900">
+                            Worker History in This Work Order
+                        </h2>
+                        <p className="text-sm text-slate-500 mt-1">
+                            Previous daily reports for this worker in the same work order.
+                        </p>
+                    </div>
+
+                    <span className="inline-flex w-fit rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                        {workerHistoryReports.length} report
+                        {workerHistoryReports.length === 1 ? "" : "s"}
+                    </span>
+                </div>
+
+                {workerHistoryReports.length === 0 ? (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-sm font-semibold text-slate-700">
+                            No worker history found in this work order.
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">
+                            History will appear after this worker has related daily reports in the same work order.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto rounded-xl border border-slate-200">
+                        <table className="min-w-full divide-y divide-slate-200 text-sm">
+                            <thead className="bg-slate-50">
+                                <tr>
+                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Date
+                                    </th>
+                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Activity
+                                    </th>
+                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Hours
+                                    </th>
+                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Qty
+                                    </th>
+                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Payroll Approved
+                                    </th>
+                                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        Status
+                                    </th>
+                                    <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        View
+                                    </th>
+                                </tr>
+                            </thead>
+
+                            <tbody className="divide-y divide-slate-200 bg-white">
+                                {workerHistoryReports.map((historyReport) => {
+                                    const historyWorker =
+                                        historyReport.daily_report_workers?.find(
+                                            (worker) =>
+                                                worker.employee_id === primaryWorker?.employee_id
+                                        ) || null;
+
+                                    if (!historyWorker) return null;
+
+                                    const historyTimeLog =
+                                        workerHistoryTimeLogs.find((timeLog) => {
+                                            const sameReport =
+                                                timeLog.report_id === historyReport.report_id;
+                                            const sameEmployee =
+                                                timeLog.employee_id === historyWorker.employee_id;
+                                            const sameWorkAssignment =
+                                                historyWorker.work_assignment_id &&
+                                                timeLog.work_assignment_id ===
+                                                historyWorker.work_assignment_id;
+                                            const sameReplacement =
+                                                historyWorker.replaces_work_assignment_id &&
+                                                timeLog.replaces_work_assignment_id ===
+                                                historyWorker.replaces_work_assignment_id;
+                                            const sameActivity =
+                                                !historyWorker.activity_type_id ||
+                                                timeLog.activity_type_id ===
+                                                historyWorker.activity_type_id;
+
+                                            return (
+                                                sameReport &&
+                                                sameEmployee &&
+                                                (sameWorkAssignment ||
+                                                    sameReplacement ||
+                                                    sameActivity)
+                                            );
+                                        }) || null;
+
+                                    const historyHours =
+                                        Number(historyWorker.regular_hours || 0) +
+                                        Number(historyWorker.overtime_hours || 0);
+
+                                    const historyQty = Number(
+                                        historyWorker.completed_quantity || 0
+                                    );
+
+                                    const isCurrentHistoryReport =
+                                        historyReport.report_id === report.report_id;
+
+                                    return (
+                                        <tr key={historyReport.report_id}>
+                                            <td className="whitespace-nowrap px-3 py-3 font-medium text-slate-900">
+                                                {historyReport.report_date || "-"}
+                                            </td>
+
+                                            <td className="px-3 py-3 text-slate-700">
+                                                {historyWorker.work_activity_types?.activity_name ||
+                                                    "-"}
+                                            </td>
+
+                                            <td className="whitespace-nowrap px-3 py-3 text-slate-700">
+                                                {historyHours.toFixed(2)} hr
+                                            </td>
+
+                                            <td className="whitespace-nowrap px-3 py-3 text-slate-700">
+                                                {historyQty.toFixed(2)} {areaUnitOfMeasure}
+                                            </td>
+
+                                            <td className="whitespace-nowrap px-3 py-3">
+                                                <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700">
+                                                    {historyTimeLog?.approved ? "Yes" : "No"}
+                                                </span>
+                                            </td>
+
+                                            <td className="whitespace-nowrap px-3 py-3">
+                                                <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700">
+                                                    {isCurrentHistoryReport
+                                                        ? "Current"
+                                                        : historyReport.approval_status || "-"}
+                                                </span>
+                                            </td>
+
+                                            <td className="whitespace-nowrap px-3 py-3 text-right">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        navigate(
+                                                            `/daily-reports/${historyReport.report_id}`
+                                                        )
+                                                    }
+                                                    disabled={isCurrentHistoryReport}
+                                                >
+                                                    {isCurrentHistoryReport ? "Current" : "View"}
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-4">
+                    <div>
+                        <h2 className="font-bold text-slate-900">
                             Photos
                         </h2>
                         <p className="text-sm text-slate-500 mt-1">
@@ -1765,6 +2322,7 @@ const DailyReportDashboard = () => {
                         <div className="space-y-2">
                             <Label>Photo</Label>
                             <Input
+                                key={photoInputKey}
                                 type="file"
                                 accept="image/*"
                                 onChange={(event) => {
@@ -1883,471 +2441,144 @@ const DailyReportDashboard = () => {
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
                 <div className="mb-4">
                     <h2 className="font-bold text-slate-900">
-                        Worker / Labour Details
+                        Worker Time & Quantity Detail
                     </h2>
                     <p className="text-sm text-slate-500 mt-1">
-                        Worker attendance, activity, time, hours, completed quantity, and notes for this report.
+                        Detailed attendance, linked time log, hours, completed quantity, and worker notes for this report.
                     </p>
                 </div>
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
-                    <h3 className="font-semibold text-slate-900 mb-4">Labour Summary</h3>
 
-                    <div className="grid grid-cols-3 gap-3 mb-4">
-                        <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-                            <p className="text-xs text-slate-500">Regular</p>
-                            <p className="text-base font-bold text-slate-900 mt-1">
-                                {labourSummary.regularHours.toFixed(2)}
-                            </p>
-                        </div>
+                {report.daily_report_workers?.length ? (
+                    <div className="space-y-3">
+                        {report.daily_report_workers.map((worker) => {
+                            const linkedTimeLog = getLinkedTimeLogForWorker(
+                                worker.employee_id,
+                                worker.activity_type_id,
+                                worker.work_assignment_id,
+                                worker.replaces_work_assignment_id
+                            );
 
-                        <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-                            <p className="text-xs text-slate-500">OT</p>
-                            <p className="text-base font-bold text-slate-900 mt-1">
-                                {labourSummary.overtimeHours.toFixed(2)}
-                            </p>
-                        </div>
-
-                        <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-                            <p className="text-xs text-slate-500">Qty</p>
-                            <p className="text-base font-bold text-slate-900 mt-1">
-                                {labourSummary.completedQuantity.toFixed(2)}
-                            </p>
-                        </div>
-                    </div>
-
-                    {report.daily_report_workers?.length ? (
-                        <div className="space-y-3">
-                            {report.daily_report_workers.map((worker) => (
+                            return (
                                 <div
                                     key={worker.daily_report_worker_id}
                                     className="rounded-2xl border border-slate-200 p-4 bg-slate-50"
                                 >
-                                    <div className="flex flex-col gap-3">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                         <div>
-                                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                                <div>
-                                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                                                        Worker
-                                                    </p>
-
-                                                    <p className="mt-1 text-base font-bold text-slate-900">
-                                                        {worker.employees?.display_name ||
-                                                            `${worker.employees?.first_name || ""} ${worker.employees?.last_name || ""}`.trim() ||
-                                                            worker.employees?.employee_code ||
-                                                            "-"}
-                                                    </p>
-                                                </div>
-
-                                                <div className="sm:text-right">
-                                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                                                        Activity
-                                                    </p>
-
-                                                    <p className="mt-1 text-sm font-semibold text-slate-800">
-                                                        {worker.work_activity_types?.activity_name || "-"}
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            <div className="mt-3 border-t border-slate-100 pt-3">
-                                                <div className="flex flex-wrap gap-2">
-                                                    <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                                                        Time Status:{" "}
-                                                        {getLinkedTimeLogForWorker(
-                                                            worker.employee_id,
-                                                            worker.activity_type_id
-                                                        )?.time_status || "-"}
-                                                    </span>
-
-                                                    <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                                                        Payroll Approved:{" "}
-                                                        {getLinkedTimeLogForWorker(
-                                                            worker.employee_id,
-                                                            worker.activity_type_id
-                                                        )?.approved
-                                                            ? "Yes"
-                                                            : "No"}
-                                                    </span>
-                                                </div>
-
-                                                <p className="mt-3 text-xs text-slate-500">
-                                                    Labour, activity, attendance, time, hours, and completed quantity for this worker.
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                                            <div>
-                                                <p className="text-slate-500">Attendance</p>
-                                                <p className="font-medium text-slate-900">
-                                                    {worker.attendance_status ||
-                                                        getLinkedTimeLogForWorker(
-                                                            worker.employee_id,
-                                                            worker.activity_type_id
-                                                        )?.attendance_status ||
-                                                        "-"}
-                                                </p>
-                                            </div>
-
-                                            <div>
-                                                <p className="text-slate-500">Check In</p>
-                                                <p className="font-medium text-slate-900">
-                                                    {getLinkedTimeLogForWorker(
-                                                        worker.employee_id,
-                                                        worker.activity_type_id
-                                                    )?.clock_in || "-"}
-                                                </p>
-                                            </div>
-
-                                            <div>
-                                                <p className="text-slate-500">Check Out</p>
-                                                <p className="font-medium text-slate-900">
-                                                    {getLinkedTimeLogForWorker(
-                                                        worker.employee_id,
-                                                        worker.activity_type_id
-                                                    )?.clock_out || "-"}
-                                                </p>
-                                            </div>
-
-                                            <div>
-                                                <p className="text-slate-500">Worker Source</p>
-                                                <p className="font-medium text-slate-900">
-                                                    {worker.worker_source ||
-                                                        getLinkedTimeLogForWorker(
-                                                            worker.employee_id,
-                                                            worker.activity_type_id
-                                                        )?.worker_source ||
-                                                        "-"}
-                                                </p>
-                                            </div>
-
-                                            <div>
-                                                <p className="text-slate-500">Regular Hours</p>
-                                                <p className="font-medium text-slate-900">
-                                                    {Number(worker.regular_hours || 0).toFixed(2)}
-                                                </p>
-                                            </div>
-
-                                            <div>
-                                                <p className="text-slate-500">OT Hours</p>
-                                                <p className="font-medium text-slate-900">
-                                                    {Number(worker.overtime_hours || 0).toFixed(2)}
-                                                </p>
-                                            </div>
-
-                                            <div>
-                                                <p className="text-slate-500">Completed Qty</p>
-                                                <p className="font-medium text-slate-900">
-                                                    {Number(worker.completed_quantity || 0).toFixed(2)}
-                                                </p>
-                                            </div>
-
-                                            <div>
-                                                <p className="text-slate-500">Role</p>
-                                                <p className="font-medium text-slate-900">
-                                                    {worker.worker_role || "-"}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <div className="rounded-xl border border-slate-200 bg-white/70 p-3">
                                             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                                                Worker / Time Log Notes
+                                                Worker
                                             </p>
 
-                                            <p className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">
-                                                {worker.notes ||
-                                                    getLinkedTimeLogForWorker(
-                                                        worker.employee_id,
-                                                        worker.activity_type_id
-                                                    )?.notes ||
+                                            <p className="mt-1 text-base font-bold text-slate-900">
+                                                {worker.employees?.display_name ||
+                                                    `${worker.employees?.first_name || ""} ${worker.employees?.last_name || ""}`.trim() ||
+                                                    worker.employees?.employee_code ||
                                                     "-"}
                                             </p>
                                         </div>
 
-                                        <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => startEditLabourRecord(worker)}
-                                                className="h-9 rounded-lg border-blue-200 bg-blue-50 px-3 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
-                                            >
-                                                <Pencil className="mr-1.5 h-4 w-4" />
-                                                Edit
-                                            </Button>
+                                        <div className="sm:text-right">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                                Activity
+                                            </p>
 
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => {
-                                                    const confirmed = window.confirm(
-                                                        "Are you sure you want to delete this labour record?"
-                                                    );
-
-                                                    if (!confirmed) return;
-
-                                                    deleteLabourRecord.mutate(worker.daily_report_worker_id);
-                                                }}
-                                                disabled={deleteLabourRecord.isPending}
-                                                className="h-9 rounded-lg border-red-200 bg-red-50 px-3 text-red-700 hover:bg-red-100 hover:text-red-800"
-                                            >
-                                                <Trash2 className="mr-1.5 h-4 w-4" />
-                                                Delete
-                                            </Button>
+                                            <p className="mt-1 text-sm font-semibold text-slate-800">
+                                                {worker.work_activity_types?.activity_name || "-"}
+                                            </p>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <p className="text-sm text-slate-500">No labour records added.</p>
-                    )}
-                    <div className="mt-5 border-t border-slate-200 pt-5">
-                        <div className="flex flex-col gap-2">
-                            <h3 className="font-semibold text-slate-900">
-                                {editingWorkerId ? "Edit Worker" : "Add Worker"}
-                            </h3>
 
-                            <p className="text-xs text-slate-500">
-                                Add or edit labour records for this daily progress review.
-                            </p>
-                        </div>
+                                    <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                        <div>
+                                            <p className="text-slate-500">Attendance</p>
+                                            <p className="font-medium text-slate-900">
+                                                {worker.attendance_status || linkedTimeLog?.attendance_status || "-"}
+                                            </p>
+                                        </div>
 
-                        {!showLabourForm && (
-                            <div className="mt-4 flex justify-end">
-                                <Button
-                                    variant="outline"
-                                    onClick={() => setShowLabourForm(true)}
-                                    className="w-auto rounded-lg border-slate-300 bg-white px-4 font-semibold text-slate-700 hover:bg-slate-50"
-                                >
-                                    + Add Worker
-                                </Button>
-                            </div>
-                        )}
+                                        <div>
+                                            <p className="text-slate-500">Check In</p>
+                                            <p className="font-medium text-slate-900">
+                                                {linkedTimeLog?.clock_in || "-"}
+                                            </p>
+                                        </div>
 
-                        {showLabourForm && (
-                            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-5">
-                                <div className="border-b border-slate-200 pb-3">
-                                    <p className="font-semibold text-slate-900">
-                                        {editingWorkerId ? "Edit Worker Details" : "Add Worker Details"}
-                                    </p>
-                                    <p className="mt-1 text-xs text-slate-500">
-                                        Select worker, activity, role, time, completed quantity, and notes.
-                                    </p>
-                                </div>
+                                        <div>
+                                            <p className="text-slate-500">Check Out</p>
+                                            <p className="font-medium text-slate-900">
+                                                {linkedTimeLog?.clock_out || "-"}
+                                            </p>
+                                        </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    <div className="space-y-2">
-                                        <Label>Employee *</Label>
-                                        <Select value={labourEmployeeId} onValueChange={setLabourEmployeeId}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select employee" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {employees.map((employee) => (
-                                                    <SelectItem key={employee.employee_id} value={employee.employee_id}>
-                                                        {employee.display_name ||
-                                                            `${employee.first_name || ""} ${employee.last_name || ""}`.trim() ||
-                                                            employee.employee_code}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
+                                        <div>
+                                            <p className="text-slate-500">Worker Source</p>
+                                            <p className="font-medium text-slate-900">
+                                                {worker.worker_source || linkedTimeLog?.worker_source || "-"}
+                                            </p>
+                                        </div>
 
-                                    <div className="space-y-2">
-                                        <Label>Activity *</Label>
-                                        <Select value={labourActivityTypeId} onValueChange={setLabourActivityTypeId}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select activity" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {workActivityTypes.map((activity) => (
-                                                    <SelectItem key={activity.activity_type_id} value={activity.activity_type_id}>
-                                                        {activity.activity_name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
+                                        <div>
+                                            <p className="text-slate-500">Regular Hours</p>
+                                            <p className="font-bold text-slate-900">
+                                                {Number(worker.regular_hours || 0).toFixed(2)} hr
+                                            </p>
+                                        </div>
 
-                                    <div className="space-y-2">
-                                        <Label>Role</Label>
-                                        <Select value={labourWorkerRole} onValueChange={setLabourWorkerRole}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select role" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="Installer">Installer</SelectItem>
-                                                <SelectItem value="Supervisor">Supervisor</SelectItem>
-                                                <SelectItem value="Team Leader">Team Leader</SelectItem>
-                                                <SelectItem value="Labourer">Labourer</SelectItem>
-                                                <SelectItem value="Helper">Helper</SelectItem>
-                                                <SelectItem value="Apprentice">Apprentice</SelectItem>
-                                                <SelectItem value="Other">Other</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
+                                        <div>
+                                            <p className="text-slate-500">OT Hours</p>
+                                            <p className="font-bold text-slate-900">
+                                                {Number(worker.overtime_hours || 0).toFixed(2)} hr
+                                            </p>
+                                        </div>
 
-                                <div>
-                                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                        Time and Quantity
-                                    </p>
+                                        <div>
+                                            <p className="text-slate-500">Completed Qty</p>
+                                            <p className="font-bold text-slate-900">
+                                                {Number(worker.completed_quantity || 0).toFixed(2)} {areaUnitOfMeasure}
+                                            </p>
+                                        </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                        <div className="space-y-2">
-                                            <Label>Clock In</Label>
-                                            <Input
-                                                type="time"
-                                                value={labourClockIn}
-                                                onChange={(event) => {
-                                                    const value = event.target.value;
-                                                    setLabourClockIn(value);
-                                                    calculateLabourHours(value, labourClockOut, labourBreakMinutes);
-                                                }}
-                                            />
+                                        <div>
+                                            <p className="text-slate-500">Role</p>
+                                            <p className="font-medium text-slate-900">
+                                                {worker.worker_role || "-"}
+                                            </p>
                                         </div>
                                     </div>
-                                </div>
 
-                                <div className="space-y-2">
-                                    <Label>Clock Out</Label>
-                                    <Input
-                                        type="time"
-                                        value={labourClockOut}
-                                        onChange={(event) => {
-                                            const value = event.target.value;
-                                            setLabourClockOut(value);
-                                            calculateLabourHours(labourClockIn, value, labourBreakMinutes);
-                                        }}
-                                    />
-                                </div>
+                                    <div className="mt-4 flex flex-wrap gap-2">
+                                        <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
+                                            Time Status: {linkedTimeLog?.time_status || "-"}
+                                        </span>
 
-                                <div className="grid grid-cols-1 sm:flex sm:justify-end gap-3">
-                                    <Button variant="outline" className="w-full sm:w-auto" onClick={resetLabourForm}>
-                                        Cancel
-                                    </Button>
+                                        <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
+                                            Payroll Approved: {linkedTimeLog?.approved ? "Yes" : "No"}
+                                        </span>
+                                    </div>
 
-                                    <Button
-                                        onClick={() => saveLabourRecord.mutate()}
-                                        disabled={saveLabourRecord.isPending}
-                                        className="bg-red-600 hover:bg-red-700 text-white"
-                                    >
-                                        {saveLabourRecord.isPending
-                                            ? "Saving..."
-                                            : editingWorkerId
-                                                ? "Update Worker"
-                                                : "Save Worker"}
-                                    </Button>
+                                    <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                            Worker / Time Log Notes
+                                        </p>
+
+                                        <p className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">
+                                            {worker.notes || linkedTimeLog?.notes || "-"}
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            );
+                        })}
                     </div>
-
-                    <div className="mt-6 border-t border-slate-200 pt-5">
-                        <h3 className="font-semibold text-slate-900">Work Activities</h3>
-
-                        <p className="mt-1 text-xs text-slate-500">
-                            Select one or more work activities completed in this daily report.
+                ) : (
+                    <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
+                        <p className="text-sm font-semibold text-orange-700">
+                            No worker record found for this report.
                         </p>
-
-                        {report.daily_report_activities?.length ? (
-                            <div className="mt-4 flex flex-wrap gap-2">
-                                {report.daily_report_activities.map((item) => (
-                                    <span
-                                        key={item.daily_report_activity_id}
-                                        className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700"
-                                    >
-                                        {item.work_activity_types?.activity_name || "-"}
-                                    </span>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-                                <p className="font-medium text-amber-800">
-                                    No work activities selected.
-                                </p>
-                                <p className="mt-1 text-sm text-amber-700">
-                                    Please select one or more work activities for this daily progress review.
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                        <h2 className="font-bold text-slate-900">
-                            Approval / Actions
-                        </h2>
-                        <p className="text-sm text-slate-500 mt-1">
-                            Final review actions for this daily report.
+                        <p className="text-xs text-orange-700 mt-1">
+                            Please edit the daily report if this worker report should contain a labour record.
                         </p>
-
-                        <div className="mt-3">
-                            <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
-                                Status: {report.approval_status || "-"}
-                            </span>
-                        </div>
                     </div>
-
-                    <div className="grid grid-cols-1 sm:flex gap-2 sm:gap-3 w-full lg:w-auto">
-                        <Button
-                            variant="outline"
-                            onClick={() => navigate("/daily-reports")}
-                            className="w-full sm:w-auto"
-                        >
-                            Back to Reports
-                        </Button>
-
-                        {report.approval_status === "Submitted" && (
-                            <Button
-                                variant="outline"
-                                onClick={() => markReadyForInspection.mutate()}
-                                disabled={markReadyForInspection.isPending}
-                                className="w-full sm:w-auto"
-                            >
-                                {markReadyForInspection.isPending
-                                    ? "Updating..."
-                                    : "Ready for Inspection"}
-                            </Button>
-                        )}
-
-                        {report.approval_status === "Ready for Inspection" && (
-                            <Button
-                                variant="outline"
-                                onClick={() => approveDailyReport.mutate()}
-                                disabled={approveDailyReport.isPending}
-                                className="w-full sm:w-auto"
-                            >
-                                {approveDailyReport.isPending ? "Approving..." : "Approve"}
-                            </Button>
-                        )}
-
-                        {report.approval_status === "Ready for Inspection" && (
-                            <Button
-                                variant="outline"
-                                onClick={() => rejectDailyReport.mutate()}
-                                disabled={rejectDailyReport.isPending}
-                                className="w-full sm:w-auto text-red-600 hover:text-red-700"
-                            >
-                                {rejectDailyReport.isPending ? "Rejecting..." : "Reject"}
-                            </Button>
-                        )}
-
-                        <Button
-                            onClick={() => setShowEditDialog(true)}
-                            className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
-                        >
-                            Edit Daily Report
-                        </Button>
-                    </div>
-                </div>
+                )}
             </div>
 
             <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>

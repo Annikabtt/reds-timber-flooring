@@ -35,17 +35,32 @@ import {
 
 type TimeStatus =
   | "Pending"
-  | "Missing CheckIn-Checkout"
-  | "Need Review"
-  | "Approved";
+  | "Working"
+  | "Missing Check Out"
+  | "Working OT"
+  | "Completed"
+  | "Need Review";
 
 type WorkerSource =
   | "Assigned"
   | "Additional"
   | "Replacement";
-type AttendanceStatus = "Present" | "Not Attended" | "Replaced";
 
+type AttendanceStatus =
+  | "Present"
+  | "Not Attended"
+  | "Replaced"
+  | "Late"
+  | "Leave Early"
+  | "Sick"
+  | "Annual Leave"
+  | "Public Holiday"
+  | "Training"
+  | "Travel"
+  | "Standby";
 type LabourRecord = {
+  daily_report_worker_id: string;
+  work_time_log_id: string;
   employee_id: string;
   work_assignment_id: string;
   replaces_work_assignment_id: string;
@@ -55,10 +70,13 @@ type LabourRecord = {
   clock_in: string;
   clock_out: string;
   break_minutes: string;
+  ot_start: string;
+  ot_finish: string;
   time_status: TimeStatus;
   regular_hours: string;
   overtime_hours: string;
   completed_quantity: string;
+  ot_completed_quantity: string;
   worker_role: string;
   notes: string;
 };
@@ -67,6 +85,8 @@ const STANDARD_WORK_HOURS = 8;
 const NEED_REVIEW_HOURS_LIMIT = 12;
 
 const createEmptyLabourRecord = (): LabourRecord => ({
+  daily_report_worker_id: "",
+  work_time_log_id: "",
   employee_id: "",
   work_assignment_id: "",
   replaces_work_assignment_id: "",
@@ -76,31 +96,56 @@ const createEmptyLabourRecord = (): LabourRecord => ({
   clock_in: "",
   clock_out: "",
   break_minutes: "60",
+  ot_start: "",
+  ot_finish: "",
   time_status: "Pending",
   regular_hours: "0",
   overtime_hours: "0",
   completed_quantity: "0",
+  ot_completed_quantity: "0",
   worker_role: "",
   notes: "",
 });
+const timeToMinutes = (timeValue: string) => {
+  if (!timeValue) return null;
+
+  const [hour, minute] = timeValue.split(":").map(Number);
+
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
+
+  return hour * 60 + minute;
+};
+
 const calculateLabourTime = (record: LabourRecord): LabourRecord => {
-  if (!record.clock_in || !record.clock_out) {
+  const clockInMinutes = timeToMinutes(record.clock_in);
+  const clockOutMinutes = timeToMinutes(record.clock_out);
+  const otStartMinutes = timeToMinutes(record.ot_start);
+  const otFinishMinutes = timeToMinutes(record.ot_finish);
+  const breakMinutes = Math.max(Number(record.break_minutes || 0), 0);
+
+  if (!record.clock_in) {
     return {
       ...record,
-      time_status: "Missing CheckIn-Checkout",
+      time_status: "Pending",
       regular_hours: "0",
       overtime_hours: "0",
-
     };
   }
 
-  const [clockInHour, clockInMinute] = record.clock_in.split(":").map(Number);
-  const [clockOutHour, clockOutMinute] = record.clock_out.split(":").map(Number);
+  if (record.clock_in && !record.clock_out) {
+    return {
+      ...record,
+      time_status: "Working",
+      regular_hours: "0",
+      overtime_hours: "0",
+    };
+  }
 
-  const clockInMinutes = clockInHour * 60 + clockInMinute;
-  const clockOutMinutes = clockOutHour * 60 + clockOutMinute;
-
-  if (clockOutMinutes <= clockInMinutes) {
+  if (
+    clockInMinutes === null ||
+    clockOutMinutes === null ||
+    clockOutMinutes <= clockInMinutes
+  ) {
     return {
       ...record,
       time_status: "Need Review",
@@ -109,21 +154,56 @@ const calculateLabourTime = (record: LabourRecord): LabourRecord => {
     };
   }
 
-  const breakMinutes = Math.max(Number(record.break_minutes || 0), 0);
-  const totalHours = Math.max(
-    (clockOutMinutes - clockInMinutes - breakMinutes) / 60,
-    0
-  );
+  const normalWorkedMinutes = clockOutMinutes - clockInMinutes - breakMinutes;
 
-  const regularHours = Math.min(totalHours, STANDARD_WORK_HOURS);
-  const overtimeHours = Math.max(totalHours - STANDARD_WORK_HOURS, 0);
+  if (normalWorkedMinutes < 0) {
+    return {
+      ...record,
+      time_status: record.time_status,
+      regular_hours: "0",
+      overtime_hours: "0",
+    };
+  }
+
+  let overtimeMinutes = 0;
+
+  if (record.ot_start && !record.ot_finish) {
+    return {
+      ...record,
+      time_status: "Working OT",
+      regular_hours: (normalWorkedMinutes / 60).toFixed(2),
+      overtime_hours: "0",
+    };
+  }
+
+  if (record.ot_start && record.ot_finish) {
+    if (
+      otStartMinutes === null ||
+      otFinishMinutes === null ||
+      otFinishMinutes <= otStartMinutes ||
+      otStartMinutes < clockOutMinutes
+    ) {
+      return {
+        ...record,
+        time_status: "Need Review",
+        regular_hours: "0",
+        overtime_hours: "0",
+      };
+    }
+
+    overtimeMinutes = otFinishMinutes - otStartMinutes;
+  }
+
+  const totalMinutes = normalWorkedMinutes + overtimeMinutes;
 
   return {
     ...record,
     time_status:
-      totalHours > NEED_REVIEW_HOURS_LIMIT ? "Need Review" : "Pending",
-    regular_hours: regularHours.toFixed(2),
-    overtime_hours: overtimeHours.toFixed(2),
+      totalMinutes / 60 > NEED_REVIEW_HOURS_LIMIT
+        ? "Need Review"
+        : "Completed",
+    regular_hours: (normalWorkedMinutes / 60).toFixed(2),
+    overtime_hours: (overtimeMinutes / 60).toFixed(2),
   };
 };
 
@@ -134,6 +214,7 @@ const DailyReports = () => {
   const workOrderIdFromUrl = searchParams.get("workOrderId");
 
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showWorkOrderDetails, setShowWorkOrderDetails] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterProjectId, setFilterProjectId] = useState("all");
   const [filterSiteId, setFilterSiteId] = useState("all");
@@ -165,9 +246,47 @@ const DailyReports = () => {
   const setPhotoCaption = () => { };
   const [selectedActivityTypeIds, setSelectedActivityTypeIds] = useState<string[]>([]);
   const [openWorkerCardIndexes, setOpenWorkerCardIndexes] = useState<number[]>([0]);
-  const [labourRecords, setLabourRecords] = useState<LabourRecord[]>([
-    createEmptyLabourRecord(),
-  ]);
+  const [openOvertimeCardIndexes, setOpenOvertimeCardIndexes] = useState<number[]>([]);
+  const [labourRecords, setLabourRecords] = useState<LabourRecord[]>([]);
+  const [activeDraftReportId, setActiveDraftReportId] = useState<string | null>(null);
+  const formatHoursMinutes = (regularHours: string, overtimeHours: string) => {
+    const totalHours =
+      Number(regularHours || 0) + Number(overtimeHours || 0);
+
+    const totalMinutes = Math.round(totalHours * 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+  };
+
+  const calculateElapsedMinutes = (record: LabourRecord) => {
+    if (!record.clock_in || !record.clock_out) return 0;
+
+    const [clockInHour, clockInMinute] = record.clock_in.split(":").map(Number);
+    const [clockOutHour, clockOutMinute] = record.clock_out.split(":").map(Number);
+
+    const clockInMinutes = clockInHour * 60 + clockInMinute;
+    const clockOutMinutes = clockOutHour * 60 + clockOutMinute;
+
+    if (clockOutMinutes <= clockInMinutes) return 0;
+
+    return clockOutMinutes - clockInMinutes;
+  };
+
+  const formatElapsedMinutes = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+
+    return `${hours}h ${String(remainingMinutes).padStart(2, "0")}m`;
+  };
+  const getCurrentTimeValue = () => {
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+
+    return `${hours}:${minutes}`;
+  };
 
   const addLabourRecord = () => {
     setLabourRecords((prev) => {
@@ -198,7 +317,9 @@ const DailyReports = () => {
         if (
           field === "clock_in" ||
           field === "clock_out" ||
-          field === "break_minutes"
+          field === "break_minutes" ||
+          field === "ot_start" ||
+          field === "ot_finish"
         ) {
           return calculateLabourTime(updatedRecord);
         }
@@ -223,35 +344,9 @@ const DailyReports = () => {
       };
     }
 
-    if (!record.employee_id && !record.activity_type_id && !record.clock_in) {
-      return {
-        label: "Not Started",
-        className: "bg-slate-100 text-slate-600 border-slate-200",
-      };
-    }
-
-    if (record.clock_in && !record.clock_out) {
-      return {
-        label: "Missing Check Out",
-        className: "bg-red-100 text-red-700 border-red-200",
-      };
-    }
-
-    if (
-      record.employee_id &&
-      record.activity_type_id &&
-      record.clock_in &&
-      record.clock_out
-    ) {
-      return {
-        label: "Complete",
-        className: "bg-green-100 text-green-700 border-green-200",
-      };
-    }
-
     return {
-      label: "In Progress",
-      className: "bg-amber-100 text-amber-700 border-amber-200",
+      label: record.time_status,
+      className: getTimeStatusClass(record.time_status),
     };
   };
 
@@ -283,10 +378,30 @@ const DailyReports = () => {
           label: "Present",
           className: "bg-green-100 text-green-700 border-green-200",
         };
+      case "Late":
+        return {
+          label: "Late",
+          className: "bg-amber-100 text-amber-700 border-amber-200",
+        };
+      case "Leave Early":
+        return {
+          label: "Leave Early",
+          className: "bg-orange-100 text-orange-700 border-orange-200",
+        };
       case "Replaced":
         return {
           label: "Replaced",
-          className: "bg-amber-100 text-amber-700 border-amber-200",
+          className: "bg-purple-100 text-purple-700 border-purple-200",
+        };
+      case "Sick":
+      case "Annual Leave":
+      case "Public Holiday":
+      case "Training":
+      case "Travel":
+      case "Standby":
+        return {
+          label: status,
+          className: "bg-blue-100 text-blue-700 border-blue-200",
         };
       case "Not Attended":
       default:
@@ -299,11 +414,15 @@ const DailyReports = () => {
 
   const getTimeStatusClass = (status: TimeStatus) => {
     switch (status) {
-      case "Approved":
+      case "Completed":
         return "bg-green-100 text-green-700 border-green-200";
+      case "Working":
+        return "bg-blue-100 text-blue-700 border-blue-200";
+      case "Working OT":
+        return "bg-purple-100 text-purple-700 border-purple-200";
       case "Need Review":
         return "bg-amber-100 text-amber-700 border-amber-200";
-      case "Missing CheckIn-Checkout":
+      case "Missing Check Out":
         return "bg-red-100 text-red-700 border-red-200";
       case "Pending":
       default:
@@ -477,6 +596,66 @@ const DailyReports = () => {
     },
   });
 
+  const { data: activeDraftReport } = useQuery({
+    queryKey: ["active-draft-daily-report", workOrderId],
+    enabled: !!workOrderId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("daily_reports")
+        .select(`
+          report_id,
+          project_id,
+          site_id,
+          area_id,
+          work_order_id,
+          report_date,
+          weather_condition,
+          notes,
+          daily_report_workers (
+            daily_report_worker_id,
+            employee_id,
+            work_assignment_id,
+            replaces_work_assignment_id,
+            worker_source,
+            attendance_status,
+            activity_type_id,
+            regular_hours,
+            overtime_hours,
+            completed_quantity,
+            ot_start,
+            ot_finish,
+            ot_completed_quantity,
+            worker_role,
+            notes
+          ),
+          work_time_logs (
+            work_time_log_id,
+            employee_id,
+            clock_in,
+            clock_out,
+            break_minutes,
+            regular_hours,
+            overtime_hours,
+            ot_start,
+            ot_finish,
+            ot_completed_quantity,
+            time_status,
+            notes
+          )
+        `)
+        .eq("work_order_id", workOrderId)
+        .eq("approval_status", "Draft")
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      return data;
+    },
+  });
+
   const { data: dailyReports = [] } = useQuery({
     queryKey: ["daily_reports"],
     queryFn: async () => {
@@ -638,6 +817,7 @@ const DailyReports = () => {
 
   }, [workOrders, workOrderIdFromUrl]);
 
+  const isDraftMode = !!activeDraftReportId;
   const selectedWorkOrderForForm = useMemo(() => {
     return (
       workOrders.find((workOrder) => workOrder.work_order_id === workOrderId) ||
@@ -664,7 +844,7 @@ const DailyReports = () => {
       ) || [];
 
     if (activeAssignments.length === 0) {
-      setLabourRecords([createEmptyLabourRecord()]);
+      setLabourRecords([]);
       setOpenWorkerCardIndexes([0]);
       return;
 
@@ -692,12 +872,73 @@ const DailyReports = () => {
     );
   }, [selectedWorkOrder, reportDate, currentEmployee]);
 
+  useEffect(() => {
+    if (!activeDraftReport) return;
+
+    setActiveDraftReportId(activeDraftReport.report_id);
+    setProjectId(activeDraftReport.project_id || "");
+    setSiteId(activeDraftReport.site_id || "");
+    setAreaId(activeDraftReport.area_id || "");
+    setWorkOrderId(activeDraftReport.work_order_id || "");
+    setReportDate(activeDraftReport.report_date || "");
+    setWeatherCondition(activeDraftReport.weather_condition || "Fine");
+
+    const draftWorkers = activeDraftReport.daily_report_workers || [];
+    const draftTimeLogs = activeDraftReport.work_time_logs || [];
+
+    const resumedLabourRecords = draftWorkers.map((worker) => {
+      const matchedTimeLog = draftTimeLogs.find(
+        (timeLog) => timeLog.employee_id === worker.employee_id
+      );
+
+      return {
+        ...createEmptyLabourRecord(),
+        daily_report_worker_id: worker.daily_report_worker_id || "",
+        work_time_log_id: matchedTimeLog?.work_time_log_id || "",
+        employee_id: worker.employee_id || "",
+        work_assignment_id: worker.work_assignment_id || "",
+        replaces_work_assignment_id:
+          worker.replaces_work_assignment_id || "",
+        worker_source: (worker.worker_source || "Additional") as WorkerSource,
+        attendance_status:
+          (worker.attendance_status || "Present") as AttendanceStatus,
+        activity_type_id: worker.activity_type_id || "",
+        clock_in: matchedTimeLog?.clock_in || "",
+        clock_out: matchedTimeLog?.clock_out || "",
+        break_minutes: String(matchedTimeLog?.break_minutes ?? "60"),
+        ot_start: matchedTimeLog?.ot_start || worker.ot_start || "",
+        ot_finish: matchedTimeLog?.ot_finish || worker.ot_finish || "",
+        time_status:
+          (matchedTimeLog?.time_status || "Pending") as TimeStatus,
+        regular_hours: String(
+          matchedTimeLog?.regular_hours ?? worker.regular_hours ?? "0"
+        ),
+        overtime_hours: String(
+          matchedTimeLog?.overtime_hours ?? worker.overtime_hours ?? "0"
+        ),
+        completed_quantity: String(worker.completed_quantity ?? "0"),
+        ot_completed_quantity: String(
+          matchedTimeLog?.ot_completed_quantity ??
+          worker.ot_completed_quantity ??
+          "0"
+        ),
+        worker_role: worker.worker_role || "",
+        notes: worker.notes || matchedTimeLog?.notes || "",
+      };
+    });
+
+    if (resumedLabourRecords.length > 0) {
+      setLabourRecords(resumedLabourRecords);
+      setOpenWorkerCardIndexes([0]);
+    }
+  }, [activeDraftReport]);
+
   const resetForm = () => {
     setProjectId("");
     setSiteId("");
     setAreaId("");
     setWorkOrderId("");
-    setReportDate("");
+    setReportDate(new Date().toISOString().slice(0, 10));
     setWeatherCondition("Fine");
     setWorkersCount("");
     setProgressPercent("");
@@ -709,7 +950,327 @@ const DailyReports = () => {
     setPendingPhotos([]);
     setSelectedActivityTypeIds([]);
     setLabourRecords([createEmptyLabourRecord()]);
+    setActiveDraftReportId(null);
+
   };
+
+  const startDraftReport = useMutation({
+    mutationFn: async ({
+      record,
+      recordIndex,
+    }: {
+      record: LabourRecord;
+      recordIndex: number;
+    }) => {
+      if (!projectId) throw new Error("Please select a project.");
+      if (!siteId) throw new Error("Please select a project site.");
+      if (!areaId) throw new Error("Please select a project area.");
+      if (!workOrderId) throw new Error("Please select a work order.");
+      if (!reportDate) throw new Error("Please select report date.");
+      if (!record.employee_id) throw new Error("Please select employee.");
+      if (!record.activity_type_id) throw new Error("Please select activity.");
+
+      if (record.clock_in || record.daily_report_worker_id || record.work_time_log_id) {
+        throw new Error("This worker has already checked in.");
+      }
+
+      const checkInTime = getCurrentTimeValue();
+      const checkedInRecord = calculateLabourTime({
+        ...record,
+        clock_in: checkInTime,
+      });
+
+      let reportId = activeDraftReportId;
+
+      if (!reportId) {
+        const { data: createdReport, error: reportError } = await supabase
+          .from("daily_reports")
+          .insert({
+            project_id: projectId,
+            site_id: siteId,
+            area_id: areaId,
+            work_order_id: workOrderId,
+            report_date: reportDate,
+            weather_condition: weatherCondition || null,
+            workers_count: 1,
+            approval_status: "Draft",
+            progress_percent: 0,
+            completed_quantity: 0,
+            work_completed: null,
+            issues_found: null,
+            next_actions: null,
+            notes: null,
+            is_deleted: false,
+          })
+          .select("report_id")
+          .single();
+
+        if (reportError) throw reportError;
+        if (!createdReport?.report_id) {
+          throw new Error("Draft report was created but report ID was not returned.");
+        }
+
+        reportId = createdReport.report_id;
+      }
+
+      const { data: createdWorkerRow, error: workerError } = await supabase
+        .from("daily_report_workers")
+        .insert({
+          report_id: reportId,
+          employee_id: checkedInRecord.employee_id,
+          work_assignment_id: checkedInRecord.work_assignment_id || null,
+          replaces_work_assignment_id:
+            checkedInRecord.replaces_work_assignment_id || null,
+          worker_source: checkedInRecord.worker_source,
+          attendance_status: checkedInRecord.attendance_status,
+          activity_type_id: checkedInRecord.activity_type_id,
+          regular_hours: Number(checkedInRecord.regular_hours || 0),
+          overtime_hours: Number(checkedInRecord.overtime_hours || 0),
+          completed_quantity: Number(checkedInRecord.completed_quantity || 0),
+          ot_start: checkedInRecord.ot_start || null,
+          ot_finish: checkedInRecord.ot_finish || null,
+          ot_completed_quantity: Number(checkedInRecord.ot_completed_quantity || 0),
+          worker_role: checkedInRecord.worker_role.trim() || null,
+          notes: checkedInRecord.notes.trim() || null,
+        })
+        .select("daily_report_worker_id")
+        .single();
+
+      if (workerError) throw workerError;
+      if (!createdWorkerRow?.daily_report_worker_id) {
+        throw new Error("Worker row was created but ID was not returned.");
+      }
+
+      const { data: createdTimeLog, error: timeLogError } = await supabase
+        .from("work_time_logs")
+        .insert({
+          report_id: reportId,
+          employee_id: checkedInRecord.employee_id,
+          work_assignment_id: checkedInRecord.work_assignment_id || null,
+          replaces_work_assignment_id:
+            checkedInRecord.replaces_work_assignment_id || null,
+          worker_source: checkedInRecord.worker_source,
+          attendance_status: checkedInRecord.attendance_status,
+          project_id: projectId,
+          site_id: siteId,
+          area_id: areaId,
+          work_order_id: workOrderId,
+          activity_type_id: checkedInRecord.activity_type_id,
+          work_date: reportDate,
+          regular_hours: Number(checkedInRecord.regular_hours || 0),
+          overtime_hours: Number(checkedInRecord.overtime_hours || 0),
+          break_minutes: Number(checkedInRecord.break_minutes || 0),
+          clock_in: checkedInRecord.clock_in || null,
+          clock_out: null,
+          ot_start: checkedInRecord.ot_start || null,
+          ot_finish: checkedInRecord.ot_finish || null,
+          ot_completed_quantity: Number(checkedInRecord.ot_completed_quantity || 0),
+          approved: false,
+          time_status: checkedInRecord.time_status,
+          notes: checkedInRecord.notes.trim() || checkedInRecord.worker_role.trim() || null,
+          is_deleted: false,
+        })
+        .select("work_time_log_id")
+        .single();
+
+      if (timeLogError) throw timeLogError;
+      if (!createdTimeLog?.work_time_log_id) {
+        throw new Error("Time log was created but ID was not returned.");
+      }
+
+      return {
+        reportId,
+        workerRowId: createdWorkerRow.daily_report_worker_id,
+        timeLogId: createdTimeLog.work_time_log_id,
+        recordIndex,
+        checkedInRecord,
+      };
+    },
+    onSuccess: ({ reportId, workerRowId, timeLogId, recordIndex, checkedInRecord }) => {
+      setActiveDraftReportId(reportId);
+
+      setLabourRecords((prev) =>
+        prev.map((record, index) =>
+          index === recordIndex
+            ? {
+              ...checkedInRecord,
+              daily_report_worker_id: workerRowId,
+              work_time_log_id: timeLogId,
+            }
+            : record
+        )
+      );
+
+      queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
+
+      toast.success("Check In saved. You can return later to Check Out.");
+    },
+  });
+
+  const finishDraftReport = useMutation({
+    mutationFn: async ({
+      record,
+      recordIndex,
+    }: {
+      record: LabourRecord;
+      recordIndex: number;
+    }) => {
+      if (!activeDraftReportId) throw new Error("No active draft report found.");
+      if (!record.daily_report_worker_id) {
+        throw new Error("No worker row found for this worker.");
+      }
+
+      if (!record.work_time_log_id) {
+        throw new Error("No time log found for this worker.");
+      }
+      if (!record.clock_in) throw new Error("Please check in first.");
+
+      const checkOutTime = getCurrentTimeValue();
+      const checkedOutRecord = calculateLabourTime({
+        ...record,
+        clock_out: checkOutTime,
+      });
+
+      const { error: workerUpdateError } = await supabase
+        .from("daily_report_workers")
+        .update({
+          regular_hours: Number(checkedOutRecord.regular_hours || 0),
+          overtime_hours: Number(checkedOutRecord.overtime_hours || 0),
+          completed_quantity: Number(checkedOutRecord.completed_quantity || 0),
+          ot_start: checkedOutRecord.ot_start || null,
+          ot_finish: checkedOutRecord.ot_finish || null,
+          ot_completed_quantity: Number(
+            checkedOutRecord.ot_completed_quantity || 0
+          ),
+          notes: checkedOutRecord.notes.trim() || null,
+        })
+        .eq("daily_report_worker_id", record.daily_report_worker_id);
+
+      if (workerUpdateError) throw workerUpdateError;
+
+      const { error: timeLogUpdateError } = await supabase
+        .from("work_time_logs")
+        .update({
+          clock_out: checkedOutRecord.clock_out || null,
+          regular_hours: Number(checkedOutRecord.regular_hours || 0),
+          overtime_hours: Number(checkedOutRecord.overtime_hours || 0),
+          break_minutes: Number(checkedOutRecord.break_minutes || 0),
+          ot_start: checkedOutRecord.ot_start || null,
+          ot_finish: checkedOutRecord.ot_finish || null,
+          ot_completed_quantity: Number(
+            checkedOutRecord.ot_completed_quantity || 0
+          ),
+          time_status: checkedOutRecord.time_status,
+          notes:
+            checkedOutRecord.notes.trim() ||
+            checkedOutRecord.worker_role.trim() ||
+            null,
+        })
+        .eq("work_time_log_id", record.work_time_log_id);
+
+      if (timeLogUpdateError) throw timeLogUpdateError;
+
+      return {
+        recordIndex,
+        checkedOutRecord,
+      };
+    },
+    onSuccess: ({ recordIndex, checkedOutRecord }) => {
+      setLabourRecords((prev) =>
+        prev.map((record, index) =>
+          index === recordIndex ? checkedOutRecord : record
+        )
+      );
+
+      queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
+
+      toast.success("Check Out saved.");
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const updateDraftWorkerTime = useMutation({
+    mutationFn: async ({
+      record,
+      recordIndex,
+      field,
+      value,
+    }: {
+      record: LabourRecord;
+      recordIndex: number;
+      field: keyof LabourRecord;
+      value: string;
+    }) => {
+      if (!record.daily_report_worker_id) {
+        throw new Error("No worker row found for this worker.");
+      }
+
+      if (!record.work_time_log_id) {
+        throw new Error("No time log found for this worker.");
+      }
+
+      const updatedRecord = calculateLabourTime({
+        ...record,
+        [field]: value,
+      });
+
+      const { error: workerUpdateError } = await supabase
+        .from("daily_report_workers")
+        .update({
+          regular_hours: Number(updatedRecord.regular_hours || 0),
+          overtime_hours: Number(updatedRecord.overtime_hours || 0),
+          completed_quantity: Number(updatedRecord.completed_quantity || 0),
+          ot_start: updatedRecord.ot_start || null,
+          ot_finish: updatedRecord.ot_finish || null,
+          ot_completed_quantity: Number(updatedRecord.ot_completed_quantity || 0),
+          worker_role: updatedRecord.worker_role.trim() || null,
+          notes: updatedRecord.notes.trim() || null,
+        })
+        .eq("daily_report_worker_id", record.daily_report_worker_id);
+
+      if (workerUpdateError) throw workerUpdateError;
+
+      const { error: timeLogUpdateError } = await supabase
+        .from("work_time_logs")
+        .update({
+          clock_in: updatedRecord.clock_in || null,
+          clock_out: updatedRecord.clock_out || null,
+          break_minutes: Number(updatedRecord.break_minutes || 0),
+          regular_hours: Number(updatedRecord.regular_hours || 0),
+          overtime_hours: Number(updatedRecord.overtime_hours || 0),
+          ot_start: updatedRecord.ot_start || null,
+          ot_finish: updatedRecord.ot_finish || null,
+          ot_completed_quantity: Number(updatedRecord.ot_completed_quantity || 0),
+          time_status: updatedRecord.time_status,
+          notes:
+            updatedRecord.notes.trim() ||
+            updatedRecord.worker_role.trim() ||
+            null,
+        })
+        .eq("work_time_log_id", record.work_time_log_id);
+
+      if (timeLogUpdateError) throw timeLogUpdateError;
+
+      return {
+        recordIndex,
+        updatedRecord,
+      };
+    },
+    onSuccess: ({ recordIndex, updatedRecord }) => {
+      setLabourRecords((prev) =>
+        prev.map((record, index) =>
+          index === recordIndex ? updatedRecord : record
+        )
+      );
+
+      queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
 
   const createDailyReport = useMutation({
     mutationFn: async () => {
@@ -761,104 +1322,196 @@ const DailyReports = () => {
         throw new Error("Progress percent must be between 0 and 100.");
       }
 
-      const { data: createdReport, error } = await supabase
-        .from("daily_reports")
-        .insert({
+      let finalReportId = activeDraftReportId;
+
+      if (finalReportId) {
+        const { error: updateReportError } = await supabase
+          .from("daily_reports")
+          .update({
+            report_date: reportDate,
+            weather_condition: weatherCondition || null,
+            workers_count: new Set(timeLogWorkers.map((record) => record.employee_id)).size,
+            approval_status: "Submitted",
+            progress_percent: progress,
+            completed_quantity: completedToday,
+            work_completed: workCompleted.trim() || null,
+            issues_found: issuesFound.trim() || null,
+            next_actions: nextActions.trim() || null,
+            notes: notes.trim() || null,
+          })
+          .eq("report_id", finalReportId);
+
+        if (updateReportError) throw updateReportError;
+      } else {
+        const { data: createdReport, error: createReportError } = await supabase
+          .from("daily_reports")
+          .insert({
+            project_id: projectId,
+            site_id: siteId,
+            area_id: areaId,
+            work_order_id: workOrderId,
+            report_date: reportDate,
+            weather_condition: weatherCondition || null,
+            workers_count: new Set(timeLogWorkers.map((record) => record.employee_id)).size,
+            approval_status: "Submitted",
+            progress_percent: progress,
+            completed_quantity: completedToday,
+            work_completed: workCompleted.trim() || null,
+            issues_found: issuesFound.trim() || null,
+            next_actions: nextActions.trim() || null,
+            notes: notes.trim() || null,
+            is_deleted: false,
+          })
+          .select("report_id")
+          .single();
+
+        if (createReportError) throw createReportError;
+
+        if (!createdReport?.report_id) {
+          throw new Error("Daily report was created but report ID was not returned.");
+        }
+
+        finalReportId = createdReport.report_id;
+      }
+
+      if (!finalReportId) {
+        throw new Error("Daily report ID was not found.");
+      }
+      const { error: deleteActivityError } = await supabase
+        .from("daily_report_activities")
+        .delete()
+        .eq("report_id", finalReportId);
+
+      if (deleteActivityError) throw deleteActivityError;
+
+      const activityRows = selectedActivityTypeIds.map((activityTypeId) => ({
+        report_id: finalReportId,
+        activity_type_id: activityTypeId,
+      }));
+
+      if (activityRows.length > 0) {
+        const { error: activityInsertError } = await supabase
+          .from("daily_report_activities")
+          .insert(activityRows);
+
+        if (activityInsertError) throw activityInsertError;
+      }
+      if (!activeDraftReportId) {
+        const workerRows = dailyReportWorkers.map((record) => ({
+          report_id: finalReportId,
+          employee_id: record.employee_id,
+          work_assignment_id: record.work_assignment_id || null,
+          replaces_work_assignment_id:
+            record.replaces_work_assignment_id || null,
+          worker_source: record.worker_source,
+          attendance_status: record.attendance_status,
+          activity_type_id: record.activity_type_id,
+          regular_hours: Number(record.regular_hours || 0),
+          overtime_hours: Number(record.overtime_hours || 0),
+          completed_quantity: Number(record.completed_quantity || 0),
+          ot_start: record.ot_start || null,
+          ot_finish: record.ot_finish || null,
+          ot_completed_quantity: Number(record.ot_completed_quantity || 0),
+          worker_role: record.worker_role.trim() || null,
+          notes: record.notes.trim() || null,
+        }));
+
+        const { error: workerInsertError } = await supabase
+          .from("daily_report_workers")
+          .insert(workerRows);
+
+        if (workerInsertError) throw workerInsertError;
+      }
+      if (!activeDraftReportId) {
+        const timeLogRows = timeLogWorkers.map((record) => ({
+          report_id: finalReportId,
+          employee_id: record.employee_id,
+          work_assignment_id: record.work_assignment_id || null,
+          replaces_work_assignment_id:
+            record.replaces_work_assignment_id || null,
+          worker_source: record.worker_source,
+          attendance_status: record.attendance_status,
           project_id: projectId,
           site_id: siteId,
           area_id: areaId,
           work_order_id: workOrderId,
-          report_date: reportDate,
-          weather_condition: weatherCondition || null,
-          workers_count: new Set(timeLogWorkers.map((record) => record.employee_id)).size,
-          approval_status: "Submitted",
-          progress_percent: progress,
-          completed_quantity: completedToday,
-          work_completed: workCompleted.trim() || null,
-          issues_found: issuesFound.trim() || null,
-          next_actions: nextActions.trim() || null,
-          notes: notes.trim() || null,
+          activity_type_id: record.activity_type_id,
+          work_date: reportDate,
+          regular_hours: Number(record.regular_hours || 0),
+          overtime_hours: Number(record.overtime_hours || 0),
+          break_minutes: Number(record.break_minutes || 0),
+          clock_in: record.clock_in || null,
+          clock_out: record.clock_out || null,
+          ot_start: record.ot_start || null,
+          ot_finish: record.ot_finish || null,
+          ot_completed_quantity: Number(record.ot_completed_quantity || 0),
+          approved: false,
+          time_status: record.time_status,
+          notes: record.notes.trim() || record.worker_role.trim() || null,
           is_deleted: false,
-        })
-        .select("report_id")
-        .single();
+        }));
 
-      if (error) throw error;
+        if (timeLogRows.length > 0) {
+          const { error: timeLogInsertError } = await supabase
+            .from("work_time_logs")
+            .insert(timeLogRows);
 
-      if (!createdReport?.report_id) {
-        throw new Error("Daily report was created but report ID was not returned.");
+          if (timeLogInsertError) throw timeLogInsertError;
+        }
       }
-      const activityRows = selectedActivityTypeIds.map((activityTypeId) => ({
-        report_id: createdReport.report_id,
-        activity_type_id: activityTypeId,
-      }));
+      if (activeDraftReportId) {
+        for (const record of dailyReportWorkers) {
+          if (record.daily_report_worker_id) {
+            const { error: workerUpdateError } = await supabase
+              .from("daily_report_workers")
+              .update({
+                activity_type_id: record.activity_type_id,
+                attendance_status: record.attendance_status,
+                worker_source: record.worker_source,
+                regular_hours: Number(record.regular_hours || 0),
+                overtime_hours: Number(record.overtime_hours || 0),
+                completed_quantity: Number(record.completed_quantity || 0),
+                ot_start: record.ot_start || null,
+                ot_finish: record.ot_finish || null,
+                ot_completed_quantity: Number(record.ot_completed_quantity || 0),
+                worker_role: record.worker_role.trim() || null,
+                notes: record.notes.trim() || null,
+              })
+              .eq(
+                "daily_report_worker_id",
+                record.daily_report_worker_id
+              );
 
-      const { error: activityInsertError } = await supabase
-        .from("daily_report_activities")
-        .insert(activityRows);
+            if (workerUpdateError) throw workerUpdateError;
+          }
 
-      if (activityInsertError) throw activityInsertError;
-      const workerRows = dailyReportWorkers.map((record) => ({
-        report_id: createdReport.report_id,
+          if (record.work_time_log_id) {
+            const { error: timeLogUpdateError } = await supabase
+              .from("work_time_logs")
+              .update({
+                activity_type_id: record.activity_type_id,
+                attendance_status: record.attendance_status,
+                worker_source: record.worker_source,
+                clock_in: record.clock_in || null,
+                clock_out: record.clock_out || null,
+                break_minutes: Number(record.break_minutes || 0),
+                regular_hours: Number(record.regular_hours || 0),
+                overtime_hours: Number(record.overtime_hours || 0),
+                ot_start: record.ot_start || null,
+                ot_finish: record.ot_finish || null,
+                ot_completed_quantity: Number(record.ot_completed_quantity || 0),
+                time_status: record.time_status,
+                notes:
+                  record.notes.trim() ||
+                  record.worker_role.trim() ||
+                  null,
+              })
+              .eq("work_time_log_id", record.work_time_log_id);
 
-        employee_id: record.employee_id,
-        work_assignment_id: record.work_assignment_id || null,
-        replaces_work_assignment_id:
-          record.replaces_work_assignment_id || null,
-
-        worker_source: record.worker_source,
-        attendance_status: record.attendance_status,
-
-        activity_type_id: record.activity_type_id,
-
-        regular_hours: Number(record.regular_hours || 0),
-        overtime_hours: Number(record.overtime_hours || 0),
-
-        completed_quantity: Number(record.completed_quantity || 0),
-
-        worker_role: record.worker_role.trim() || null,
-        notes: record.notes.trim() || null,
-      }));
-
-      const { error: workerInsertError } = await supabase
-        .from("daily_report_workers")
-        .insert(workerRows);
-
-      if (workerInsertError) throw workerInsertError;
-      const timeLogRows = timeLogWorkers.map((record) => ({
-        report_id: createdReport.report_id,
-        employee_id: record.employee_id,
-        work_assignment_id: record.work_assignment_id || null,
-        replaces_work_assignment_id:
-          record.replaces_work_assignment_id || null,
-
-        worker_source: record.worker_source,
-        attendance_status: record.attendance_status,
-
-        project_id: projectId,
-        site_id: siteId,
-        area_id: areaId,
-        work_order_id: workOrderId,
-        activity_type_id: record.activity_type_id,
-        work_date: reportDate,
-        regular_hours: Number(record.regular_hours || 0),
-        overtime_hours: Number(record.overtime_hours || 0),
-        break_minutes: Number(record.break_minutes || 0),
-
-        approved: false,
-        time_status: "Needs Review",
-        notes: record.notes.trim() || record.worker_role.trim() || null,
-        is_deleted: false,
-      }));
-
-      if (timeLogRows.length > 0) {
-        const { error: timeLogInsertError } = await supabase
-          .from("work_time_logs")
-          .insert(timeLogRows);
-
-        if (timeLogInsertError) throw timeLogInsertError;
+            if (timeLogUpdateError) throw timeLogUpdateError;
+          }
+        }
       }
-
       let uploadedPhotoCount = 0;
       let failedPhotoCount = 0;
 
@@ -876,7 +1529,7 @@ const DailyReports = () => {
             const fileExt = photo.file.name.split(".").pop();
 
             const fileName =
-              `${createdReport.report_id}/${crypto.randomUUID()}.${fileExt}`;
+              `${finalReportId}/${crypto.randomUUID()}.${fileExt}`;
 
             const { error: uploadError } = await supabase.storage
               .from("daily-report-photos")
@@ -887,7 +1540,7 @@ const DailyReports = () => {
             const { error: photoInsertError } = await supabase
               .from("daily_report_photos")
               .insert({
-                report_id: createdReport.report_id,
+                report_id: finalReportId,
                 photo_url: fileName,
                 caption: photo.caption?.trim() || null,
                 taken_at: photo.takenAt
@@ -1149,7 +1802,7 @@ const DailyReports = () => {
                 Daily Progress Review
               </h1>
               <p className="mt-0.5 text-sm text-slate-500">
-                Record site progress, labour, weather, and issues.
+                Review daily work progress, worker reports, photos, issues, and approval status.
               </p>
             </div>
           </div>
@@ -1157,7 +1810,10 @@ const DailyReports = () => {
 
         {userCanManageWorkers && (
           <Button
-            onClick={() => setShowAddDialog(true)}
+            onClick={() => {
+              setReportDate(new Date().toISOString().slice(0, 10));
+              setShowAddDialog(true);
+            }}
             className="h-11 w-full rounded-xl bg-red-600 px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700 md:w-auto md:px-6"
           >
             <Plus className="mr-2 h-4 w-4" />
@@ -1263,10 +1919,12 @@ const DailyReports = () => {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-sm font-bold text-slate-900">
-                Area Progress Summary
+                {filterAreaId === "all" ? "Filtered Progress Summary" : "Area Progress Summary"}
               </p>
               <p className="mt-1 text-xs text-slate-500">
-                Approved, pending review, Remaining From Estimate, and latest report status.
+                {filterAreaId === "all"
+                  ? "Approved progress, pending review, pending reports, and latest report across the current filters."
+                  : "Approved progress, pending review, remaining from estimate, and latest report for the selected area."}
               </p>
             </div>
 
@@ -1402,19 +2060,6 @@ const DailyReports = () => {
 
         </div>
 
-        {/* Desktop table header */}
-        <div className="hidden grid-cols-12 gap-3 border-b bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 xl:grid">
-          <div className="col-span-1">Date</div>
-          <div className="col-span-2">Project</div>
-          <div className="col-span-2">Site / Area</div>
-          <div className="col-span-2">Work Order</div>
-          <div className="col-span-1">Weather</div>
-          <div className="col-span-1">Workers</div>
-          <div className="col-span-1">Progress</div>
-          <div className="col-span-1">Status</div>
-          <div className="col-span-1">Action</div>
-        </div>
-
         {filteredDailyReports.length === 0 ? (
           <div className="p-8 text-center text-slate-500">
             No daily reports found.
@@ -1459,6 +2104,18 @@ const DailyReports = () => {
                 </div>
               </div>
 
+              {/* Desktop table header */}
+              <div className="hidden grid-cols-12 gap-3 border-b bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 xl:grid">
+                <div className="col-span-1">Date</div>
+                <div className="col-span-2">Project</div>
+                <div className="col-span-2">Work Summary</div>
+                <div className="col-span-2">Work Order</div>
+                <div className="col-span-2">Worker Report</div>
+                <div className="col-span-1">Progress</div>
+                <div className="col-span-1">Status</div>
+                <div className="col-span-1">Action</div>
+              </div>
+
               {group.reports.map((report) => (
                 <div key={report.report_id}>
                   {/* Mobile card */}
@@ -1487,13 +2144,6 @@ const DailyReports = () => {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <p className="text-xs text-slate-500">Weather</p>
-                        <p className="mt-1 font-medium text-slate-900">
-                          {report.weather_condition || "-"}
-                        </p>
-                      </div>
-
                       <div className="rounded-xl bg-slate-50 p-3">
                         <p className="text-xs text-slate-500">Workers</p>
                         <p className="mt-1 font-medium text-slate-900">
@@ -1640,11 +2290,7 @@ const DailyReports = () => {
                       </p>
                     </div>
 
-                    <div className="col-span-1 text-slate-700">
-                      {report.weather_condition || "-"}
-                    </div>
-
-                    <div className="col-span-1 text-slate-700">
+                    <div className="col-span-2 text-slate-700">
                       <p>
                         {report.daily_report_workers?.length
                           ? new Set(
@@ -1756,6 +2402,66 @@ const DailyReports = () => {
 
           <div className="space-y-4">
             <MobileFormSection title="Work Order Summary">
+
+              {!workOrderIdFromUrl && (
+                <div className="space-y-2">
+                  <Label>Select Work Order *</Label>
+                  <Select
+                    value={workOrderId}
+                    onValueChange={(value) => {
+                      const selected = workOrders.find(
+                        (workOrder) => workOrder.work_order_id === value
+                      );
+
+                      setWorkOrderId(value);
+
+                      if (selected) {
+                        setProjectId(selected.project_id || "");
+                        setSiteId(selected.site_id || "");
+                        setAreaId(selected.area_id || "");
+
+                        const activeAssignments =
+                          selected.work_assignments?.filter(
+                            (assignment) => !assignment.is_deleted
+                          ) || [];
+
+                        if (activeAssignments.length > 0) {
+                          const assignedLabourRecords = activeAssignments.map((assignment) => ({
+                            ...createEmptyLabourRecord(),
+                            employee_id: assignment.employee_id || "",
+                            work_assignment_id: assignment.work_assignment_id || "",
+                            worker_source: "Assigned" as WorkerSource,
+                            attendance_status: "Present" as AttendanceStatus,
+                            worker_role: "Assigned Worker",
+                          }));
+
+                          setLabourRecords(assignedLabourRecords);
+                          setOpenWorkerCardIndexes([0]);
+                        } else {
+                          setLabourRecords([]);
+                          setOpenWorkerCardIndexes([]);
+                        }
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                      <SelectValue placeholder="Select work order" />
+                    </SelectTrigger>
+
+                    <SelectContent>
+                      {workOrders.map((workOrder) => (
+                        <SelectItem
+                          key={workOrder.work_order_id}
+                          value={workOrder.work_order_id}
+                        >
+                          {workOrder.work_order_no || "-"} - {workOrder.title || "-"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-red-600">
                   Work Order
@@ -1770,78 +2476,91 @@ const DailyReports = () => {
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="space-y-3">
-                  <div className="flex flex-col gap-1">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Project
-                    </p>
-                    <p className="font-semibold text-slate-900">
-                      {selectedProject?.project_name || "-"}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {selectedProject?.customers?.customer_name || "-"}
-                    </p>
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowWorkOrderDetails((current) => !current)}
+                  className="h-10 w-full rounded-xl text-sm font-semibold"
+                >
+                  {showWorkOrderDetails ? "Hide Project Details" : "Show Project Details"}
+                </Button>
+
+                {showWorkOrderDetails && (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="space-y-3">
+                      <div className="flex flex-col gap-1">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Project
+                        </p>
+                        <p className="font-semibold text-slate-900">
+                          {selectedProject?.project_name || "-"}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {selectedProject?.customers?.customer_name || "-"}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Site
+                          </p>
+                          <p className="font-semibold text-slate-900">
+                            {selectedSite?.site_code || "-"} - {selectedSite?.site_name || "-"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Area
+                          </p>
+                          <p className="font-semibold text-slate-900">
+                            {selectedArea?.area_code || "-"} - {selectedArea?.area_name || "-"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Priority
+                          </p>
+                          <p className="font-semibold text-slate-900">
+                            {selectedWorkOrderForForm?.priority || "-"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Status
+                          </p>
+                          <p className="font-semibold text-slate-900">
+                            {selectedWorkOrderForForm?.status || "-"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Planned Start
+                          </p>
+                          <p className="font-semibold text-slate-900">
+                            {selectedWorkOrderForForm?.planned_start_date || "-"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Assigned Workers
+                          </p>
+                          <p className="font-semibold text-slate-900">
+                            {selectedWorkOrderForForm?.work_assignments?.filter(
+                              (assignment) => !assignment.is_deleted
+                            ).length || 0}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Site
-                      </p>
-                      <p className="font-semibold text-slate-900">
-                        {selectedSite?.site_code || "-"} - {selectedSite?.site_name || "-"}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Area
-                      </p>
-                      <p className="font-semibold text-slate-900">
-                        {selectedArea?.area_code || "-"} - {selectedArea?.area_name || "-"}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Priority
-                      </p>
-                      <p className="font-semibold text-slate-900">
-                        {selectedWorkOrderForForm?.priority || "-"}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Status
-                      </p>
-                      <p className="font-semibold text-slate-900">
-                        {selectedWorkOrderForForm?.status || "-"}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Planned Start
-                      </p>
-                      <p className="font-semibold text-slate-900">
-                        {selectedWorkOrderForForm?.planned_start_date || "-"}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Assigned Workers
-                      </p>
-                      <p className="font-semibold text-slate-900">
-                        {selectedWorkOrderForForm?.work_assignments?.filter(
-                          (assignment) => !assignment.is_deleted
-                        ).length || 0}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
             </MobileFormSection>
           </div>
@@ -1883,21 +2602,6 @@ const DailyReports = () => {
 
           <MobileFormSection title="Worker Cards">
             <div className="space-y-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <Label>Worker Cards *</Label>
-
-                {userCanManageWorkers && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={addLabourRecord}
-                    className="h-11 w-full rounded-xl text-sm font-semibold sm:w-auto"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add Additional Worker
-                  </Button>
-                )}
-              </div>
 
               {[...labourRecords]
                 .sort((a, b) => {
@@ -1916,6 +2620,7 @@ const DailyReports = () => {
                   const workerSourceBadge = getWorkerSourceBadge(record.worker_source);
                   const attendanceBadge = getAttendanceBadge(record.attendance_status);
                   const isOpen = openWorkerCardIndexes.includes(index);
+                  const isOvertimeOpen = openOvertimeCardIndexes.includes(index);
 
                   const assignedWorkerOptions = labourRecords.filter(
                     (worker) =>
@@ -1944,8 +2649,8 @@ const DailyReports = () => {
                       ? `${record.clock_in || "--:--"} - ${record.clock_out || "--:--"}`
                       : "No time recorded";
 
-                  const workerTotalHours =
-                    Number(record.regular_hours || 0) + Number(record.overtime_hours || 0);
+                  const workerElapsedMinutes = calculateElapsedMinutes(record);
+                  const workerElapsedTimeText = formatElapsedMinutes(workerElapsedMinutes);
 
                   const replacingWorker = assignedWorkerOptions.find(
                     (worker) =>
@@ -2068,7 +2773,7 @@ const DailyReports = () => {
                             <div className="rounded-xl bg-white/70 px-3 py-2">
                               <p className="font-semibold text-slate-500">Hours</p>
                               <p className="mt-1 font-bold text-slate-900">
-                                {workerTotalHours.toFixed(2)}
+                                {workerElapsedTimeText}
                               </p>
                             </div>
 
@@ -2139,9 +2844,19 @@ const DailyReports = () => {
                                   <SelectValue placeholder="Select attendance" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="Present">Present</SelectItem>
-                                  <SelectItem value="Not Attended">Not Attended</SelectItem>
-                                  <SelectItem value="Replaced">Replaced</SelectItem>
+                                  <SelectContent>
+                                    <SelectItem value="Present">Present</SelectItem>
+                                    <SelectItem value="Late">Late</SelectItem>
+                                    <SelectItem value="Leave Early">Leave Early</SelectItem>
+                                    <SelectItem value="Not Attended">Not Attended</SelectItem>
+                                    <SelectItem value="Replaced">Replaced</SelectItem>
+                                    <SelectItem value="Sick">Sick</SelectItem>
+                                    <SelectItem value="Annual Leave">Annual Leave</SelectItem>
+                                    <SelectItem value="Public Holiday">Public Holiday</SelectItem>
+                                    <SelectItem value="Training">Training</SelectItem>
+                                    <SelectItem value="Travel">Travel</SelectItem>
+                                    <SelectItem value="Standby">Standby</SelectItem>
+                                  </SelectContent>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -2181,6 +2896,17 @@ const DailyReports = () => {
                                         </SelectItem>
                                       );
                                     })}
+                                    {userCanManageWorkers && (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={addLabourRecord}
+                                        className="h-11 w-full rounded-xl border-dashed text-sm font-semibold"
+                                      >
+                                        <Plus className="h-4 w-4" />
+                                        Add Additional Worker
+                                      </Button>
+                                    )}
                                   </SelectContent>
                                 </Select>
                               </div>
@@ -2242,84 +2968,102 @@ const DailyReports = () => {
                           </div>
 
                           <div className="rounded-xl border border-slate-200 p-3">
-                            <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">
-                              Regular Time
-                            </p>
-
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                              <div className="space-y-2">
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                                 <Label>Check In</Label>
-                                <Input
-                                  type="time"
-                                  value={record.clock_in}
-                                  disabled={!canEditWorkerLog}
-                                  onChange={(e) =>
-                                    updateLabourRecord(index, "clock_in", e.target.value)
+
+                                <Button
+                                  type="button"
+                                  variant={record.clock_in ? "outline" : "default"}
+                                  disabled={
+                                    !canEditWorkerLog ||
+                                    startDraftReport.isPending ||
+                                    !!record.clock_in ||
+                                    !!record.daily_report_worker_id ||
+                                    !!record.work_time_log_id
                                   }
-                                  className="h-11 rounded-xl text-base md:text-sm"
-                                />
+
+                                  onClick={() => {
+                                    if (record.clock_in) {
+                                      updateLabourRecord(index, "clock_in", getCurrentTimeValue());
+                                      return;
+                                    }
+
+                                    startDraftReport.mutate({
+                                      record,
+                                      recordIndex: index,
+                                    });
+                                  }}
+                                  className="mt-2 h-11 w-full rounded-xl text-sm font-semibold"
+                                >
+                                  {record.clock_in ? "Update Check In" : "Check In Now"}
+                                </Button>
+
+                                <p className="mt-2 text-sm font-bold text-slate-900">
+                                  {record.clock_in || "Not checked in"}
+                                </p>
                               </div>
 
-                              <div className="space-y-2">
+                              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                                 <Label>Check Out</Label>
-                                <Input
-                                  type="time"
-                                  value={record.clock_out}
-                                  disabled={!canEditWorkerLog}
-                                  onChange={(e) =>
-                                    updateLabourRecord(index, "clock_out", e.target.value)
-                                  }
-                                  className="h-11 rounded-xl text-base md:text-sm"
-                                />
-                              </div>
 
-                              <div className="space-y-2">
-                                <Label>Break Minutes</Label>
-                                <Input
-                                  type="number"
-                                  inputMode="numeric"
-                                  min="0"
-                                  value={record.break_minutes}
-                                  disabled={!canEditWorkerLog}
-                                  onChange={(e) =>
-                                    updateLabourRecord(index, "break_minutes", e.target.value)
+                                <Button
+                                  type="button"
+                                  variant={record.clock_out ? "outline" : "default"}
+                                  disabled={
+                                    !canEditWorkerLog ||
+                                    !record.clock_in ||
+                                    finishDraftReport.isPending
                                   }
-                                  placeholder="60"
-                                  className="h-11 rounded-xl text-base md:text-sm"
-                                />
+                                  onClick={() =>
+                                    finishDraftReport.mutate({
+                                      record,
+                                      recordIndex: index,
+                                    })
+                                  }
+                                  className="mt-2 h-11 w-full rounded-xl text-sm font-semibold"
+                                >
+                                  {record.clock_out
+                                    ? "Update Check Out"
+                                    : record.clock_in
+                                      ? "Check Out Now"
+                                      : "Check In First"}
+                                </Button>
+
+                                <p className="mt-2 text-sm font-bold text-slate-900">
+                                  {record.clock_out || "Not checked out"}
+                                </p>
                               </div>
+                            </div>
+
+                            <div className="mt-3 space-y-2">
+                              <Label>Break Minutes</Label>
+                              <Input
+                                type="number"
+                                inputMode="numeric"
+                                min="0"
+                                value={record.break_minutes}
+                                disabled={!canEditWorkerLog}
+                                onChange={(e) =>
+                                  updateLabourRecord(index, "break_minutes", e.target.value)
+                                }
+                                placeholder="60"
+                                className="h-11 rounded-xl text-base md:text-sm"
+                              />
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                            <div className="space-y-2">
-                              <Label>Regular Hours</Label>
-                              <Input
-                                value={record.regular_hours}
-                                readOnly
-                                className="h-11 rounded-xl bg-slate-50 text-base md:text-sm"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label>OT Hours</Label>
-                              <Input
-                                value={record.overtime_hours}
-                                readOnly
-                                className="h-11 rounded-xl bg-slate-50 text-base md:text-sm"
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label>Time Status</Label>
-                              <div
-                                className={`flex h-11 items-center rounded-xl border px-3 text-sm font-semibold ${getTimeStatusClass(
-                                  record.time_status
-                                )}`}
-                              >
-                                {record.time_status}
-                              </div>
-                            </div>
+                          <div className="space-y-2">
+                            <Label>Worker Notes</Label>
+                            <textarea
+                              value={record.notes}
+                              disabled={!canEditWorkerLog}
+                              onChange={(e) =>
+                                updateLabourRecord(index, "notes", e.target.value)
+                              }
+                              placeholder="Worker notes..."
+                              className="min-h-24 w-full rounded-xl border border-slate-200 px-3 py-2 text-base outline-none focus:border-red-300 md:text-sm"
+                            />
                           </div>
 
                           <div className="space-y-2">
@@ -2337,18 +3081,161 @@ const DailyReports = () => {
                             />
                           </div>
 
-                          <div className="space-y-2">
-                            <Label>Worker Notes</Label>
-                            <textarea
-                              value={record.notes}
-                              disabled={!canEditWorkerLog}
-                              onChange={(e) =>
-                                updateLabourRecord(index, "notes", e.target.value)
-                              }
-                              placeholder="Worker notes..."
-                              className="min-h-24 w-full rounded-xl border border-slate-200 px-3 py-2 text-base outline-none focus:border-red-300 md:text-sm"
-                            />
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenOvertimeCardIndexes((current) =>
+                                  current.includes(index)
+                                    ? current.filter((item) => item !== index)
+                                    : [...current, index]
+                                );
+                              }}
+                              className="flex w-full items-center justify-between gap-3 text-left"
+                            >
+                              <div>
+                                <p className="text-sm font-bold text-slate-900">Overtime</p>
+                                <p className="text-xs text-slate-500">
+                                  Open only when this worker has overtime work.
+                                </p>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${getTimeStatusClass(
+                                    record.time_status
+                                  )}`}
+                                >
+                                  {record.time_status}
+                                </span>
+
+                                <span className="text-xs font-semibold text-slate-500">
+                                  {isOvertimeOpen ? "Hide" : "Open"}
+                                </span>
+                              </div>
+                            </button>
+
+                            {isOvertimeOpen && (
+                              <div className="mt-3 space-y-3">
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                                    <Label>Start OT</Label>
+
+                                    <Button
+                                      type="button"
+                                      variant={record.ot_start ? "outline" : "default"}
+                                      disabled={!canEditWorkerLog || !record.clock_out}
+                                      onClick={() => {
+                                        if (!record.clock_out) {
+                                          toast.error("Please Check Out before starting OT.");
+                                          return;
+                                        }
+
+                                        updateDraftWorkerTime.mutate({
+                                          record,
+                                          recordIndex: index,
+                                          field: "ot_start",
+                                          value: getCurrentTimeValue(),
+                                        });
+                                      }}
+                                      className="mt-2 h-11 w-full rounded-xl text-sm font-semibold"
+                                    >
+                                      {record.ot_start
+                                        ? "Update Start OT"
+                                        : record.clock_out
+                                          ? "Start OT Now"
+                                          : "Check Out First"}
+                                    </Button>
+
+                                    <p className="mt-2 text-sm font-bold text-slate-900">
+                                      {record.ot_start || "No OT"}
+                                    </p>
+                                  </div>
+
+                                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                                    <Label>Finish OT</Label>
+
+                                    <Button
+                                      type="button"
+                                      variant={record.ot_finish ? "outline" : "default"}
+                                      disabled={!canEditWorkerLog || !record.ot_start}
+                                      onClick={() => {
+                                        if (!record.ot_start) {
+                                          toast.error("Please start OT first.");
+                                          return;
+                                        }
+
+                                        updateDraftWorkerTime.mutate({
+                                          record,
+                                          recordIndex: index,
+                                          field: "ot_finish",
+                                          value: getCurrentTimeValue(),
+                                        });
+                                      }}
+                                      className="mt-2 h-11 w-full rounded-xl text-sm font-semibold"
+                                    >
+                                      {record.ot_finish
+                                        ? "Update Finish OT"
+                                        : record.ot_start
+                                          ? "Finish OT Now"
+                                          : "Start OT First"}
+                                    </Button>
+
+                                    <p className="mt-2 text-sm font-bold text-slate-900">
+                                      {record.ot_finish || "No OT finish"}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label>OT Qty Completed</Label>
+                                  <Input
+                                    type="number"
+                                    inputMode="decimal"
+                                    value={record.ot_completed_quantity}
+                                    disabled={
+                                      !canEditWorkerLog ||
+                                      !record.ot_start
+                                    }
+                                    onChange={(e) =>
+                                      updateDraftWorkerTime.mutate({
+                                        record,
+                                        recordIndex: index,
+                                        field: "ot_completed_quantity",
+                                        value: e.target.value
+                                      })
+                                    }
+                                    placeholder="0"
+                                    className="h-11 rounded-xl text-base md:text-sm"
+                                  />
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                  <div className="rounded-xl bg-white p-3">
+                                    <p className="text-xs font-semibold text-slate-500">Regular</p>
+                                    <p className="mt-1 text-sm font-black text-slate-900">
+                                      {record.regular_hours} hr
+                                    </p>
+                                  </div>
+
+                                  <div className="rounded-xl bg-white p-3">
+                                    <p className="text-xs font-semibold text-slate-500">OT</p>
+                                    <p className="mt-1 text-sm font-black text-slate-900">
+                                      {record.overtime_hours} hr
+                                    </p>
+                                  </div>
+
+                                  <div className="rounded-xl bg-white p-3">
+                                    <p className="text-xs font-semibold text-slate-500">Total</p>
+                                    <p className="mt-1 text-sm font-black text-slate-900">
+                                      {formatHoursMinutes(record.regular_hours, record.overtime_hours)}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
+
                         </div>
                       )}
                     </div>
