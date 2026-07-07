@@ -133,10 +133,9 @@ export const MobilePhotoUpload = ({
 
             <Button
                 type="button"
-                variant="outline"
                 onClick={addPendingFiles}
                 disabled={pendingFiles.length === 0}
-                className="h-11 w-full rounded-xl font-semibold"
+                className="h-11 w-full rounded-xl bg-red-600 font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:hover:bg-slate-200"
             >
                 Add Photos
             </Button>
@@ -151,17 +150,22 @@ export const MobilePhotoUpload = ({
                         No photos selected
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 gap-3">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         {selectedPhotos.map(({ file, caption, takenAt, previewUrl }, index) => (
                             <div
                                 key={`${file.name}-${index}`}
-                                className="rounded-xl bg-white p-3"
+                                className="min-w-0 overflow-hidden rounded-xl bg-white p-3"
                             >
-                                <img
-                                    src={previewUrl}
-                                    alt={file.name}
-                                    className="h-36 w-full rounded-lg object-cover"
-                                />
+                                <div
+                                    className="relative w-full overflow-hidden rounded-lg bg-slate-100"
+                                    style={{ aspectRatio: "4 / 3" }}
+                                >
+                                    <img
+                                        src={previewUrl}
+                                        alt={file.name}
+                                        className="absolute inset-0 h-full w-full object-cover"
+                                    />
+                                </div>
 
                                 <span
                                     className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getPhotoAgeLabel(takenAt).className
@@ -194,8 +198,8 @@ export const MobilePhotoUpload = ({
                                     </p>
                                 )}
 
-                                <div className="mt-2 flex items-center justify-between gap-3">
-                                    <div className="min-w-0">
+                                <div className="mt-2 grid min-w-0 grid-cols-[1fr_auto] items-center gap-3 overflow-hidden">
+                                    <div className="min-w-0 overflow-hidden">
                                         <p className="truncate text-sm text-slate-600">
                                             {file.name}
                                         </p>
@@ -209,7 +213,7 @@ export const MobilePhotoUpload = ({
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => removePhoto(index)}
-                                        className="shrink-0 text-red-600 hover:text-red-700"
+                                        className="shrink-0 whitespace-nowrap text-red-600 hover:text-red-700"
                                     >
                                         Remove
                                     </Button>

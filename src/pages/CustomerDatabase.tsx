@@ -1,5 +1,20 @@
 import { useMemo, useState } from "react";
-import { Building2, Plus, Search, Filter, Phone, Mail } from "lucide-react";
+import {
+  Archive,
+  Building2,
+  Download,
+  Edit,
+  FileSpreadsheet,
+  FileText,
+  Filter,
+  Mail,
+  Phone,
+  Plus,
+  Printer,
+  Search,
+  Trash2,
+} from "lucide-react";
+
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -21,30 +36,89 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+
+type CustomerContact = {
+  contact_id: string;
+  contact_name: string;
+  position: string;
+  phone: string;
+  email: string;
+  is_primary: boolean;
+};
+
+type CustomerAddress = {
+  address_id: string;
+  address_type: string;
+  address_line1: string;
+  address_line2: string;
+  suburb: string;
+  state: string;
+  postcode: string;
+  country: string;
+  is_primary: boolean;
+};
+
+type PriceBook = {
+  price_book_id: string;
+  price_book_code: string;
+};
+
 type Customer = {
   customer_id: string;
   customer_code: string;
   customer_name: string;
   customer_type: string;
+  price_book_id: string | null;
   phone: string | null;
   email: string | null;
   abn: string | null;
+  notes: string | null;
   is_active: boolean;
   created_at: string;
+  customer_contacts?: CustomerContact[] | null;
+  customer_addresses?: CustomerAddress[] | null;
 };
 
 export default function CustomerDatabase() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerType, setCustomerType] = useState("Residential");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [abn, setAbn] = useState("");
+  const [priceBookId, setPriceBookId] = useState("");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
+
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [editCustomerName, setEditCustomerName] = useState("");
+  const [editCustomerType, setEditCustomerType] = useState("Residential");
+  const [editPhone, setEditPhone] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editAbn, setEditAbn] = useState("");
+  const [editPriceBookId, setEditPriceBookId] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+
+  const { data: priceBooks = [] } = useQuery({
+    queryKey: ["price-books-for-customers"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("price_books")
+        .select("price_book_id, price_book_code")
+        .eq("is_deleted", false)
+        .eq("is_active", true)
+        .order("price_book_code", { ascending: true });
+
+      if (error) throw error;
+      return data as PriceBook[];
+    },
+  });
 
   const {
     data: customers = [],
@@ -56,9 +130,44 @@ export default function CustomerDatabase() {
       const { data, error } = await supabase
         .from("customers")
         .select(
-          "customer_id, customer_code, customer_name, customer_type, phone, email, abn, is_active, created_at"
+          `
+          customer_id,
+          customer_code,
+          customer_name,
+          customer_type,
+          price_book_id,
+          phone,
+          email,
+          abn,
+          notes,
+          is_active,
+          created_at,
+                    customer_contacts (
+            contact_id,
+            contact_name,
+            position,
+            phone,
+            email,
+            is_primary
+          ),
+          customer_addresses (
+            address_id,
+            address_type,
+            address_line1,
+            address_line2,
+            suburb,
+            state,
+            postcode,
+            country,
+            is_primary
+          )
+        `
         )
         .eq("is_deleted", false)
+        .eq("customer_contacts.is_deleted", false)
+        .eq("customer_contacts.is_active", true)
+        .eq("customer_addresses.is_deleted", false)
+        .eq("customer_addresses.is_active", true)
         .order("customer_name", { ascending: true });
 
       if (error) throw error;
@@ -67,33 +176,93 @@ export default function CustomerDatabase() {
   });
 
   const handleAddCustomer = async () => {
-    if (!customerName.trim()) {
+    const trimmedCustomerName = customerName.trim();
+    const trimmedPhone = phone.trim();
+    const trimmedEmail = email.trim();
+    const trimmedAbn = abn.trim();
+    const trimmedAddress = address.trim();
+    const trimmedNotes = notes.trim();
+
+    if (!trimmedCustomerName) {
       alert("Customer Name is required");
       return;
     }
 
-    const customerCode =
-      "CUS-" +
-      Date.now().toString().slice(-6);
+    if (!trimmedPhone && !trimmedEmail) {
+      alert("Please enter at least phone or email.");
+      return;
+    }
 
-    const { error } = await supabase
+    if (!trimmedAddress) {
+      alert("Address is required.");
+      return;
+    }
+
+    const customerCode = "CUS-" + Date.now().toString().slice(-6);
+
+    const { data: createdCustomer, error: customerError } = await supabase
       .from("customers")
       .insert({
         customer_code: customerCode,
-        customer_name: customerName,
+        customer_name: trimmedCustomerName,
         customer_type: customerType,
-        phone: phone || null,
-        email: email || null,
-        abn: abn || null,
-        notes: address.trim()
-          ? `Address: ${address.trim()}${notes.trim() ? `\nNotes: ${notes.trim()}` : ""}`
-          : notes.trim() || null,
+        phone: trimmedPhone || null,
+        email: trimmedEmail || null,
+        abn: customerType === "Commercial" ? trimmedAbn || null : null,
+        price_book_id: priceBookId || null,
+        notes: trimmedNotes || null,
+        is_active: true,
+        is_deleted: false,
+      })
+      .select("customer_id")
+      .single();
+
+    if (customerError) {
+      alert(customerError.message);
+      return;
+    }
+
+    if (!createdCustomer?.customer_id) {
+      alert("Customer was created but customer ID was not returned.");
+      return;
+    }
+
+    const { error: contactError } = await supabase
+      .from("customer_contacts")
+      .insert({
+        customer_id: createdCustomer.customer_id,
+        contact_name: trimmedCustomerName,
+        position: customerType === "Commercial" ? "Primary Contact" : "Customer",
+        phone: trimmedPhone || null,
+        email: trimmedEmail || null,
+        is_primary: true,
         is_active: true,
         is_deleted: false,
       });
 
-    if (error) {
-      alert(error.message);
+    if (contactError) {
+      alert(contactError.message);
+      return;
+    }
+
+    const { error: addressError } = await supabase
+      .from("customer_addresses")
+      .insert({
+        customer_id: createdCustomer.customer_id,
+        address_type: "Billing",
+        address_line1: trimmedAddress,
+        address_line2: null,
+        suburb: null,
+        state: null,
+        postcode: null,
+        country: "Australia",
+        is_primary: true,
+        is_active: true,
+        is_deleted: false,
+      });
+
+    if (addressError) {
+      alert(addressError.message);
       return;
     }
 
@@ -102,6 +271,7 @@ export default function CustomerDatabase() {
     setPhone("");
     setEmail("");
     setAbn("");
+    setPriceBookId("");
     setAddress("");
     setNotes("");
 
@@ -112,6 +282,282 @@ export default function CustomerDatabase() {
     });
   };
 
+  const getPrimaryContact = (customer: Customer) => {
+    return (
+      customer.customer_contacts?.find((contact) => contact.is_primary) ||
+      customer.customer_contacts?.[0] ||
+      null
+    );
+  };
+
+  const getPrimaryAddress = (customer: Customer) => {
+    return (
+      customer.customer_addresses?.find((addressItem) => addressItem.is_primary) ||
+      customer.customer_addresses?.[0] ||
+      null
+    );
+  };
+
+  const formatAddress = (addressItem: CustomerAddress | null) => {
+    if (!addressItem) return "-";
+
+    return [
+      addressItem.address_line1,
+      addressItem.address_line2,
+      addressItem.suburb,
+      addressItem.state,
+      addressItem.postcode,
+    ]
+      .filter(Boolean)
+      .join(", ");
+  };
+
+  const getCustomerPriceBookCode = (customer: Customer) => {
+    if (!customer.price_book_id) return "Not set";
+
+    return (
+      priceBooks.find(
+        (priceBook) => priceBook.price_book_id === customer.price_book_id
+      )?.price_book_code || "Not set"
+    );
+  };
+
+  const openEditCustomer = (customer: Customer) => {
+    const primaryContact = getPrimaryContact(customer);
+    const primaryAddress = getPrimaryAddress(customer);
+
+    setEditingCustomer(customer);
+    setEditCustomerName(customer.customer_name || "");
+    setEditCustomerType(customer.customer_type || "Residential");
+    setEditPhone(primaryContact?.phone || customer.phone || "");
+    setEditEmail(primaryContact?.email || customer.email || "");
+    setEditAbn(customer.abn || "");
+    setEditPriceBookId(customer.price_book_id || "");
+    setEditAddress(primaryAddress?.address_line1 || "");
+    setEditNotes(customer.notes || "");
+    setShowEditDialog(true);
+  };
+
+  const handleSaveEditCustomer = async () => {
+    if (!editingCustomer) {
+      alert("No customer selected.");
+      return;
+    }
+
+    const trimmedCustomerName = editCustomerName.trim();
+    const trimmedPhone = editPhone.trim();
+    const trimmedEmail = editEmail.trim();
+    const trimmedAbn = editAbn.trim();
+    const trimmedAddress = editAddress.trim();
+    const trimmedNotes = editNotes.trim();
+
+    if (!trimmedCustomerName) {
+      alert("Customer Name is required");
+      return;
+    }
+
+    if (!trimmedPhone && !trimmedEmail) {
+      alert("Please enter at least phone or email.");
+      return;
+    }
+
+    if (!trimmedAddress) {
+      alert("Address is required.");
+      return;
+    }
+
+    const primaryContact = getPrimaryContact(editingCustomer);
+    const primaryAddress = getPrimaryAddress(editingCustomer);
+
+    const { error: customerError } = await supabase
+      .from("customers")
+      .update({
+        customer_name: trimmedCustomerName,
+        customer_type: editCustomerType,
+        price_book_id: editPriceBookId || null,
+        phone: trimmedPhone || null,
+        email: trimmedEmail || null,
+        abn: editCustomerType === "Commercial" ? trimmedAbn || null : null,
+        notes: trimmedNotes || null,
+      })
+      .eq("customer_id", editingCustomer.customer_id);
+
+    if (customerError) {
+      alert(customerError.message);
+      return;
+    }
+
+    if (primaryContact?.contact_id) {
+      const { error: contactError } = await supabase
+        .from("customer_contacts")
+        .update({
+          contact_name: trimmedCustomerName,
+          position:
+            editCustomerType === "Commercial" ? "Primary Contact" : "Customer",
+          phone: trimmedPhone || null,
+          email: trimmedEmail || null,
+          is_primary: true,
+          is_active: true,
+        })
+        .eq("contact_id", primaryContact.contact_id);
+
+      if (contactError) {
+        alert(contactError.message);
+        return;
+      }
+    } else {
+      const { error: contactInsertError } = await supabase
+        .from("customer_contacts")
+        .insert({
+          customer_id: editingCustomer.customer_id,
+          contact_name: trimmedCustomerName,
+          position:
+            editCustomerType === "Commercial" ? "Primary Contact" : "Customer",
+          phone: trimmedPhone || null,
+          email: trimmedEmail || null,
+          is_primary: true,
+          is_active: true,
+          is_deleted: false,
+        });
+
+      if (contactInsertError) {
+        alert(contactInsertError.message);
+        return;
+      }
+    }
+
+    if (primaryAddress?.address_id) {
+      const { error: addressError } = await supabase
+        .from("customer_addresses")
+        .update({
+          address_type: "Billing",
+          address_line1: trimmedAddress,
+          address_line2: null,
+          suburb: null,
+          state: null,
+          postcode: null,
+          country: "Australia",
+          is_primary: true,
+          is_active: true,
+        })
+        .eq("address_id", primaryAddress.address_id);
+
+      if (addressError) {
+        alert(addressError.message);
+        return;
+      }
+    } else {
+      const { error: addressInsertError } = await supabase
+        .from("customer_addresses")
+        .insert({
+          customer_id: editingCustomer.customer_id,
+          address_type: "Billing",
+          address_line1: trimmedAddress,
+          address_line2: null,
+          suburb: null,
+          state: null,
+          postcode: null,
+          country: "Australia",
+          is_primary: true,
+          is_active: true,
+          is_deleted: false,
+        });
+
+      if (addressInsertError) {
+        alert(addressInsertError.message);
+        return;
+      }
+    }
+
+    setShowEditDialog(false);
+    setEditingCustomer(null);
+
+    queryClient.invalidateQueries({
+      queryKey: ["customers"],
+    });
+  };
+
+  const handleToggleCustomerActive = async (customer: Customer) => {
+    const nextIsActive = !customer.is_active;
+
+    const confirmMessage = nextIsActive
+      ? `Reactivate customer: ${customer.customer_name}?`
+      : `Set customer as inactive: ${customer.customer_name}?`;
+
+    const confirmed = window.confirm(confirmMessage);
+
+    if (!confirmed) return;
+
+    const { error } = await supabase
+      .from("customers")
+      .update({
+        is_active: nextIsActive,
+      })
+      .eq("customer_id", customer.customer_id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    queryClient.invalidateQueries({
+      queryKey: ["customers"],
+    });
+  };
+
+  const handleDeleteCustomer = async (customer: Customer) => {
+    const confirmed = window.confirm(
+      `Delete customer: ${customer.customer_name}?\n\nThis will hide the customer from the active customer database.`
+    );
+
+    if (!confirmed) return;
+
+    const { error } = await supabase
+      .from("customers")
+      .update({
+        is_deleted: true,
+        is_active: false,
+      })
+      .eq("customer_id", customer.customer_id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    queryClient.invalidateQueries({
+      queryKey: ["customers"],
+    });
+  };
+
+  const customerSummary = useMemo(() => {
+    const allCount = customers.length;
+
+    const commercialCount = customers.filter(
+      (customer) => customer.customer_type === "Commercial"
+    ).length;
+
+    const residentialCount = customers.filter(
+      (customer) => customer.customer_type === "Residential"
+    ).length;
+
+    const inactiveCount = customers.filter(
+      (customer) => !customer.is_active
+    ).length;
+
+    const missingPriceBookCount = customers.filter(
+      (customer) => !customer.price_book_id
+    ).length;
+
+    return {
+      allCount,
+      commercialCount,
+      residentialCount,
+      inactiveCount,
+      missingPriceBookCount,
+    };
+  }, [customers]);
+
   const filteredCustomers = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase();
 
@@ -120,22 +566,378 @@ export default function CustomerDatabase() {
         ? customers
         : customers.filter((customer) => customer.customer_type === typeFilter);
 
-    if (!keyword) return typeMatchedCustomers;
+    const statusMatchedCustomers =
+      statusFilter === "All"
+        ? typeMatchedCustomers
+        : typeMatchedCustomers.filter((customer) =>
+          statusFilter === "Active" ? customer.is_active : !customer.is_active
+        );
 
-    return typeMatchedCustomers.filter((customer) => {
+    if (!keyword) return statusMatchedCustomers;
+
+    return statusMatchedCustomers.filter((customer) => {
+      const primaryContact = getPrimaryContact(customer);
+      const primaryAddress = getPrimaryAddress(customer);
+      const addressText = formatAddress(primaryAddress);
+
       return (
         customer.customer_code.toLowerCase().includes(keyword) ||
         customer.customer_name.toLowerCase().includes(keyword) ||
         customer.customer_type.toLowerCase().includes(keyword) ||
         (customer.email || "").toLowerCase().includes(keyword) ||
-        (customer.phone || "").toLowerCase().includes(keyword)
+        (customer.phone || "").toLowerCase().includes(keyword) ||
+        (customer.abn || "").toLowerCase().includes(keyword) ||
+        getCustomerPriceBookCode(customer).toLowerCase().includes(keyword) ||
+        (primaryContact?.contact_name || "").toLowerCase().includes(keyword) ||
+        (primaryContact?.position || "").toLowerCase().includes(keyword) ||
+        (primaryContact?.phone || "").toLowerCase().includes(keyword) ||
+        (primaryContact?.email || "").toLowerCase().includes(keyword) ||
+        addressText.toLowerCase().includes(keyword)
       );
     });
-  }, [customers, searchTerm, typeFilter]);
+  }, [customers, priceBooks, searchTerm, typeFilter, statusFilter]);
+
+  const getExportRows = () => {
+    return filteredCustomers.map((customer) => {
+      const primaryContact = getPrimaryContact(customer);
+      const primaryAddress = getPrimaryAddress(customer);
+
+      return {
+        "Customer Code": customer.customer_code,
+        "Customer Name": customer.customer_name,
+        "Customer Type": customer.customer_type,
+        "Primary Contact": primaryContact?.contact_name || "",
+        Phone: primaryContact?.phone || customer.phone || "",
+        Email: primaryContact?.email || customer.email || "",
+        Address: formatAddress(primaryAddress),
+        ABN: customer.abn || "",
+        "Price Book": getCustomerPriceBookCode(customer),
+        Status: customer.is_active ? "Active" : "Inactive",
+      };
+    });
+  };
+
+  const downloadFile = (content: string, fileName: string, mimeType: string) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = fileName;
+    link.click();
+
+    URL.revokeObjectURL(url);
+  };
+
+  const escapeCsvValue = (value: string) => {
+    return `"${String(value || "").replace(/"/g, '""')}"`;
+  };
+
+  const escapeHtmlValue = (value: string) => {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  };
+
+  const handleExportCsv = () => {
+    const rows = getExportRows();
+
+    if (rows.length === 0) {
+      alert("No customers to export.");
+      return;
+    }
+
+    const headers = Object.keys(rows[0]);
+    const csvContent = [
+      headers.map(escapeCsvValue).join(","),
+      ...rows.map((row) =>
+        headers
+          .map((header) => escapeCsvValue(String(row[header as keyof typeof row] || "")))
+          .join(",")
+      ),
+    ].join("\n");
+
+    downloadFile(
+      `\uFEFF${csvContent}`,
+      `reds-customers-${new Date().toISOString().slice(0, 10)}.csv`,
+      "text/csv;charset=utf-8;"
+    );
+  };
+
+  const handleExportExcel = () => {
+    const rows = getExportRows();
+
+    if (rows.length === 0) {
+      alert("No customers to export.");
+      return;
+    }
+
+    const headers = Object.keys(rows[0]);
+
+    const tableHtml = `
+      <table>
+        <thead>
+          <tr>
+            ${headers.map((header) => `<th>${escapeHtmlValue(header)}</th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>
+          ${rows
+        .map(
+          (row) => `
+                <tr>
+                  ${headers
+              .map(
+                (header) =>
+                  `<td>${escapeHtmlValue(String(row[header as keyof typeof row] || ""))}</td>`
+              )
+              .join("")}
+                </tr>
+              `
+        )
+        .join("")}
+        </tbody>
+      </table>
+    `;
+
+    downloadFile(
+      tableHtml,
+      `reds-customers-${new Date().toISOString().slice(0, 10)}.xls`,
+      "application/vnd.ms-excel;charset=utf-8;"
+    );
+  };
+
+  const handlePrintCustomers = () => {
+    const rows = getExportRows();
+
+    if (rows.length === 0) {
+      alert("No customers to print.");
+      return;
+    }
+
+    const headers = Object.keys(rows[0]);
+    const printWindow = window.open("", "_blank");
+
+    if (!printWindow) {
+      alert("Print window was blocked by the browser.");
+      return;
+    }
+
+    const logoUrl = "/Reds_Logo_PNG.png";
+
+    const filterSummary = [
+      `Search: ${searchTerm.trim() || "All"}`,
+      `Type: ${typeFilter}`,
+      `Status: ${statusFilter}`,
+      `Records: ${rows.length}`,
+    ].join(" | ");
+
+    const tableRows = rows
+      .map(
+        (row) => `
+          <tr>
+            ${headers
+            .map(
+              (header) =>
+                `<td>${escapeHtmlValue(String(row[header as keyof typeof row] || ""))}</td>`
+            )
+            .join("")}
+          </tr>
+        `
+      )
+      .join("");
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>REDS Customers</title>
+          <style>
+            @page {
+              size: A4 landscape;
+              margin: 12mm;
+            }
+
+            * {
+              box-sizing: border-box;
+            }
+
+            body {
+              font-family: Arial, sans-serif;
+              color: #0f172a;
+              margin: 0;
+              padding: 0;
+              background: white;
+            }
+
+            .print-page {
+              width: 100%;
+            }
+
+            .header {
+              display: flex;
+              align-items: flex-start;
+              justify-content: space-between;
+              gap: 24px;
+              border-bottom: 4px solid #c8102e;
+              padding-bottom: 16px;
+              margin-bottom: 16px;
+            }
+
+            .brand {
+              display: flex;
+              align-items: center;
+              gap: 18px;
+            }
+
+            .logo {
+              width: 220px;
+              max-height: 70px;
+              object-fit: contain;
+            }
+
+            .brand-text h1 {
+              margin: 0;
+              font-size: 24px;
+              letter-spacing: 0.5px;
+              color: #111827;
+            }
+
+            .brand-text p {
+              margin: 4px 0 0;
+              font-size: 12px;
+              color: #64748b;
+            }
+
+            .meta {
+              text-align: right;
+              font-size: 11px;
+              color: #475569;
+              line-height: 1.6;
+              min-width: 220px;
+            }
+
+            .report-title {
+              margin: 18px 0 6px;
+              font-size: 20px;
+              font-weight: 800;
+              color: #0f172a;
+            }
+
+            .filter-summary {
+              margin: 0 0 16px;
+              font-size: 11px;
+              color: #64748b;
+            }
+
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              table-layout: fixed;
+              font-size: 10px;
+            }
+
+            th {
+              background: #0f172a;
+              color: white;
+              text-align: left;
+              padding: 8px 6px;
+              border: 1px solid #334155;
+              font-size: 9px;
+              text-transform: uppercase;
+              letter-spacing: 0.3px;
+            }
+
+            td {
+              padding: 7px 6px;
+              border: 1px solid #cbd5e1;
+              vertical-align: top;
+              word-wrap: break-word;
+              overflow-wrap: anywhere;
+              line-height: 1.35;
+            }
+
+            tr:nth-child(even) td {
+              background: #f8fafc;
+            }
+
+            .footer {
+              margin-top: 18px;
+              padding-top: 10px;
+              border-top: 1px solid #cbd5e1;
+              font-size: 10px;
+              color: #64748b;
+              display: flex;
+              justify-content: space-between;
+              gap: 12px;
+            }
+
+            @media print {
+              body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+
+              .no-print {
+                display: none;
+              }
+            }
+          </style>
+        </head>
+
+        <body>
+          <div class="print-page">
+            <div class="header">
+              <div class="brand">
+                <img class="logo" src="${logoUrl}" alt="REDS Timber Flooring Specialists" />
+                <div class="brand-text">
+                  <h1>Customer Master Report</h1>
+                  <p>REDS Timber Flooring Specialists</p>
+                </div>
+              </div>
+
+              <div class="meta">
+                <div><strong>Report:</strong> Customers</div>
+                <div><strong>Printed:</strong> ${new Date().toLocaleDateString("en-AU")}</div>
+                <div><strong>Time:</strong> ${new Date().toLocaleTimeString("en-AU")}</div>
+              </div>
+            </div>
+
+            <div class="report-title">Customers</div>
+            <p class="filter-summary">${escapeHtmlValue(filterSummary)}</p>
+
+            <table>
+              <thead>
+                <tr>
+                  ${headers.map((header) => `<th>${escapeHtmlValue(header)}</th>`).join("")}
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+              </tbody>
+            </table>
+
+            <div class="footer">
+              <div>Generated from REDS Customer Database</div>
+              <div>${rows.length} customer record${rows.length === 1 ? "" : "s"}</div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+
+    printWindow.onload = () => {
+      printWindow.focus();
+      printWindow.print();
+    };
+  };
 
   return (
-    <div className="space-y-5">
-      <div className="mx-auto w-full max-w-7xl space-y-5">
+    <div className="w-full space-y-5">
+      <div className="w-full space-y-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
@@ -164,116 +966,382 @@ export default function CustomerDatabase() {
         </div>
 
         <Dialog
+          open={showEditDialog}
+          onOpenChange={setShowEditDialog}
+        >
+          <DialogContent className="max-h-[90vh] w-[calc(100vw-24px)] max-w-lg overflow-y-auto rounded-2xl p-4 sm:p-6">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold text-slate-900">
+                Edit Customer
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-5 text-sm">
+              <section className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                <div className="mb-4">
+                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-800">
+                    Customer Profile
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {editingCustomer?.customer_code || "Customer record"}
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <Label>Customer Type</Label>
+                    <Select
+                      value={editCustomerType}
+                      onValueChange={(value) => {
+                        setEditCustomerType(value);
+                        if (value === "Residential") {
+                          setEditAbn("");
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-11 rounded-xl bg-white text-base md:text-sm">
+                        <SelectValue placeholder="Select customer type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Residential">Residential</SelectItem>
+                        <SelectItem value="Commercial">Commercial</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label>
+                      {editCustomerType === "Commercial"
+                        ? "Business / Company Name"
+                        : "Customer Name"}
+                    </Label>
+                    <Input
+                      className="h-11 rounded-xl bg-white text-base md:text-sm"
+                      value={editCustomerName}
+                      onChange={(e) => setEditCustomerName(e.target.value)}
+                    />
+                  </div>
+
+                  {editCustomerType === "Commercial" && (
+                    <div>
+                      <Label>ABN</Label>
+                      <Input
+                        className="h-11 rounded-xl bg-white text-base md:text-sm"
+                        value={editAbn}
+                        onChange={(e) => setEditAbn(e.target.value)}
+                        placeholder="Australian Business Number"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <Label>Price Book</Label>
+                    <Select
+                      value={editPriceBookId}
+                      onValueChange={setEditPriceBookId}
+                    >
+                      <SelectTrigger className="h-11 rounded-xl bg-white text-base md:text-sm">
+                        <SelectValue placeholder="Select default price book" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {priceBooks.length === 0 ? (
+                          <SelectItem value="no-price-book" disabled>
+                            No active price books found
+                          </SelectItem>
+                        ) : (
+                          priceBooks.map((priceBook) => (
+                            <SelectItem
+                              key={priceBook.price_book_id}
+                              value={priceBook.price_book_id}
+                            >
+                              {priceBook.price_book_code}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-100 bg-white p-4">
+                <div className="mb-4">
+                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-800">
+                    Contact Details
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Primary contact details for this customer.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <Label>
+                      {editCustomerType === "Commercial" ? "Business Phone" : "Phone"}
+                    </Label>
+                    <Input
+                      className="h-11 rounded-xl text-base md:text-sm"
+                      value={editPhone}
+                      onChange={(e) => setEditPhone(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <Label>
+                      {editCustomerType === "Commercial" ? "Business Email" : "Email"}
+                    </Label>
+                    <Input
+                      className="h-11 rounded-xl text-base md:text-sm"
+                      value={editEmail}
+                      onChange={(e) => setEditEmail(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-100 bg-white p-4">
+                <div className="mb-4">
+                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-800">
+                    Address
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Primary billing address.
+                  </p>
+                </div>
+
+                <div>
+                  <Label>
+                    {editCustomerType === "Commercial"
+                      ? "Business / Billing Address"
+                      : "Address"}
+                  </Label>
+                  <Input
+                    className="h-11 rounded-xl text-base md:text-sm"
+                    value={editAddress}
+                    onChange={(e) => setEditAddress(e.target.value)}
+                  />
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-100 bg-white p-4">
+                <div className="mb-4">
+                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-800">
+                    Notes
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Optional internal notes.
+                  </p>
+                </div>
+
+                <Textarea
+                  className="min-h-24 rounded-xl text-base md:text-sm"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                />
+              </section>
+
+              <Button
+                type="button"
+                onClick={handleSaveEditCustomer}
+                className="h-11 w-full rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700"
+              >
+                Save Changes
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
           open={showAddDialog}
           onOpenChange={setShowAddDialog}
         >
           <DialogContent className="max-h-[90vh] w-[calc(100vw-24px)] max-w-lg overflow-y-auto rounded-2xl p-4 sm:p-6">
             <DialogHeader>
               <DialogTitle className="text-lg font-bold text-slate-900">
-                Quick Add Customer
+                Add Customer
               </DialogTitle>
             </DialogHeader>
 
-            <div className="space-y-4 text-sm">
-              <div>
-                <Label>
-                  {customerType === "Commercial" ? "Business / Company Name" : "Customer Name"}
-                </Label>
-                <Input
-                  className="h-11 rounded-xl text-base md:text-sm"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder={
-                    customerType === "Commercial"
-                      ? "Business or company name"
-                      : "Customer full name"
-                  }
-                />
-              </div>
+            <div className="space-y-5 text-sm">
+              {/* Customer Profile */}
+              <section className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                <div className="mb-4">
+                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-800">
+                    Customer Profile
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Basic customer identity used across projects, quotes, invoices, and Xero export.
+                  </p>
+                </div>
 
-              <div>
-                <Label>Customer Type</Label>
-                <Select
-                  value={customerType}
-                  onValueChange={(value) => {
-                    setCustomerType(value);
-                    if (value === "Residential") {
-                      setAbn("");
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                    <SelectValue placeholder="Select customer type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Residential">Residential</SelectItem>
-                    <SelectItem value="Commercial">Commercial</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Customer Type</Label>
+                    <Select
+                      value={customerType}
+                      onValueChange={(value) => {
+                        setCustomerType(value);
+                        if (value === "Residential") {
+                          setAbn("");
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-11 rounded-xl bg-white text-base md:text-sm">
+                        <SelectValue placeholder="Select customer type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Residential">Residential</SelectItem>
+                        <SelectItem value="Commercial">Commercial</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <div>
-                <Label>
-                  {customerType === "Commercial" ? "Business Phone" : "Phone"}
-                </Label>
-                <Input
-                  className="h-11 rounded-xl text-base md:text-sm"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder={
-                    customerType === "Commercial"
-                      ? "Office or business phone"
-                      : "Customer phone"
-                  }
-                />
-              </div>
+                  <div>
+                    <Label>
+                      {customerType === "Commercial"
+                        ? "Business / Company Name"
+                        : "Customer Name"}
+                    </Label>
+                    <Input
+                      className="h-11 rounded-xl bg-white text-base md:text-sm"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder={
+                        customerType === "Commercial"
+                          ? "Business or company name"
+                          : "Customer full name"
+                      }
+                    />
+                  </div>
 
-              <div>
-                <Label>
-                  {customerType === "Commercial" ? "Business Address" : "Address"}
-                </Label>
-                <Input
-                  className="h-11 rounded-xl text-base md:text-sm"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  placeholder={
-                    customerType === "Commercial"
-                      ? "Office or billing address"
-                      : "Customer address"
-                  }
-                />
-              </div>
+                  <div>
+                    <Label>Price Book</Label>
+                    <Select value={priceBookId} onValueChange={setPriceBookId}>
+                      <SelectTrigger className="h-11 rounded-xl bg-white text-base md:text-sm">
+                        <SelectValue placeholder="Select default price book" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {priceBooks.length === 0 ? (
+                          <SelectItem value="no-price-book" disabled>
+                            No active price books found
+                          </SelectItem>
+                        ) : (
+                          priceBooks.map((priceBook) => (
+                            <SelectItem
+                              key={priceBook.price_book_id}
+                              value={priceBook.price_book_id}
+                            >
+                              {priceBook.price_book_code}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
 
-              <div>
-                <Label>
-                  {customerType === "Commercial" ? "Business Email" : "Email"}
-                </Label>
-                <Input
-                  className="h-11 rounded-xl text-base md:text-sm"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={
-                    customerType === "Commercial"
-                      ? "Accounts or office email"
-                      : "Customer email"
-                  }
-                />
-              </div>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Used later for customer material selection, estimates, proposals, and invoices.
+                    </p>
+                  </div>
 
-              {customerType === "Commercial" && (
+                  {customerType === "Commercial" && (
+                    <div>
+                      <Label>ABN</Label>
+                      <Input
+                        className="h-11 rounded-xl bg-white text-base md:text-sm"
+                        value={abn}
+                        onChange={(e) => setAbn(e.target.value)}
+                        placeholder="Australian Business Number"
+                      />
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              {/* Contact Details */}
+              <section className="rounded-2xl border border-slate-100 bg-white p-4">
+                <div className="mb-4">
+                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-800">
+                    Contact Details
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    This will be saved as the primary contact for this customer.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <Label>
+                      {customerType === "Commercial" ? "Business Phone" : "Phone"}
+                    </Label>
+                    <Input
+                      className="h-11 rounded-xl text-base md:text-sm"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder={
+                        customerType === "Commercial"
+                          ? "Office or business phone"
+                          : "Customer phone"
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <Label>
+                      {customerType === "Commercial" ? "Business Email" : "Email"}
+                    </Label>
+                    <Input
+                      className="h-11 rounded-xl text-base md:text-sm"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder={
+                        customerType === "Commercial"
+                          ? "Accounts or office email"
+                          : "Customer email"
+                      }
+                    />
+                  </div>
+                </div>
+              </section>
+
+              {/* Address */}
+              <section className="rounded-2xl border border-slate-100 bg-white p-4">
+                <div className="mb-4">
+                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-800">
+                    Address
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    This will be saved as the primary billing address.
+                  </p>
+                </div>
+
                 <div>
-                  <Label>ABN</Label>
+                  <Label>
+                    {customerType === "Commercial" ? "Business / Billing Address" : "Address"}
+                  </Label>
                   <Input
                     className="h-11 rounded-xl text-base md:text-sm"
-                    value={abn}
-                    onChange={(e) => setAbn(e.target.value)}
-                    placeholder="Australian Business Number"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder={
+                      customerType === "Commercial"
+                        ? "Office or billing address"
+                        : "Customer address"
+                    }
                   />
                 </div>
-              )}
+              </section>
 
-              <div>
-                <Label>Notes</Label>
+              {/* Notes */}
+              <section className="rounded-2xl border border-slate-100 bg-white p-4">
+                <div className="mb-4">
+                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-800">
+                    Notes
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Optional internal notes for sales, billing, access, or project context.
+                  </p>
+                </div>
+
                 <Textarea
                   className="min-h-24 rounded-xl text-base md:text-sm"
                   value={notes}
@@ -284,7 +1352,7 @@ export default function CustomerDatabase() {
                       : "Access notes, job notes, customer notes"
                   }
                 />
-              </div>
+              </section>
 
               <Button
                 onClick={handleAddCustomer}
@@ -296,6 +1364,123 @@ export default function CustomerDatabase() {
           </DialogContent>
         </Dialog>
 
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+              All Customers
+            </p>
+            <p className="mt-2 text-2xl font-black text-slate-900">
+              {customerSummary.allCount}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Total customer records
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+              Commercial
+            </p>
+            <p className="mt-2 text-2xl font-black text-slate-900">
+              {customerSummary.commercialCount}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Business / builder customers
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+              Residential
+            </p>
+            <p className="mt-2 text-2xl font-black text-slate-900">
+              {customerSummary.residentialCount}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Home owner customers
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+              Inactive
+            </p>
+            <p className="mt-2 text-2xl font-black text-slate-900">
+              {customerSummary.inactiveCount}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Hidden from new work
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wide text-amber-700">
+              Missing Price Book
+            </p>
+            <p className="mt-2 text-2xl font-black text-amber-900">
+              {customerSummary.missingPriceBookCount}
+            </p>
+            <p className="mt-1 text-xs text-amber-700">
+              Needs sales default
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm md:p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-black uppercase tracking-wide text-slate-800">
+                Print / Export
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Export the current filtered customer list.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:flex md:items-center">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handlePrintCustomers}
+                className="h-10 rounded-xl text-xs font-bold"
+              >
+                <Printer className="mr-2 h-4 w-4" />
+                Print
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handlePrintCustomers}
+                className="h-10 rounded-xl text-xs font-bold"
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                PDF
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleExportCsv}
+                className="h-10 rounded-xl text-xs font-bold"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                CSV
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleExportExcel}
+                className="h-10 rounded-xl text-xs font-bold"
+              >
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                Excel
+              </Button>
+            </div>
+          </div>
+        </div>
+
         <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm md:p-4">
           <div className="relative w-full">
             <Search
@@ -304,23 +1489,35 @@ export default function CustomerDatabase() {
             />
             <input
               type="text"
-              placeholder="Search by code, name, type, phone, or email..."
+              placeholder="Search by code, name, contact, address, phone, email, ABN, or price book..."
               className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-red-500 outline-none transition-all"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
 
-          <div className="mt-3 md:mt-0 md:w-56">
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
             <Select value={typeFilter} onValueChange={setTypeFilter}>
               <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
                 <Filter className="mr-2 h-4 w-4 text-slate-400" />
-                <SelectValue placeholder="Filter" />
+                <SelectValue placeholder="Customer type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="All">All Customers</SelectItem>
+                <SelectItem value="All">All Types</SelectItem>
                 <SelectItem value="Residential">Residential</SelectItem>
                 <SelectItem value="Commercial">Commercial</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                <Filter className="mr-2 h-4 w-4 text-slate-400" />
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All Status</SelectItem>
+                <SelectItem value="Active">Active</SelectItem>
+                <SelectItem value="Inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -332,10 +1529,15 @@ export default function CustomerDatabase() {
             <div className="p-8 text-center text-slate-500">
               Loading customers...
             </div>
+
           ) : error ? (
             <div className="p-8 text-center text-red-600">
-              Failed to load customers.
+              <div className="font-bold">Failed to load customers.</div>
+              <div className="mt-2 text-xs text-red-500">
+                Please refresh the page or contact an administrator if the problem continues.
+              </div>
             </div>
+
           ) : filteredCustomers.length === 0 ? (
             <div className="p-8 text-center text-slate-500">
               No customers found.
@@ -343,11 +1545,11 @@ export default function CustomerDatabase() {
           ) : (
             <>
               {/* Mobile cards */}
-              <div className="divide-y divide-slate-100 md:hidden">
+              <div className="space-y-3 p-3 md:hidden">
                 {filteredCustomers.map((customer) => (
                   <div
                     key={customer.customer_id}
-                    className="space-y-3 p-4"
+                    className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -380,25 +1582,82 @@ export default function CustomerDatabase() {
                           ABN: {customer.abn}
                         </span>
                       )}
+
+                      <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600">
+                        <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600">
+                          Price Book: {getCustomerPriceBookCode(customer)}
+                        </span>
+                      </span>
+
                     </div>
 
                     <div className="space-y-2 text-sm text-slate-600">
+                      <div className="font-semibold text-slate-800">
+                        {getPrimaryContact(customer)?.contact_name || "No primary contact"}
+                      </div>
+
+                      <div className="text-xs text-slate-500">
+                        {getPrimaryContact(customer)?.position || "Contact"}
+                      </div>
+
                       <div className="flex items-center gap-2">
                         <Phone size={14} className="shrink-0 text-slate-400" />
-                        <span className="break-all">{customer.phone || "-"}</span>
+                        <span className="break-all">
+                          {getPrimaryContact(customer)?.phone || customer.phone || "-"}
+                        </span>
                       </div>
 
                       <div className="flex items-center gap-2">
                         <Mail size={14} className="shrink-0 text-slate-400" />
-                        <span className="break-all">{customer.email || "-"}</span>
+                        <span className="break-all">
+                          {getPrimaryContact(customer)?.email || customer.email || "-"}
+                        </span>
                       </div>
+
+                      <div className="text-xs leading-relaxed text-slate-500">
+                        Address: {formatAddress(getPrimaryAddress(customer))}
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 pt-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => openEditCustomer(customer)}
+                          className="h-10 rounded-xl text-xs font-bold"
+                        >
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => handleToggleCustomerActive(customer)}
+                          className="h-10 rounded-xl text-xs font-bold"
+                        >
+                          <Archive className="mr-2 h-4 w-4" />
+                          {customer.is_active ? "Inactive" : "Reactivate"}
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => handleDeleteCustomer(customer)}
+                          title="Delete customer"
+                          aria-label={`Delete customer ${customer.customer_name}`}
+                          className="h-10 rounded-xl text-xs font-bold text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+
                     </div>
                   </div>
                 ))}
               </div>
 
               {/* Desktop table */}
-              <div className="hidden overflow-x-auto md:block">
+              < div className="hidden overflow-x-auto md:block" >
                 <table className="w-full text-left text-sm whitespace-nowrap">
                   <thead className="bg-slate-900 text-white">
                     <tr>
@@ -412,67 +1671,130 @@ export default function CustomerDatabase() {
                         Contact
                       </th>
                       <th className="px-6 py-4 font-bold uppercase tracking-wider">
+                        Address
+                      </th>
+                      <th className="px-6 py-4 font-bold uppercase tracking-wider">
                         ABN
                       </th>
                       <th className="px-6 py-4 font-bold uppercase tracking-wider">
                         Status
                       </th>
+                      <th className="px-6 py-4 text-right font-bold uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
 
                   <tbody className="divide-y divide-slate-100">
-                    {filteredCustomers.map((customer) => (
-                      <tr
-                        key={customer.customer_id}
-                        className="hover:bg-slate-50 transition-colors"
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col">
-                            <span className="font-bold text-slate-900 text-base">
-                              {customer.customer_name}
-                            </span>
-                            <span className="text-slate-400 text-xs font-mono mt-1">
-                              {customer.customer_code}
-                            </span>
-                          </div>
-                        </td>
+                    {filteredCustomers.map((customer) => {
+                      const primaryContact = getPrimaryContact(customer);
+                      const primaryAddress = getPrimaryAddress(customer);
 
-                        <td className="px-6 py-4">
-                          <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold border bg-slate-100 text-slate-700 border-slate-200">
-                            {customer.customer_type}
-                          </span>
-                        </td>
-
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col gap-1.5 text-slate-600 text-xs">
-                            <div className="flex items-center gap-2">
-                              <Phone size={14} className="text-slate-400" />
-                              {customer.phone || "-"}
+                      return (
+                        <tr
+                          key={customer.customer_id}
+                          className="hover:bg-slate-50 transition-colors"
+                        >
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col">
+                              <span className="font-bold text-slate-900 text-base">
+                                {customer.customer_name}
+                              </span>
+                              <span className="text-slate-400 text-xs font-mono mt-1">
+                                {customer.customer_code}
+                              </span>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Mail size={14} className="text-slate-400" />
-                              {customer.email || "-"}
+                          </td>
+
+                          <td className="px-6 py-4">
+                            <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold border bg-slate-100 text-slate-700 border-slate-200">
+                              {customer.customer_type}
+                            </span>
+                          </td>
+
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col gap-1.5 text-slate-600 text-xs">
+                              <div className="font-bold text-slate-800">
+                                {primaryContact?.contact_name || "-"}
+                              </div>
+
+                              <div className="text-slate-500">
+                                {primaryContact?.position || "Contact"}
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <Phone size={14} className="text-slate-400" />
+                                {primaryContact?.phone || customer.phone || "-"}
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <Mail size={14} className="text-slate-400" />
+                                {primaryContact?.email || customer.email || "-"}
+                              </div>
                             </div>
-                          </div>
-                        </td>
+                          </td>
 
-                        <td className="px-6 py-4 text-slate-600">
-                          {customer.abn || "-"}
-                        </td>
+                          <td className="max-w-xs px-6 py-4 text-slate-600">
+                            <div className="whitespace-normal text-xs leading-relaxed">
+                              {formatAddress(primaryAddress)}
+                            </div>
+                          </td>
 
-                        <td className="px-6 py-4">
-                          <span
-                            className={
-                              customer.is_active
-                                ? "inline-flex px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                : "inline-flex px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200"
-                            }
-                          >
-                            {customer.is_active ? "Active" : "Inactive"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                          <td className="px-6 py-4 text-slate-600">
+                            {customer.abn || "-"}
+                          </td>
+
+                          <td className="px-6 py-4">
+                            <span
+                              className={
+                                customer.is_active
+                                  ? "inline-flex px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : "inline-flex px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200"
+                              }
+                            >
+                              {customer.is_active ? "Active" : "Inactive"}
+                            </span>
+                          </td>
+
+                          <td className="px-6 py-4">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => openEditCustomer(customer)}
+                                className="h-9 rounded-xl px-3 text-xs font-bold"
+                              >
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit
+                              </Button>
+
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => handleToggleCustomerActive(customer)}
+                                className="h-9 rounded-xl px-3 text-xs font-bold"
+                              >
+                                <Archive className="mr-2 h-4 w-4" />
+                                {customer.is_active ? "Inactive" : "Reactivate"}
+                              </Button>
+
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => handleDeleteCustomer(customer)}
+                                title="Delete customer"
+                                aria-label={`Delete customer ${customer.customer_name}`}
+                                className="h-9 w-9 rounded-xl p-0 text-red-600 hover:text-red-700"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+
+                            </div>
+                          </td>
+
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

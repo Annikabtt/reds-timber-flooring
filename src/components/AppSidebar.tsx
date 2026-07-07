@@ -6,6 +6,7 @@ import {
   DollarSign,
   Settings,
   LogOut,
+  ClipboardList,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,7 +24,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import redsLogo from "@/assets/reds-logo.png";
 
-const navItems = [
+const desktopNavItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Customers", url: "/customers", icon: Users },
   { title: "Projects", url: "/projects", icon: FolderKanban },
@@ -42,10 +43,17 @@ const navItems = [
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
+const workerNavItems = [
+  { title: "My Work", url: "/my-work", icon: ClipboardList },
+];
+
+
 export function AppSidebar() {
   const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const { user, signOut } = useAuth();
+  const appRole = user?.app_metadata?.app_role;
+  const navItems = appRole === "worker" ? workerNavItems : desktopNavItems;
 
   const initials = user?.user_metadata?.display_name
     ? user.user_metadata.display_name.slice(0, 2).toUpperCase()

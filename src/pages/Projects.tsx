@@ -57,6 +57,9 @@ export default function Projects() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [viewingProject, setViewingProject] = useState<any | null>(null);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState("");
   const [projectName, setProjectName] = useState("");
   const [projectType, setProjectType] = useState("Residential");
@@ -102,6 +105,7 @@ export default function Projects() {
           `
           project_id,
           project_no,
+          customer_id,
           project_name,
           project_type,
           project_status,
@@ -139,6 +143,74 @@ export default function Projects() {
     return matchesSearch && matchesStatus;
   });
 
+  const resetProjectForm = () => {
+    setEditingProjectId(null);
+    setCustomerId("");
+    setProjectName("");
+    setProjectType("Residential");
+    setProjectStatus("Draft");
+    setContractValue("");
+    setStartDate("");
+    setEstimatedCompletionDate("");
+    setNotes("");
+  };
+
+  const openCreateProject = () => {
+    resetProjectForm();
+    setDialogOpen(true);
+  };
+
+  const openEditProject = (project: any) => {
+    setEditingProjectId(project.project_id);
+    setCustomerId(project.customer_id ?? "");
+    setProjectName(project.project_name ?? "");
+    setProjectType(project.project_type ?? "Residential");
+    setProjectStatus(project.project_status ?? "Draft");
+    setContractValue(
+      project.contract_value !== null && project.contract_value !== undefined
+        ? Number(project.contract_value).toLocaleString("en-AU")
+        : ""
+    );
+    setStartDate(project.start_date ?? "");
+    setEstimatedCompletionDate(project.estimated_completion_date ?? "");
+    setNotes(project.notes ?? "");
+    setDialogOpen(true);
+  };
+
+  const openViewProject = (project: any) => {
+    setViewingProject(project);
+    setViewDialogOpen(true);
+  };
+
+  const summaryCards = [
+    {
+      label: "Total Projects",
+      value: projects.length.toString(),
+    },
+    {
+      label: "Filtered Results",
+      value: filteredProjects.length.toString(),
+    },
+    {
+      label: "In Progress",
+      value: projects
+        .filter((project) => project.project_status === "In Progress")
+        .length.toString(),
+    },
+    {
+      label: "Contract Value",
+      value: projects
+        .reduce(
+          (total, project) => total + Number(project.contract_value ?? 0),
+          0
+        )
+        .toLocaleString("en-AU", {
+          style: "currency",
+          currency: "AUD",
+        }),
+    },
+  ];
+
   const createProject = useMutation({
     mutationFn: async () => {
       if (!customerId) {
@@ -164,14 +236,7 @@ export default function Projects() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       setDialogOpen(false);
-      setCustomerId("");
-      setProjectName("");
-      setProjectType("Residential");
-      setProjectStatus("Draft");
-      setContractValue("");
-      setStartDate("");
-      setEstimatedCompletionDate("");
-      setNotes("");
+      resetProjectForm();
       toast({ title: "Project created" });
     },
     onError: (e: Error) =>
@@ -182,9 +247,212 @@ export default function Projects() {
       }),
   });
 
+  const updateProject = useMutation({
+    mutationFn: async () => {
+      if (!editingProjectId) {
+        throw new Error("No project selected for editing.");
+      }
+
+      if (!customerId) {
+        throw new Error("Please select a customer.");
+      }
+
+      const { error } = await supabase
+        .from("projects")
+        .update({
+          customer_id: customerId,
+          project_name: projectName,
+          project_type: projectType,
+          project_status: projectStatus,
+          contract_value: parseNumberInput(contractValue),
+          start_date: startDate || null,
+          estimated_completion_date: estimatedCompletionDate || null,
+          notes: notes || null,
+        })
+        .eq("project_id", editingProjectId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      setDialogOpen(false);
+      resetProjectForm();
+      toast({ title: "Project updated" });
+    },
+    onError: (e: Error) =>
+      toast({
+        title: "Error",
+        description: e.message,
+        variant: "destructive",
+      }),
+  });
+
+  const inactiveProject = useMutation({
+    mutationFn: async (projectId: string) => {
+      const { error } = await supabase
+        .from("projects")
+        .update({
+          is_active: false,
+          project_status: "On Hold",
+        })
+        .eq("project_id", projectId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      toast({ title: "Project marked as inactive" });
+    },
+    onError: (e: Error) =>
+      toast({
+        title: "Error",
+        description: e.message,
+        variant: "destructive",
+      }),
+  });
+
+  const deleteProject = useMutation({
+    mutationFn: async (projectId: string) => {
+      const confirmed = window.confirm(
+        "Delete this project? This will hide the project from the active list."
+      );
+
+      if (!confirmed) return;
+
+      const { error } = await supabase
+        .from("projects")
+        .update({
+          is_deleted: true,
+        })
+        .eq("project_id", projectId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      toast({ title: "Project deleted" });
+    },
+    onError: (e: Error) =>
+      toast({
+        title: "Error",
+        description: e.message,
+        variant: "destructive",
+      }),
+  });
+
+  const exportRows = filteredProjects.map((project) => ({
+    "Project No": project.project_no,
+    "Project Name": project.project_name,
+    Customer: project.customers?.customer_name ?? "No customer",
+    Type: project.project_type ?? "-",
+    Status: project.project_status,
+    "Contract Value": project.contract_value ?? "",
+    "Start Date": project.start_date ?? "",
+    "Estimated Completion": project.estimated_completion_date ?? "",
+    Notes: project.notes ?? "",
+  }));
+
+  const downloadFile = (
+    content: string,
+    fileName: string,
+    mimeType: string
+  ) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = fileName;
+    link.click();
+
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportCsv = () => {
+    if (exportRows.length === 0) {
+      toast({
+        title: "No data to export",
+        description: "There are no projects in the current filter.",
+      });
+      return;
+    }
+
+    const headers = Object.keys(exportRows[0]);
+
+    const csvContent = [
+      headers.join(","),
+      ...exportRows.map((row) =>
+        headers
+          .map((header) => {
+            const value = String(row[header as keyof typeof row] ?? "");
+            return `"${value.replace(/"/g, '""')}"`;
+          })
+          .join(",")
+      ),
+    ].join("\n");
+
+    downloadFile(
+      csvContent,
+      "projects.csv",
+      "text/csv;charset=utf-8;"
+    );
+  };
+
+  const handleExportExcel = () => {
+    if (exportRows.length === 0) {
+      toast({
+        title: "No data to export",
+        description: "There are no projects in the current filter.",
+      });
+      return;
+    }
+
+    const headers = Object.keys(exportRows[0]);
+
+    const tableRows = exportRows
+      .map(
+        (row) =>
+          `<tr>${headers
+            .map(
+              (header) =>
+                `<td>${String(row[header as keyof typeof row] ?? "")}</td>`
+            )
+            .join("")}</tr>`
+      )
+      .join("");
+
+    const excelContent = `
+      <html>
+        <head>
+          <meta charset="UTF-8" />
+        </head>
+        <body>
+          <table>
+            <thead>
+              <tr>${headers.map((header) => `<th>${header}</th>`).join("")}</tr>
+            </thead>
+            <tbody>
+              ${tableRows}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `;
+
+    downloadFile(
+      excelContent,
+      "projects.xls",
+      "application/vnd.ms-excel;charset=utf-8;"
+    );
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Projects</h1>
           <p className="text-muted-foreground mt-1">
@@ -192,16 +460,35 @@ export default function Projects() {
           </p>
         </div>
 
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Button
+          onClick={openCreateProject}
+          className="w-full sm:w-auto print:hidden"
+        >
+          Add Project
+        </Button>
+
+        <Dialog
+          open={dialogOpen}
+          onOpenChange={(open) => {
+            setDialogOpen(open);
+            if (!open) resetProjectForm();
+          }}
+        >
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create Project</DialogTitle>
+              <DialogTitle>
+                {editingProjectId ? "Edit Project" : "Create Project"}
+              </DialogTitle>
             </DialogHeader>
 
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                createProject.mutate();
+                if (editingProjectId) {
+                  updateProject.mutate();
+                } else {
+                  createProject.mutate();
+                }
               }}
               className="space-y-4"
             >
@@ -315,110 +602,425 @@ export default function Projects() {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={createProject.isPending}
+                disabled={createProject.isPending || updateProject.isPending}
               >
-                {createProject.isPending ? "Creating..." : "Create Project"}
+                {editingProjectId
+                  ? updateProject.isPending
+                    ? "Updating..."
+                    : "Update Project"
+                  : createProject.isPending
+                    ? "Creating..."
+                    : "Create Project"}
               </Button>
             </form>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <Input
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          placeholder="Search project no, project name, or customer..."
-          className="md:max-w-md"
-        />
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Project Details</DialogTitle>
+          </DialogHeader>
 
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="md:w-48">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All Status</SelectItem>
-            <SelectItem value="Draft">Draft</SelectItem>
-            <SelectItem value="Quoted">Quoted</SelectItem>
-            <SelectItem value="Approved">Approved</SelectItem>
-            <SelectItem value="In Progress">In Progress</SelectItem>
-            <SelectItem value="On Hold">On Hold</SelectItem>
-            <SelectItem value="Completed">Completed</SelectItem>
-            <SelectItem value="Cancelled">Cancelled</SelectItem>
-          </SelectContent>
-        </Select>
+          {viewingProject && (
+            <div className="space-y-5">
+              <div>
+                <h2 className="text-xl font-semibold">
+                  {viewingProject.project_name}
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  {viewingProject.project_no}
+                </p>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <p className="text-sm text-muted-foreground">Customer</p>
+                  <p className="font-medium">
+                    {viewingProject.customers?.customer_name ?? "No customer"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-muted-foreground">Status</p>
+                  <span
+                    className={`inline-flex text-xs px-2 py-0.5 rounded-full ${statusBadge[viewingProject.project_status] ??
+                      "bg-muted text-muted-foreground"
+                      }`}
+                  >
+                    {viewingProject.project_status}
+                  </span>
+                </div>
+
+                <div>
+                  <p className="text-sm text-muted-foreground">Project Type</p>
+                  <p className="font-medium">
+                    {viewingProject.project_type ?? "-"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    Contract Value
+                  </p>
+                  <p className="font-medium">
+                    {viewingProject.contract_value !== null
+                      ? Number(viewingProject.contract_value).toLocaleString(
+                        "en-AU",
+                        {
+                          style: "currency",
+                          currency: "AUD",
+                        }
+                      )
+                      : "-"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-muted-foreground">Start Date</p>
+                  <p className="font-medium">
+                    {viewingProject.start_date
+                      ? new Date(
+                        viewingProject.start_date
+                      ).toLocaleDateString("en-AU")
+                      : "-"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    Estimated Completion
+                  </p>
+                  <p className="font-medium">
+                    {viewingProject.estimated_completion_date
+                      ? new Date(
+                        viewingProject.estimated_completion_date
+                      ).toLocaleDateString("en-AU")
+                      : "-"}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm text-muted-foreground">Notes</p>
+                <p className="mt-1 whitespace-pre-wrap rounded-md border bg-muted/30 p-3 text-sm">
+                  {viewingProject.notes || "No notes"}
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setViewDialogOpen(false);
+                    openEditProject(viewingProject);
+                  }}
+                >
+                  Edit Project
+                </Button>
+                <Button onClick={() => setViewDialogOpen(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {summaryCards.map((card) => (
+          <Card key={card.label} className="border-border/50">
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground">{card.label}</p>
+              <p className="mt-2 text-2xl font-semibold">{card.value}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between print:hidden">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center">
+          <Input
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            placeholder="Search project no, project name, or customer..."
+            className="md:w-96"
+          />
+
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="md:w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All Status</SelectItem>
+              <SelectItem value="Draft">Draft</SelectItem>
+              <SelectItem value="Quoted">Quoted</SelectItem>
+              <SelectItem value="Approved">Approved</SelectItem>
+              <SelectItem value="In Progress">In Progress</SelectItem>
+              <SelectItem value="On Hold">On Hold</SelectItem>
+              <SelectItem value="Completed">Completed</SelectItem>
+              <SelectItem value="Cancelled">Cancelled</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+          <Button variant="outline" onClick={handlePrint}>
+            Print
+          </Button>
+          <Button variant="outline" onClick={handlePrint}>
+            PDF
+          </Button>
+          <Button variant="outline" onClick={handleExportCsv}>
+            CSV
+          </Button>
+          <Button variant="outline" onClick={handleExportExcel}>
+            Excel
+          </Button>
+        </div>
       </div>
 
       {filteredProjects.length > 0 ? (
-        <Card className="border-border/50">
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader className="bg-slate-100">
-                <TableRow className="hover:bg-slate-100">
-                  <TableHead>Project No</TableHead>
-                  <TableHead>Project Name</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Contract Value</TableHead>
-                  <TableHead>Start Date</TableHead>
-                  <TableHead>Est. Completion</TableHead>
-                </TableRow>
-              </TableHeader>
+        <>
+          <div className="hidden md:block">
+            <Card className="border-border/50">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader className="bg-slate-100">
+                    <TableRow className="hover:bg-slate-100">
+                      <TableHead>Project No</TableHead>
+                      <TableHead>Project Name</TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">
+                        Contract Value
+                      </TableHead>
+                      <TableHead>Start Date</TableHead>
+                      <TableHead>Est. Completion</TableHead>
+                      <TableHead className="text-right print:hidden">
+                        Actions
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
 
-              <TableBody>
-                {filteredProjects.map((project) => (
-                  <TableRow key={project.project_id}>
-                    <TableCell className="font-medium">
-                      {project.project_no}
-                    </TableCell>
+                  <TableBody>
+                    {filteredProjects.map((project) => (
+                      <TableRow key={project.project_id}>
+                        <TableCell className="font-medium">
+                          {project.project_no}
+                        </TableCell>
 
-                    <TableCell>{project.project_name}</TableCell>
+                        <TableCell>{project.project_name}</TableCell>
 
-                    <TableCell>
-                      {project.customers?.customer_name ?? "No customer"}
-                    </TableCell>
+                        <TableCell>
+                          {project.customers?.customer_name ?? "No customer"}
+                        </TableCell>
 
-                    <TableCell>{project.project_type ?? "-"}</TableCell>
+                        <TableCell>{project.project_type ?? "-"}</TableCell>
 
-                    <TableCell>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full ${statusBadge[project.project_status] ??
-                          "bg-muted text-muted-foreground"
-                          }`}
-                      >
-                        {project.project_status}
-                      </span>
-                    </TableCell>
+                        <TableCell>
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full ${statusBadge[project.project_status] ??
+                              "bg-muted text-muted-foreground"
+                              }`}
+                          >
+                            {project.project_status}
+                          </span>
+                        </TableCell>
 
-                    <TableCell className="text-right">
-                      {project.contract_value !== null
-                        ? Number(project.contract_value).toLocaleString("en-AU", {
-                          style: "currency",
-                          currency: "AUD",
-                        })
-                        : "-"}
-                    </TableCell>
+                        <TableCell className="text-right">
+                          {project.contract_value !== null
+                            ? Number(project.contract_value).toLocaleString(
+                              "en-AU",
+                              {
+                                style: "currency",
+                                currency: "AUD",
+                              }
+                            )
+                            : "-"}
+                        </TableCell>
 
-                    <TableCell>
-                      {project.start_date
-                        ? new Date(project.start_date).toLocaleDateString("en-AU")
-                        : "-"}
-                    </TableCell>
+                        <TableCell>
+                          {project.start_date
+                            ? new Date(project.start_date).toLocaleDateString(
+                              "en-AU"
+                            )
+                            : "-"}
+                        </TableCell>
 
-                    <TableCell>
-                      {project.estimated_completion_date
-                        ? new Date(
-                          project.estimated_completion_date
-                        ).toLocaleDateString("en-AU")
-                        : "-"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                        <TableCell>
+                          {project.estimated_completion_date
+                            ? new Date(
+                              project.estimated_completion_date
+                            ).toLocaleDateString("en-AU")
+                            : "-"}
+                        </TableCell>
+
+                        <TableCell className="text-right print:hidden">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openViewProject(project)}
+                            >
+                              View
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openEditProject(project)}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                inactiveProject.mutate(project.project_id)
+                              }
+                              disabled={inactiveProject.isPending}
+                            >
+                              Inactive
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() =>
+                                deleteProject.mutate(project.project_id)
+                              }
+                              disabled={deleteProject.isPending}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-4 md:hidden">
+            {filteredProjects.map((project) => (
+              <Card key={project.project_id} className="border-border/50">
+                <CardContent className="space-y-4 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="font-semibold leading-tight">
+                        {project.project_name}
+                      </h2>
+                      <p className="text-sm text-muted-foreground">
+                        {project.project_no}
+                      </p>
+                    </div>
+
+                    <span
+                      className={`shrink-0 text-xs px-2 py-0.5 rounded-full ${statusBadge[project.project_status] ??
+                        "bg-muted text-muted-foreground"
+                        }`}
+                    >
+                      {project.project_status}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Customer</p>
+                      <p className="font-medium">
+                        {project.customers?.customer_name ?? "No customer"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-muted-foreground">Type</p>
+                      <p className="font-medium">
+                        {project.project_type ?? "-"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-muted-foreground">Contract Value</p>
+                      <p className="font-medium">
+                        {project.contract_value !== null
+                          ? Number(project.contract_value).toLocaleString(
+                            "en-AU",
+                            {
+                              style: "currency",
+                              currency: "AUD",
+                            }
+                          )
+                          : "-"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-muted-foreground">Start Date</p>
+                      <p className="font-medium">
+                        {project.start_date
+                          ? new Date(project.start_date).toLocaleDateString(
+                            "en-AU"
+                          )
+                          : "-"}
+                      </p>
+                    </div>
+
+                    <div className="col-span-2">
+                      <p className="text-muted-foreground">
+                        Est. Completion
+                      </p>
+                      <p className="font-medium">
+                        {project.estimated_completion_date
+                          ? new Date(
+                            project.estimated_completion_date
+                          ).toLocaleDateString("en-AU")
+                          : "-"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-2 print:hidden">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openViewProject(project)}
+                    >
+                      View
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openEditProject(project)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        inactiveProject.mutate(project.project_id)
+                      }
+                      disabled={inactiveProject.isPending}
+                    >
+                      Inactive
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => deleteProject.mutate(project.project_id)}
+                      disabled={deleteProject.isPending}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </>
       ) : (
         <Card className="border-border/50">
           <CardContent className="flex flex-col items-center justify-center py-16">

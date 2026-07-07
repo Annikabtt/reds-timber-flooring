@@ -42,6 +42,8 @@ import CustomerCheck from "./pages/CustomerCheck";
 import WorkOrders from "./pages/WorkOrders";
 import WorkOrderDashboard from "./pages/WorkOrderDashboard";
 import DailyReports from "./pages/DailyReports";
+import MyWork from "./pages/MyWork";
+import MyWorkDailyReport from "./pages/MyWorkDailyReport";
 import DailyReportDashboard from "./pages/DailyReportDashboard";
 import PayrollPeriodDashboard from "./pages/PayrollPeriodDashboard";
 import WorkTimeLogs from "./pages/WorkTimeLogs";
@@ -94,13 +96,35 @@ const App = () => (
               }
             />
 
-            <Route path="/project-sites" element={<ProtectedRoute><ProjectSites /></ProtectedRoute>} />
+            <Route
+              path="/project-sites"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <ProjectSites />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/project-sites/:siteId"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <ProjectSiteDashboard />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+
             <Route path="/work-orders" element={<ProtectedRoute><WorkOrders /></ProtectedRoute>} />
             <Route path="/work-orders/:workOrderId" element={<ProtectedRoute><WorkOrderDashboard /></ProtectedRoute>} />
             <Route path="/daily-reports" element={<ProtectedRoute><DailyReports /></ProtectedRoute>} />
+            <Route path="/my-work" element={<ProtectedRoute><MyWork /></ProtectedRoute>} />
+            <Route path="/my-work/:workOrderId" element={<ProtectedRoute><MyWorkDailyReport /></ProtectedRoute>} />
             <Route path="/daily-reports/:reportId" element={<ProtectedRoute><DailyReportDashboard /></ProtectedRoute>} />
             <Route path="/work-time-logs" element={<ProtectedRoute><WorkTimeLogs /></ProtectedRoute>} />
-            <Route path="/project-sites/:siteId" element={<ProjectSiteDashboard />} />
             <Route path="/project-areas" element={<ProtectedRoute><ProjectAreas /></ProtectedRoute>} />
             <Route path="/workflow" element={<SystemWorkflow />} />
             <Route path="/job-manager" element={<JobManager />} />

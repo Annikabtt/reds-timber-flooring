@@ -40,10 +40,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </Avatar>
         </div>
 
-        <main className="flex-1 w-full max-w-none overflow-x-hidden bg-slate-50">
-          <div className="w-full px-3 py-4 md:px-6 md:py-6">
-            {children}
-          </div>
+        <main className="min-h-screen flex-1 w-full max-w-none overflow-x-hidden bg-slate-50">
+          {children}
         </main>
       </SidebarInset>
     </SidebarProvider>
