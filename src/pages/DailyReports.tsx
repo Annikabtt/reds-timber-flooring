@@ -2072,21 +2072,19 @@ const DailyReports = () => {
   };
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-50">
-              <CalendarDays className="h-6 w-6 text-red-600" />
-            </div>
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="rounded-xl bg-red-50 p-3 text-red-600">
+            <CalendarDays className="h-5 w-5" />
+          </div>
 
-            <div className="min-w-0">
-              <h1 className="text-2xl font-black leading-tight text-slate-900 md:text-3xl">
-                Daily Progress Review
-              </h1>
-              <p className="mt-0.5 text-sm text-slate-500">
-                Review daily work progress, worker reports, photos, issues, and approval status.
-              </p>
-            </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">
+              Daily Progress Review
+            </h1>
+            <p className="text-sm text-slate-500 md:text-base">
+              Review daily work progress, worker reports, photos, issues, and approval status.
+            </p>
           </div>
         </div>
 
@@ -2099,9 +2097,9 @@ const DailyReports = () => {
               setReportDate(new Date().toISOString().slice(0, 10));
               setShowAddDialog(true);
             }}
-            className="h-11 w-full rounded-xl bg-red-600 px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700 md:w-auto md:px-6"
+            className="ml-14 h-9 w-fit self-start rounded-xl bg-red-600 px-3 text-xs font-bold text-white shadow-sm transition-all hover:bg-red-700 md:ml-0 md:h-11 md:self-auto md:px-6 md:text-sm"
           >
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="mr-1.5 h-4 w-4 md:mr-2" />
             Add Report
           </Button>
         )}
@@ -2406,7 +2404,7 @@ const DailyReports = () => {
                 <div key={report.report_id}>
                   {/* Mobile card */}
                   <div className="space-y-4 border-b px-4 py-4 last:border-b-0 xl:hidden">
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-slate-900">
                           {report.report_date || "-"}
