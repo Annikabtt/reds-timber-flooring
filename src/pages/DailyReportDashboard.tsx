@@ -1718,16 +1718,27 @@ const DailyReportDashboard = () => {
     });
 
     const rejectDailyReport = useMutation({
-        mutationFn: async () => {
+        mutationFn: async (rejectReason: string) => {
             if (!reportId) {
                 throw new Error("Daily report ID is missing.");
             }
+
+            if (!rejectReason.trim()) {
+                throw new Error("Please enter a reject reason.");
+            }
+
+            const existingNotes = report?.notes?.trim();
+            const rejectionNote = `Rejected reason: ${rejectReason.trim()}`;
+            const updatedNotes = existingNotes
+                ? `${existingNotes}\n\n${rejectionNote}`
+                : rejectionNote;
 
             const { error } = await supabase
                 .from("daily_reports")
                 .update({
                     approval_status: "Rejected",
                     completed_quantity: report?.completed_quantity ?? 0,
+                    notes: updatedNotes,
                 })
                 .eq("report_id", reportId);
 
@@ -1939,7 +1950,7 @@ const DailyReportDashboard = () => {
                     )}
 
                     <Button
-                        onClick={() => setShowEditDialog(true)}
+                        onClick={() => navigate(`/daily-reports?editReportId=${report.report_id}`)}
                         className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
                     >
                         Edit Daily Report
@@ -2129,6 +2140,13 @@ const DailyReportDashboard = () => {
                             </div>
 
                             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                                <Button
+                                    onClick={() => navigate(`/daily-reports?editReportId=${report.report_id}`)}
+                                    className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
+                                >
+                                    Edit Daily Report
+                                </Button>
+
                                 {report.approval_status === "Submitted" && (
                                     <Button
                                         variant="outline"
@@ -2156,20 +2174,21 @@ const DailyReportDashboard = () => {
                                 {report.approval_status === "Ready for Inspection" && (
                                     <Button
                                         variant="outline"
-                                        onClick={() => rejectDailyReport.mutate()}
+                                        onClick={() => {
+                                            const rejectReason = window.prompt(
+                                                "Please enter the reason for rejecting this daily report."
+                                            );
+
+                                            if (!rejectReason) return;
+
+                                            rejectDailyReport.mutate(rejectReason);
+                                        }}
                                         disabled={rejectDailyReport.isPending}
                                         className="w-full sm:w-auto text-red-600 hover:text-red-700"
                                     >
                                         {rejectDailyReport.isPending ? "Rejecting..." : "Reject"}
                                     </Button>
                                 )}
-
-                                <Button
-                                    onClick={() => setShowEditDialog(true)}
-                                    className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
-                                >
-                                    Edit Daily Report
-                                </Button>
                             </div>
                         </div>
                     </div>

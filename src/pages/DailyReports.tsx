@@ -58,6 +58,9 @@ type AttendanceStatus =
   | "Training"
   | "Travel"
   | "Standby";
+
+type FormMode = "add" | "edit";
+
 type LabourRecord = {
   daily_report_worker_id: string;
   work_time_log_id: string;
@@ -212,8 +215,13 @@ const DailyReports = () => {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const workOrderIdFromUrl = searchParams.get("workOrderId");
+  const editReportIdFromUrl = searchParams.get("editReportId");
+
 
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [formMode, setFormMode] = useState<FormMode>("add");
+  const [editingReportId, setEditingReportId] = useState<string | null>(null);
+  const [editingApprovalStatus, setEditingApprovalStatus] = useState("");
   const [showWorkOrderDetails, setShowWorkOrderDetails] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterProjectId, setFilterProjectId] = useState("all");
@@ -317,6 +325,25 @@ const DailyReports = () => {
       0,
       0
     ).toISOString();
+  };
+
+  const timestampToTimeValue = (value: string | null | undefined) => {
+    if (!value) return "";
+
+    if (/^\d{2}:\d{2}$/.test(value)) {
+      return value;
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return "";
+    }
+
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+
+    return `${hours}:${minutes}`;
   };
 
   const addLabourRecord = () => {
@@ -659,20 +686,22 @@ const DailyReports = () => {
             worker_role,
             notes
           ),
-          work_time_logs (
-            work_time_log_id,
-            employee_id,
-            clock_in,
-            clock_out,
-            break_minutes,
-            regular_hours,
-            overtime_hours,
-            ot_start,
-            ot_finish,
-            ot_completed_quantity,
-            time_status,
-            notes
-          )
+        work_time_logs (
+          work_time_log_id,
+          employee_id,
+          activity_type_id,
+          clock_in,
+          clock_out,
+          break_minutes,
+          regular_hours,
+          overtime_hours,
+          ot_start,
+          ot_finish,
+          ot_completed_quantity,
+          time_status,
+          notes
+        )
+
         `)
         .eq("work_order_id", workOrderId)
         .eq("approval_status", "Draft")
@@ -982,9 +1011,174 @@ const DailyReports = () => {
     setSelectedActivityTypeIds([]);
     setLabourRecords([createEmptyLabourRecord()]);
     setActiveDraftReportId(null);
+    setFormMode("add");
+    setEditingReportId(null);
+    setEditingApprovalStatus("");
     setIsManualBackdatedEntry(false);
 
   };
+
+  const openEditDailyReport = async (reportId: string) => {
+    resetForm();
+
+    const { data: report, error } = await supabase
+      .from("daily_reports")
+      .select(`
+                report_id,
+        project_id,
+        site_id,
+        area_id,
+        work_order_id,
+        report_date,
+        weather_condition,
+        workers_count,
+        completed_quantity,
+        progress_percent,
+        approval_status,
+        issues_found,
+        notes,
+        daily_report_activities (
+          activity_type_id
+        ),
+        daily_report_workers (
+          daily_report_worker_id,
+          employee_id,
+          work_assignment_id,
+          replaces_work_assignment_id,
+          worker_source,
+          attendance_status,
+          activity_type_id,
+          regular_hours,
+          overtime_hours,
+          completed_quantity,
+          ot_start,
+          ot_finish,
+          ot_completed_quantity,
+          worker_role,
+          notes
+      )        
+      `)
+      .eq("report_id", reportId)
+      .eq("is_deleted", false)
+      .single();
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    const { data: loadedTimeLogs, error: timeLogsError } = await supabase
+      .from("work_time_logs")
+      .select(`
+        work_time_log_id,
+        employee_id,
+        clock_in,
+        clock_out,
+        break_minutes,
+        regular_hours,
+        overtime_hours,
+        ot_start,
+        ot_finish,
+        ot_completed_quantity,
+        time_status,
+        notes
+      `)
+      .eq("report_id", reportId)
+      .eq("is_deleted", false);
+
+    if (timeLogsError) {
+      toast.error(timeLogsError.message);
+      return;
+    }
+
+    setFormMode("edit");
+    setEditingReportId(report.report_id);
+    setEditingApprovalStatus(report.approval_status || "Submitted");
+    setActiveDraftReportId(report.report_id);
+
+    setProjectId(report.project_id || "");
+    setSiteId(report.site_id || "");
+    setAreaId(report.area_id || "");
+    setWorkOrderId(report.work_order_id || "");
+    setReportDate(report.report_date || new Date().toISOString().slice(0, 10));
+    setWeatherCondition(report.weather_condition || "Fine");
+    setWorkersCount(String(report.workers_count ?? ""));
+    setCompletedQuantity(String(report.completed_quantity ?? ""));
+    setProgressPercent(String(report.progress_percent ?? ""));
+    setIssuesFound(report.issues_found || "");
+    setNotes(report.notes || "");
+
+    setSelectedActivityTypeIds(
+      (report.daily_report_activities || [])
+        .map((activity) => activity.activity_type_id)
+        .filter(Boolean)
+    );
+
+    const reportWorkers = report.daily_report_workers || [];
+    const timeLogs = loadedTimeLogs || [];
+
+    const loadedLabourRecords = reportWorkers.map((worker) => {
+      const matchedTimeLog = timeLogs.find(
+        (timeLog) => timeLog.employee_id === worker.employee_id
+      );
+
+      return calculateLabourTime({
+        ...createEmptyLabourRecord(),
+        daily_report_worker_id: worker.daily_report_worker_id || "",
+        work_time_log_id: matchedTimeLog?.work_time_log_id || "",
+        employee_id: worker.employee_id || "",
+        work_assignment_id: worker.work_assignment_id || "",
+        replaces_work_assignment_id:
+          worker.replaces_work_assignment_id || "",
+        worker_source: (worker.worker_source || "Additional") as WorkerSource,
+        attendance_status:
+          (worker.attendance_status || "Present") as AttendanceStatus,
+        activity_type_id: worker.activity_type_id || "",
+        clock_in: timestampToTimeValue(matchedTimeLog?.clock_in),
+        clock_out: timestampToTimeValue(matchedTimeLog?.clock_out),
+        break_minutes: String(matchedTimeLog?.break_minutes ?? "60"),
+        ot_start: timestampToTimeValue(
+          matchedTimeLog?.ot_start || worker.ot_start
+        ),
+        ot_finish: timestampToTimeValue(
+          matchedTimeLog?.ot_finish || worker.ot_finish
+        ),
+        time_status:
+          (matchedTimeLog?.time_status || "Pending") as TimeStatus,
+        regular_hours: String(
+          matchedTimeLog?.regular_hours ?? worker.regular_hours ?? "0"
+        ),
+        overtime_hours: String(
+          matchedTimeLog?.overtime_hours ?? worker.overtime_hours ?? "0"
+        ),
+        completed_quantity: String(worker.completed_quantity ?? "0"),
+        ot_completed_quantity: String(
+          matchedTimeLog?.ot_completed_quantity ??
+          worker.ot_completed_quantity ??
+          "0"
+        ),
+        worker_role: worker.worker_role || "",
+        notes: worker.notes || matchedTimeLog?.notes || "",
+      });
+    });
+
+    setLabourRecords(
+      loadedLabourRecords.length > 0
+        ? loadedLabourRecords
+        : [createEmptyLabourRecord()]
+    );
+
+    setOpenWorkerCardIndexes([0]);
+    setOpenOvertimeCardIndexes([]);
+    setPendingPhotos([]);
+    setShowAddDialog(true);
+  };
+
+  useEffect(() => {
+    if (!editReportIdFromUrl) return;
+
+    openEditDailyReport(editReportIdFromUrl);
+  }, [editReportIdFromUrl]);
 
   const startDraftReport = useMutation({
     mutationFn: async ({
@@ -1267,13 +1461,13 @@ const DailyReports = () => {
       const { error: timeLogUpdateError } = await supabase
         .from("work_time_logs")
         .update({
-          clock_in: updatedRecord.clock_in || null,
-          clock_out: updatedRecord.clock_out || null,
+          clock_in: combineReportDateAndTime(reportDate, updatedRecord.clock_in),
+          clock_out: combineReportDateAndTime(reportDate, updatedRecord.clock_out),
           break_minutes: Number(updatedRecord.break_minutes || 0),
           regular_hours: Number(updatedRecord.regular_hours || 0),
           overtime_hours: Number(updatedRecord.overtime_hours || 0),
-          ot_start: updatedRecord.ot_start || null,
-          ot_finish: updatedRecord.ot_finish || null,
+          ot_start: combineReportDateAndTime(reportDate, updatedRecord.ot_start),
+          ot_finish: combineReportDateAndTime(reportDate, updatedRecord.ot_finish),
           ot_completed_quantity: Number(updatedRecord.ot_completed_quantity || 0),
           time_status: updatedRecord.time_status,
           notes:
@@ -1343,7 +1537,7 @@ const DailyReports = () => {
         throw new Error("Please add at least one worker.");
       }
 
-      if (timeLogWorkers.length === 0) {
+      if (formMode !== "edit" && timeLogWorkers.length === 0) {
         throw new Error(
           "Please add at least one present worker with activity, check in, and check out."
         );
@@ -1354,7 +1548,7 @@ const DailyReports = () => {
         throw new Error("Completed Quantity Today cannot be negative.");
       }
 
-      
+
       const progress = progressPercent ? Number(progressPercent) : null;
 
       if (progress !== null && (progress < 0 || progress > 100)) {
@@ -1404,8 +1598,14 @@ const DailyReports = () => {
           .update({
             report_date: reportDate,
             weather_condition: weatherCondition || null,
-            workers_count: new Set(timeLogWorkers.map((record) => record.employee_id)).size,
-            approval_status: "Submitted",
+            workers_count:
+              formMode === "edit"
+                ? new Set(dailyReportWorkers.map((record) => record.employee_id)).size
+                : new Set(timeLogWorkers.map((record) => record.employee_id)).size,
+            approval_status:
+              formMode === "edit"
+                ? editingApprovalStatus || "Submitted"
+                : "Submitted",
             progress_percent: progress,
             completed_quantity: completedToday,
             work_completed: workCompleted.trim() || null,
@@ -1566,13 +1766,13 @@ const DailyReports = () => {
                 activity_type_id: record.activity_type_id,
                 attendance_status: record.attendance_status,
                 worker_source: record.worker_source,
-                clock_in: record.clock_in || null,
-                clock_out: record.clock_out || null,
+                clock_in: combineReportDateAndTime(reportDate, record.clock_in),
+                clock_out: combineReportDateAndTime(reportDate, record.clock_out),
                 break_minutes: Number(record.break_minutes || 0),
                 regular_hours: Number(record.regular_hours || 0),
                 overtime_hours: Number(record.overtime_hours || 0),
-                ot_start: record.ot_start || null,
-                ot_finish: record.ot_finish || null,
+                ot_start: combineReportDateAndTime(reportDate, record.ot_start),
+                ot_finish: combineReportDateAndTime(reportDate, record.ot_finish),
                 ot_completed_quantity: Number(record.ot_completed_quantity || 0),
                 time_status: record.time_status,
                 notes:
@@ -1660,6 +1860,7 @@ const DailyReports = () => {
       }
 
       return {
+        reportId: finalReportId,
         uploadedPhotoCount,
         failedPhotoCount,
       };
@@ -1667,12 +1868,19 @@ const DailyReports = () => {
     },
     onSuccess: (result) => {
 
+      queryClient.invalidateQueries({ queryKey: ["daily_report", result.reportId] });
+      queryClient.invalidateQueries({ queryKey: ["linked_work_time_logs", result.reportId] });
+
       if (result.failedPhotoCount > 0) {
         toast.warning(
           `Daily report saved. ${result.uploadedPhotoCount} photo(s) uploaded, ${result.failedPhotoCount} failed.`
         );
       } else {
-        toast.success("Daily report submitted and time logs created for review.");
+        toast.success(
+          formMode === "edit"
+            ? "Daily report updated successfully."
+            : "Daily report submitted and time logs created for review."
+        );
       }
       queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
       queryClient.invalidateQueries({
@@ -1885,6 +2093,9 @@ const DailyReports = () => {
         {userCanManageWorkers && (
           <Button
             onClick={() => {
+              resetForm();
+              setFormMode("add");
+              setEditingReportId(null);
               setReportDate(new Date().toISOString().slice(0, 10));
               setShowAddDialog(true);
             }}
@@ -2471,7 +2682,7 @@ const DailyReports = () => {
         <DialogContent className="max-h-[92vh] w-[calc(100vw-24px)] max-w-4xl overflow-y-auto rounded-2xl p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-slate-900">
-              Add Daily Report
+              {formMode === "edit" ? "Edit Daily Report" : "Add Daily Report"}
             </DialogTitle>
           </DialogHeader>
 
