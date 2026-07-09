@@ -20,7 +20,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <AppSidebar />
 
       <SidebarInset>
-        <div className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-white px-3 shadow-sm md:hidden">
+        <div className="print:hidden sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-white px-3 shadow-sm md:hidden">
           <div className="flex min-w-0 items-center gap-2">
             <SidebarTrigger className="h-10 w-10 shrink-0 rounded-xl border bg-white" />
             <div className="min-w-0">

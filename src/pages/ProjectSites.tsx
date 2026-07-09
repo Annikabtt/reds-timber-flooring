@@ -6,6 +6,8 @@ import {
   Search,
   Phone,
   Eye,
+  Pencil,
+  PowerOff,
   Trash2,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -599,7 +601,7 @@ const ProjectSites = () => {
                   </div>
 
                   <div className="col-span-1 flex flex-wrap justify-end gap-2 print:hidden">
-                    <Button asChild size="sm" variant="outline">
+                    <Button asChild size="sm" variant="outline" title="View site">
                       <Link to={`/project-sites/${site.site_id}`}>
                         <Eye className="h-4 w-4" />
                       </Link>
@@ -609,7 +611,10 @@ const ProjectSites = () => {
                       size="sm"
                       variant="outline"
                       onClick={() => openEditSite(site)}
+                      title="Edit site"
+                      className="gap-2"
                     >
+                      <Pencil className="h-4 w-4" />
                       Edit
                     </Button>
 
@@ -618,7 +623,10 @@ const ProjectSites = () => {
                       variant="outline"
                       onClick={() => inactiveSite.mutate(site.site_id)}
                       disabled={inactiveSite.isPending || !site.is_active}
+                      title="Mark inactive"
+                      className="gap-2"
                     >
+                      <PowerOff className="h-4 w-4" />
                       Inactive
                     </Button>
 
@@ -631,7 +639,6 @@ const ProjectSites = () => {
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
-
                   </div>
                 </div>
               );
@@ -736,6 +743,7 @@ const ProjectSites = () => {
                       variant="outline"
                       onClick={() => inactiveSite.mutate(site.site_id)}
                       disabled={inactiveSite.isPending || !site.is_active}
+                      className="gap-2"
                     >
                       Inactive
                     </Button>
@@ -746,6 +754,7 @@ const ProjectSites = () => {
                       onClick={() => deleteSite.mutate(site.site_id)}
                       disabled={deleteSite.isPending}
                       title="Delete site"
+                      className="gap-2"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

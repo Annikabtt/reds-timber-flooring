@@ -289,6 +289,36 @@ const DailyReports = () => {
     return `${hours}:${minutes}`;
   };
 
+  const combineReportDateAndTime = (
+    dateValue: string,
+    timeValue: string | null | undefined
+  ) => {
+    if (!dateValue || !timeValue) return null;
+
+    const [year, month, day] = dateValue.split("-").map(Number);
+    const [hour, minute] = timeValue.split(":").map(Number);
+
+    if (
+      Number.isNaN(year) ||
+      Number.isNaN(month) ||
+      Number.isNaN(day) ||
+      Number.isNaN(hour) ||
+      Number.isNaN(minute)
+    ) {
+      return null;
+    }
+
+    return new Date(
+      year,
+      month - 1,
+      day,
+      hour,
+      minute,
+      0,
+      0
+    ).toISOString();
+  };
+
   const addLabourRecord = () => {
     setLabourRecords((prev) => {
       const nextIndex = prev.length;
@@ -1062,10 +1092,10 @@ const DailyReports = () => {
           regular_hours: Number(checkedInRecord.regular_hours || 0),
           overtime_hours: Number(checkedInRecord.overtime_hours || 0),
           break_minutes: Number(checkedInRecord.break_minutes || 0),
-          clock_in: checkedInRecord.clock_in || null,
+          clock_in: combineReportDateAndTime(reportDate, checkedInRecord.clock_in),
           clock_out: null,
-          ot_start: checkedInRecord.ot_start || null,
-          ot_finish: checkedInRecord.ot_finish || null,
+          ot_start: combineReportDateAndTime(reportDate, checkedInRecord.ot_start),
+          ot_finish: combineReportDateAndTime(reportDate, checkedInRecord.ot_finish),
           ot_completed_quantity: Number(checkedInRecord.ot_completed_quantity || 0),
           approved: false,
           time_status: checkedInRecord.time_status,
@@ -1153,12 +1183,12 @@ const DailyReports = () => {
       const { error: timeLogUpdateError } = await supabase
         .from("work_time_logs")
         .update({
-          clock_out: checkedOutRecord.clock_out || null,
+          clock_out: combineReportDateAndTime(reportDate, checkedOutRecord.clock_out),
           regular_hours: Number(checkedOutRecord.regular_hours || 0),
           overtime_hours: Number(checkedOutRecord.overtime_hours || 0),
           break_minutes: Number(checkedOutRecord.break_minutes || 0),
-          ot_start: checkedOutRecord.ot_start || null,
-          ot_finish: checkedOutRecord.ot_finish || null,
+          ot_start: combineReportDateAndTime(reportDate, checkedOutRecord.ot_start),
+          ot_finish: combineReportDateAndTime(reportDate, checkedOutRecord.ot_finish),
           ot_completed_quantity: Number(
             checkedOutRecord.ot_completed_quantity || 0
           ),
@@ -1324,16 +1354,7 @@ const DailyReports = () => {
         throw new Error("Completed Quantity Today cannot be negative.");
       }
 
-      if (
-        completedToday === 0 &&
-        !issuesFound.trim() &&
-        !notes.trim()
-      ) {
-        throw new Error(
-          "Please enter Issues Found or Notes when Completed Quantity Today is 0."
-        );
-      }
-
+      
       const progress = progressPercent ? Number(progressPercent) : null;
 
       if (progress !== null && (progress < 0 || progress > 100)) {
@@ -1341,6 +1362,41 @@ const DailyReports = () => {
       }
 
       let finalReportId = activeDraftReportId;
+
+      if (!finalReportId) {
+        const duplicateEmployeeIds = normalizedDailyReportWorkers
+          .map((record) => record.employee_id)
+          .filter(Boolean);
+
+        if (duplicateEmployeeIds.length > 0) {
+          const { data: existingReportWorkers, error: duplicateCheckError } =
+            await supabase
+              .from("daily_report_workers")
+              .select(`
+          daily_report_worker_id,
+          employee_id,
+          daily_reports!inner (
+            report_id,
+            work_order_id,
+            report_date,
+            approval_status,
+            is_deleted
+          )
+        `)
+              .in("employee_id", duplicateEmployeeIds)
+              .eq("daily_reports.work_order_id", workOrderId)
+              .eq("daily_reports.report_date", reportDate)
+              .eq("daily_reports.is_deleted", false);
+
+          if (duplicateCheckError) throw duplicateCheckError;
+
+          if (existingReportWorkers && existingReportWorkers.length > 0) {
+            throw new Error(
+              "A daily report already exists for this worker, work order, and report date. Please open the existing report instead of creating a duplicate."
+            );
+          }
+        }
+      }
 
       if (finalReportId) {
         const { error: updateReportError } = await supabase
@@ -1458,10 +1514,10 @@ const DailyReports = () => {
           regular_hours: Number(record.regular_hours || 0),
           overtime_hours: Number(record.overtime_hours || 0),
           break_minutes: Number(record.break_minutes || 0),
-          clock_in: record.clock_in || null,
-          clock_out: record.clock_out || null,
-          ot_start: record.ot_start || null,
-          ot_finish: record.ot_finish || null,
+          clock_in: combineReportDateAndTime(reportDate, record.clock_in),
+          clock_out: combineReportDateAndTime(reportDate, record.clock_out),
+          ot_start: combineReportDateAndTime(reportDate, record.ot_start),
+          ot_finish: combineReportDateAndTime(reportDate, record.ot_finish),
           ot_completed_quantity: Number(record.ot_completed_quantity || 0),
           approved: false,
           time_status: record.time_status,
@@ -2482,17 +2538,31 @@ const DailyReports = () => {
               )}
 
               <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-red-600">
-                  Work Order
-                </p>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-red-600">
+                      Project
+                    </p>
+                    <p className="mt-1 text-lg font-black text-slate-900">
+                      {selectedProject?.project_name || "-"}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-800">
+                      {selectedSite?.site_name || "-"}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-700">
+                      {selectedArea?.area_name || "-"}
+                    </p>
+                  </div>
 
-                <p className="mt-1 text-2xl font-black text-slate-900">
-                  {selectedWorkOrderForForm?.work_order_no || "-"}
-                </p>
-
-                <p className="mt-2 text-base font-bold text-slate-900">
-                  {selectedWorkOrderForForm?.title || "-"}
-                </p>
+                  <div className="shrink-0 text-left sm:text-right">
+                    <p className="text-xl font-black text-slate-900">
+                      {selectedWorkOrderForForm?.work_order_no || "-"}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-800">
+                      {selectedWorkOrderForForm?.title || "-"}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2">

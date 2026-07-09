@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ClipboardList, Plus, Search } from "lucide-react";
+import { ClipboardList, Eye, Pencil, Plus, Search } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select";
 import { toast } from "sonner";
+import MobileWorkOrderCard from "@/components/mobile/MobileWorkOrderCard";
 
 const WorkOrders = () => {
   const getStatusBadgeClass = (status: string | null) => {
@@ -21,6 +22,12 @@ const WorkOrders = () => {
         return "bg-blue-100 text-blue-700 border-blue-200";
       case "In Progress":
         return "bg-orange-100 text-orange-700 border-orange-200";
+      case "Ready for Inspection":
+        return "bg-purple-100 text-purple-700 border-purple-200";
+      case "Inspection":
+        return "bg-yellow-100 text-yellow-700 border-yellow-200";
+      case "Approved Completion":
+        return "bg-emerald-100 text-emerald-700 border-emerald-200";
       case "Completed":
         return "bg-green-100 text-green-700 border-green-200";
       case "Cancelled":
@@ -53,7 +60,7 @@ const WorkOrders = () => {
   const [projectId, setProjectId] = useState("");
   const [siteId, setSiteId] = useState("");
   const [areaId, setAreaId] = useState("");
-  const [workOrderNo, setWorkOrderNo] = useState("");
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("Normal");
@@ -62,6 +69,8 @@ const WorkOrders = () => {
     new Date().toISOString().split("T")[0]
   );
   const [plannedEndDate, setPlannedEndDate] = useState("");
+  const [actualStartDate, setActualStartDate] = useState("");
+  const [actualEndDate, setActualEndDate] = useState("");
   const [notes, setNotes] = useState("");
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [workerSearchTerm, setWorkerSearchTerm] = useState("");
@@ -234,12 +243,34 @@ work_assignments (
   }, [sites, projectId]);
 
   const filteredWorkers = useMemo(() => {
-    return [...employees].sort((a, b) => {
-      const aCode = a.employee_code || "";
-      const bCode = b.employee_code || "";
-      return aCode.localeCompare(bCode);
-    });
-  }, [employees]);
+    const keyword = workerSearchTerm.toLowerCase().trim();
+
+    if (keyword.length < 2) {
+      return [];
+    }
+
+    return [...employees]
+      .filter((employee) => {
+        if (selectedEmployeeIds.includes(employee.employee_id)) {
+          return false;
+        }
+
+        const employeeName =
+          employee.display_name ||
+          `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
+
+        return (
+          employee.employee_code?.toLowerCase().includes(keyword) ||
+          employeeName.toLowerCase().includes(keyword)
+        );
+      })
+      .sort((a, b) => {
+        const aCode = a.employee_code || "";
+        const bCode = b.employee_code || "";
+        return aCode.localeCompare(bCode);
+      })
+      .slice(0, 10);
+  }, [employees, workerSearchTerm, selectedEmployeeIds]);
 
   const filteredAreas = useMemo(() => {
     return areas.filter(
@@ -251,15 +282,17 @@ work_assignments (
     setProjectId("");
     setSiteId("");
     setAreaId("");
-    setWorkOrderNo("");
     setTitle("");
     setDescription("");
     setPriority("Normal");
     setStatus("Open");
     setPlannedStartDate(new Date().toISOString().split("T")[0]);
     setPlannedEndDate("");
-    setSelectedEmployeeIds([]);
+    setActualStartDate("");
+    setActualEndDate("");
+    setNotes("");
     setWorkerSearchTerm("");
+    setSelectedEmployeeIds([]);
   };
 
   const createWorkOrder = useMutation({
@@ -283,7 +316,7 @@ work_assignments (
       const { data: newWorkOrder, error } = await supabase
         .from("work_orders")
         .insert({
-          work_order_no: workOrderNo.trim() || undefined,
+
           project_id: projectId,
           site_id: siteId,
           area_id: areaId || null,
@@ -293,6 +326,8 @@ work_assignments (
           status,
           planned_start_date: plannedStartDate || null,
           planned_end_date: plannedEndDate || null,
+          actual_start_date: actualStartDate || null,
+          actual_end_date: actualEndDate || null,
           notes: notes.trim() || null,
           is_deleted: false,
         })
@@ -351,7 +386,7 @@ work_assignments (
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-3">
             <ClipboardList className="h-8 w-8 text-red-600" />
@@ -366,7 +401,7 @@ work_assignments (
 
         <Button
           onClick={() => setShowAddDialog(true)}
-          className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-xl shadow-lg shadow-red-200 transition-all flex items-center gap-2"
+          className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-xl shadow-lg shadow-red-200 transition-all flex items-center justify-center gap-2"
         >
           <Plus className="h-5 w-5" />
           Add Work Order
@@ -385,7 +420,29 @@ work_assignments (
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="space-y-3 md:hidden">
+        {filteredWorkOrders.length === 0 ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-slate-500">
+            No work orders found.
+          </div>
+        ) : (
+          filteredWorkOrders.map((workOrder) => (
+            <MobileWorkOrderCard
+              key={workOrder.work_order_id}
+              workOrder={workOrder}
+              progress={areaProgressMap.get(workOrder.area_id)}
+              getPriorityBadgeClass={getPriorityBadgeClass}
+              getStatusBadgeClass={getStatusBadgeClass}
+              onView={() => navigate(`/work-orders/${workOrder.work_order_id}`)}
+              onEdit={() =>
+                navigate(`/work-orders/${workOrder.work_order_id}?edit=1`)
+              }
+            />
+          ))
+        )}
+      </div>
+
+      <div className="hidden bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden md:block">
         <div className="grid grid-cols-12 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500 px-4 py-3 border-b">
           <div className="col-span-2">Work Order</div>
           <div className="col-span-2">Project</div>
@@ -473,8 +530,13 @@ work_assignments (
                 </Badge>
               </div>
 
-              <div className="col-span-1 text-slate-700">
-                {workOrder.status || "-"}
+              <div className="col-span-1">
+                <Badge
+                  variant="outline"
+                  className={getStatusBadgeClass(workOrder.status)}
+                >
+                  {workOrder.status || "-"}
+                </Badge>
               </div>
 
               <div className="col-span-1 text-xs text-slate-700">
@@ -498,22 +560,48 @@ work_assignments (
                   );
                 })()}
               </div>
-              <div className="col-span-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate(`/work-orders/${workOrder.work_order_id}`)}
-                >
-                  View
-                </Button>
+
+              <div className="col-span-1 flex items-start justify-center">
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title="View work order"
+                    onClick={() => navigate(`/work-orders/${workOrder.work_order_id}`)}
+                    className="h-8 w-8"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title="Edit work order"
+                    onClick={() => navigate(`/work-orders/${workOrder.work_order_id}?edit=1`)}
+                    className="h-8 w-8"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           ))
         )}
       </div>
 
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <Dialog
+        open={showAddDialog}
+        onOpenChange={(open) => {
+          setShowAddDialog(open);
+
+          if (!open) {
+            resetForm();
+          }
+        }}
+      >
+        <DialogContent className="max-h-[92vh] w-[calc(100vw-1rem)] max-w-3xl overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>Add Work Order</DialogTitle>
           </DialogHeader>
@@ -528,10 +616,9 @@ work_assignments (
                   Select the project location and basic work information.
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-              </div>
+
             </div>
-            <div className="col-span-2 space-y-2">
+            <div className="md:col-span-2 space-y-2">
               <Label>Project *</Label>
               <Select
                 value={projectId}
@@ -544,13 +631,14 @@ work_assignments (
                 <SelectTrigger>
                   <SelectValue placeholder="Select project" />
                 </SelectTrigger>
+
                 <SelectContent>
                   {projects.map((project) => (
                     <SelectItem
                       key={project.project_id}
                       value={project.project_id}
                     >
-                      {project.project_no || "-"} - {project.project_name}
+                      {project.project_no || "-"} - {project.project_name || "-"}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -608,75 +696,138 @@ work_assignments (
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Work Order No</Label>
-              <Input
-                value={workOrderNo}
-                onChange={(e) => setWorkOrderNo(e.target.value)}
-                placeholder="WO2606-00001"
-              />
+            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3">
+              <p className="text-sm font-medium text-slate-700">Work Order No</p>
+              <p className="mt-1 text-sm text-slate-500">
+                Auto generated when saved. Example: WO2607-00001
+              </p>
             </div>
 
             <div className="space-y-2">
-              <Label>Title *</Label>
-              <Input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Install timber flooring"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Priority</Label>
-              <Select value={priority} onValueChange={setPriority}>
+              <Label>Work Order Title *</Label>
+              <Select value={title} onValueChange={setTitle}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select priority" />
+                  <SelectValue placeholder="Select work order title" />
                 </SelectTrigger>
+
                 <SelectContent>
-                  <SelectItem value="Low">Low</SelectItem>
-                  <SelectItem value="Normal">Normal</SelectItem>
-                  <SelectItem value="High">High</SelectItem>
-                  <SelectItem value="Urgent">Urgent</SelectItem>
+                  <SelectItem value="Install timber flooring">
+                    Install timber flooring
+                  </SelectItem>
+                  <SelectItem value="Floor preparation">
+                    Floor preparation
+                  </SelectItem>
+                  <SelectItem value="Subfloor levelling">
+                    Subfloor levelling
+                  </SelectItem>
+                  <SelectItem value="Skirting installation">
+                    Skirting installation
+                  </SelectItem>
+                  <SelectItem value="Stair nosing installation">
+                    Stair nosing installation
+                  </SelectItem>
+                  <SelectItem value="Floor sanding">
+                    Floor sanding
+                  </SelectItem>
+                  <SelectItem value="Floor coating">
+                    Floor coating
+                  </SelectItem>
+                  <SelectItem value="Defect rectification">
+                    Defect rectification
+                  </SelectItem>
+                  <SelectItem value="Site clean up">
+                    Site clean up
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Open">Open</SelectItem>
-                  <SelectItem value="Assigned">Assigned</SelectItem>
-                  <SelectItem value="In Progress">In Progress</SelectItem>
-                  <SelectItem value="Completed">Completed</SelectItem>
-                  <SelectItem value="Cancelled">Cancelled</SelectItem>
-                  <SelectItem value="In Progress">In Progress</SelectItem>
-                  <SelectItem value="On Hold">On Hold</SelectItem>
-                  <SelectItem value="Completed">Completed</SelectItem>
-                  <SelectItem value="Cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Priority</Label>
+                <Select value={priority} onValueChange={setPriority}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Low">Low</SelectItem>
+                    <SelectItem value="Normal">Normal</SelectItem>
+                    <SelectItem value="High">High</SelectItem>
+                    <SelectItem value="Urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Open">Open</SelectItem>
+                    <SelectItem value="Assigned">Assigned</SelectItem>
+                    <SelectItem value="In Progress">In Progress</SelectItem>
+                    <SelectItem value="Ready for Inspection">
+                      Ready for Inspection
+                    </SelectItem>
+                    <SelectItem value="Inspection">Inspection</SelectItem>
+                    <SelectItem value="Approved Completion">
+                      Approved Completion
+                    </SelectItem>
+                    <SelectItem value="Completed">Completed</SelectItem>
+                    <SelectItem value="Cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Planned Start Date</Label>
-              <Input
-                type="date"
-                value={plannedStartDate}
-                onChange={(e) => setPlannedStartDate(e.target.value)}
-              />
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Planned Start Date</Label>
+                <Input
+                  type="date"
+                  value={plannedStartDate}
+                  onChange={(e) => setPlannedStartDate(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Planned End Date</Label>
+                <Input
+                  type="date"
+                  value={plannedEndDate}
+                  onChange={(e) => setPlannedEndDate(e.target.value)}
+                />
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Planned End Date</Label>
-              <Input
-                type="date"
-                value={plannedEndDate}
-                onChange={(e) => setPlannedEndDate(e.target.value)}
-              />
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Actual Start Date</Label>
+                <Input
+                  type="date"
+                  value={actualStartDate}
+                  readOnly
+                  className="bg-slate-50 text-slate-500"
+                />
+                <p className="text-xs text-slate-500">
+                  Actual start date is recorded from real work activity.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Actual End Date</Label>
+                <Input
+                  type="date"
+                  value={actualEndDate}
+                  readOnly
+                  className="bg-slate-50 text-slate-500"
+                />
+                <p className="text-xs text-slate-500">
+                  Actual end date is recorded when the work order is completed.
+                </p>
+              </div>
             </div>
           </div>
 
@@ -686,52 +837,58 @@ work_assignments (
                 Worker Assignment
               </h3>
               <p className="text-xs text-slate-500">
-                Select workers who will be assigned after this work order is saved.
+                Search and select workers who will be assigned after this work order is saved.
               </p>
             </div>
-          </div>
 
-          <div className="space-y-3">
-            <Label>Assign Workers to this Work Order</Label>
+            <div className="space-y-2">
+              <Label>Search Workers</Label>
+              <Input
+                value={workerSearchTerm}
+                onChange={(e) => setWorkerSearchTerm(e.target.value)}
+                placeholder="Type at least 2 characters to search workers..."
+              />
+            </div>
 
-            <Select
-              key={selectedEmployeeIds.join("-")}
-              onValueChange={(employeeId) => {
-                if (!selectedEmployeeIds.includes(employeeId)) {
-                  setSelectedEmployeeIds((current) => [...current, employeeId]);
-                }
-              }}
-
-            >
-
-              <SelectTrigger>
-                <SelectValue placeholder="Select worker" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredWorkers
-                  .filter((employee) => !selectedEmployeeIds.includes(employee.employee_id))
-                  .map((employee) => {
+            {workerSearchTerm.trim().length >= 2 && (
+              <div className="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2">
+                {filteredWorkers.length === 0 ? (
+                  <p className="px-2 py-3 text-sm text-slate-500">
+                    No matching workers found.
+                  </p>
+                ) : (
+                  filteredWorkers.map((employee) => {
                     const employeeName =
                       employee.display_name ||
                       `${employee.first_name || ""} ${employee.last_name || ""}`.trim() ||
-                      employee.employee_code;
+                      employee.employee_code ||
+                      "-";
 
                     return (
-                      <SelectItem
+                      <button
                         key={employee.employee_id}
-                        value={employee.employee_id}
+                        type="button"
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left transition hover:bg-slate-100"
+                        onClick={() => {
+                          setSelectedEmployeeIds((current) => [
+                            ...current,
+                            employee.employee_id,
+                          ]);
+                          setWorkerSearchTerm("");
+                        }}
                       >
-                        {employee.employee_code || "-"} - {employeeName}
-                      </SelectItem>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">
+                            {employee.employee_code || "-"} - {employeeName}
+                          </p>
+                          <p className="text-xs text-slate-500">Tap to assign</p>
+                        </div>
+                      </button>
                     );
-                  })}
-              </SelectContent>
-
-            </Select>
-
-            <p className="text-xs text-slate-500">
-              Workers already selected are hidden from this list.
-            </p>
+                  })
+                )}
+              </div>
+            )}
 
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
               <p className="text-sm font-semibold text-slate-900">
@@ -776,7 +933,7 @@ work_assignments (
                           className="text-orange-600 hover:text-orange-700"
                           onClick={() =>
                             setSelectedEmployeeIds((current) =>
-                              current.filter((id) => id !== employeeId)
+                              current.filter((item) => item !== employeeId)
                             )
                           }
                         >
@@ -787,17 +944,16 @@ work_assignments (
                   })}
                 </div>
               )}
-
             </div>
           </div>
 
           <div className="space-y-3">
             <div className="border-b pb-2">
               <h3 className="text-sm font-bold text-slate-900">
-                Additional Information
+                Work Instructions
               </h3>
               <p className="text-xs text-slate-500">
-                Add work details, notes, or instructions for the team.
+                Add the work scope, site instructions, and internal notes for this work order.
               </p>
             </div>
 
@@ -807,7 +963,11 @@ work_assignments (
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
+                placeholder="Describe the work scope, installation area, or job requirements."
               />
+              <p className="text-xs text-slate-500">
+                This should explain what work needs to be completed.
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -816,18 +976,23 @@ work_assignments (
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
+                placeholder="Add internal notes, access instructions, safety notes, or special conditions."
               />
-
+              <p className="text-xs text-slate-500">
+                Use notes for information that supports the team but is not the main work scope.
+              </p>
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
+          <div className="flex flex-col-reverse gap-3 pt-4 sm:flex-row sm:justify-end">
             <Button
+              type="button"
               variant="outline"
               onClick={() => {
                 setShowAddDialog(false);
                 resetForm();
               }}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
@@ -835,7 +1000,7 @@ work_assignments (
             <Button
               onClick={() => createWorkOrder.mutate()}
               disabled={createWorkOrder.isPending}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="w-full bg-red-600 text-white hover:bg-red-700 sm:w-auto"
             >
               {createWorkOrder.isPending ? "Saving..." : "Save Work Order"}
             </Button>

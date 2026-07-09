@@ -1,6 +1,6 @@
 import { ArrowLeft, ClipboardList } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -121,11 +121,18 @@ const WorkOrderDashboard = () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const { workOrderId } = useParams();
+    const [searchParams, setSearchParams] = useSearchParams();
 
     const [showEditDialog, setShowEditDialog] = useState(false);
     const [showAssignWorkerDialog, setShowAssignWorkerDialog] = useState(false);
     const [selectedWorkerId, setSelectedWorkerId] = useState("");
     const [workerSearchTerm, setWorkerSearchTerm] = useState("");
+    const [editProjectId, setEditProjectId] = useState("");
+    const [editSiteId, setEditSiteId] = useState("");
+    const [editAreaId, setEditAreaId] = useState("");
+    const [editWorkOrderNo, setEditWorkOrderNo] = useState("");
+    const [editWorkOrderTitle, setEditWorkOrderTitle] = useState("");
+    const [editDescription, setEditDescription] = useState("");
     const [editPriority, setEditPriority] = useState("Normal");
     const [editStatus, setEditStatus] = useState("Open");
     const [editPlannedStartDate, setEditPlannedStartDate] = useState("");
@@ -193,6 +200,78 @@ const WorkOrderDashboard = () => {
         },
     });
 
+    const { data: projects = [] } = useQuery({
+        queryKey: ["projects-for-work-order-edit"],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("projects")
+                .select(`
+                    project_id,
+                    project_no,
+                    project_name,
+                    customers (
+                        customer_name
+                    )
+                `)
+                .eq("is_deleted", false)
+                .order("created_at", { ascending: false });
+
+            if (error) throw error;
+            return data;
+        },
+    });
+
+    const { data: sites = [] } = useQuery({
+        queryKey: ["sites-for-work-order-edit"],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("project_sites")
+                .select(`
+                    site_id,
+                    project_id,
+                    site_code,
+                    site_name
+                `)
+                .eq("is_deleted", false)
+                .eq("is_active", true)
+                .order("created_at", { ascending: false });
+
+            if (error) throw error;
+            return data;
+        },
+    });
+
+    const { data: areas = [] } = useQuery({
+        queryKey: ["areas-for-work-order-edit"],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("project_areas")
+                .select(`
+                    area_id,
+                    project_id,
+                    site_id,
+                    area_code,
+                    area_name
+                `)
+                .eq("is_deleted", false)
+                .eq("is_active", true)
+                .order("created_at", { ascending: false });
+
+            if (error) throw error;
+            return data;
+        },
+    });
+
+    const filteredEditSites = sites.filter(
+        (site) => site.project_id === editProjectId
+    );
+
+    const filteredEditAreas = areas.filter(
+        (area) =>
+            area.project_id === editProjectId &&
+            area.site_id === editSiteId
+    );
+
     const { data: employees = [] } = useQuery({
         queryKey: ["employees-for-work-order-dashboard"],
         queryFn: async () => {
@@ -236,22 +315,40 @@ const WorkOrderDashboard = () => {
             .map((assignment) => assignment.employees?.employee_id) || []
     );
 
-    const filteredWorkers = employees.filter((employee) => {
-        const keyword = workerSearchTerm.toLowerCase().trim();
+    const filteredWorkers = employees
+        .filter((employee) => {
+            const keyword = workerSearchTerm.toLowerCase().trim();
 
-        const employeeName =
-            employee.display_name ||
-            `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
+            if (keyword.length < 2) {
+                return false;
+            }
 
-        const matchesSearch =
-            !keyword ||
-            employee.employee_code?.toLowerCase().includes(keyword) ||
-            employeeName.toLowerCase().includes(keyword);
+            const employeeName =
+                employee.display_name ||
+                `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
 
-        const isAlreadyActive = activeEmployeeIds.has(employee.employee_id);
+            const matchesSearch =
+                employee.employee_code?.toLowerCase().includes(keyword) ||
+                employeeName.toLowerCase().includes(keyword);
 
-        return matchesSearch && !isAlreadyActive;
-    });
+            const isAlreadyActive = activeEmployeeIds.has(employee.employee_id);
+
+            return matchesSearch && !isAlreadyActive;
+        })
+        .slice(0, 10);
+
+    const hasActiveAssignments =
+        workOrder?.work_assignments?.some(
+            (assignment) => !assignment.is_deleted && !assignment.ended_at
+        ) || false;
+
+    const isEditLocationChanged =
+        !!workOrder &&
+        (
+            editProjectId !== (workOrder.project_id || "") ||
+            editSiteId !== (workOrder.site_id || "") ||
+            editAreaId !== (workOrder.area_id || "")
+        );
 
     const workerAssignments = (
         workOrder?.work_assignments?.filter(
@@ -280,6 +377,12 @@ const WorkOrderDashboard = () => {
     useEffect(() => {
         if (!workOrder) return;
 
+        setEditProjectId(workOrder.project_id || "");
+        setEditSiteId(workOrder.site_id || "");
+        setEditAreaId(workOrder.area_id || "");
+        setEditWorkOrderNo(workOrder.work_order_no || "");
+        setEditWorkOrderTitle(workOrder.title || "");
+        setEditDescription(workOrder.description || "");
         setEditPriority(workOrder.priority || "Normal");
         setEditStatus(workOrder.status || "Open");
         setEditPlannedStartDate(workOrder.planned_start_date || "");
@@ -288,21 +391,49 @@ const WorkOrderDashboard = () => {
         setEditActualEndDate(workOrder.actual_end_date || "");
         setEditNotes(workOrder.notes || "");
     }, [workOrder]);
+
+    useEffect(() => {
+        if (!workOrder) return;
+
+        if (searchParams.get("edit") === "1") {
+            setShowEditDialog(true);
+            setSearchParams({});
+        }
+    }, [workOrder, searchParams, setSearchParams]);
+
     const updateWorkOrder = useMutation({
         mutationFn: async () => {
             if (!workOrderId) {
                 throw new Error("Work order ID is missing.");
             }
 
+            if (!editProjectId) {
+                throw new Error("Please select project.");
+            }
+
+            if (!editSiteId) {
+                throw new Error("Please select project site.");
+            }
+
+            if (!editWorkOrderTitle.trim()) {
+                throw new Error("Please enter work order title.");
+            }
+
             const { error } = await supabase
                 .from("work_orders")
                 .update({
+                    project_id: editProjectId || null,
+                    site_id: editSiteId || null,
+                    area_id: editAreaId || null,
+                    work_order_no: editWorkOrderNo.trim() || null,
+                    title: editWorkOrderTitle.trim(),
+                    description: editDescription.trim() || null,
                     priority: editPriority,
                     status: editStatus,
                     planned_start_date: editPlannedStartDate || null,
                     planned_end_date: editPlannedEndDate || null,
-                    actual_start_date: editActualStartDate || null,
-                    actual_end_date: editActualEndDate || null,
+                    actual_start_date: workOrder.actual_start_date || null,
+                    actual_end_date: workOrder.actual_end_date || null,
                     notes: editNotes.trim() || null,
                 })
                 .eq("work_order_id", workOrderId);
@@ -369,6 +500,32 @@ const WorkOrderDashboard = () => {
         },
         onSuccess: () => {
             toast.success("Assignment ended.");
+            queryClient.invalidateQueries({ queryKey: ["work_order", workOrderId] });
+            queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+        },
+        onError: (error) => {
+            toast.error(error.message);
+        },
+    });
+
+    const removeMistakenAssignment = useMutation({
+        mutationFn: async (workAssignmentId: string) => {
+            const confirmed = window.confirm(
+                "Remove this worker assignment? Only use this when the worker was selected by mistake and has not worked on this work order."
+            );
+
+            if (!confirmed) {
+                return;
+            }
+
+            const { error } = await supabase.rpc("remove_mistaken_work_assignment", {
+                p_work_assignment_id: workAssignmentId,
+            });
+
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            toast.success("Mistaken assignment removed.");
             queryClient.invalidateQueries({ queryKey: ["work_order", workOrderId] });
             queryClient.invalidateQueries({ queryKey: ["work_orders"] });
         },
@@ -462,121 +619,136 @@ const WorkOrderDashboard = () => {
 
     return (
         <div className="p-6 space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <Button
                     variant="outline"
                     onClick={() => navigate("/work-orders")}
-                    className="flex items-center gap-2"
+                    className="w-full justify-center gap-2 sm:w-auto"
                 >
                     <ArrowLeft className="h-4 w-4" />
-                    Back
+                    Back to Work Orders
                 </Button>
 
-                {nextWorkflowAction && (
-                    <Button
-                        onClick={() =>
-                            updateWorkOrderStatus.mutate(
-                                nextWorkflowAction.nextStatus
-                            )
-                        }
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                        {nextWorkflowAction.label}
-                    </Button>
-                )}
-
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button className="bg-red-600 hover:bg-red-700 text-white">
-                            Manage Work Order
-                        </Button>
-                    </DropdownMenuTrigger>
-
-                    <DropdownMenuContent align="end" className="w-56">
-                        <DropdownMenuLabel>Work Order Actions</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-
-                        <DropdownMenuItem onClick={() => setShowAssignWorkerDialog(true)}>
-                            Assign Worker
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem onClick={() => setShowEditDialog(true)}>
-                            Edit Work Order
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    {nextWorkflowAction && (
+                        <Button
                             onClick={() =>
-                                navigate(`/daily-reports?workOrderId=${workOrder.work_order_id}`)
+                                updateWorkOrderStatus.mutate(
+                                    nextWorkflowAction.nextStatus
+                                )
                             }
+                            className="w-full bg-blue-600 text-white hover:bg-blue-700 sm:w-auto"
                         >
-                            + Daily Report
-                        </DropdownMenuItem>
+                            {nextWorkflowAction.label}
+                        </Button>
+                    )}
 
-                        <DropdownMenuItem disabled>
-                            Close Work Order
-                        </DropdownMenuItem>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button className="w-full bg-red-600 text-white hover:bg-red-700 sm:w-auto">
+                                Manage Work Order
+                            </Button>
+                        </DropdownMenuTrigger>
 
-                        <DropdownMenuItem disabled>
-                            Send Customer
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                        <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuLabel>Work Order Actions</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
 
+                            <DropdownMenuItem onClick={() => setShowAssignWorkerDialog(true)}>
+                                Assign Worker
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem onClick={() => setShowEditDialog(true)}>
+                                Edit Work Order
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem
+                                onClick={() =>
+                                    navigate(`/daily-reports?workOrderId=${workOrder.work_order_id}`)
+                                }
+                            >
+                                + Daily Report
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem disabled>
+                                Close Work Order
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem disabled>
+                                Send Customer
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
             </div>
 
             {areaProgress && (
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-                        <p className="text-sm text-slate-500">Estimated Quantity</p>
-                        <p className="mt-2 text-2xl font-bold text-slate-900">
+                <div className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5">
+                        <p className="text-xs font-medium text-slate-500 sm:text-sm">
+                            Estimated Quantity
+                        </p>
+                        <p className="mt-1 text-xl font-bold text-slate-900 sm:mt-2 sm:text-2xl">
                             {Number(areaProgress.estimated_quantity || 0).toFixed(2)}
                         </p>
                     </div>
 
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-                        <p className="text-sm text-slate-500">Approved Quantity</p>
-                        <p className="mt-2 text-2xl font-bold text-slate-900">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5">
+                        <p className="text-xs font-medium text-slate-500 sm:text-sm">
+                            Approved Quantity
+                        </p>
+                        <p className="mt-1 text-xl font-bold text-slate-900 sm:mt-2 sm:text-2xl">
                             {Number(areaProgress.actual_quantity || 0).toFixed(2)}
                         </p>
                     </div>
 
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-                        <p className="text-sm text-slate-500">Remaining From Estimate</p>
-                        <p className="mt-2 text-2xl font-bold text-slate-900">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5">
+                        <p className="text-xs font-medium text-slate-500 sm:text-sm">
+                            Remaining
+                        </p>
+                        <p className="mt-1 text-xl font-bold text-slate-900 sm:mt-2 sm:text-2xl">
                             {Number(areaProgress.remaining_quantity || 0).toFixed(2)}
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-slate-400 sm:text-xs">
+                            From estimate
                         </p>
                     </div>
 
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-                        <p className="text-sm text-slate-500">Approved Progress</p>
-                        <p className="mt-2 text-2xl font-bold text-slate-900">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5">
+                        <p className="text-xs font-medium text-slate-500 sm:text-sm">
+                            Approved Progress
+                        </p>
+                        <p className="mt-1 text-xl font-bold text-slate-900 sm:mt-2 sm:text-2xl">
                             {Number(areaProgress.progress_percent || 0).toFixed(2)}%
                         </p>
                     </div>
                 </div>
             )}
 
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                <div className="flex items-start justify-between gap-4">
-                    <div>
-                        <div className="flex items-center gap-3">
-                            <ClipboardList className="h-8 w-8 text-red-600" />
-                            <div>
-                                <h1 className="text-3xl font-bold text-slate-900">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                        <div className="flex items-start gap-3">
+                            <div className="rounded-xl bg-red-50 p-2">
+                                <ClipboardList className="h-6 w-6 text-red-600 sm:h-8 sm:w-8" />
+                            </div>
+
+                            <div className="min-w-0">
+                                <h1 className="text-xl font-bold leading-snug text-slate-900 sm:text-3xl">
                                     {workOrder.title}
                                 </h1>
-                                <p className="text-slate-500 mt-1">
+                                <p className="mt-1 text-sm text-slate-500">
                                     {workOrder.work_order_no || "-"}
                                 </p>
                             </div>
                         </div>
 
-                        <p className="text-slate-600 mt-4">
+                        <p className="mt-4 text-sm leading-relaxed text-slate-600 sm:text-base">
                             {workOrder.description || "No description."}
                         </p>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2 sm:justify-end">
                         <Badge
                             variant="outline"
                             className={getPriorityBadgeClass(workOrder.priority)}
@@ -594,11 +766,11 @@ const WorkOrderDashboard = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-                    <h2 className="font-bold text-slate-900 mb-4">Project</h2>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <h2 className="mb-3 text-base font-bold text-slate-900 sm:mb-4">Project</h2>
 
-                    <div className="space-y-3 text-sm">
+                    <div className="space-y-2.5 text-sm sm:space-y-3">
                         <div>
                             <p className="text-slate-500">Customer</p>
                             <p className="font-medium">
@@ -632,10 +804,10 @@ const WorkOrderDashboard = () => {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-                    <h2 className="font-bold text-slate-900 mb-4">Schedule</h2>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <h2 className="mb-3 text-base font-bold text-slate-900 sm:mb-4">Schedule</h2>
 
-                    <div className="space-y-3 text-sm">
+                    <div className="space-y-2.5 text-sm sm:space-y-3">
                         <div>
                             <p className="text-slate-500">Planned Start</p>
                             <p className="font-medium">{workOrder.planned_start_date || "-"}</p>
@@ -658,110 +830,212 @@ const WorkOrderDashboard = () => {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 lg:col-span-3">
-                    <h2 className="font-bold text-slate-900 mb-4">Worker Assignments</h2>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 lg:col-span-3">
+                    <h2 className="mb-3 text-base font-bold text-slate-900 sm:mb-4">
+                        Worker Assignments
+                    </h2>
 
                     {workerAssignments.length === 0 ? (
                         <p className="text-sm text-slate-500">No worker assignments.</p>
                     ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b text-left text-slate-500">
-                                        <th className="py-2 pr-3 font-medium">Worker</th>
-                                        <th className="py-2 pr-3 font-medium">Assigned</th>
-                                        <th className="py-2 pr-3 font-medium">Ended</th>
-                                        <th className="py-2 pr-3 font-medium">Duration</th>
-                                        <th className="py-2 pr-3 font-medium">Status</th>
-                                        <th className="py-2 pr-3 font-medium text-right">Action</th>
-                                    </tr>
-                                </thead>
+                        <>
+                            <div className="space-y-3 md:hidden">
+                                {workerAssignments.map((assignment) => {
+                                    const employee = assignment.employees;
+                                    const employeeName = employee
+                                        ? employee.display_name ||
+                                        `${employee.first_name || ""} ${employee.last_name || ""}`.trim()
+                                        : "-";
 
-                                <tbody>
-                                    {workerAssignments.map((assignment) => {
-                                        const employee = assignment.employees;
-                                        const employeeName = employee
-                                            ? employee.display_name ||
-                                            `${employee.first_name || ""} ${employee.last_name || ""}`.trim()
-                                            : "-";
+                                    const isActive = !assignment.ended_at;
 
-                                        const isActive = !assignment.ended_at;
-
-                                        return (
-                                            <tr
-                                                key={assignment.work_assignment_id}
-                                                className="border-b last:border-b-0"
-                                            >
-                                                <td className="py-3 pr-3">
-                                                    <div className="font-medium text-slate-900">
+                                    return (
+                                        <div
+                                            key={assignment.work_assignment_id}
+                                            className="rounded-xl border border-slate-200 bg-slate-50 p-3"
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <p className="truncate text-sm font-bold text-slate-900">
                                                         👷 {employeeName}
-                                                    </div>
-                                                    <div className="text-xs text-slate-500">
+                                                    </p>
+                                                    <p className="text-xs text-slate-500">
                                                         {employee?.employee_code || "-"}
+                                                    </p>
+                                                </div>
+
+                                                {isActive ? (
+                                                    <Badge
+                                                        variant="outline"
+                                                        className="shrink-0 border-green-200 bg-green-100 text-green-700"
+                                                    >
+                                                        Active
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge
+                                                        variant="outline"
+                                                        className="shrink-0 border-slate-200 bg-slate-100 text-slate-700"
+                                                    >
+                                                        Ended
+                                                    </Badge>
+                                                )}
+                                            </div>
+
+                                            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                                                <div className="rounded-lg bg-white p-2">
+                                                    <p className="font-medium text-slate-400">Assigned</p>
+                                                    <p className="mt-1 text-slate-700">
+                                                        {formatAssignmentDateTime(assignment.assigned_at)}
+                                                    </p>
+                                                </div>
+
+                                                <div className="rounded-lg bg-white p-2">
+                                                    <p className="font-medium text-slate-400">Ended</p>
+                                                    <p className="mt-1 text-slate-700">
+                                                        {assignment.ended_at
+                                                            ? formatAssignmentDateTime(assignment.ended_at)
+                                                            : "-"}
+                                                    </p>
+                                                </div>
+
+                                                <div className="rounded-lg bg-white p-2">
+                                                    <p className="font-medium text-slate-400">Duration</p>
+                                                    <p className="mt-1 text-slate-700">
+                                                        {assignment.ended_at
+                                                            ? getAssignmentDurationText(
+                                                                assignment.assigned_at,
+                                                                assignment.ended_at
+                                                            )
+                                                            : "Active"}
+                                                    </p>
+                                                </div>
+
+                                                <div className="rounded-lg bg-white p-2">
+                                                    <p className="font-medium text-slate-400">Action</p>
+                                                    <div className="mt-1">
+                                                        {isActive ? (
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="h-8 w-full text-xs text-red-600 hover:text-red-700"
+                                                                onClick={() =>
+                                                                    endAssignment.mutate(assignment.work_assignment_id)
+                                                                }
+                                                                disabled={endAssignment.isPending}
+                                                            >
+                                                                End
+                                                            </Button>
+                                                        ) : (
+                                                            <span className="text-slate-400">-</span>
+                                                        )}
                                                     </div>
-                                                </td>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
 
-                                                <td className="py-3 pr-3 text-slate-700 whitespace-nowrap">
-                                                    {formatAssignmentDateTime(assignment.assigned_at)}
-                                                </td>
+                            <div className="hidden overflow-x-auto md:block">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b text-left text-slate-500">
+                                            <th className="py-2 pr-3 font-medium">Worker</th>
+                                            <th className="py-2 pr-3 font-medium">Assigned</th>
+                                            <th className="py-2 pr-3 font-medium">Ended</th>
+                                            <th className="py-2 pr-3 font-medium">Duration</th>
+                                            <th className="py-2 pr-3 font-medium">Status</th>
+                                            <th className="py-2 pr-3 font-medium text-right">Action</th>
+                                        </tr>
+                                    </thead>
 
-                                                <td className="py-3 pr-3 text-slate-700 whitespace-nowrap">
-                                                    {assignment.ended_at
-                                                        ? formatAssignmentDateTime(assignment.ended_at)
-                                                        : "-"}
-                                                </td>
+                                    <tbody>
+                                        {workerAssignments.map((assignment) => {
+                                            const employee = assignment.employees;
+                                            const employeeName = employee
+                                                ? employee.display_name ||
+                                                `${employee.first_name || ""} ${employee.last_name || ""}`.trim()
+                                                : "-";
 
-                                                <td className="py-3 pr-3 text-slate-700 whitespace-nowrap">
-                                                    {assignment.ended_at
-                                                        ? getAssignmentDurationText(
-                                                            assignment.assigned_at,
-                                                            assignment.ended_at
-                                                        )
-                                                        : "Active"}
-                                                </td>
+                                            const isActive = !assignment.ended_at;
 
-                                                <td className="py-3 pr-3 whitespace-nowrap">
-                                                    {isActive ? (
-                                                        <Badge
-                                                            variant="outline"
-                                                            className="bg-green-100 text-green-700 border-green-200"
-                                                        >
-                                                            Active
-                                                        </Badge>
-                                                    ) : (
-                                                        <Badge
-                                                            variant="outline"
-                                                            className="bg-slate-100 text-slate-700 border-slate-200"
-                                                        >
-                                                            Ended
-                                                        </Badge>
-                                                    )}
-                                                </td>
+                                            return (
+                                                <tr
+                                                    key={assignment.work_assignment_id}
+                                                    className="border-b last:border-b-0"
+                                                >
+                                                    <td className="py-3 pr-3">
+                                                        <div className="font-medium text-slate-900">
+                                                            👷 {employeeName}
+                                                        </div>
+                                                        <div className="text-xs text-slate-500">
+                                                            {employee?.employee_code || "-"}
+                                                        </div>
+                                                    </td>
 
-                                                <td className="py-3 pr-3 text-right whitespace-nowrap">
-                                                    {isActive ? (
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="text-red-600 hover:text-red-700"
-                                                            onClick={() =>
-                                                                endAssignment.mutate(assignment.work_assignment_id)
-                                                            }
-                                                            disabled={endAssignment.isPending}
-                                                        >
-                                                            End Assignment
-                                                        </Button>
-                                                    ) : (
-                                                        <span className="text-slate-400">-</span>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
+                                                    <td className="whitespace-nowrap py-3 pr-3 text-slate-700">
+                                                        {formatAssignmentDateTime(assignment.assigned_at)}
+                                                    </td>
+
+                                                    <td className="whitespace-nowrap py-3 pr-3 text-slate-700">
+                                                        {assignment.ended_at
+                                                            ? formatAssignmentDateTime(assignment.ended_at)
+                                                            : "-"}
+                                                    </td>
+
+                                                    <td className="whitespace-nowrap py-3 pr-3 text-slate-700">
+                                                        {assignment.ended_at
+                                                            ? getAssignmentDurationText(
+                                                                assignment.assigned_at,
+                                                                assignment.ended_at
+                                                            )
+                                                            : "Active"}
+                                                    </td>
+
+                                                    <td className="whitespace-nowrap py-3 pr-3">
+                                                        {isActive ? (
+                                                            <Badge
+                                                                variant="outline"
+                                                                className="border-green-200 bg-green-100 text-green-700"
+                                                            >
+                                                                Active
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge
+                                                                variant="outline"
+                                                                className="border-slate-200 bg-slate-100 text-slate-700"
+                                                            >
+                                                                Ended
+                                                            </Badge>
+                                                        )}
+                                                    </td>
+
+                                                    <td className="whitespace-nowrap py-3 pr-3 text-right">
+                                                        {isActive ? (
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="text-red-600 hover:text-red-700"
+                                                                onClick={() =>
+                                                                    endAssignment.mutate(assignment.work_assignment_id)
+                                                                }
+                                                                disabled={endAssignment.isPending}
+                                                            >
+                                                                End Assignment
+                                                            </Button>
+                                                        ) : (
+                                                            <span className="text-slate-400">-</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
                     )}
                 </div>
             </div>
@@ -783,7 +1057,7 @@ const WorkOrderDashboard = () => {
                     }
                 }}
             >
-                <DialogContent className="max-w-xl">
+                <DialogContent className="max-h-[92vh] w-[calc(100vw-1rem)] max-w-xl overflow-y-auto p-4 sm:p-6">
                     <DialogHeader>
                         <DialogTitle>Assign Worker</DialogTitle>
                     </DialogHeader>
@@ -794,55 +1068,57 @@ const WorkOrderDashboard = () => {
                             <Input
                                 value={workerSearchTerm}
                                 onChange={(event) => setWorkerSearchTerm(event.target.value)}
-                                placeholder="Search by worker code or name"
+                                placeholder="Type at least 2 characters to search workers..."
                             />
                         </div>
 
-                        <div className="space-y-2">
-                            <Label>Available Workers</Label>
+                        {workerSearchTerm.trim().length >= 2 && (
+                            <div className="space-y-2">
+                                <Label>Available Workers</Label>
 
-                            {filteredWorkers.length === 0 ? (
-                                <p className="text-sm text-slate-500 border rounded-lg p-3">
-                                    No available workers found.
-                                </p>
-                            ) : (
-                                <div className="max-h-64 overflow-y-auto space-y-2 border rounded-lg p-2">
-                                    {filteredWorkers.map((employee) => {
-                                        const employeeName =
-                                            employee.display_name ||
-                                            `${employee.first_name || ""} ${employee.last_name || ""}`.trim() ||
-                                            employee.employee_code;
+                                {filteredWorkers.length === 0 ? (
+                                    <p className="rounded-lg border p-3 text-sm text-slate-500">
+                                        No available workers found.
+                                    </p>
+                                ) : (
+                                    <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border p-2">
+                                        {filteredWorkers.map((employee) => {
+                                            const employeeName =
+                                                employee.display_name ||
+                                                `${employee.first_name || ""} ${employee.last_name || ""}`.trim() ||
+                                                employee.employee_code;
 
-                                        const isSelected = selectedWorkerId === employee.employee_id;
+                                            const isSelected = selectedWorkerId === employee.employee_id;
 
-                                        return (
-                                            <button
-                                                key={employee.employee_id}
-                                                type="button"
-                                                onClick={() => setSelectedWorkerId(employee.employee_id)}
-                                                className={`w-full text-left rounded-lg border px-3 py-2 text-sm transition ${isSelected
-                                                    ? "border-red-500 bg-red-50 text-red-700"
-                                                    : "border-slate-200 bg-white hover:bg-slate-50"
-                                                    }`}
-                                            >
-                                                <div className="font-medium">
-                                                    {employee.employee_code || "-"} - {employeeName}
-                                                </div>
-
-                                                {isSelected && (
-                                                    <div className="text-xs text-red-600 mt-1">
-                                                        Selected
+                                            return (
+                                                <button
+                                                    key={employee.employee_id}
+                                                    type="button"
+                                                    onClick={() => setSelectedWorkerId(employee.employee_id)}
+                                                    className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition ${isSelected
+                                                        ? "border-red-500 bg-red-50 text-red-700"
+                                                        : "border-slate-200 bg-white hover:bg-slate-50"
+                                                        }`}
+                                                >
+                                                    <div className="font-medium">
+                                                        {employee.employee_code || "-"} - {employeeName}
                                                     </div>
-                                                )}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
+
+                                                    {isSelected && (
+                                                        <div className="mt-1 text-xs text-red-600">
+                                                            Selected
+                                                        </div>
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
-                    <div className="flex justify-end gap-3 pt-4">
+                    <div className="flex flex-col-reverse gap-3 pt-4 sm:flex-row sm:justify-end">
                         <Button
                             variant="outline"
                             onClick={() => {
@@ -852,6 +1128,7 @@ const WorkOrderDashboard = () => {
                                 document.body.style.pointerEvents = "";
                                 document.body.style.overflow = "";
                             }}
+                            className="w-full sm:w-auto"
                         >
                             Cancel
                         </Button>
@@ -859,7 +1136,7 @@ const WorkOrderDashboard = () => {
                         <Button
                             onClick={() => assignWorker.mutate()}
                             disabled={assignWorker.isPending || !selectedWorkerId}
-                            className="bg-red-600 hover:bg-red-700 text-white"
+                            className="w-full bg-red-600 text-white hover:bg-red-700 sm:w-auto"
                         >
                             {assignWorker.isPending ? "Assigning..." : "Assign Worker"}
                         </Button>
@@ -867,12 +1144,119 @@ const WorkOrderDashboard = () => {
                 </DialogContent>
             </Dialog>
             <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-                <DialogContent className="max-w-2xl">
+                <DialogContent className="max-h-[92vh] w-[calc(100vw-1rem)] max-w-2xl overflow-y-auto p-4 sm:p-6">
                     <DialogHeader>
                         <DialogTitle>Edit Work Order</DialogTitle>
                     </DialogHeader>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {hasActiveAssignments && isEditLocationChanged && (
+                            <div className="sm:col-span-2 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800">
+                                This work order has active worker assignments. Changing Project, Site, or Area will not automatically end existing assignments. Please review assignments after saving.
+                            </div>
+                        )}
+                        <div className="space-y-2">
+                            <Label>Work Order No</Label>
+                            <Input
+                                value={editWorkOrderNo}
+                                onChange={(event) => setEditWorkOrderNo(event.target.value)}
+                                placeholder="WO2606-00001"
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>Work Order Title *</Label>
+                            <Input
+                                value={editWorkOrderTitle}
+                                onChange={(event) => setEditWorkOrderTitle(event.target.value)}
+                                placeholder="Install timber flooring"
+                            />
+                        </div>
+
+                        <div className="sm:col-span-2 space-y-2">
+                            <Label>Description</Label>
+                            <Textarea
+                                value={editDescription}
+                                onChange={(event) => setEditDescription(event.target.value)}
+                                rows={3}
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>Project</Label>
+                            <Select
+                                value={editProjectId}
+                                onValueChange={(value) => {
+                                    setEditProjectId(value);
+                                    setEditSiteId("");
+                                    setEditAreaId("");
+                                }}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select project" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {projects.map((project) => (
+                                        <SelectItem
+                                            key={project.project_id}
+                                            value={project.project_id}
+                                        >
+                                            {project.project_no || "-"} - {project.project_name || "-"}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>Project Site</Label>
+                            <Select
+                                value={editSiteId}
+                                onValueChange={(value) => {
+                                    setEditSiteId(value);
+                                    setEditAreaId("");
+                                }}
+                                disabled={!editProjectId}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select site" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {filteredEditSites.map((site) => (
+                                        <SelectItem
+                                            key={site.site_id}
+                                            value={site.site_id}
+                                        >
+                                            {site.site_code || "-"} - {site.site_name || "-"}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="sm:col-span-2 space-y-2">
+                            <Label>Project Area</Label>
+                            <Select
+                                value={editAreaId}
+                                onValueChange={setEditAreaId}
+                                disabled={!editProjectId || !editSiteId}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select area" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {filteredEditAreas.map((area) => (
+                                        <SelectItem
+                                            key={area.area_id}
+                                            value={area.area_id}
+                                        >
+                                            {area.area_code || "-"} - {area.area_name || "-"}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
                         <div className="space-y-2">
                             <Label>Priority</Label>
                             <Select value={editPriority} onValueChange={setEditPriority}>
@@ -940,8 +1324,12 @@ const WorkOrderDashboard = () => {
                             <Input
                                 type="date"
                                 value={editActualStartDate}
-                                onChange={(event) => setEditActualStartDate(event.target.value)}
+                                readOnly
+                                className="bg-slate-50 text-slate-500"
                             />
+                            <p className="text-xs text-slate-500">
+                                Actual start date is recorded from real work activity.
+                            </p>
                         </div>
 
                         <div className="space-y-2">
@@ -949,11 +1337,15 @@ const WorkOrderDashboard = () => {
                             <Input
                                 type="date"
                                 value={editActualEndDate}
-                                onChange={(event) => setEditActualEndDate(event.target.value)}
+                                readOnly
+                                className="bg-slate-50 text-slate-500"
                             />
+                            <p className="text-xs text-slate-500">
+                                Actual end date is recorded when the work order is completed.
+                            </p>
                         </div>
 
-                        <div className="col-span-2 space-y-2">
+                        <div className="sm:col-span-2 space-y-2">
                             <Label>Notes</Label>
                             <Textarea
                                 value={editNotes}
@@ -961,24 +1353,129 @@ const WorkOrderDashboard = () => {
                                 rows={4}
                             />
                         </div>
+
+                        <div className="sm:col-span-2 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-900">
+                                    Assigned Workers
+                                </h3>
+                                <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                                    Remove is only for a worker selected by mistake before any work is recorded. If the worker has already worked, use End instead.
+                                </p>
+                            </div>
+
+                            {workerAssignments.length === 0 ? (
+                                <p className="rounded-lg bg-white p-3 text-sm text-slate-500">
+                                    No worker assignments.
+                                </p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {workerAssignments.map((assignment) => {
+                                        const employee = assignment.employees;
+                                        const employeeName = employee
+                                            ? employee.display_name ||
+                                            `${employee.first_name || ""} ${employee.last_name || ""}`.trim()
+                                            : "-";
+
+                                        const isActive = !assignment.ended_at;
+
+                                        return (
+                                            <div
+                                                key={assignment.work_assignment_id}
+                                                className="rounded-lg border border-slate-200 bg-white p-3"
+                                            >
+                                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                                    <div className="min-w-0">
+                                                        <p className="truncate text-sm font-bold text-slate-900">
+                                                            👷 {employeeName}
+                                                        </p>
+                                                        <p className="text-xs text-slate-500">
+                                                            {employee?.employee_code || "-"}
+                                                        </p>
+                                                        <p className="mt-1 text-xs text-slate-500">
+                                                            Assigned: {formatAssignmentDateTime(assignment.assigned_at)}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                                        {isActive ? (
+                                                            <Badge
+                                                                variant="outline"
+                                                                className="w-full justify-center border-green-200 bg-green-100 text-green-700 sm:w-auto"
+                                                            >
+                                                                Active
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge
+                                                                variant="outline"
+                                                                className="w-full justify-center border-slate-200 bg-slate-100 text-slate-700 sm:w-auto"
+                                                            >
+                                                                Ended
+                                                            </Badge>
+                                                        )}
+
+                                                        {isActive && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="w-full text-orange-600 hover:text-orange-700 sm:w-auto"
+                                                                onClick={() =>
+                                                                    endAssignment.mutate(assignment.work_assignment_id)
+                                                                }
+                                                                disabled={endAssignment.isPending}
+                                                            >
+                                                                End
+                                                            </Button>
+                                                        )}
+
+                                                        {isActive && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="w-full text-red-600 hover:text-red-700 sm:w-auto"
+                                                                onClick={() =>
+                                                                    removeMistakenAssignment.mutate(
+                                                                        assignment.work_assignment_id
+                                                                    )
+                                                                }
+                                                                disabled={removeMistakenAssignment.isPending}
+                                                            >
+                                                                Remove
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
                     </div>
 
-                    <div className="flex justify-end gap-3 pt-4">
-                        <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+                    <div className="flex flex-col-reverse gap-3 pt-4 sm:flex-row sm:justify-end">
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowEditDialog(false)}
+                            className="w-full sm:w-auto"
+                        >
                             Cancel
                         </Button>
 
                         <Button
                             onClick={() => updateWorkOrder.mutate()}
                             disabled={updateWorkOrder.isPending}
-                            className="bg-red-600 hover:bg-red-700 text-white"
+                            className="w-full bg-red-600 text-white hover:bg-red-700 sm:w-auto"
                         >
                             {updateWorkOrder.isPending ? "Saving..." : "Save Changes"}
                         </Button>
                     </div>
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
     );
 };
 
