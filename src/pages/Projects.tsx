@@ -30,7 +30,16 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { FolderKanban } from "lucide-react";
+import {
+  FileDown,
+  FileSpreadsheet,
+  FolderKanban,
+  Plus,
+  Printer,
+  Search,
+} from "lucide-react";
+import { ActiveStatusBadge } from "@/components/common/ActiveStatusBadge";
+import { StandardActions } from "@/components/common/StandardActions";
 
 const statusBadge: Record<string, string> = {
   Draft: "bg-muted text-muted-foreground",
@@ -113,6 +122,7 @@ export default function Projects() {
           start_date,
           estimated_completion_date,
           notes,
+          is_active,
           created_at,
           customers (
             customer_name
@@ -287,21 +297,32 @@ export default function Projects() {
       }),
   });
 
-  const inactiveProject = useMutation({
-    mutationFn: async (projectId: string) => {
+  const toggleProjectActive = useMutation({
+    mutationFn: async ({
+      projectId,
+      isActive,
+    }: {
+      projectId: string;
+      isActive: boolean;
+    }) => {
       const { error } = await supabase
         .from("projects")
         .update({
-          is_active: false,
-          project_status: "On Hold",
+          is_active: isActive,
         })
-        .eq("project_id", projectId);
+        .eq("project_id", projectId)
+        .eq("is_deleted", false);
 
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
-      toast({ title: "Project marked as inactive" });
+
+      toast({
+        title: variables.isActive
+          ? "Project reactivated"
+          : "Project marked as inactive",
+      });
     },
     onError: (e: Error) =>
       toast({
@@ -310,6 +331,7 @@ export default function Projects() {
         variant: "destructive",
       }),
   });
+
 
   const deleteProject = useMutation({
     mutationFn: async (projectId: string) => {
@@ -451,19 +473,30 @@ export default function Projects() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 px-4 pb-6 animate-fade-in sm:px-0">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Projects</h1>
-          <p className="text-muted-foreground mt-1">
-            Track project records from REDS database.
-          </p>
+        <div className="min-w-0">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-50">
+              <FolderKanban className="h-6 w-6 text-red-600" />
+            </div>
+
+            <div className="min-w-0">
+              <h1 className="text-2xl font-black leading-tight text-slate-900 md:text-3xl">
+                Projects
+              </h1>
+              <p className="mt-0.5 text-sm text-slate-500">
+                Track project records from REDS database.
+              </p>
+            </div>
+          </div>
         </div>
 
         <Button
           onClick={openCreateProject}
-          className="w-full sm:w-auto print:hidden"
+          className="flex h-11 w-full items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700 sm:w-auto sm:px-6 print:hidden"
         >
+          <Plus className="mr-2 h-4 w-4" />
           Add Project
         </Button>
 
@@ -739,19 +772,24 @@ export default function Projects() {
         ))}
       </div>
 
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between print:hidden">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center">
-          <Input
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            placeholder="Search project no, project name, or customer..."
-            className="md:w-96"
-          />
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm print:hidden">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_220px_auto] xl:items-center">
+          <div className="relative min-w-0">
+            <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
+
+            <Input
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="Search project no, project name, or customer..."
+              className="h-11 rounded-xl pl-10"
+            />
+          </div>
 
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="md:w-48">
-              <SelectValue />
+            <SelectTrigger className="h-11 rounded-xl">
+              <SelectValue placeholder="Filter status" />
             </SelectTrigger>
+
             <SelectContent>
               <SelectItem value="All">All Status</SelectItem>
               <SelectItem value="Draft">Draft</SelectItem>
@@ -763,21 +801,48 @@ export default function Projects() {
               <SelectItem value="Cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
-        </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
-          <Button variant="outline" onClick={handlePrint}>
-            Print
-          </Button>
-          <Button variant="outline" onClick={handlePrint}>
-            PDF
-          </Button>
-          <Button variant="outline" onClick={handleExportCsv}>
-            CSV
-          </Button>
-          <Button variant="outline" onClick={handleExportExcel}>
-            Excel
-          </Button>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:flex xl:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handlePrint}
+              className="h-10 gap-2 rounded-xl text-xs font-bold"
+            >
+              <Printer className="h-4 w-4" />
+              Print
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handlePrint}
+              className="h-10 gap-2 rounded-xl text-xs font-bold"
+            >
+              <FileDown className="h-4 w-4" />
+              PDF
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleExportCsv}
+              className="h-10 gap-2 rounded-xl text-xs font-bold"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              CSV
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleExportExcel}
+              className="h-10 gap-2 rounded-xl text-xs font-bold"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Excel
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -858,43 +923,25 @@ export default function Projects() {
                             : "-"}
                         </TableCell>
 
-                        <TableCell className="text-right print:hidden">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openViewProject(project)}
-                            >
-                              View
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openEditProject(project)}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                inactiveProject.mutate(project.project_id)
-                              }
-                              disabled={inactiveProject.isPending}
-                            >
-                              Inactive
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() =>
-                                deleteProject.mutate(project.project_id)
-                              }
-                              disabled={deleteProject.isPending}
-                            >
-                              Delete
-                            </Button>
-                          </div>
+                        <TableCell className="w-[210px] text-right print:hidden">
+                          <StandardActions
+                            isActive={project.is_active}
+                            onView={() => openViewProject(project)}
+                            onEdit={() => openEditProject(project)}
+                            onToggleActive={() =>
+                              toggleProjectActive.mutate({
+                                projectId: project.project_id,
+                                isActive: !project.is_active,
+                              })
+                            }
+                            onDelete={() =>
+                              deleteProject.mutate(project.project_id)
+                            }
+                            isStatusPending={toggleProjectActive.isPending}
+                            isDeletePending={deleteProject.isPending}
+                            size="desktop"
+                            align="end"
+                          />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -928,23 +975,29 @@ export default function Projects() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Customer</p>
-                      <p className="font-medium">
+                    <div className="col-span-2 rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                        Customer
+                      </p>
+                      <p className="mt-1 font-semibold text-slate-900">
                         {project.customers?.customer_name ?? "No customer"}
                       </p>
                     </div>
 
-                    <div>
-                      <p className="text-muted-foreground">Type</p>
-                      <p className="font-medium">
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                        Type
+                      </p>
+                      <p className="mt-1 font-semibold text-slate-900">
                         {project.project_type ?? "-"}
                       </p>
                     </div>
 
-                    <div>
-                      <p className="text-muted-foreground">Contract Value</p>
-                      <p className="font-medium">
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                        Contract Value
+                      </p>
+                      <p className="mt-1 font-semibold text-slate-900">
                         {project.contract_value !== null
                           ? Number(project.contract_value).toLocaleString(
                             "en-AU",
@@ -957,9 +1010,11 @@ export default function Projects() {
                       </p>
                     </div>
 
-                    <div>
-                      <p className="text-muted-foreground">Start Date</p>
-                      <p className="font-medium">
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                        Start Date
+                      </p>
+                      <p className="mt-1 font-semibold text-slate-900">
                         {project.start_date
                           ? new Date(project.start_date).toLocaleDateString(
                             "en-AU"
@@ -968,11 +1023,11 @@ export default function Projects() {
                       </p>
                     </div>
 
-                    <div className="col-span-2">
-                      <p className="text-muted-foreground">
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
                         Est. Completion
                       </p>
-                      <p className="font-medium">
+                      <p className="mt-1 font-semibold text-slate-900">
                         {project.estimated_completion_date
                           ? new Date(
                             project.estimated_completion_date
@@ -982,39 +1037,25 @@ export default function Projects() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 pt-2 print:hidden">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openViewProject(project)}
-                    >
-                      View
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openEditProject(project)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        inactiveProject.mutate(project.project_id)
+                  <div className="border-t border-slate-200 pt-4 print:hidden">
+                    <StandardActions
+                      isActive={project.is_active}
+                      onView={() => openViewProject(project)}
+                      onEdit={() => openEditProject(project)}
+                      onToggleActive={() =>
+                        toggleProjectActive.mutate({
+                          projectId: project.project_id,
+                          isActive: !project.is_active,
+                        })
                       }
-                      disabled={inactiveProject.isPending}
-                    >
-                      Inactive
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => deleteProject.mutate(project.project_id)}
-                      disabled={deleteProject.isPending}
-                    >
-                      Delete
-                    </Button>
+                      onDelete={() =>
+                        deleteProject.mutate(project.project_id)
+                      }
+                      isStatusPending={toggleProjectActive.isPending}
+                      isDeletePending={deleteProject.isPending}
+                      size="mobile"
+                      align="end"
+                    />
                   </div>
                 </CardContent>
               </Card>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ClipboardList, Eye, Pencil, Plus, Search } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -136,6 +136,17 @@ const WorkOrders = () => {
       return data;
     },
   });
+
+  useEffect(() => {
+    const activeEmployeeIds = new Set(
+      employees.map((employee) => employee.employee_id)
+    );
+
+    setSelectedEmployeeIds((current) =>
+      current.filter((employeeId) => activeEmployeeIds.has(employeeId))
+    );
+  }, [employees]);
+
   const { data: areas = [] } = useQuery({
     queryKey: ["areas-for-work-orders"],
     queryFn: async () => {
@@ -337,20 +348,50 @@ work_assignments (
       if (error) throw error;
 
       if (selectedEmployeeIds.length > 0) {
+        const { data: activeSelectedEmployees, error: employeeCheckError } =
+          await supabase
+            .from("employees")
+            .select("employee_id")
+            .in("employee_id", selectedEmployeeIds)
+            .eq("is_deleted", false)
+            .eq("is_active", true);
+
+        if (employeeCheckError) throw employeeCheckError;
+
+        const activeSelectedEmployeeIds = new Set(
+          (activeSelectedEmployees || []).map(
+            (employee) => employee.employee_id
+          )
+        );
+
+        const inactiveSelectedEmployeeIds = selectedEmployeeIds.filter(
+          (employeeId) => !activeSelectedEmployeeIds.has(employeeId)
+        );
+
+        if (inactiveSelectedEmployeeIds.length > 0) {
+          throw new Error(
+            "One or more selected workers are inactive. Remove them and try again."
+          );
+        }
+
         for (const employeeId of selectedEmployeeIds) {
-          const { error: assignmentError } = await supabase.rpc("create_work_assignment", {
-            p_employee_id: employeeId,
-            p_project_id: projectId,
-            p_site_id: siteId,
-            p_area_id: areaId || null,
-            p_work_order_id: newWorkOrder.work_order_id,
-            p_notes: null,
-          });
+          const { error: assignmentError } = await supabase.rpc(
+            "create_work_assignment",
+            {
+              p_employee_id: employeeId,
+              p_project_id: projectId,
+              p_site_id: siteId,
+              p_area_id: areaId || null,
+              p_work_order_id: newWorkOrder.work_order_id,
+              p_notes: null,
+            }
+          );
 
           if (assignmentError) throw assignmentError;
         }
       }
     },
+
     onSuccess: () => {
       toast.success("Work order created successfully.");
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });

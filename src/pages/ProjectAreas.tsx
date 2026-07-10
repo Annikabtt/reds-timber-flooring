@@ -1,25 +1,15 @@
 import { useMemo, useState } from "react";
 import {
-  Eye,
   FileDown,
   FileSpreadsheet,
   Layers3,
-  MoreHorizontal,
-  Pencil,
   Plus,
   Printer,
   Search,
-  Trash2,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +27,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { ActiveStatusBadge } from "@/components/common/ActiveStatusBadge";
+import { StandardActions } from "@/components/common/StandardActions";
 
 const ProjectAreas = () => {
   const queryClient = useQueryClient();
@@ -591,66 +583,33 @@ const ProjectAreas = () => {
 
 
   return (
-
     <div className="p-6 space-y-6 print:p-0 print:space-y-3 print:overflow-visible">
-      <div className="print:hidden flex items-center justify-between">
-        <div>
+      <div className="print:hidden flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <div className="flex items-center gap-3">
-            <Layers3 className="h-8 w-8 text-red-600" />
-            <h1 className="text-3xl font-bold text-slate-900">
-              Project Areas
-            </h1>
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-50">
+              <Layers3 className="h-6 w-6 text-red-600" />
+            </div>
+
+            <div className="min-w-0">
+              <h1 className="text-2xl font-black leading-tight text-slate-900 md:text-3xl">
+                Project Areas
+              </h1>
+
+              <p className="mt-0.5 text-sm text-slate-500">
+                Manage flooring areas under each project site.
+              </p>
+            </div>
           </div>
-          <p className="text-slate-500 mt-1">
-            Manage flooring areas under each project site.
-          </p>
         </div>
 
-        <div className="print:hidden flex flex-wrap items-center justify-end gap-2">
-          <Button
-            variant="outline"
-            onClick={handlePrint}
-            className="flex items-center gap-2"
-          >
-            <Printer className="h-4 w-4" />
-            Print
-          </Button>
-
-          <Button
-            variant="outline"
-            onClick={handlePdf}
-            className="flex items-center gap-2"
-          >
-            <FileDown className="h-4 w-4" />
-            PDF
-          </Button>
-
-          <Button
-            variant="outline"
-            onClick={handleExportCsv}
-            className="flex items-center gap-2"
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            CSV
-          </Button>
-
-          <Button
-            variant="outline"
-            onClick={handleExportExcel}
-            className="flex items-center gap-2"
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            Excel
-          </Button>
-
-          <Button
-            onClick={openAddDialog}
-            className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-xl shadow-lg shadow-red-200 transition-all flex items-center gap-2"
-          >
-            <Plus className="h-5 w-5" />
-            Add Area
-          </Button>
-        </div>
+        <Button
+          onClick={openAddDialog}
+          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700 sm:w-auto sm:px-6"
+        >
+          <Plus className="h-5 w-5" />
+          Add Area
+        </Button>
       </div>
 
       <div className="hidden print:block border-b border-slate-300 pb-3 mb-3 print:break-after-avoid">
@@ -779,9 +738,9 @@ const ProjectAreas = () => {
         </div>
       </div>
 
-      <div className="print:hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div className="relative md:col-span-3">
+      <div className="print:hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_220px_auto] xl:items-center">
+          <div className="relative min-w-0">
             <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
             <Input
               placeholder="Search by area, site, project, customer, or type..."
@@ -801,6 +760,48 @@ const ProjectAreas = () => {
               <SelectItem value="all">All Areas</SelectItem>
             </SelectContent>
           </Select>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:flex xl:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handlePrint}
+              className="h-10 gap-2 rounded-xl text-xs"
+            >
+              <Printer className="h-4 w-4" />
+              Print
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handlePdf}
+              className="h-10 gap-2 rounded-xl text-xs"
+            >
+              <FileDown className="h-4 w-4" />
+              PDF
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleExportCsv}
+              className="h-10 gap-2 rounded-xl text-xs"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              CSV
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleExportExcel}
+              className="h-10 gap-2 rounded-xl text-xs"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Excel
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -871,55 +872,31 @@ const ProjectAreas = () => {
                 {Number(area.progress_percent || 0).toFixed(2)}%
               </div>
 
-              <div className="col-span-1 text-right print:hidden">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
+              <div className="col-span-1 print:hidden">
+                <StandardActions
+                  isActive={area.is_active}
+                  onView={() => openViewDialog(area)}
+                  onEdit={() => openEditDialog(area)}
+                  onToggleActive={() =>
+                    setAreaActiveStatus.mutate({
+                      areaId: area.area_id,
+                      isActive: !area.is_active,
+                    })
+                  }
+                  onDelete={() => {
+                    const confirmed = window.confirm(
+                      `Delete project area "${area.area_name}"?`
+                    );
 
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => openViewDialog(area)}>
-                      <Eye className="h-4 w-4 mr-2" />
-                      View
-                    </DropdownMenuItem>
+                    if (!confirmed) return;
 
-                    <DropdownMenuItem onClick={() => openEditDialog(area)}>
-                      <Pencil className="h-4 w-4 mr-2" />
-                      Edit
-                    </DropdownMenuItem>
-
-                    <DropdownMenuItem
-                      onClick={() =>
-                        setAreaActiveStatus.mutate({
-                          areaId: area.area_id,
-                          isActive: !area.is_active,
-                        })
-                      }
-                      disabled={setAreaActiveStatus.isPending}
-                    >
-                      {area.is_active ? "Mark Inactive" : "Reactivate"}
-                    </DropdownMenuItem>
-
-                    <DropdownMenuItem
-                      className="text-red-600 focus:text-red-600"
-                      onClick={() => {
-                        const confirmed = window.confirm(
-                          `Delete project area "${area.area_name}"?`
-                        );
-
-                        if (!confirmed) return;
-
-                        deleteArea.mutate(area.area_id);
-                      }}
-                      disabled={deleteArea.isPending}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                    deleteArea.mutate(area.area_id);
+                  }}
+                  isStatusPending={setAreaActiveStatus.isPending}
+                  isDeletePending={deleteArea.isPending}
+                  size="desktop"
+                  align="end"
+                />
               </div>
 
             </div>
@@ -948,66 +925,10 @@ const ProjectAreas = () => {
                   </p>
                 </div>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => openViewDialog(area)}>
-                      <Eye className="h-4 w-4 mr-2" />
-                      View
-                    </DropdownMenuItem>
-
-                    <DropdownMenuItem onClick={() => openEditDialog(area)}>
-                      <Pencil className="h-4 w-4 mr-2" />
-                      Edit
-                    </DropdownMenuItem>
-
-                    <DropdownMenuItem
-                      onClick={() =>
-                        setAreaActiveStatus.mutate({
-                          areaId: area.area_id,
-                          isActive: !area.is_active,
-                        })
-                      }
-                      disabled={setAreaActiveStatus.isPending}
-                    >
-                      {area.is_active ? "Mark Inactive" : "Reactivate"}
-                    </DropdownMenuItem>
-
-                    <DropdownMenuItem
-                      className="text-red-600 focus:text-red-600"
-                      onClick={() => {
-                        const confirmed = window.confirm(
-                          `Delete project area "${area.area_name}"?`
-                        );
-
-                        if (!confirmed) return;
-
-                        deleteArea.mutate(area.area_id);
-                      }}
-                      disabled={deleteArea.isPending}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
               </div>
 
               <div className="flex items-center justify-between gap-3">
-                <span
-                  className={
-                    area.is_active
-                      ? "rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 border border-emerald-200"
-                      : "rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 border border-slate-200"
-                  }
-                >
-                  {area.is_active ? "Active" : "Inactive"}
-                </span>
+                <ActiveStatusBadge isActive={area.is_active} />
 
                 <span className="text-xs font-semibold text-slate-500">
                   {Number(area.progress_percent || 0).toFixed(2)}% Progress
@@ -1065,6 +986,34 @@ const ProjectAreas = () => {
                   </p>
                 </div>
               </div>
+
+              <div className="border-t border-slate-200 pt-4">
+                <StandardActions
+                  isActive={area.is_active}
+                  onView={() => openViewDialog(area)}
+                  onEdit={() => openEditDialog(area)}
+                  onToggleActive={() =>
+                    setAreaActiveStatus.mutate({
+                      areaId: area.area_id,
+                      isActive: !area.is_active,
+                    })
+                  }
+                  onDelete={() => {
+                    const confirmed = window.confirm(
+                      `Delete project area "${area.area_name}"?`
+                    );
+
+                    if (!confirmed) return;
+
+                    deleteArea.mutate(area.area_id);
+                  }}
+                  isStatusPending={setAreaActiveStatus.isPending}
+                  isDeletePending={deleteArea.isPending}
+                  size="mobile"
+                  align="end"
+                />
+              </div>
+
             </div>
           ))
         )}
@@ -1205,7 +1154,7 @@ const ProjectAreas = () => {
           }
         }}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-24px)] max-w-3xl overflow-y-auto rounded-2xl p-4 sm:p-6">
           <DialogTitle>
             {editingAreaId ? "Edit Project Area" : "Add Project Area"}
           </DialogTitle>

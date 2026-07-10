@@ -1,9 +1,7 @@
 import { useMemo, useState } from "react";
 import {
-  Archive,
   Building2,
   Download,
-  Edit,
   FileSpreadsheet,
   FileText,
   Filter,
@@ -12,7 +10,6 @@ import {
   Plus,
   Printer,
   Search,
-  Trash2,
 } from "lucide-react";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -35,7 +32,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
+import { ActiveStatusBadge } from "@/components/common/ActiveStatusBadge";
+import { StandardActions } from "@/components/common/StandardActions";
 
 type CustomerContact = {
   contact_id: string;
@@ -93,6 +91,9 @@ export default function CustomerDatabase() {
   const [priceBookId, setPriceBookId] = useState("");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
+
+  const [showViewDialog, setShowViewDialog] = useState(false);
+  const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
 
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -321,6 +322,12 @@ export default function CustomerDatabase() {
       )?.price_book_code || "Not set"
     );
   };
+
+  const openViewCustomer = (customer: Customer) => {
+    setViewingCustomer(customer);
+    setShowViewDialog(true);
+  };
+
 
   const openEditCustomer = (customer: Customer) => {
     const primaryContact = getPrimaryContact(customer);
@@ -938,7 +945,7 @@ export default function CustomerDatabase() {
   return (
     <div className="w-full space-y-5">
       <div className="w-full space-y-5">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-50">
@@ -958,12 +965,160 @@ export default function CustomerDatabase() {
 
           <Button
             onClick={() => setShowAddDialog(true)}
-            className="h-11 w-full rounded-xl bg-red-600 px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700 md:w-auto md:px-6"
+            className="flex h-11 w-full items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700 sm:w-auto sm:px-6"
           >
             <Plus className="mr-2 h-4 w-4" />
             Add Customer
           </Button>
         </div>
+
+        <Dialog
+          open={showViewDialog}
+          onOpenChange={(open) => {
+            setShowViewDialog(open);
+
+            if (!open) {
+              setViewingCustomer(null);
+            }
+          }}
+        >
+          <DialogContent className="max-h-[90vh] w-[calc(100vw-24px)] max-w-2xl overflow-y-auto rounded-2xl p-4 sm:p-6">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold text-slate-900">
+                Customer Details
+              </DialogTitle>
+            </DialogHeader>
+
+            {viewingCustomer ? (
+              <div className="space-y-5">
+                <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Customer
+                      </p>
+
+                      <h2 className="mt-1 break-words text-xl font-bold text-slate-900">
+                        {viewingCustomer.customer_name || "-"}
+                      </h2>
+
+                      <p className="mt-1 font-mono text-xs text-slate-500">
+                        {viewingCustomer.customer_code || "-"}
+                      </p>
+                    </div>
+
+                    <ActiveStatusBadge
+                      isActive={viewingCustomer.is_active}
+                      className="shrink-0"
+                    />
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-700">
+                      {viewingCustomer.customer_type || "-"}
+                    </span>
+
+                    <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600">
+                      Price Book: {getCustomerPriceBookCode(viewingCustomer)}
+                    </span>
+                  </div>
+                </section>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Primary Contact
+                    </p>
+
+                    <p className="mt-2 font-bold text-slate-900">
+                      {getPrimaryContact(viewingCustomer)?.contact_name || "-"}
+                    </p>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      {getPrimaryContact(viewingCustomer)?.position || "Contact"}
+                    </p>
+
+                    <div className="mt-4 space-y-3 text-sm text-slate-700">
+                      <div className="flex items-start gap-2">
+                        <Phone className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                        <span className="break-all">
+                          {getPrimaryContact(viewingCustomer)?.phone ||
+                            viewingCustomer.phone ||
+                            "-"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-start gap-2">
+                        <Mail className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                        <span className="break-all">
+                          {getPrimaryContact(viewingCustomer)?.email ||
+                            viewingCustomer.email ||
+                            "-"}
+                        </span>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Customer Information
+                    </p>
+
+                    <div className="mt-3 space-y-3 text-sm">
+                      <div>
+                        <p className="text-xs text-slate-500">ABN</p>
+                        <p className="mt-1 font-medium text-slate-800">
+                          {viewingCustomer.abn || "-"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-slate-500">Price Book</p>
+                        <p className="mt-1 font-medium text-slate-800">
+                          {getCustomerPriceBookCode(viewingCustomer)}
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Primary Address
+                  </p>
+
+                  <p className="mt-2 whitespace-normal text-sm leading-relaxed text-slate-700">
+                    {formatAddress(getPrimaryAddress(viewingCustomer))}
+                  </p>
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Notes
+                  </p>
+
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+                    {viewingCustomer.notes || "No notes."}
+                  </p>
+                </section>
+
+                <div className="flex justify-end border-t border-slate-200 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setShowViewDialog(false);
+                      setViewingCustomer(null);
+                    }}
+                    className="h-10 rounded-xl"
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </DialogContent>
+        </Dialog>
 
         <Dialog
           open={showEditDialog}
@@ -1426,82 +1581,29 @@ export default function CustomerDatabase() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm md:p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm font-black uppercase tracking-wide text-slate-800">
-                Print / Export
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Export the current filtered customer list.
-              </p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_180px_180px_auto] xl:items-center">
+            <div className="relative min-w-0">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                size={20}
+              />
+
+              <input
+                type="text"
+                placeholder="Search by code, name, contact, address, phone, email, ABN, or price book..."
+                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:flex md:items-center">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handlePrintCustomers}
-                className="h-10 rounded-xl text-xs font-bold"
-              >
-                <Printer className="mr-2 h-4 w-4" />
-                Print
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handlePrintCustomers}
-                className="h-10 rounded-xl text-xs font-bold"
-              >
-                <FileText className="mr-2 h-4 w-4" />
-                PDF
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleExportCsv}
-                className="h-10 rounded-xl text-xs font-bold"
-              >
-                <Download className="mr-2 h-4 w-4" />
-                CSV
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleExportExcel}
-                className="h-10 rounded-xl text-xs font-bold"
-              >
-                <FileSpreadsheet className="mr-2 h-4 w-4" />
-                Excel
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm md:p-4">
-          <div className="relative w-full">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              size={20}
-            />
-            <input
-              type="text"
-              placeholder="Search by code, name, contact, address, phone, email, ABN, or price book..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-red-500 outline-none transition-all"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
             <Select value={typeFilter} onValueChange={setTypeFilter}>
               <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
                 <Filter className="mr-2 h-4 w-4 text-slate-400" />
                 <SelectValue placeholder="Customer type" />
               </SelectTrigger>
+
               <SelectContent>
                 <SelectItem value="All">All Types</SelectItem>
                 <SelectItem value="Residential">Residential</SelectItem>
@@ -1514,14 +1616,56 @@ export default function CustomerDatabase() {
                 <Filter className="mr-2 h-4 w-4 text-slate-400" />
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
+
               <SelectContent>
                 <SelectItem value="All">All Status</SelectItem>
                 <SelectItem value="Active">Active</SelectItem>
                 <SelectItem value="Inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
-          </div>
 
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:flex xl:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handlePrintCustomers}
+                className="h-10 gap-2 rounded-xl text-xs font-bold"
+              >
+                <Printer className="h-4 w-4" />
+                Print
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handlePrintCustomers}
+                className="h-10 gap-2 rounded-xl text-xs font-bold"
+              >
+                <FileText className="h-4 w-4" />
+                PDF
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleExportCsv}
+                className="h-10 gap-2 rounded-xl text-xs font-bold"
+              >
+                <Download className="h-4 w-4" />
+                CSV
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleExportExcel}
+                className="h-10 gap-2 rounded-xl text-xs font-bold"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Excel
+              </Button>
+            </div>
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -1561,15 +1705,10 @@ export default function CustomerDatabase() {
                         </p>
                       </div>
 
-                      <span
-                        className={
-                          customer.is_active
-                            ? "shrink-0 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700"
-                            : "shrink-0 inline-flex rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-500"
-                        }
-                      >
-                        {customer.is_active ? "Active" : "Inactive"}
-                      </span>
+                      <ActiveStatusBadge
+                        isActive={customer.is_active}
+                        className="shrink-0"
+                      />
                     </div>
 
                     <div className="flex flex-wrap gap-2">
@@ -1618,37 +1757,18 @@ export default function CustomerDatabase() {
                         Address: {formatAddress(getPrimaryAddress(customer))}
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2 pt-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => openEditCustomer(customer)}
-                          className="h-10 rounded-xl text-xs font-bold"
-                        >
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit
-                        </Button>
-
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => handleToggleCustomerActive(customer)}
-                          className="h-10 rounded-xl text-xs font-bold"
-                        >
-                          <Archive className="mr-2 h-4 w-4" />
-                          {customer.is_active ? "Inactive" : "Reactivate"}
-                        </Button>
-
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => handleDeleteCustomer(customer)}
-                          title="Delete customer"
-                          aria-label={`Delete customer ${customer.customer_name}`}
-                          className="h-10 rounded-xl text-xs font-bold text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                      <div className="border-t border-slate-200 pt-3">
+                        <StandardActions
+                          isActive={customer.is_active}
+                          onView={() => openViewCustomer(customer)}
+                          onEdit={() => openEditCustomer(customer)}
+                          onToggleActive={() =>
+                            handleToggleCustomerActive(customer)
+                          }
+                          onDelete={() => handleDeleteCustomer(customer)}
+                          size="mobile"
+                          align="end"
+                        />
                       </div>
 
                     </div>
@@ -1676,10 +1796,7 @@ export default function CustomerDatabase() {
                       <th className="px-6 py-4 font-bold uppercase tracking-wider">
                         ABN
                       </th>
-                      <th className="px-6 py-4 font-bold uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-6 py-4 text-right font-bold uppercase tracking-wider">
+                      <th className="w-[210px] px-6 py-4 text-right font-bold uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
@@ -1744,52 +1861,20 @@ export default function CustomerDatabase() {
                             {customer.abn || "-"}
                           </td>
 
-                          <td className="px-6 py-4">
-                            <span
-                              className={
-                                customer.is_active
-                                  ? "inline-flex px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                  : "inline-flex px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200"
+                          <td className="w-[210px] px-6 py-4">
+                            <StandardActions
+                              isActive={customer.is_active}
+                              onView={() => openViewCustomer(customer)}
+                              onEdit={() => openEditCustomer(customer)}
+                              onToggleActive={() =>
+                                handleToggleCustomerActive(customer)
                               }
-                            >
-                              {customer.is_active ? "Active" : "Inactive"}
-                            </span>
-                          </td>
-
-                          <td className="px-6 py-4">
-                            <div className="flex items-center justify-end gap-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => openEditCustomer(customer)}
-                                className="h-9 rounded-xl px-3 text-xs font-bold"
-                              >
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit
-                              </Button>
-
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => handleToggleCustomerActive(customer)}
-                                className="h-9 rounded-xl px-3 text-xs font-bold"
-                              >
-                                <Archive className="mr-2 h-4 w-4" />
-                                {customer.is_active ? "Inactive" : "Reactivate"}
-                              </Button>
-
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => handleDeleteCustomer(customer)}
-                                title="Delete customer"
-                                aria-label={`Delete customer ${customer.customer_name}`}
-                                className="h-9 w-9 rounded-xl p-0 text-red-600 hover:text-red-700"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-
-                            </div>
+                              onDelete={() =>
+                                handleDeleteCustomer(customer)
+                              }
+                              size="desktop"
+                              align="end"
+                            />
                           </td>
 
                         </tr>

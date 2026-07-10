@@ -9,9 +9,8 @@ import {
   FileText,
   FileSpreadsheet,
   Download,
-  Pencil,
-  Trash2,
 } from "lucide-react";
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -31,9 +30,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { ActiveStatusBadge } from "@/components/common/ActiveStatusBadge";
+import { StandardActions } from "@/components/common/StandardActions";
 
 const Employees = () => {
   const queryClient = useQueryClient();
+
+  const [showViewDialog, setShowViewDialog] = useState(false);
+  const [viewingEmployee, setViewingEmployee] = useState<
+    (typeof employees)[number] | null>(null);
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [formMode, setFormMode] = useState<"add" | "edit">("add");
@@ -185,6 +190,11 @@ const Employees = () => {
     },
   });
 
+  const openViewEmployee = (employee: (typeof employees)[number]) => {
+    setViewingEmployee(employee);
+    setShowViewDialog(true);
+  };
+
   const openEditEmployee = (employee: (typeof employees)[number]) => {
     setFormMode("edit");
     setEditingEmployeeId(employee.employee_id);
@@ -293,6 +303,51 @@ const Employees = () => {
     },
   });
 
+  const toggleEmployeeActive = useMutation({
+    mutationFn: async ({
+      employeeId,
+      isActive,
+    }: {
+      employeeId: string;
+      isActive: boolean;
+    }) => {
+      const updateData = isActive
+        ? {
+          is_active: true,
+          end_date: null,
+        }
+        : {
+          is_active: false,
+          end_date: new Date().toISOString().slice(0, 10),
+        };
+
+      const { error } = await supabase
+        .from("employees")
+        .update(updateData)
+        .eq("employee_id", employeeId)
+        .eq("is_deleted", false);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      toast.success(
+        variables.isActive
+          ? "Employee reactivated successfully."
+          : "Employee marked inactive successfully."
+      );
+
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({
+        queryKey: ["employees-for-deliveries"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["employees-for-work-orders"],
+      });
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
 
   const deleteEmployee = useMutation({
     mutationFn: async (employeeId: string) => {
@@ -739,8 +794,7 @@ const Employees = () => {
           <div className="col-span-2">Employment / Payroll</div>
           <div className="col-span-2">Bank</div>
           <div className="col-span-1">Period</div>
-          <div className="col-span-1">Status</div>
-          <div className="col-span-1 text-right">Actions</div>
+          <div className="col-span-2 text-right">Actions</div>
         </div>
 
         {filteredEmployees.length === 0 ? (
@@ -805,51 +859,31 @@ const Employees = () => {
                 <p>{employee.end_date || "-"}</p>
               </div>
 
-              <div className="col-span-1">
-                <span
-                  className={
-                    employee.is_active
-                      ? "inline-flex rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700"
-                      : "inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600"
+              <div className="col-span-2">
+                <StandardActions
+                  isActive={employee.is_active}
+                  onView={() => openViewEmployee(employee)}
+                  onEdit={() => openEditEmployee(employee)}
+                  onToggleActive={() =>
+                    toggleEmployeeActive.mutate({
+                      employeeId: employee.employee_id,
+                      isActive: !employee.is_active,
+                    })
                   }
-                >
-                  {employee.is_active ? "Active" : "Inactive"}
-                </span>
-              </div>
+                  onDelete={() => {
+                    const confirmed = window.confirm(
+                      "Delete this employee? This will hide the employee but keep payroll and work history."
+                    );
 
-              <div className="col-span-1 flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => openEditEmployee(employee)}
-                  className="h-9 w-9 rounded-lg"
-                  title="Edit employee"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  disabled={deleteEmployee.isPending}
-                  onClick={() => {
-                    if (
-                      !window.confirm(
-                        "Delete this employee? This will hide the employee but keep payroll and work history."
-                      )
-                    ) {
-                      return;
-                    }
+                    if (!confirmed) return;
 
                     deleteEmployee.mutate(employee.employee_id);
                   }}
-                  className="h-9 w-9 rounded-lg border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
-                  title="Delete employee"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                  isStatusPending={toggleEmployeeActive.isPending}
+                  isDeletePending={deleteEmployee.isPending}
+                  size="desktop"
+                  align="end"
+                />
               </div>
 
             </div>
@@ -869,7 +903,7 @@ const Employees = () => {
               className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="truncate text-base font-bold text-slate-900">
                     {employee.display_name ||
                       `${employee.first_name || ""} ${employee.last_name || ""
@@ -881,15 +915,10 @@ const Employees = () => {
                   </p>
                 </div>
 
-                <span
-                  className={
-                    employee.is_active
-                      ? "shrink-0 rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700"
-                      : "shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600"
-                  }
-                >
-                  {employee.is_active ? "Active" : "Inactive"}
-                </span>
+                <ActiveStatusBadge
+                  isActive={employee.is_active}
+                  className="shrink-0"
+                />
               </div>
 
               <div className="mt-4 space-y-2 text-sm text-slate-700">
@@ -959,45 +988,220 @@ const Employees = () => {
                   {employee.bank_account_no || "-"}
                 </p>
               </div>
+              <div className="mt-4 border-t border-slate-200 pt-4">
+                <StandardActions
+                  isActive={employee.is_active}
+                  onView={() => openViewEmployee(employee)}
+                  onEdit={() => openEditEmployee(employee)}
+                  onToggleActive={() =>
+                    toggleEmployeeActive.mutate({
+                      employeeId: employee.employee_id,
+                      isActive: !employee.is_active,
+                    })
+                  }
+                  onDelete={() => {
+                    const confirmed = window.confirm(
+                      "Delete this employee? This will hide the employee but keep payroll and work history."
+                    );
 
-              <div className="mt-4 flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => openEditEmployee(employee)}
-                  className="h-10 w-10 rounded-xl"
-                  title="Edit employee"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  disabled={deleteEmployee.isPending}
-                  onClick={() => {
-                    if (
-                      !window.confirm(
-                        "Delete this employee? This will hide the employee but keep payroll and work history."
-                      )
-                    ) {
-                      return;
-                    }
+                    if (!confirmed) return;
 
                     deleteEmployee.mutate(employee.employee_id);
                   }}
-                  className="h-10 w-10 rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
-                  title="Delete employee"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                  isStatusPending={toggleEmployeeActive.isPending}
+                  isDeletePending={deleteEmployee.isPending}
+                  size="mobile"
+                  align="end"
+                />
               </div>
             </div>
           ))
         )}
       </div>
+
+      <Dialog
+        open={showViewDialog}
+        onOpenChange={(open) => {
+          setShowViewDialog(open);
+
+          if (!open) {
+            setViewingEmployee(null);
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-24px)] max-w-3xl overflow-y-auto rounded-2xl p-4 sm:p-6">
+          <DialogHeader>
+            <DialogTitle>Employee Details</DialogTitle>
+          </DialogHeader>
+
+          {viewingEmployee ? (
+            <div className="space-y-5">
+              <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Employee
+                    </p>
+
+                    <h2 className="mt-1 break-words text-xl font-bold text-slate-900">
+                      {viewingEmployee.display_name ||
+                        `${viewingEmployee.first_name || ""} ${viewingEmployee.last_name || ""
+                          }`.trim() ||
+                        "-"}
+                    </h2>
+
+                    <p className="mt-1 font-mono text-xs text-slate-500">
+                      {viewingEmployee.employee_code || "No employee code"}
+                    </p>
+                  </div>
+
+                  <ActiveStatusBadge
+                    isActive={viewingEmployee.is_active}
+                    className="shrink-0"
+                  />
+                </div>
+              </section>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Contact Details
+                  </p>
+
+                  <div className="mt-3 space-y-3 text-sm text-slate-700">
+                    <div className="flex items-start gap-2">
+                      <Phone className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                      <span>{viewingEmployee.phone || "-"}</span>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                      <Mail className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                      <span className="break-all">
+                        {viewingEmployee.email || "-"}
+                      </span>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Employment
+                  </p>
+
+                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-xs text-slate-500">Type</p>
+                      <p className="mt-1 font-semibold text-slate-900">
+                        {viewingEmployee.employment_type || "-"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-slate-500">Pay Method</p>
+                      <p className="mt-1 font-semibold text-slate-900">
+                        {viewingEmployee.pay_method || "-"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-slate-500">Start Date</p>
+                      <p className="mt-1 font-semibold text-slate-900">
+                        {viewingEmployee.start_date || "-"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-slate-500">End Date</p>
+                      <p className="mt-1 font-semibold text-slate-900">
+                        {viewingEmployee.end_date || "-"}
+                      </p>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Payroll
+                </p>
+
+                <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div>
+                    <p className="text-xs text-slate-500">Pay Rate</p>
+                    <p className="mt-1 font-bold text-slate-900">
+                      ${Number(viewingEmployee.pay_rate || 0).toFixed(2)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-slate-500">Pay Method</p>
+                    <p className="mt-1 font-semibold text-slate-900">
+                      {viewingEmployee.pay_method || "-"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-slate-500">Tax File Number</p>
+                    <p className="mt-1 font-semibold text-slate-900">
+                      {viewingEmployee.tax_file_number || "-"}
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Bank Details
+                </p>
+
+                <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs text-slate-500">Bank</p>
+                    <p className="mt-1 font-semibold text-slate-900">
+                      {viewingEmployee.bank_name || "-"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-slate-500">Account Name</p>
+                    <p className="mt-1 font-semibold text-slate-900">
+                      {viewingEmployee.bank_account_name || "-"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-slate-500">BSB</p>
+                    <p className="mt-1 font-semibold text-slate-900">
+                      {viewingEmployee.bank_bsb || "-"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-slate-500">Account Number</p>
+                    <p className="mt-1 font-semibold text-slate-900">
+                      {viewingEmployee.bank_account_no || "-"}
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              <div className="flex justify-end border-t border-slate-200 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowViewDialog(false);
+                    setViewingEmployee(null);
+                  }}
+                  className="h-10 rounded-xl"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="max-h-[90vh] w-[calc(100vw-24px)] max-w-4xl overflow-y-auto rounded-2xl p-4 sm:p-6">

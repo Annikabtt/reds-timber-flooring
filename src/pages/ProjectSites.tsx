@@ -1,15 +1,14 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
+  FileDown,
+  FileSpreadsheet,
   MapPin,
-  Plus,
-  Search,
   Phone,
-  Eye,
-  Pencil,
-  PowerOff,
-  Trash2,
-} from "lucide-react";
+  Plus,
+  Printer,
+  Search,
+  } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -30,9 +29,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { ActiveStatusBadge } from "@/components/common/ActiveStatusBadge";
+import { StandardActions } from "@/components/common/StandardActions";
 
 const ProjectSites = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingSiteId, setEditingSiteId] = useState<string | null>(null);
@@ -232,25 +234,40 @@ const ProjectSites = () => {
     },
   });
 
-  const inactiveSite = useMutation({
-    mutationFn: async (siteId: string) => {
+  const toggleSiteActive = useMutation({
+    mutationFn: async ({
+      siteId,
+      isActive,
+    }: {
+      siteId: string;
+      isActive: boolean;
+    }) => {
       const { error } = await supabase
         .from("project_sites")
         .update({
-          is_active: false,
+          is_active: isActive,
         })
-        .eq("site_id", siteId);
+        .eq("site_id", siteId)
+        .eq("is_deleted", false);
 
       if (error) throw error;
     },
-    onSuccess: () => {
-      toast.success("Project site marked as inactive.");
-      queryClient.invalidateQueries({ queryKey: ["project_sites"] });
+    onSuccess: (_, variables) => {
+      toast.success(
+        variables.isActive
+          ? "Project site reactivated successfully."
+          : "Project site marked as inactive."
+      );
+
+      queryClient.invalidateQueries({
+        queryKey: ["project_sites"],
+      });
     },
     onError: (error) => {
       toast.error(error.message);
     },
   });
+
 
   const deleteSite = useMutation({
     mutationFn: async (siteId: string) => {
@@ -428,22 +445,28 @@ const ProjectSites = () => {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <div className="flex items-center gap-3">
-            <MapPin className="h-8 w-8 text-red-600" />
-            <h1 className="text-3xl font-bold text-slate-900">
-              Project Sites
-            </h1>
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-50">
+              <MapPin className="h-6 w-6 text-red-600" />
+            </div>
+
+            <div className="min-w-0">
+              <h1 className="text-2xl font-black leading-tight text-slate-900 md:text-3xl">
+                Project Sites
+              </h1>
+
+              <p className="mt-0.5 text-sm text-slate-500">
+                Manage project site locations and site contact details.
+              </p>
+            </div>
           </div>
-          <p className="text-slate-500 mt-1">
-            Manage project site locations and site contact details.
-          </p>
         </div>
 
         <Button
           onClick={openCreateSite}
-          className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-xl shadow-lg shadow-red-200 transition-all flex items-center gap-2 print:hidden"
+          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700 sm:w-auto sm:px-6 print:hidden"
         >
           <Plus className="h-5 w-5" />
           Add Site
@@ -600,45 +623,27 @@ const ProjectSites = () => {
                     </span>
                   </div>
 
-                  <div className="col-span-1 flex flex-wrap justify-end gap-2 print:hidden">
-                    <Button asChild size="sm" variant="outline" title="View site">
-                      <Link to={`/project-sites/${site.site_id}`}>
-                        <Eye className="h-4 w-4" />
-                      </Link>
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openEditSite(site)}
-                      title="Edit site"
-                      className="gap-2"
-                    >
-                      <Pencil className="h-4 w-4" />
-                      Edit
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => inactiveSite.mutate(site.site_id)}
-                      disabled={inactiveSite.isPending || !site.is_active}
-                      title="Mark inactive"
-                      className="gap-2"
-                    >
-                      <PowerOff className="h-4 w-4" />
-                      Inactive
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => deleteSite.mutate(site.site_id)}
-                      disabled={deleteSite.isPending}
-                      title="Delete site"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                  <div className="col-span-1 print:hidden">
+                    <StandardActions
+                      isActive={site.is_active}
+                      onView={() =>
+                        navigate(`/project-sites/${site.site_id}`)
+                      }
+                      onEdit={() => openEditSite(site)}
+                      onToggleActive={() =>
+                        toggleSiteActive.mutate({
+                          siteId: site.site_id,
+                          isActive: !site.is_active,
+                        })
+                      }
+                      onDelete={() =>
+                        deleteSite.mutate(site.site_id)
+                      }
+                      isStatusPending={toggleSiteActive.isPending}
+                      isDeletePending={deleteSite.isPending}
+                      size="desktop"
+                      align="end"
+                    />
                   </div>
                 </div>
               );
@@ -723,42 +728,27 @@ const ProjectSites = () => {
                     </div>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-2 gap-2 print:hidden">
-                    <Button asChild size="sm" variant="outline">
-                      <Link to={`/project-sites/${site.site_id}`}>
-                        View
-                      </Link>
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openEditSite(site)}
-                    >
-                      Edit
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => inactiveSite.mutate(site.site_id)}
-                      disabled={inactiveSite.isPending || !site.is_active}
-                      className="gap-2"
-                    >
-                      Inactive
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => deleteSite.mutate(site.site_id)}
-                      disabled={deleteSite.isPending}
-                      title="Delete site"
-                      className="gap-2"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-
+                  <div className="mt-4 border-t border-slate-200 pt-4 print:hidden">
+                    <StandardActions
+                      isActive={site.is_active}
+                      onView={() =>
+                        navigate(`/project-sites/${site.site_id}`)
+                      }
+                      onEdit={() => openEditSite(site)}
+                      onToggleActive={() =>
+                        toggleSiteActive.mutate({
+                          siteId: site.site_id,
+                          isActive: !site.is_active,
+                        })
+                      }
+                      onDelete={() =>
+                        deleteSite.mutate(site.site_id)
+                      }
+                      isStatusPending={toggleSiteActive.isPending}
+                      isDeletePending={deleteSite.isPending}
+                      size="mobile"
+                      align="end"
+                    />
                   </div>
                 </div>
               );

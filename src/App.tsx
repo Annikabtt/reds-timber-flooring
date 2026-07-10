@@ -89,9 +89,7 @@ const App = () => (
               path="/dashboard"
               element={
                 <ProtectedRoute>
-                  <AppLayout>
-                    <PortalDashboard />
-                  </AppLayout>
+                  <PortalDashboard />
                 </ProtectedRoute>
               }
             />
@@ -100,9 +98,7 @@ const App = () => (
               path="/project-sites"
               element={
                 <ProtectedRoute>
-                  <AppLayout>
-                    <ProjectSites />
-                  </AppLayout>
+                  <ProjectSites />
                 </ProtectedRoute>
               }
             />
@@ -111,9 +107,7 @@ const App = () => (
               path="/project-sites/:siteId"
               element={
                 <ProtectedRoute>
-                  <AppLayout>
-                    <ProjectSiteDashboard />
-                  </AppLayout>
+                  <ProjectSiteDashboard />
                 </ProtectedRoute>
               }
             />
