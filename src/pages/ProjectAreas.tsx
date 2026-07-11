@@ -89,6 +89,28 @@ const ProjectAreas = () => {
     },
   });
 
+  const { data: areaTypes = [] } = useQuery({
+    queryKey: ["project_area_types"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("project_area_types")
+        .select(`
+        area_type_id,
+        area_type_name,
+        description,
+        sort_order
+      `)
+        .eq("is_active", true)
+        .eq("is_deleted", false)
+        .order("sort_order", { ascending: true })
+        .order("area_type_name", { ascending: true });
+
+      if (error) throw error;
+
+      return data;
+    },
+  });
+
   const { data: areaStatusRows = [] } = useQuery({
     queryKey: ["project_areas-status"],
     queryFn: async () => {
@@ -216,7 +238,6 @@ const ProjectAreas = () => {
       const { error } = await supabase.from("project_areas").insert({
         project_id: projectId,
         site_id: siteId,
-        area_code: areaCode.trim() || null,
         area_name: areaName.trim(),
         area_type: areaType.trim() || null,
         estimated_quantity: estimatedQuantity
@@ -276,7 +297,6 @@ const ProjectAreas = () => {
         .update({
           project_id: projectId,
           site_id: siteId,
-          area_code: areaCode.trim() || null,
           area_name: areaName.trim(),
           area_type: areaType.trim() || null,
           estimated_quantity: estimatedQuantity
@@ -1239,9 +1259,13 @@ const ProjectAreas = () => {
                   <Label>Area Code</Label>
                   <Input
                     value={areaCode}
-                    onChange={(e) => setAreaCode(e.target.value)}
-                    placeholder="AREA-001"
+                    readOnly
+                    placeholder="Auto generated"
+                    className="bg-slate-50 text-slate-500"
                   />
+                  <p className="text-xs text-slate-500">
+                    Area code is generated automatically when saving a new project area.
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -1255,11 +1279,30 @@ const ProjectAreas = () => {
 
                 <div className="space-y-2">
                   <Label>Area Type</Label>
-                  <Input
+
+                  <Select
                     value={areaType}
-                    onChange={(e) => setAreaType(e.target.value)}
-                    placeholder="Flooring / Stair / Decking"
-                  />
+                    onValueChange={setAreaType}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select area type" />
+                    </SelectTrigger>
+
+                    <SelectContent>
+                      {areaTypes.map((type) => (
+                        <SelectItem
+                          key={type.area_type_id}
+                          value={type.area_type_name}
+                        >
+                          {type.area_type_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <p className="text-xs text-slate-500">
+                    Area types are loaded from the project area type master.
+                  </p>
                 </div>
 
                 <div className="space-y-2">

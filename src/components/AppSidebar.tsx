@@ -7,6 +7,7 @@ import {
   Settings,
   LogOut,
   ClipboardList,
+  Truck,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
@@ -33,7 +34,7 @@ const desktopNavItems = [
 
   { title: "Work Orders", url: "/work-orders", icon: FolderKanban },
   { title: "Daily Progress Review", url: "/daily-reports", icon: Camera },
-
+  { title: "Suppliers", url: "/suppliers", icon: Truck },
   { title: "Employees", url: "/employees", icon: Users },
   { title: "Payroll Periods", url: "/payroll-periods", icon: DollarSign },
   { title: "Payroll Entries", url: "/payroll-entries", icon: DollarSign },

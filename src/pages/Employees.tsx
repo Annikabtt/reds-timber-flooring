@@ -153,7 +153,6 @@ const Employees = () => {
         displayName.trim() || `${firstName.trim()} ${lastName.trim()}`;
 
       const { error } = await supabase.from("employees").insert({
-        employee_code: employeeCode.trim() || null,
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         display_name: finalDisplayName,
@@ -264,7 +263,6 @@ const Employees = () => {
       const { error } = await supabase
         .from("employees")
         .update({
-          employee_code: employeeCode.trim() || null,
           first_name: firstName.trim(),
           last_name: lastName.trim(),
           display_name: finalDisplayName,

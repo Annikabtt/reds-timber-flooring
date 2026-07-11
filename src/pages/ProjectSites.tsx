@@ -8,7 +8,7 @@ import {
   Plus,
   Printer,
   Search,
-  } from "lucide-react";
+} from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -161,7 +161,6 @@ const ProjectSites = () => {
 
       const { error } = await supabase.from("project_sites").insert({
         project_id: projectId,
-        site_code: siteCode.trim() || null,
         site_name: siteName.trim(),
         address_line_1: addressLine1.trim() || null,
         address_line_2: addressLine2.trim() || null,
@@ -207,7 +206,6 @@ const ProjectSites = () => {
         .from("project_sites")
         .update({
           project_id: projectId,
-          site_code: siteCode.trim() || null,
           site_name: siteName.trim(),
           address_line_1: addressLine1.trim() || null,
           address_line_2: addressLine2.trim() || null,
@@ -789,9 +787,13 @@ const ProjectSites = () => {
               <Label>Site Code</Label>
               <Input
                 value={siteCode}
-                onChange={(e) => setSiteCode(e.target.value)}
-                placeholder="SITE-001"
+                readOnly
+                placeholder="Auto generated"
+                className="bg-slate-50 text-slate-500"
               />
+              <p className="text-xs text-slate-500">
+                Site code is generated automatically when saving a new project site.
+              </p>
             </div>
 
             <div className="space-y-2">
