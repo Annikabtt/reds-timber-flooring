@@ -760,7 +760,7 @@ const DailyReports = () => {
           title,
           status
         ),
-                  daily_report_activities (
+           daily_report_activities (
             daily_report_activity_id,
             activity_type_id,
             work_activity_types (
@@ -769,17 +769,23 @@ const DailyReports = () => {
             )
           ),
           daily_report_workers (
-            daily_report_worker_id,
-            employee_id,
-            regular_hours,
-            overtime_hours,
-            completed_quantity
+          daily_report_worker_id,
+          employee_id,
+          regular_hours,
+          overtime_hours,
+          completed_quantity,
+          employees (
+          employee_code,
+          display_name,
+          first_name,
+          last_name
+            )
           ),
           daily_report_photos (
             photo_id,
             is_deleted
-        )
-      `)
+            )
+         `)
         .eq("is_deleted", false)
         .order("report_date", { ascending: false });
 
@@ -1542,18 +1548,48 @@ const DailyReports = () => {
           "Please add at least one present worker with activity, check in, and check out."
         );
       }
-      const completedToday = Number(completedQuantity || 0);
+
+      const primaryActivityTypeId =
+        normalizedDailyReportWorkers[0]?.activity_type_id || "";
+
+      const reportActivityTypeId =
+        normalizedDailyReportWorkers[0]?.activity_type_id || "";
+
+      if (!reportActivityTypeId) {
+        throw new Error("Please select one work activity.");
+      }
+
+      const completedToday = normalizedDailyReportWorkers.reduce(
+        (total, record) =>
+          total + Number(record.completed_quantity || 0),
+        0
+      );
 
       if (completedToday < 0) {
         throw new Error("Completed Quantity Today cannot be negative.");
       }
 
-
-      const progress = progressPercent ? Number(progressPercent) : null;
-
-      if (progress !== null && (progress < 0 || progress > 100)) {
-        throw new Error("Progress percent must be between 0 and 100.");
+      if (
+        completedToday === 0 &&
+        !issuesFound.trim() &&
+        !notes.trim()
+      ) {
+        throw new Error(
+          "Please enter Issues Found or Notes when Completed Quantity Today is 0."
+        );
       }
+
+      const estimatedQuantity = Number(
+        selectedArea?.estimated_quantity || 0
+      );
+
+      const progress =
+        estimatedQuantity > 0
+          ? Math.min(
+            (completedToday / estimatedQuantity) * 100,
+            100
+          )
+          : 0;
 
       let finalReportId = activeDraftReportId;
 
@@ -1658,10 +1694,12 @@ const DailyReports = () => {
 
       if (deleteActivityError) throw deleteActivityError;
 
-      const activityRows = selectedActivityTypeIds.map((activityTypeId) => ({
-        report_id: finalReportId,
-        activity_type_id: activityTypeId,
-      }));
+      const activityRows = [
+        {
+          report_id: finalReportId,
+          activity_type_id: reportActivityTypeId,
+        },
+      ];
 
       if (activityRows.length > 0) {
         const { error: activityInsertError } = await supabase
@@ -2392,8 +2430,7 @@ const DailyReports = () => {
                 <div className="col-span-1">Date</div>
                 <div className="col-span-2">Project</div>
                 <div className="col-span-2">Work Summary</div>
-                <div className="col-span-2">Work O
-                  rder</div>
+                <div className="col-span-2">Work Order</div>
                 <div className="col-span-2">Worker Report</div>
                 <div className="col-span-1">Progress</div>
                 <div className="col-span-1">Status</div>
@@ -2430,15 +2467,12 @@ const DailyReports = () => {
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       <div className="rounded-xl bg-slate-50 p-3">
                         <p className="text-xs text-slate-500">Workers</p>
-                        <p className="mt-1 font-medium text-slate-900">
-                          {report.daily_report_workers?.length
-                            ? new Set(
-                              report.daily_report_workers.map(
-                                (worker) => worker.employee_id
-                              )
-                            ).size
-                            : report.workers_count ?? "-"}{" "}
-                          workers
+                        <p className="font-medium text-slate-900">
+                          {report.daily_report_workers?.[0]?.employees?.display_name ||
+                            `${report.daily_report_workers?.[0]?.employees?.first_name || ""} ${report.daily_report_workers?.[0]?.employees?.last_name || ""
+                              }`.trim() ||
+                            report.daily_report_workers?.[0]?.employees?.employee_code ||
+                            "Worker not found"}
                         </p>
                       </div>
                     </div>
@@ -2575,15 +2609,18 @@ const DailyReports = () => {
                     </div>
 
                     <div className="col-span-2 text-slate-700">
-                      <p>
-                        {report.daily_report_workers?.length
-                          ? new Set(
-                            report.daily_report_workers.map(
-                              (worker) => worker.employee_id
-                            )
-                          ).size
-                          : report.workers_count ?? "-"}{" "}
-                        workers
+                      <p className="font-medium text-slate-900">
+                        {(() => {
+                          const worker = report.daily_report_workers?.[0];
+                          const employee = worker?.employees;
+
+                          return (
+                            employee?.display_name ||
+                            `${employee?.first_name || ""} ${employee?.last_name || ""}`.trim() ||
+                            employee?.employee_code ||
+                            "Worker not found"
+                          );
+                        })()}
                       </p>
 
                       <p className="text-xs text-slate-500">
@@ -3275,28 +3312,41 @@ const DailyReports = () => {
                             </div>
 
                             <div className="space-y-2">
-                              <Label>Activity</Label>
-                              <Select
-                                value={record.activity_type_id}
-                                disabled={!canEditWorkerLog}
-                                onValueChange={(value) =>
-                                  updateLabourRecord(index, "activity_type_id", value)
-                                }
-                              >
-                                <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                                  <SelectValue placeholder="Select activity" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {activityTypes.map((activityType) => (
-                                    <SelectItem
-                                      key={activityType.activity_type_id}
-                                      value={activityType.activity_type_id}
-                                    >
-                                      {activityType.activity_code || "-"} - {activityType.activity_name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <Label>Work Activity</Label>
+
+                              {userCanManageWorkers ? (
+                                <Select
+                                  value={record.activity_type_id}
+                                  onValueChange={(value) =>
+                                    updateLabourRecord(index, "activity_type_id", value)
+                                  }
+                                >
+                                  <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                                    <SelectValue placeholder="Select work activity" />
+                                  </SelectTrigger>
+
+                                  <SelectContent>
+                                    {activityTypes.map((activityType) => (
+                                      <SelectItem
+                                        key={activityType.activity_type_id}
+                                        value={activityType.activity_type_id}
+                                      >
+                                        {activityType.activity_code || "-"} -{" "}
+                                        {activityType.activity_name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <div className="min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                                  <p className="text-sm font-semibold text-slate-900">
+                                    {workerActivityName}
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    Assigned by management
+                                  </p>
+                                </div>
+                              )}
                             </div>
                           </div>
 

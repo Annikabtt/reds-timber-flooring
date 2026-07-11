@@ -8,7 +8,9 @@ import {
   LogOut,
   ClipboardList,
   Truck,
+  Database,
 } from "lucide-react";
+
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -40,7 +42,8 @@ const desktopNavItems = [
   { title: "Payroll Entries", url: "/payroll-entries", icon: DollarSign },
 
   { title: "Photo Approval", url: "/photos", icon: Camera },
-
+  
+  { title: "Master Data", url: "/master-data", icon: Database },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 

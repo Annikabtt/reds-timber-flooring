@@ -61,6 +61,8 @@ const WorkOrders = () => {
   const [siteId, setSiteId] = useState("");
   const [areaId, setAreaId] = useState("");
 
+  const [workOrderTypeId, setWorkOrderTypeId] = useState("");
+  const [workOrderScopeId, setWorkOrderScopeId] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("Normal");
@@ -116,6 +118,52 @@ const WorkOrders = () => {
       return data;
     },
   });
+
+  const { data: workOrderTypes = [] } = useQuery({
+    queryKey: ["work-order-types-for-add-work-order"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("work_order_types")
+        .select(`
+        work_order_type_id,
+        work_order_type_code,
+        work_order_type_name,
+        sort_order
+      `)
+        .eq("is_deleted", false)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true })
+        .order("work_order_type_name", { ascending: true });
+
+      if (error) throw error;
+
+      return data || [];
+    },
+  });
+
+  const { data: workOrderScopes = [] } = useQuery({
+    queryKey: ["work-order-scopes-for-add-work-order"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("work_order_scopes")
+        .select(`
+        work_order_scope_id,
+        work_order_type_id,
+        work_order_scope_code,
+        work_order_scope_name,
+        sort_order
+      `)
+        .eq("is_deleted", false)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true })
+        .order("work_order_scope_name", { ascending: true });
+
+      if (error) throw error;
+
+      return data || [];
+    },
+  });
+
   const { data: employees = [] } = useQuery({
     queryKey: ["employees-for-work-orders"],
     queryFn: async () => {
@@ -208,6 +256,7 @@ work_assignments (
   work_assignment_id,
   employee_id,
   is_deleted,
+  ended_at,
   employees (
     employee_code,
     display_name,
@@ -289,10 +338,18 @@ work_assignments (
     );
   }, [areas, projectId, siteId]);
 
+  const filteredWorkOrderScopes = useMemo(() => {
+    return workOrderScopes.filter(
+      (scope) => scope.work_order_type_id === workOrderTypeId
+    );
+  }, [workOrderScopes, workOrderTypeId]);
+
   const resetForm = () => {
     setProjectId("");
     setSiteId("");
     setAreaId("");
+    setWorkOrderTypeId("");
+    setWorkOrderScopeId("");
     setTitle("");
     setDescription("");
     setPriority("Normal");
@@ -320,18 +377,31 @@ work_assignments (
         throw new Error("Please select a project area.");
       }
 
-      if (!title.trim()) {
-        throw new Error("Please enter work order title.");
+      if (!workOrderTypeId) {
+        throw new Error("Please select a work order type.");
+      }
+
+      if (!workOrderScopeId) {
+        throw new Error("Please select a work scope.");
+      }
+
+      const selectedWorkOrderScope = workOrderScopes.find(
+        (scope) => scope.work_order_scope_id === workOrderScopeId
+      );
+
+      if (!selectedWorkOrderScope) {
+        throw new Error("Selected work scope was not found.");
       }
 
       const { data: newWorkOrder, error } = await supabase
         .from("work_orders")
         .insert({
-
           project_id: projectId,
           site_id: siteId,
           area_id: areaId || null,
-          title: title.trim(),
+          work_order_type_id: workOrderTypeId,
+          work_order_scope_id: workOrderScopeId,
+          title: selectedWorkOrderScope.work_order_scope_name,
           description: description.trim() || null,
           priority,
           status,
@@ -538,24 +608,36 @@ work_assignments (
                   {workOrder.project_areas?.area_code || "-"}
                 </p>
               </div>
-              <div className="col-span-2 text-xs text-slate-700">
-                {workOrder.work_assignments?.filter((assignment) => !assignment.is_deleted)
-                  .length === 0 ? (
-                  <span className="text-slate-400">-</span>
+              <div className="col-span-2">
+                {workOrder.work_assignments?.filter(
+                  (assignment) => !assignment.is_deleted
+                ).length === 0 ? (
+                  <span className="text-sm text-slate-400">-</span>
                 ) : (
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     {workOrder.work_assignments
-                      ?.filter((assignment) => !assignment.is_deleted)
+                      ?.filter(
+                        (assignment) =>
+                          !assignment.is_deleted &&
+                          !assignment.ended_at
+                      )
                       .map((assignment) => {
                         const employee = assignment.employees;
+
                         const employeeName = employee
                           ? employee.display_name ||
-                          `${employee.first_name} ${employee.last_name}`
+                          `${employee.first_name || ""} ${employee.last_name || ""}`.trim()
                           : "-";
 
                         return (
                           <div key={assignment.work_assignment_id}>
-                            {employee?.employee_code || "-"} - {employeeName}
+                            <p className="text-sm font-semibold text-slate-900">
+                              {employeeName}
+                            </p>
+
+                            <p className="text-xs text-slate-500">
+                              {employee?.employee_code || "-"}
+                            </p>
                           </div>
                         );
                       })}
@@ -744,43 +826,104 @@ work_assignments (
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Label>Work Order Title *</Label>
-              <Select value={title} onValueChange={setTitle}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select work order title" />
-                </SelectTrigger>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Work Order Type *</Label>
 
-                <SelectContent>
-                  <SelectItem value="Install timber flooring">
-                    Install timber flooring
-                  </SelectItem>
-                  <SelectItem value="Floor preparation">
-                    Floor preparation
-                  </SelectItem>
-                  <SelectItem value="Subfloor levelling">
-                    Subfloor levelling
-                  </SelectItem>
-                  <SelectItem value="Skirting installation">
-                    Skirting installation
-                  </SelectItem>
-                  <SelectItem value="Stair nosing installation">
-                    Stair nosing installation
-                  </SelectItem>
-                  <SelectItem value="Floor sanding">
-                    Floor sanding
-                  </SelectItem>
-                  <SelectItem value="Floor coating">
-                    Floor coating
-                  </SelectItem>
-                  <SelectItem value="Defect rectification">
-                    Defect rectification
-                  </SelectItem>
-                  <SelectItem value="Site clean up">
-                    Site clean up
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+                <Select
+                  value={workOrderTypeId}
+                  onValueChange={(value) => {
+                    setWorkOrderTypeId(value);
+                    setWorkOrderScopeId("");
+                    setTitle("");
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select work order type" />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    {workOrderTypes.map((workOrderType) => (
+                      <SelectItem
+                        key={workOrderType.work_order_type_id}
+                        value={workOrderType.work_order_type_id}
+                      >
+                        {workOrderType.work_order_type_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Work Scope *</Label>
+
+                <Select
+                  value={workOrderScopeId}
+                  onValueChange={(value) => {
+                    setWorkOrderScopeId(value);
+
+                    const selectedScope = workOrderScopes.find(
+                      (scope) => scope.work_order_scope_id === value
+                    );
+
+                    setTitle(selectedScope?.work_order_scope_name || "");
+                  }}
+                  disabled={!workOrderTypeId}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        workOrderTypeId
+                          ? "Select work scope"
+                          : "Select work order type first"
+                      }
+                    />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    {filteredWorkOrderScopes.map((scope) => (
+                      <SelectItem
+                        key={scope.work_order_scope_id}
+                        value={scope.work_order_scope_id}
+                      >
+                        {scope.work_order_scope_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label>Selected Work Scope</Label>
+
+                <Input
+                  value={title}
+                  readOnly
+                  className="bg-slate-100 text-slate-600"
+                  placeholder="Generated from selected work scope"
+                />
+
+                <p className="text-xs text-slate-500">
+                  This value is saved as the work order title snapshot.
+                </p>
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label>Description</Label>
+
+                <Textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={3}
+                  placeholder="Describe the specific work requirements for this work order."
+                />
+
+                <p className="text-xs text-slate-500">
+                  Add details that are specific to this location, area, quantity, installation method, or site requirement.
+                </p>
+              </div>
+
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -792,7 +935,7 @@ work_assignments (
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Low">Low</SelectItem>
-                    <SelectItem value="Normal">Normal</SelectItem>
+                    <SelectItem value="Standard ">Standard </SelectItem>
                     <SelectItem value="High">High</SelectItem>
                     <SelectItem value="Urgent">Urgent</SelectItem>
                   </SelectContent>
@@ -994,20 +1137,7 @@ work_assignments (
                 Work Instructions
               </h3>
               <p className="text-xs text-slate-500">
-                Add the work scope, site instructions, and internal notes for this work order.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Description</Label>
-              <Textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-                placeholder="Describe the work scope, installation area, or job requirements."
-              />
-              <p className="text-xs text-slate-500">
-                This should explain what work needs to be completed.
+                Add internal notes, access instructions, safety information, or special site conditions.
               </p>
             </div>
 

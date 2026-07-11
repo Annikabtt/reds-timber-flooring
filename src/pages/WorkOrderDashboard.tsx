@@ -126,11 +126,14 @@ const WorkOrderDashboard = () => {
     const [showEditDialog, setShowEditDialog] = useState(false);
     const [showAssignWorkerDialog, setShowAssignWorkerDialog] = useState(false);
     const [selectedWorkerId, setSelectedWorkerId] = useState("");
+    const [selectedActivityTypeId, setSelectedActivityTypeId] = useState("");
     const [workerSearchTerm, setWorkerSearchTerm] = useState("");
     const [editProjectId, setEditProjectId] = useState("");
     const [editSiteId, setEditSiteId] = useState("");
     const [editAreaId, setEditAreaId] = useState("");
     const [editWorkOrderNo, setEditWorkOrderNo] = useState("");
+    const [editWorkOrderTypeId, setEditWorkOrderTypeId] = useState("");
+    const [editWorkOrderScopeId, setEditWorkOrderScopeId] = useState("");
     const [editWorkOrderTitle, setEditWorkOrderTitle] = useState("");
     const [editDescription, setEditDescription] = useState("");
     const [editPriority, setEditPriority] = useState("Normal");
@@ -148,8 +151,10 @@ const WorkOrderDashboard = () => {
             const { data, error } = await supabase
                 .from("work_orders")
                 .select(`
-          work_order_id,
+                    work_order_id,
           work_order_no,
+          work_order_type_id,
+          work_order_scope_id,
           title,
           description,
           priority,
@@ -179,17 +184,22 @@ const WorkOrderDashboard = () => {
           ),
           work_assignments (
             work_assignment_id,
+            activity_type_id,
             assigned_at,
             ended_at,
             is_deleted,
-            employees (
+            work_activity_types (
+            activity_code,
+            activity_name
+         ),
+         employees (
             employee_id,
             employee_code,
             display_name,
-              first_name,
-              last_name
+            first_name,
+             last_name
             )
-          )
+            )
         `)
                 .eq("work_order_id", workOrderId)
                 .eq("is_deleted", false)
@@ -272,6 +282,56 @@ const WorkOrderDashboard = () => {
             area.site_id === editSiteId
     );
 
+
+    const { data: workOrderTypes = [] } = useQuery({
+        queryKey: ["work-order-types-for-work-order-edit"],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("work_order_types")
+                .select(`
+                work_order_type_id,
+                work_order_type_code,
+                work_order_type_name,
+                sort_order
+            `)
+                .eq("is_deleted", false)
+                .eq("is_active", true)
+                .order("sort_order", { ascending: true })
+                .order("work_order_type_name", { ascending: true });
+
+            if (error) throw error;
+
+            return data || [];
+        },
+    });
+
+    const { data: workOrderScopes = [] } = useQuery({
+        queryKey: ["work-order-scopes-for-work-order-edit"],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("work_order_scopes")
+                .select(`
+                work_order_scope_id,
+                work_order_type_id,
+                work_order_scope_code,
+                work_order_scope_name,
+                sort_order
+            `)
+                .eq("is_deleted", false)
+                .eq("is_active", true)
+                .order("sort_order", { ascending: true })
+                .order("work_order_scope_name", { ascending: true });
+
+            if (error) throw error;
+
+            return data || [];
+        },
+    });
+
+    const filteredEditWorkOrderScopes = workOrderScopes.filter(
+        (scope) => scope.work_order_type_id === editWorkOrderTypeId
+    );
+
     const { data: employees = [] } = useQuery({
         queryKey: ["employees-for-work-order-dashboard"],
         queryFn: async () => {
@@ -290,6 +350,26 @@ const WorkOrderDashboard = () => {
 
             if (error) throw error;
             return data;
+        },
+    });
+
+    const { data: activityTypes = [] } = useQuery({
+        queryKey: ["work-activity-types-for-work-order-assignment"],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from("work_activity_types")
+                .select(`
+                activity_type_id,
+                activity_code,
+                activity_name,
+                sort_order
+            `)
+                .eq("is_active", true)
+                .order("sort_order", { ascending: true });
+
+            if (error) throw error;
+
+            return data || [];
         },
     });
 
@@ -381,6 +461,8 @@ const WorkOrderDashboard = () => {
         setEditSiteId(workOrder.site_id || "");
         setEditAreaId(workOrder.area_id || "");
         setEditWorkOrderNo(workOrder.work_order_no || "");
+        setEditWorkOrderTypeId(workOrder.work_order_type_id || "");
+        setEditWorkOrderScopeId(workOrder.work_order_scope_id || "");
         setEditWorkOrderTitle(workOrder.title || "");
         setEditDescription(workOrder.description || "");
         setEditPriority(workOrder.priority || "Normal");
@@ -415,8 +497,20 @@ const WorkOrderDashboard = () => {
                 throw new Error("Please select project site.");
             }
 
-            if (!editWorkOrderTitle.trim()) {
-                throw new Error("Please enter work order title.");
+            if (!editWorkOrderTypeId) {
+                throw new Error("Please select work order type.");
+            }
+
+            if (!editWorkOrderScopeId) {
+                throw new Error("Please select work scope.");
+            }
+
+            const selectedWorkOrderScope = workOrderScopes.find(
+                (scope) => scope.work_order_scope_id === editWorkOrderScopeId
+            );
+
+            if (!selectedWorkOrderScope) {
+                throw new Error("Selected work scope was not found.");
             }
 
             const { error } = await supabase
@@ -426,7 +520,9 @@ const WorkOrderDashboard = () => {
                     site_id: editSiteId || null,
                     area_id: editAreaId || null,
                     work_order_no: editWorkOrderNo.trim() || null,
-                    title: editWorkOrderTitle.trim(),
+                    work_order_type_id: editWorkOrderTypeId,
+                    work_order_scope_id: editWorkOrderScopeId,
+                    title: selectedWorkOrderScope.work_order_scope_name,
                     description: editDescription.trim() || null,
                     priority: editPriority,
                     status: editStatus,
@@ -461,27 +557,63 @@ const WorkOrderDashboard = () => {
                 throw new Error("Please select worker.");
             }
 
-            const { data, error } = await supabase.rpc("create_work_assignment", {
-                p_employee_id: selectedWorkerId,
-                p_project_id: workOrder.project_id,
-                p_site_id: workOrder.site_id,
-                p_area_id: workOrder.area_id || null,
-                p_work_order_id: workOrder.work_order_id,
-                p_notes: null,
-            });
+            if (!selectedActivityTypeId) {
+                throw new Error("Please select work activity.");
+            }
 
-            if (error) throw error;
+            const { error: assignmentError } = await supabase.rpc(
+                "create_work_assignment",
+                {
+                    p_employee_id: selectedWorkerId,
+                    p_project_id: workOrder.project_id,
+                    p_site_id: workOrder.site_id,
+                    p_area_id: workOrder.area_id || null,
+                    p_work_order_id: workOrder.work_order_id,
+                    p_notes: null,
+                }
+            );
 
-            return data;
+            if (assignmentError) throw assignmentError;
+
+            const { data: createdAssignment, error: findAssignmentError } =
+                await supabase
+                    .from("work_assignments")
+                    .select("work_assignment_id")
+                    .eq("work_order_id", workOrder.work_order_id)
+                    .eq("employee_id", selectedWorkerId)
+                    .eq("is_deleted", false)
+                    .is("ended_at", null)
+                    .order("assigned_at", { ascending: false })
+                    .limit(1)
+                    .single();
+
+            if (findAssignmentError) throw findAssignmentError;
+
+            const { error: activityUpdateError } = await supabase
+                .from("work_assignments")
+                .update({
+                    activity_type_id: selectedActivityTypeId,
+                })
+                .eq(
+                    "work_assignment_id",
+                    createdAssignment.work_assignment_id
+                );
+
+            if (activityUpdateError) throw activityUpdateError;
         },
         onSuccess: async () => {
-            toast.success("Worker assigned.");
+            toast.success("Worker and work activity assigned.");
 
-            await queryClient.invalidateQueries({ queryKey: ["work_order", workOrderId] });
-            await queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+            await queryClient.invalidateQueries({
+                queryKey: ["work_order", workOrderId],
+            });
+            await queryClient.invalidateQueries({
+                queryKey: ["work_orders"],
+            });
 
             setShowAssignWorkerDialog(false);
             setSelectedWorkerId("");
+            setSelectedActivityTypeId("");
             setWorkerSearchTerm("");
         },
         onError: (error) => {
@@ -1053,6 +1185,7 @@ const WorkOrderDashboard = () => {
 
                     if (!open) {
                         setSelectedWorkerId("");
+                        setSelectedActivityTypeId("");
                         setWorkerSearchTerm("");
                     }
                 }}
@@ -1118,6 +1251,31 @@ const WorkOrderDashboard = () => {
                         )}
                     </div>
 
+                    <div className="space-y-2">
+                        <Label>Work Activity *</Label>
+
+                        <Select
+                            value={selectedActivityTypeId}
+                            onValueChange={setSelectedActivityTypeId}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select work activity" />
+                            </SelectTrigger>
+
+                            <SelectContent>
+                                {activityTypes.map((activityType) => (
+                                    <SelectItem
+                                        key={activityType.activity_type_id}
+                                        value={activityType.activity_type_id}
+                                    >
+                                        {activityType.activity_code || "-"} -{" "}
+                                        {activityType.activity_name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
                     <div className="flex flex-col-reverse gap-3 pt-4 sm:flex-row sm:justify-end">
                         <Button
                             variant="outline"
@@ -1135,7 +1293,11 @@ const WorkOrderDashboard = () => {
 
                         <Button
                             onClick={() => assignWorker.mutate()}
-                            disabled={assignWorker.isPending || !selectedWorkerId}
+                            disabled={
+                                assignWorker.isPending ||
+                                !selectedWorkerId ||
+                                !selectedActivityTypeId
+                            }
                             className="w-full bg-red-600 text-white hover:bg-red-700 sm:w-auto"
                         >
                             {assignWorker.isPending ? "Assigning..." : "Assign Worker"}
@@ -1144,7 +1306,7 @@ const WorkOrderDashboard = () => {
                 </DialogContent>
             </Dialog>
             <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-                <DialogContent className="max-h-[92vh] w-[calc(100vw-1rem)] max-w-2xl overflow-y-auto p-4 sm:p-6">
+                <DialogContent className="max-h-[92vh] w-[calc(100vw-1rem)] max-w-4xl overflow-y-auto p-4 sm:p-6">
                     <DialogHeader>
                         <DialogTitle>Edit Work Order</DialogTitle>
                     </DialogHeader>
@@ -1155,31 +1317,113 @@ const WorkOrderDashboard = () => {
                                 This work order has active worker assignments. Changing Project, Site, or Area will not automatically end existing assignments. Please review assignments after saving.
                             </div>
                         )}
-                        <div className="space-y-2">
-                            <Label>Work Order No</Label>
-                            <Input
-                                value={editWorkOrderNo}
-                                onChange={(event) => setEditWorkOrderNo(event.target.value)}
-                                placeholder="WO2606-00001"
-                            />
-                        </div>
+                        <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="mb-4">
+                                <h3 className="text-sm font-bold text-slate-900">
+                                    Work Order Details
+                                </h3>
+                                <p className="mt-1 text-xs text-slate-500">
+                                    Select the work type first, then select the related work scope.
+                                </p>
+                            </div>
 
-                        <div className="space-y-2">
-                            <Label>Work Order Title *</Label>
-                            <Input
-                                value={editWorkOrderTitle}
-                                onChange={(event) => setEditWorkOrderTitle(event.target.value)}
-                                placeholder="Install timber flooring"
-                            />
-                        </div>
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label>Work Order No</Label>
+                                    <Input
+                                        value={editWorkOrderNo}
+                                        onChange={(event) => setEditWorkOrderNo(event.target.value)}
+                                        placeholder="WO2606-00001"
+                                    />
+                                </div>
 
-                        <div className="sm:col-span-2 space-y-2">
-                            <Label>Description</Label>
-                            <Textarea
-                                value={editDescription}
-                                onChange={(event) => setEditDescription(event.target.value)}
-                                rows={3}
-                            />
+                                <div className="space-y-2">
+                                    <Label>Work Order Type *</Label>
+                                    <Select
+                                        value={editWorkOrderTypeId}
+                                        onValueChange={(value) => {
+                                            setEditWorkOrderTypeId(value);
+                                            setEditWorkOrderScopeId("");
+                                            setEditWorkOrderTitle("");
+                                        }}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select work order type" />
+                                        </SelectTrigger>
+
+                                        <SelectContent>
+                                            {workOrderTypes.map((workOrderType) => (
+                                                <SelectItem
+                                                    key={workOrderType.work_order_type_id}
+                                                    value={workOrderType.work_order_type_id}
+                                                >
+                                                    {workOrderType.work_order_type_name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>Work Scope *</Label>
+                                    <Select
+                                        value={editWorkOrderScopeId}
+                                        onValueChange={(value) => {
+                                            setEditWorkOrderScopeId(value);
+
+                                            const selectedScope = workOrderScopes.find(
+                                                (scope) => scope.work_order_scope_id === value
+                                            );
+
+                                            setEditWorkOrderTitle(
+                                                selectedScope?.work_order_scope_name || ""
+                                            );
+                                        }}
+                                        disabled={!editWorkOrderTypeId}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue
+                                                placeholder={
+                                                    editWorkOrderTypeId
+                                                        ? "Select work scope"
+                                                        : "Select work order type first"
+                                                }
+                                            />
+                                        </SelectTrigger>
+
+                                        <SelectContent>
+                                            {filteredEditWorkOrderScopes.map((scope) => (
+                                                <SelectItem
+                                                    key={scope.work_order_scope_id}
+                                                    value={scope.work_order_scope_id}
+                                                >
+                                                    {scope.work_order_scope_name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>Scope Snapshot</Label>
+                                    <Input
+                                        value={editWorkOrderTitle}
+                                        readOnly
+                                        className="bg-slate-100 text-slate-600"
+                                        placeholder="Generated from selected work scope"
+                                    />
+                                </div>
+
+                                <div className="space-y-2 sm:col-span-2">
+                                    <Label>Description</Label>
+                                    <Textarea
+                                        value={editDescription}
+                                        onChange={(event) => setEditDescription(event.target.value)}
+                                        rows={3}
+                                        placeholder="Enter details specific to this work order"
+                                    />
+                                </div>
+                            </div>
                         </div>
 
                         <div className="space-y-2">
@@ -1355,13 +1599,26 @@ const WorkOrderDashboard = () => {
                         </div>
 
                         <div className="sm:col-span-2 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                            <div>
-                                <h3 className="text-sm font-bold text-slate-900">
-                                    Assigned Workers
-                                </h3>
-                                <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                                    Remove is only for a worker selected by mistake before any work is recorded. If the worker has already worked, use End instead.
-                                </p>
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                    <h3 className="text-sm font-bold text-slate-900">
+                                        Assigned Workers
+                                    </h3>
+
+                                    <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                                        Remove is only for a worker selected by mistake before any work is recorded. If the worker has already worked, use End instead.
+                                    </p>
+                                </div>
+
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full sm:w-auto"
+                                    onClick={() => setShowAssignWorkerDialog(true)}
+                                >
+                                    + Assign Worker
+                                </Button>
                             </div>
 
                             {workerAssignments.length === 0 ? (

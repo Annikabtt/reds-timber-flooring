@@ -40,6 +40,21 @@ type WorkOrderRow = {
     project_id: string | null;
     site_id: string | null;
     area_id: string | null;
+
+    projects: {
+        project_no: string | null;
+        project_name: string | null;
+    } | null;
+
+    project_sites: {
+        site_code: string | null;
+        site_name: string | null;
+    } | null;
+
+    project_areas: {
+        area_code: string | null;
+        area_name: string | null;
+    } | null;
 };
 
 type AssignedWorkOrder = {
@@ -135,7 +150,19 @@ export default function MyWork() {
             planned_end_date,
             project_id,
             site_id,
-            area_id
+            area_id,
+            projects (
+                project_no,
+                project_name
+            ),
+            project_sites (
+                site_code,
+                site_name
+            ),
+            project_areas (
+                area_code,
+                area_name
+            )
           `
                     )
                     .in("work_order_id", workOrderIds)
@@ -247,43 +274,61 @@ export default function MyWork() {
                         {assignedWorkOrders.map(({ assignment, workOrder }) => (
                             <div
                                 key={assignment.work_assignment_id}
-                                className="rounded-2xl bg-white border border-slate-200 p-4 shadow-sm"
+                                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
                             >
                                 <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0">
-                                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                            {workOrder?.work_order_no || "Work Order"}
-                                        </p>
-                                        <h2 className="mt-1 text-base font-bold text-slate-900">
-                                            {workOrder?.title || "Untitled work order"}
+                                    <div className="min-w-0 flex-1">
+                                        <h2 className="truncate text-base font-bold text-slate-900">
+                                            {workOrder?.projects?.project_name || "Project not available"}
                                         </h2>
+
+                                        <div className="mt-1 flex items-start gap-2 text-sm text-slate-600">
+                                            <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+
+                                            <p className="min-w-0">
+                                                <span className="font-medium">
+                                                    {workOrder?.project_sites?.site_name ||
+                                                        "Site not available"}
+                                                </span>
+
+                                                <span className="mx-1 text-slate-400">·</span>
+
+                                                <span>
+                                                    {workOrder?.project_areas?.area_name ||
+                                                        "Area not available"}
+                                                </span>
+                                            </p>
+                                        </div>
                                     </div>
 
-                                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                                    <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
                                         {workOrder?.status || "Assigned"}
                                     </span>
                                 </div>
 
-                                {workOrder?.description && (
-                                    <p className="mt-3 text-sm text-slate-600">
-                                        {workOrder.description}
+                                <div className="mt-4 border-t border-slate-100 pt-3">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                        {workOrder?.work_order_no || "Work Order"}
                                     </p>
-                                )}
 
-                                <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-slate-500">
-                                    <div className="flex items-center gap-2">
-                                        <CalendarDays className="h-4 w-4" />
-                                        <span>
-                                            Assigned: {assignment.assigned_at?.slice(0, 10) || "Not set"}
-                                        </span>
-                                    </div>
+                                    <p className="mt-1 text-sm font-semibold text-slate-800">
+                                        {workOrder?.title || "Work scope not available"}
+                                    </p>
 
-                                    <div className="flex items-center gap-2">
-                                        <MapPin className="h-4 w-4" />
-                                        <span>
-                                            Project / Site / Area linked from assignment
-                                        </span>
-                                    </div>
+                                    {workOrder?.description && (
+                                        <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                                            {workOrder.description}
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+                                    <CalendarDays className="h-4 w-4" />
+
+                                    <span>
+                                        Assigned:{" "}
+                                        {assignment.assigned_at?.slice(0, 10) || "Not set"}
+                                    </span>
                                 </div>
 
                                 <button

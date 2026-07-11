@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -1455,6 +1455,8 @@ export type Database = {
           description: string | null
           is_active: boolean
           is_deleted: boolean
+          parent_category_id: string | null
+          sort_order: number
           updated_at: string
           updated_by: string | null
         }
@@ -1468,6 +1470,8 @@ export type Database = {
           description?: string | null
           is_active?: boolean
           is_deleted?: boolean
+          parent_category_id?: string | null
+          sort_order?: number
           updated_at?: string
           updated_by?: string | null
         }
@@ -1481,18 +1485,130 @@ export type Database = {
           description?: string | null
           is_active?: boolean
           is_deleted?: boolean
+          parent_category_id?: string | null
+          sort_order?: number
           updated_at?: string
           updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "product_categories_parent_category_id_fkey"
+            columns: ["parent_category_id"]
+            isOneToOne: false
+            referencedRelation: "product_categories"
+            referencedColumns: ["category_id"]
+          },
+        ]
+      }
+      product_units: {
+        Row: {
+          barcode: string | null
+          conversion_to_base: number
+          coverage_basis_quantity: number | null
+          coverage_notes: string | null
+          coverage_quantity: number | null
+          coverage_uom_code: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          is_active: boolean
+          is_base_unit: boolean
+          is_deleted: boolean
+          is_purchase_unit: boolean
+          is_request_unit: boolean
+          is_sales_unit: boolean
+          is_stock_unit: boolean
+          product_id: string
+          product_unit_id: string
+          sort_order: number
+          uom_code: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          barcode?: string | null
+          conversion_to_base?: number
+          coverage_basis_quantity?: number | null
+          coverage_notes?: string | null
+          coverage_quantity?: number | null
+          coverage_uom_code?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          is_active?: boolean
+          is_base_unit?: boolean
+          is_deleted?: boolean
+          is_purchase_unit?: boolean
+          is_request_unit?: boolean
+          is_sales_unit?: boolean
+          is_stock_unit?: boolean
+          product_id: string
+          product_unit_id?: string
+          sort_order?: number
+          uom_code: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          barcode?: string | null
+          conversion_to_base?: number
+          coverage_basis_quantity?: number | null
+          coverage_notes?: string | null
+          coverage_quantity?: number | null
+          coverage_uom_code?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          is_active?: boolean
+          is_base_unit?: boolean
+          is_deleted?: boolean
+          is_purchase_unit?: boolean
+          is_request_unit?: boolean
+          is_sales_unit?: boolean
+          is_stock_unit?: boolean
+          product_id?: string
+          product_unit_id?: string
+          sort_order?: number
+          uom_code?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_units_coverage_uom_code_fkey"
+            columns: ["coverage_uom_code"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["uom_code"]
+          },
+          {
+            foreignKeyName: "product_units_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "product_units_uom_code_fkey"
+            columns: ["uom_code"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["uom_code"]
+          },
+        ]
       }
       products: {
         Row: {
+          base_uom_code: string | null
           category_id: string | null
           cost_price: number | null
           created_at: string
           created_by: string | null
+          default_purchase_uom_code: string | null
+          default_request_uom_code: string | null
+          default_sales_uom_code: string | null
           default_sell_price: number | null
+          default_waste_percent: number
           deleted_at: string | null
           description: string | null
           is_active: boolean
@@ -1502,16 +1618,24 @@ export type Database = {
           product_code: string
           product_id: string
           product_name: string
+          product_type: string
+          search_keywords: string | null
           unit: string
           updated_at: string
           updated_by: string | null
+          uses_coverage: boolean
         }
         Insert: {
+          base_uom_code?: string | null
           category_id?: string | null
           cost_price?: number | null
           created_at?: string
           created_by?: string | null
+          default_purchase_uom_code?: string | null
+          default_request_uom_code?: string | null
+          default_sales_uom_code?: string | null
           default_sell_price?: number | null
+          default_waste_percent?: number
           deleted_at?: string | null
           description?: string | null
           is_active?: boolean
@@ -1521,16 +1645,24 @@ export type Database = {
           product_code: string
           product_id?: string
           product_name: string
+          product_type?: string
+          search_keywords?: string | null
           unit: string
           updated_at?: string
           updated_by?: string | null
+          uses_coverage?: boolean
         }
         Update: {
+          base_uom_code?: string | null
           category_id?: string | null
           cost_price?: number | null
           created_at?: string
           created_by?: string | null
+          default_purchase_uom_code?: string | null
+          default_request_uom_code?: string | null
+          default_sales_uom_code?: string | null
           default_sell_price?: number | null
+          default_waste_percent?: number
           deleted_at?: string | null
           description?: string | null
           is_active?: boolean
@@ -1540,11 +1672,21 @@ export type Database = {
           product_code?: string
           product_id?: string
           product_name?: string
+          product_type?: string
+          search_keywords?: string | null
           unit?: string
           updated_at?: string
           updated_by?: string | null
+          uses_coverage?: boolean
         }
         Relationships: [
+          {
+            foreignKeyName: "products_base_uom_code_fkey"
+            columns: ["base_uom_code"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["uom_code"]
+          },
           {
             foreignKeyName: "products_category_id_fkey"
             columns: ["category_id"]
@@ -1552,14 +1694,37 @@ export type Database = {
             referencedRelation: "product_categories"
             referencedColumns: ["category_id"]
           },
+          {
+            foreignKeyName: "products_default_purchase_uom_code_fkey"
+            columns: ["default_purchase_uom_code"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["uom_code"]
+          },
+          {
+            foreignKeyName: "products_default_request_uom_code_fkey"
+            columns: ["default_request_uom_code"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["uom_code"]
+          },
+          {
+            foreignKeyName: "products_default_sales_uom_code_fkey"
+            columns: ["default_sales_uom_code"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["uom_code"]
+          },
         ]
       }
       project_area_types: {
         Row: {
+          area_type_code: string
           area_type_id: string
           area_type_name: string
           created_at: string
           created_by: string | null
+          deleted_at: string | null
           description: string | null
           is_active: boolean
           is_deleted: boolean
@@ -1568,10 +1733,12 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          area_type_code: string
           area_type_id?: string
           area_type_name: string
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           description?: string | null
           is_active?: boolean
           is_deleted?: boolean
@@ -1580,10 +1747,12 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          area_type_code?: string
           area_type_id?: string
           area_type_name?: string
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           description?: string | null
           is_active?: boolean
           is_deleted?: boolean
@@ -2967,41 +3136,108 @@ export type Database = {
         }
         Relationships: []
       }
+      units_of_measure: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          decimal_places: number
+          deleted_at: string | null
+          description: string | null
+          is_active: boolean
+          is_deleted: boolean
+          sort_order: number
+          uom_category: string
+          uom_code: string
+          uom_id: string
+          uom_name: string
+          uom_symbol: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          decimal_places?: number
+          deleted_at?: string | null
+          description?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          sort_order?: number
+          uom_category: string
+          uom_code: string
+          uom_id?: string
+          uom_name: string
+          uom_symbol: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          decimal_places?: number
+          deleted_at?: string | null
+          description?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          sort_order?: number
+          uom_category?: string
+          uom_code?: string
+          uom_id?: string
+          uom_name?: string
+          uom_symbol?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       work_activity_types: {
         Row: {
           activity_code: string
           activity_name: string
           activity_type_id: string
           created_at: string
+          created_by: string | null
+          deleted_at: string | null
           description: string | null
           is_active: boolean
+          is_deleted: boolean
           sort_order: number
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           activity_code: string
           activity_name: string
           activity_type_id?: string
           created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
           description?: string | null
           is_active?: boolean
+          is_deleted?: boolean
           sort_order?: number
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           activity_code?: string
           activity_name?: string
           activity_type_id?: string
           created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
           description?: string | null
           is_active?: boolean
+          is_deleted?: boolean
           sort_order?: number
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
       work_assignments: {
         Row: {
+          activity_type_id: string | null
           area_id: string | null
           assigned_at: string | null
           assigned_date: string | null
@@ -3022,6 +3258,7 @@ export type Database = {
           work_order_id: string | null
         }
         Insert: {
+          activity_type_id?: string | null
           area_id?: string | null
           assigned_at?: string | null
           assigned_date?: string | null
@@ -3042,6 +3279,7 @@ export type Database = {
           work_order_id?: string | null
         }
         Update: {
+          activity_type_id?: string | null
           area_id?: string | null
           assigned_at?: string | null
           assigned_date?: string | null
@@ -3120,6 +3358,108 @@ export type Database = {
           },
         ]
       }
+      work_order_types: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          description: string | null
+          is_active: boolean
+          is_deleted: boolean
+          sort_order: number
+          updated_at: string
+          updated_by: string | null
+          work_order_type_code: string
+          work_order_type_id: string
+          work_order_type_name: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+          work_order_type_code: string
+          work_order_type_id?: string
+          work_order_type_name: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+          work_order_type_code?: string
+          work_order_type_id?: string
+          work_order_type_name?: string
+        }
+        Relationships: []
+      }
+
+      work_order_scopes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          description: string | null
+          is_active: boolean
+          is_deleted: boolean
+          sort_order: number
+          updated_at: string
+          updated_by: string | null
+          work_order_scope_code: string
+          work_order_scope_id: string
+          work_order_scope_name: string
+          work_order_type_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+          work_order_scope_code: string
+          work_order_scope_id?: string
+          work_order_scope_name: string
+          work_order_type_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+          work_order_scope_code?: string
+          work_order_scope_id?: string
+          work_order_scope_name?: string
+          work_order_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_order_scopes_type_fk"
+            columns: ["work_order_type_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_types"
+            referencedColumns: ["work_order_type_id"]
+          },
+        ]
+      }
       work_orders: {
         Row: {
           actual_end_date: string | null
@@ -3142,6 +3482,8 @@ export type Database = {
           updated_by: string | null
           work_order_id: string
           work_order_no: string
+          work_order_scope_id: string | null
+          work_order_type_id: string | null
         }
         Insert: {
           actual_end_date?: string | null
@@ -3163,7 +3505,9 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           work_order_id?: string
-          work_order_no: string
+          work_order_no?: string
+          work_order_scope_id?: string | null
+          work_order_type_id?: string | null
         }
         Update: {
           actual_end_date?: string | null
@@ -3186,6 +3530,8 @@ export type Database = {
           updated_by?: string | null
           work_order_id?: string
           work_order_no?: string
+          work_order_scope_id?: string | null
+          work_order_type_id?: string | null
         }
         Relationships: [
           {
@@ -3678,116 +4024,116 @@ type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+  ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
-    ? R
-    : never
+  ? R
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
-      }
-      ? R
-      : never
-    : never
+    DefaultSchema["Views"])
+  ? (DefaultSchema["Tables"] &
+    DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+      Row: infer R
+    }
+  ? R
+  : never
+  : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Tables"]
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I
-    }
-    ? I
-    : never
+    Insert: infer I
+  }
+  ? I
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
-      }
-      ? I
-      : never
-    : never
+  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+    Insert: infer I
+  }
+  ? I
+  : never
+  : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Tables"]
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U
-    }
-    ? U
-    : never
+    Update: infer U
+  }
+  ? U
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
-      }
-      ? U
-      : never
-    : never
+  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+    Update: infer U
+  }
+  ? U
+  : never
+  : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Enums"]
+  | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+  : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
+  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+  : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["CompositeTypes"]
+  | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+  : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
+  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+  : never
 
 export const Constants = {
   public: {

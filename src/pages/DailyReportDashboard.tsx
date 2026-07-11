@@ -878,10 +878,8 @@ const DailyReportDashboard = () => {
 
     const primaryWorkerActivityName =
         primaryWorker?.work_activity_types?.activity_name ||
-        report?.daily_report_activities
-            ?.map((activity) => activity.work_activity_types?.activity_name)
-            .filter(Boolean)
-            .join(", ") ||
+        report?.daily_report_activities?.[0]?.work_activity_types
+            ?.activity_name ||
         "-";
 
     const primaryWorkerRole = primaryWorker?.worker_role || "-";
@@ -1982,7 +1980,7 @@ const DailyReportDashboard = () => {
                         </div>
 
                         <div>
-                            <p className="text-slate-500">Activity</p>
+                            <p className="text-slate-500">Activitie</p>
                             <p className="font-medium text-slate-900">
                                 {primaryWorkerActivityName}
                             </p>

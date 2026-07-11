@@ -11,7 +11,7 @@ import {
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -191,25 +191,55 @@ export default function MyWorkDailyReport() {
         },
     });
 
-    const { data: activityTypes = [] } = useQuery({
-        queryKey: ["my-work-activity-types"],
+    const { data: assignedActivityReport } = useQuery({
+        queryKey: [
+            "my-work-assigned-activity",
+            workOrderId,
+            workerProfile?.employee_id,
+        ],
+        enabled: Boolean(workOrderId && workerProfile?.employee_id),
         queryFn: async () => {
             const { data, error: activityError } = await supabase
-                .from("work_activity_types")
+                .from("daily_reports")
                 .select(`
+                report_id,
+                created_at,
+                daily_report_workers!inner (
+                    employee_id,
                     activity_type_id,
-                    activity_code,
-                    activity_name,
-                    sort_order
-                `)
-                .eq("is_active", true)
-                .order("sort_order", { ascending: true });
+                    work_activity_types (
+                        activity_code,
+                        activity_name
+                    )
+                )
+            `)
+                .eq("work_order_id", workOrderId)
+                .eq("is_deleted", false)
+                .eq(
+                    "daily_report_workers.employee_id",
+                    workerProfile!.employee_id
+                )
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
 
             if (activityError) throw activityError;
 
-            return data || [];
+            return data;
         },
     });
+
+    const assignedActivityWorker =
+        assignedActivityReport?.daily_report_workers?.[0] || null;
+
+    const assignedActivityName =
+        assignedActivityWorker?.work_activity_types?.activity_name || "";
+
+    useEffect(() => {
+        setActivityTypeId(
+            assignedActivityWorker?.activity_type_id || ""
+        );
+    }, [assignedActivityWorker?.activity_type_id]);
 
     const submitDailyReport = useMutation({
         mutationFn: async () => {
@@ -223,6 +253,12 @@ export default function MyWorkDailyReport() {
 
             if (attendanceStatus !== "Absent" && (!clockIn || !clockOut)) {
                 throw new Error("Please enter Check In and Check Out time.");
+            }
+
+            if (!activityTypeId) {
+                throw new Error(
+                    "Work activity has not been assigned by management."
+                );
             }
 
             const {
@@ -565,23 +601,20 @@ export default function MyWorkDailyReport() {
 
                         <div>
                             <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                Activity
+                                Work Activity
                             </label>
-                            <select
-                                value={activityTypeId}
-                                onChange={(event) => setActivityTypeId(event.target.value)}
-                                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-medium text-slate-900"
-                            >
-                                <option value="">Select activity</option>
-                                {activityTypes.map((activityType) => (
-                                    <option
-                                        key={activityType.activity_type_id}
-                                        value={activityType.activity_type_id}
-                                    >
-                                        {activityType.activity_code || "-"} - {activityType.activity_name}
-                                    </option>
-                                ))}
-                            </select>
+
+                            <div className="mt-1 min-h-12 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                <p className="text-sm font-semibold text-slate-900">
+                                    {assignedActivityName || "Not assigned"}
+                                </p>
+
+                                <p className="mt-1 text-xs text-slate-500">
+                                    {assignedActivityName
+                                        ? "Assigned by management"
+                                        : "Please contact management to assign the work activity."}
+                                </p>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
