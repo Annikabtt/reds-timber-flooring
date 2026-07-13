@@ -150,7 +150,7 @@ const Employees = () => {
       }
 
       const finalDisplayName =
-        displayName.trim() || `${firstName.trim()} ${lastName.trim()}`;
+        `${firstName.trim()} ${lastName.trim()}`.trim();
 
       const { error } = await supabase.from("employees").insert({
         first_name: firstName.trim(),
@@ -258,7 +258,7 @@ const Employees = () => {
       }
 
       const finalDisplayName =
-        displayName.trim() || `${firstName.trim()} ${lastName.trim()}`;
+        `${firstName.trim()} ${lastName.trim()}`.trim();
 
       const { error } = await supabase
         .from("employees")

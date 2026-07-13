@@ -52,6 +52,7 @@ import Employees from "./pages/Employees";
 import PayrollPeriods from "./pages/PayrollPeriods";
 import Suppliers from "./pages/Suppliers";
 import MasterData from "./pages/MasterData";
+import StockRequests from "./pages/StockRequests";
 
 const queryClient = new QueryClient();
 
@@ -143,6 +144,14 @@ const App = () => (
             <Route path="/payroll-periods/:payrollPeriodId" element={<ProtectedRoute><PayrollPeriodDashboard /></ProtectedRoute>} />
             <Route path="/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
             <Route path="/suppliers" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
+            <Route
+              path="/stock-requests"
+              element={
+                <ProtectedRoute>
+                  <StockRequests />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/payroll-periods" element={<ProtectedRoute><PayrollPeriods /></ProtectedRoute>} />
             <Route path="/payroll-entries" element={<ProtectedRoute><PayrollEntries /></ProtectedRoute>} />
             <Route path="/project-timeline" element={<ProtectedRoute><ProjectTimeline /></ProtectedRoute>} />

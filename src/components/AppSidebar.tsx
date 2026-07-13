@@ -9,6 +9,7 @@ import {
   ClipboardList,
   Truck,
   Database,
+  PackagePlus,
 } from "lucide-react";
 
 import { NavLink } from "@/components/NavLink";
@@ -37,12 +38,17 @@ const desktopNavItems = [
   { title: "Work Orders", url: "/work-orders", icon: FolderKanban },
   { title: "Daily Progress Review", url: "/daily-reports", icon: Camera },
   { title: "Suppliers", url: "/suppliers", icon: Truck },
+  {
+    title: "Stock Requests",
+    url: "/stock-requests",
+    icon: PackagePlus,
+  },
   { title: "Employees", url: "/employees", icon: Users },
   { title: "Payroll Periods", url: "/payroll-periods", icon: DollarSign },
   { title: "Payroll Entries", url: "/payroll-entries", icon: DollarSign },
 
   { title: "Photo Approval", url: "/photos", icon: Camera },
-  
+
   { title: "Master Data", url: "/master-data", icon: Database },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
