@@ -10,6 +10,7 @@ import {
   Truck,
   Database,
   PackagePlus,
+  SlidersHorizontal,
 } from "lucide-react";
 
 import { NavLink } from "@/components/NavLink";
@@ -50,6 +51,7 @@ const desktopNavItems = [
   { title: "Photo Approval", url: "/photos", icon: Camera },
 
   { title: "Master Data", url: "/master-data", icon: Database },
+  { title: "Product Attributes", url: "/product-attributes", icon: SlidersHorizontal },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 

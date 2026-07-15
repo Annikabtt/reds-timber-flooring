@@ -52,6 +52,9 @@ import Employees from "./pages/Employees";
 import PayrollPeriods from "./pages/PayrollPeriods";
 import Suppliers from "./pages/Suppliers";
 import MasterData from "./pages/MasterData";
+import ProductAttributes from "./pages/ProductAttributes";
+import ProductCodeManagement from "./pages/ProductCodeManagement";
+import Products from "./pages/Products";
 import StockRequests from "./pages/StockRequests";
 
 const queryClient = new QueryClient();
@@ -156,6 +159,30 @@ const App = () => (
             <Route path="/payroll-entries" element={<ProtectedRoute><PayrollEntries /></ProtectedRoute>} />
             <Route path="/project-timeline" element={<ProtectedRoute><ProjectTimeline /></ProtectedRoute>} />
             <Route path="/master-data" element={<ProtectedRoute><MasterData /></ProtectedRoute>} />
+            <Route
+              path="/products"
+              element={
+                <ProtectedRoute>
+                  <Products />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/product-attributes"
+              element={
+                <ProtectedRoute>
+                  <ProductAttributes />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/product-code-management"
+              element={
+                <ProtectedRoute>
+                  <ProductCodeManagement />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
             <Route path="/tech" element={<ProtectedRoute><TechHome /></ProtectedRoute>} />
             <Route path="/tech/materials" element={<ProtectedRoute><TechMaterials /></ProtectedRoute>} />
