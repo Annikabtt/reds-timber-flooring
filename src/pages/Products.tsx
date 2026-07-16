@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
     Box,
+    Check,
+    ChevronDown,
     Download,
     Eye,
     FileSpreadsheet,
@@ -34,6 +36,9 @@ import {
     ProductCodeBuilderModal,
     type ProductCodeBuilderValue,
 } from "@/components/products/ProductCodeBuilderModal";
+
+import { ProductDetailsDialog } from "@/components/products/ProductDetailsDialog";
+
 import { type AppRole, normalizeAppRole } from "@/lib/roles";
 import { toast } from "sonner";
 
@@ -59,8 +64,6 @@ type ProductRow = {
     default_purchase_uom_code: string | null;
     default_request_uom_code: string | null;
     default_sales_uom_code: string | null;
-    cost_price: number | null;
-    default_sell_price: number | null;
     default_waste_percent: number;
     uses_coverage: boolean;
     is_stock_item: boolean;
@@ -80,7 +83,6 @@ type Category = {
     parent_category_id: string | null;
     category_code: string;
     category_name: string;
-    product_specification_type: string | null;
     is_active: boolean;
 };
 
@@ -110,19 +112,14 @@ type AttributeOption = {
 
 type AttributeFormValue = string | boolean | string[];
 
-type FlooringForm = {
-    dimensionType: string;
-    width: string;
-    length: string;
-    minLength: string;
-    maxLength: string;
-    thickness: string;
-    planksPerBox: string;
-    declaredSqmPerBox: string;
-    coverageMethod: string;
-    manufacturerName: string;
-    manufacturerCode: string;
-    manufacturerNotes: string;
+
+type UnitOption = {
+    uom_code: string;
+    uom_name: string;
+    uom_symbol: string;
+    uom_category: string;
+    sort_order: number;
+    is_active: boolean;
 };
 
 type CoverageForm = {
@@ -132,6 +129,7 @@ type CoverageForm = {
     coverageUom: string;
     minimumCoverage: string;
     maximumCoverage: string;
+    isEstimate: boolean;
     notes: string;
 };
 
@@ -159,20 +157,6 @@ const PRODUCT_TYPES: ProductType[] = [
     "Service",
 ];
 
-const emptyFlooring = (): FlooringForm => ({
-    dimensionType: "fixed",
-    width: "",
-    length: "",
-    minLength: "",
-    maxLength: "",
-    thickness: "",
-    planksPerBox: "",
-    declaredSqmPerBox: "",
-    coverageMethod: "manufacturer_declared",
-    manufacturerName: "",
-    manufacturerCode: "",
-    manufacturerNotes: "",
-});
 
 const emptyCoverage = (): CoverageForm => ({
     sourceQuantity: "1",
@@ -181,6 +165,7 @@ const emptyCoverage = (): CoverageForm => ({
     coverageUom: "sqm",
     minimumCoverage: "",
     maximumCoverage: "",
+    isEstimate: true,
     notes: "",
 });
 
@@ -189,6 +174,158 @@ const numberOrNull = (value: string) =>
 
 const escapeCsv = (value: unknown) =>
     `"${String(value ?? "").replace(/"/g, '""')}"`;
+
+
+const FIELD_CLASS = "h-11 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] text-[#111827] hover:border-[#9E4B4B] focus-visible:border-[#9E4B4B] focus-visible:ring-[#9E4B4B]/20";
+const TEXTAREA_CLASS = "min-h-24 w-full rounded-xl border border-[#E5E7EB] bg-[#F7F9FB] px-3 py-2 text-sm text-[#111827] outline-none transition hover:border-[#9E4B4B] focus:border-[#9E4B4B] focus:ring-2 focus:ring-[#9E4B4B]/20";
+
+
+type SearchableOption = {
+    value: string;
+    label: string;
+    searchText: string;
+    group?: string;
+    description?: string | null;
+};
+
+function SearchablePicker({
+    value,
+    onChange,
+    options,
+    placeholder,
+    searchPlaceholder,
+    emptyText,
+    allowClear = false,
+    disabled = false,
+}: {
+    value: string;
+    onChange: (value: string) => void;
+    options: SearchableOption[];
+    placeholder: string;
+    searchPlaceholder: string;
+    emptyText: string;
+    allowClear?: boolean;
+    disabled?: boolean;
+}) {
+    const [open, setOpen] = useState(false);
+    const [search, setSearch] = useState("");
+    const rootRef = useRef<HTMLDivElement | null>(null);
+    const selected = options.find((option) => option.value === value) ?? null;
+    const keyword = search.trim().toLowerCase();
+    const filtered = keyword.length < 2
+        ? options
+        : options.filter((option) =>
+            option.searchText.toLowerCase().includes(keyword),
+        );
+
+    useEffect(() => {
+        if (!open) return;
+        const close = (event: MouseEvent) => {
+            if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+                setOpen(false);
+                setSearch("");
+            }
+        };
+        document.addEventListener("mousedown", close);
+        return () => document.removeEventListener("mousedown", close);
+    }, [open]);
+
+    return (
+        <div ref={rootRef} className="relative">
+            <button
+                type="button"
+                disabled={disabled}
+                aria-expanded={open}
+                aria-haspopup="listbox"
+                onClick={() => {
+                    if (disabled) return;
+                    setOpen((current) => !current);
+                    setSearch("");
+                }}
+                className={`${FIELD_CLASS} flex w-full items-center justify-between px-3 text-left disabled:cursor-not-allowed disabled:bg-[#F1F3F5] disabled:text-[#9CA3AF]`}
+            >
+                <span className={selected ? "truncate" : "truncate text-[#6B7280]"}>
+                    {selected?.label ?? placeholder}
+                </span>
+                <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+            </button>
+
+            {open ? (
+                <div className="absolute z-[80] mt-2 w-full min-w-[280px] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-xl">
+                    <div className="border-b border-[#E5E7EB] p-3">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
+                            <Input
+                                autoFocus
+                                value={search}
+                                onChange={(event) => setSearch(event.target.value)}
+                                placeholder={searchPlaceholder}
+                                className={`${FIELD_CLASS} pl-10`}
+                            />
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500">Type at least 2 letters to narrow the list.</p>
+                    </div>
+                    <div role="listbox" className="max-h-64 overflow-y-auto p-1">
+                        {allowClear ? (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    onChange("");
+                                    setOpen(false);
+                                    setSearch("");
+                                }}
+                                className="w-full rounded-lg px-3 py-2 text-left text-sm text-slate-500 hover:bg-[#FBF1F1]"
+                            >
+                                — Clear selection —
+                            </button>
+                        ) : null}
+                        {filtered.length === 0 ? (
+                            <div className="px-3 py-6 text-center text-sm text-slate-500">{emptyText}</div>
+                        ) : (
+                            filtered.map((option, index) => {
+                                const showGroup = option.group && (index === 0 || filtered[index - 1]?.group !== option.group);
+                                return (
+                                    <div key={option.value}>
+                                        {showGroup ? (
+                                            <div className="px-3 pb-1 pt-3 text-xs font-bold uppercase tracking-wide text-[#9E4B4B]">{option.group}</div>
+                                        ) : null}
+                                        <button
+                                            type="button"
+                                            role="option"
+                                            aria-selected={option.value === value}
+                                            onClick={() => {
+                                                onChange(option.value);
+                                                setOpen(false);
+                                                setSearch("");
+                                            }}
+                                            className="flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left hover:bg-[#FBF1F1] focus:bg-[#FBF1F1] focus:outline-none"
+                                        >
+                                            <Check className={`mt-0.5 h-4 w-4 shrink-0 ${option.value === value ? "text-[#9E4B4B]" : "text-transparent"}`} />
+                                            <span className="min-w-0">
+                                                <span className="block break-words text-sm font-semibold text-slate-900">{option.label}</span>
+                                                {option.description ? <span className="mt-0.5 block text-xs text-slate-500">{option.description}</span> : null}
+                                            </span>
+                                        </button>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+const SectionHeading = ({ number, title, helper }: { number: number; title: string; helper?: string }) => (
+    <div className="flex items-start gap-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#9E4B4B] text-sm font-bold text-white">{number}</span>
+        <div>
+            <h3 className="font-bold text-slate-900">{title}</h3>
+            {helper ? <p className="mt-1 text-sm text-slate-500">{helper}</p> : null}
+        </div>
+    </div>
+);
 
 const Products = () => {
     const queryClient = useQueryClient();
@@ -205,7 +342,7 @@ const Products = () => {
     const [showForm, setShowForm] = useState(false);
     const [showView, setShowView] = useState(false);
     const [editingProduct, setEditingProduct] = useState<ProductRow | null>(null);
-    const [viewingProduct, setViewingProduct] = useState<ProductRow | null>(null);
+    const [viewingProductId, setViewingProductId] = useState<string | null>(null);
 
     const [productCode, setProductCode] = useState("");
     const [showCodeBuilder, setShowCodeBuilder] = useState(false);
@@ -214,14 +351,15 @@ const Products = () => {
         useState<ProductCodeBuilderValue | null>(null);
     const [productName, setProductName] = useState("");
     const [categoryId, setCategoryId] = useState("");
+    const [categorySearch, setCategorySearch] = useState("");
+    const [categoryComboboxOpen, setCategoryComboboxOpen] = useState(false);
+    const categoryComboboxRef = useRef<HTMLDivElement | null>(null);
     const [productType, setProductType] = useState<ProductType>("Material");
     const [description, setDescription] = useState("");
     const [baseUom, setBaseUom] = useState("");
     const [purchaseUom, setPurchaseUom] = useState("");
     const [requestUom, setRequestUom] = useState("");
     const [salesUom, setSalesUom] = useState("");
-    const [costPrice, setCostPrice] = useState("");
-    const [sellPrice, setSellPrice] = useState("");
     const [wastePercent, setWastePercent] = useState("0");
     const [usesCoverage, setUsesCoverage] = useState(false);
     const [isStockItem, setIsStockItem] = useState(true);
@@ -231,7 +369,6 @@ const Products = () => {
     const [dynamicValues, setDynamicValues] = useState<
         Record<string, AttributeFormValue>
     >({});
-    const [flooringForm, setFlooringForm] = useState<FlooringForm>(emptyFlooring);
     const [coverageForm, setCoverageForm] = useState<CoverageForm>(emptyCoverage);
     const [uomConversions, setUomConversions] = useState<UomConversionForm[]>([]);
 
@@ -240,6 +377,26 @@ const Products = () => {
             setRole(normalizeAppRole(data.user?.app_metadata?.app_role));
         });
     }, []);
+
+    useEffect(() => {
+        if (!categoryComboboxOpen) return;
+
+        const handlePointerDown = (event: MouseEvent) => {
+            if (
+                categoryComboboxRef.current &&
+                !categoryComboboxRef.current.contains(event.target as Node)
+            ) {
+                setCategoryComboboxOpen(false);
+                setCategorySearch("");
+            }
+        };
+
+        document.addEventListener("mousedown", handlePointerDown);
+
+        return () => {
+            document.removeEventListener("mousedown", handlePointerDown);
+        };
+    }, [categoryComboboxOpen]);
 
     const { data: products = [], isLoading } = useQuery({
         queryKey: ["products"],
@@ -258,8 +415,6 @@ const Products = () => {
           default_purchase_uom_code,
           default_request_uom_code,
           default_sales_uom_code,
-          cost_price,
-          default_sell_price,
           default_waste_percent,
           uses_coverage,
           is_stock_item,
@@ -293,7 +448,6 @@ const Products = () => {
           parent_category_id,
           category_code,
           category_name,
-          product_specification_type,
           is_active
         `,
                 )
@@ -306,12 +460,12 @@ const Products = () => {
         },
     });
 
-    const { data: units = [] } = useQuery({
+    const { data: units = [], isLoading: loadingUnits } = useQuery({
         queryKey: ["products", "units"],
-        queryFn: async () => {
+        queryFn: async (): Promise<UnitOption[]> => {
             const { data, error } = await supabase
                 .from("units_of_measure")
-                .select("uom_code,uom_name,uom_symbol,is_active")
+                .select("uom_code,uom_name,uom_symbol,uom_category,sort_order,is_active")
                 .eq("is_deleted", false)
                 .order("uom_category")
                 .order("sort_order")
@@ -336,18 +490,6 @@ const Products = () => {
             },
         });
 
-    const { data: specificationType = null } = useQuery({
-        queryKey: ["products", "specification-type", categoryId],
-        enabled: Boolean(categoryId),
-        queryFn: async () => {
-            const { data, error } = await supabase.rpc(
-                "get_effective_product_specification_type",
-                { p_category_id: categoryId },
-            );
-            if (error) throw error;
-            return data as string | null;
-        },
-    });
 
     const { data: attributeOptions = [] } = useQuery({
         queryKey: [
@@ -412,6 +554,81 @@ const Products = () => {
         return paths;
     }, [categories]);
 
+    const selectableCategories = useMemo(
+        () =>
+            categories
+                .filter(
+                    (category) =>
+                        category.is_active ||
+                        category.category_id === categoryId,
+                )
+                .sort((a, b) =>
+                    (categoryPath.get(a.category_id) ?? a.category_name).localeCompare(
+                        categoryPath.get(b.category_id) ?? b.category_name,
+                        "en-AU",
+                        { sensitivity: "base" },
+                    ),
+                ),
+        [categories, categoryId, categoryPath],
+    );
+
+    const filteredCategoryOptions = useMemo(() => {
+        const keyword = categorySearch.trim().toLowerCase();
+
+        if (keyword.length < 2) {
+            return selectableCategories;
+        }
+
+        return selectableCategories.filter((category) => {
+            const path =
+                categoryPath.get(category.category_id) ?? category.category_name;
+
+            return (
+                category.category_name.toLowerCase().includes(keyword) ||
+                category.category_code.toLowerCase().includes(keyword) ||
+                path.toLowerCase().includes(keyword)
+            );
+        });
+    }, [categoryPath, categorySearch, selectableCategories]);
+
+    const selectedCategory = useMemo(
+        () =>
+            categories.find((category) => category.category_id === categoryId) ??
+            null,
+        [categories, categoryId],
+    );
+
+
+    const categoryFilterOptions = useMemo<SearchableOption[]>(
+        () => selectableCategories.map((category) => {
+            const path = categoryPath.get(category.category_id) ?? category.category_name;
+            return {
+                value: category.category_id,
+                label: path,
+                searchText: `${category.category_code} ${category.category_name} ${path}`,
+                description: category.category_code,
+            };
+        }),
+        [categoryPath, selectableCategories],
+    );
+
+    const uomOptions = useMemo<SearchableOption[]>(
+        () => [...units]
+            .sort((a, b) =>
+                a.uom_category.localeCompare(b.uom_category, "en-AU") ||
+                Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0) ||
+                a.uom_name.localeCompare(b.uom_name, "en-AU") ||
+                a.uom_code.localeCompare(b.uom_code, "en-AU"),
+            )
+            .map((unit) => ({
+                value: unit.uom_code,
+                label: `${unit.uom_code} — ${unit.uom_name} (${unit.uom_symbol})`,
+                searchText: `${unit.uom_code} ${unit.uom_name} ${unit.uom_symbol} ${unit.uom_category}`,
+                group: unit.uom_category,
+            })),
+        [units],
+    );
+
     const filteredProducts = useMemo(() => {
         const keyword = searchTerm.trim().toLowerCase();
 
@@ -459,7 +676,14 @@ const Products = () => {
             groups.set(attribute.section_name, current);
         });
 
-        return Array.from(groups.entries());
+        return Array.from(groups.entries()).map(([section, attributes]) => [
+            section,
+            [...attributes].sort(
+                (a, b) =>
+                    Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0) ||
+                    a.effective_label.localeCompare(b.effective_label, "en-AU"),
+            ),
+        ] as [string, EffectiveAttribute[]]);
     }, [effectiveAttributes]);
 
     const resetForm = () => {
@@ -469,14 +693,14 @@ const Products = () => {
         setShowCodeBuilder(false);
         setProductName("");
         setCategoryId("");
+        setCategorySearch("");
+        setCategoryComboboxOpen(false);
         setProductType("Material");
         setDescription("");
         setBaseUom("");
         setPurchaseUom("");
         setRequestUom("");
         setSalesUom("");
-        setCostPrice("");
-        setSellPrice("");
         setWastePercent("0");
         setUsesCoverage(false);
         setIsStockItem(true);
@@ -484,7 +708,6 @@ const Products = () => {
         setSearchKeywords("");
         setIsActive(true);
         setDynamicValues({});
-        setFlooringForm(emptyFlooring());
         setCoverageForm(emptyCoverage());
         setUomConversions([]);
     };
@@ -496,18 +719,14 @@ const Products = () => {
         setShowCodeBuilder(false);
         setProductName(product.product_name);
         setCategoryId(product.category_id);
+        setCategorySearch("");
+        setCategoryComboboxOpen(false);
         setProductType(product.product_type as ProductType);
         setDescription(product.description ?? "");
         setBaseUom(product.base_uom_code ?? "");
         setPurchaseUom(product.default_purchase_uom_code ?? "");
         setRequestUom(product.default_request_uom_code ?? "");
         setSalesUom(product.default_sales_uom_code ?? "");
-        setCostPrice(product.cost_price === null ? "" : String(product.cost_price));
-        setSellPrice(
-            product.default_sell_price === null
-                ? ""
-                : String(product.default_sell_price),
-        );
         setWastePercent(String(product.default_waste_percent ?? 0));
         setUsesCoverage(product.uses_coverage);
         setIsStockItem(product.is_stock_item);
@@ -515,7 +734,7 @@ const Products = () => {
         setSearchKeywords(product.search_keywords ?? "");
         setIsActive(product.is_active);
 
-        const [valuesResult, flooringResult, coverageResult, conversionsResult] =
+        const [valuesResult, coverageResult, conversionsResult] =
             await Promise.all([
                 supabase
                     .from("product_attribute_values")
@@ -535,12 +754,6 @@ const Products = () => {
                     )
                     .eq("product_id", product.product_id)
                     .eq("is_deleted", false),
-                supabase
-                    .from("product_flooring_specs")
-                    .select("*")
-                    .eq("product_id", product.product_id)
-                    .eq("is_deleted", false)
-                    .maybeSingle(),
                 supabase
                     .from("product_coverages")
                     .select("*")
@@ -567,7 +780,6 @@ const Products = () => {
             ]);
 
         if (valuesResult.error) throw valuesResult.error;
-        if (flooringResult.error) throw flooringResult.error;
         if (coverageResult.error) throw coverageResult.error;
         if (conversionsResult.error) throw conversionsResult.error;
 
@@ -594,25 +806,6 @@ const Products = () => {
 
         setDynamicValues(nextValues);
 
-        if (flooringResult.data) {
-            const spec = flooringResult.data;
-            setFlooringForm({
-                dimensionType: spec.dimension_type,
-                width: spec.plank_width_mm?.toString() ?? "",
-                length: spec.plank_length_mm?.toString() ?? "",
-                minLength: spec.minimum_length_mm?.toString() ?? "",
-                maxLength: spec.maximum_length_mm?.toString() ?? "",
-                thickness: spec.plank_thickness_mm?.toString() ?? "",
-                planksPerBox: spec.planks_per_box?.toString() ?? "",
-                declaredSqmPerBox: spec.declared_sqm_per_box?.toString() ?? "",
-                coverageMethod: spec.coverage_method,
-                manufacturerName: spec.manufacturer_name ?? "",
-                manufacturerCode: spec.manufacturer_product_code ?? "",
-                manufacturerNotes: spec.manufacturer_notes ?? "",
-            });
-        } else {
-            setFlooringForm(emptyFlooring());
-        }
 
         if (coverageResult.data) {
             const coverage = coverageResult.data;
@@ -623,6 +816,7 @@ const Products = () => {
                 coverageUom: coverage.coverage_uom_code,
                 minimumCoverage: coverage.minimum_coverage?.toString() ?? "",
                 maximumCoverage: coverage.maximum_coverage?.toString() ?? "",
+                isEstimate: coverage.is_estimate ?? true,
                 notes: coverage.notes ?? "",
             });
         } else {
@@ -759,15 +953,38 @@ const Products = () => {
             throw new Error("Coverage Quantity must be greater than zero.");
         }
 
+        const minimumCoverage = numberOrNull(coverageForm.minimumCoverage);
+        const maximumCoverage = numberOrNull(coverageForm.maximumCoverage);
+
+        if (minimumCoverage !== null && (!Number.isFinite(minimumCoverage) || minimumCoverage <= 0)) {
+            throw new Error("Minimum Coverage must be greater than zero.");
+        }
+        if (maximumCoverage !== null && (!Number.isFinite(maximumCoverage) || maximumCoverage <= 0)) {
+            throw new Error("Maximum Coverage must be greater than zero.");
+        }
+        if (
+            minimumCoverage !== null &&
+            maximumCoverage !== null &&
+            minimumCoverage > maximumCoverage
+        ) {
+            throw new Error("Minimum Coverage cannot be greater than Maximum Coverage.");
+        }
+        if (minimumCoverage !== null && coverageQuantity < minimumCoverage) {
+            throw new Error("Coverage Quantity cannot be less than Minimum Coverage.");
+        }
+        if (maximumCoverage !== null && coverageQuantity > maximumCoverage) {
+            throw new Error("Coverage Quantity cannot be greater than Maximum Coverage.");
+        }
+
         return [
             {
                 source_quantity: sourceQuantity,
                 source_uom_code: coverageForm.sourceUom,
                 coverage_quantity: coverageQuantity,
                 coverage_uom_code: coverageForm.coverageUom,
-                minimum_coverage: numberOrNull(coverageForm.minimumCoverage),
-                maximum_coverage: numberOrNull(coverageForm.maximumCoverage),
-                is_estimate: true,
+                minimum_coverage: minimumCoverage,
+                maximum_coverage: maximumCoverage,
+                is_estimate: coverageForm.isEstimate,
                 is_default: true,
                 notes: coverageForm.notes.trim() || null,
                 sort_order: 10,
@@ -941,8 +1158,6 @@ const Products = () => {
         product.product_categories?.category_name ?? "",
         product.product_type,
         product.base_uom_code ?? "",
-        product.cost_price ?? "",
-        product.default_sell_price ?? "",
         product.is_stock_item ? "Yes" : "No",
         product.is_service_item ? "Yes" : "No",
         product.is_active ? "Active" : "Inactive",
@@ -955,8 +1170,6 @@ const Products = () => {
             "Category",
             "Product Type",
             "Base UOM",
-            "Cost Price",
-            "Sell Price",
             "Stock Item",
             "Service Item",
             "Status",
@@ -985,7 +1198,7 @@ const Products = () => {
             )
             .join("");
 
-        const html = `<table><tr><th>Product Code</th><th>Product Name</th><th>Category</th><th>Product Type</th><th>Base UOM</th><th>Cost Price</th><th>Sell Price</th><th>Stock Item</th><th>Service Item</th><th>Status</th></tr>${rows}</table>`;
+        const html = `<table><tr><th>Product Code</th><th>Product Name</th><th>Category</th><th>Product Type</th><th>Base UOM</th><th>Stock Item</th><th>Service Item</th><th>Status</th></tr>${rows}</table>`;
         const blob = new Blob([html], {
             type: "application/vnd.ms-excel",
         });
@@ -1024,64 +1237,67 @@ const Products = () => {
 
         if (attribute.data_type === "boolean") {
             return (
-                <Select
-                    value={typeof value === "boolean" ? (value ? "true" : "false") : ""}
-                    onValueChange={(next) =>
-                        setDynamicValue(attribute.attribute_id, next === "true")
-                    }
-                >
-                    <SelectTrigger>
-                        <SelectValue placeholder="Select Yes or No" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="true">Yes</SelectItem>
-                        <SelectItem value="false">No</SelectItem>
-                    </SelectContent>
-                </Select>
+                <label className="flex h-11 items-center gap-3 rounded-xl border border-[#E5E7EB] bg-[#F7F9FB] px-3 text-sm font-semibold">
+                    <input
+                        type="checkbox"
+                        checked={value === true}
+                        onChange={(event) =>
+                            setDynamicValue(attribute.attribute_id, event.target.checked)
+                        }
+                        className="h-4 w-4 rounded border-slate-300 text-red-600"
+                    />
+                    {value === true ? "Yes" : "No"}
+                </label>
             );
         }
 
         if (attribute.data_type === "select") {
-            const selectedValue =
-                typeof value === "string" && value.trim() !== ""
-                    ? value
-                    : "__none__";
+            const options = attributeOptions
+                .filter((option) => option.attribute_id === attribute.attribute_id)
+                .sort((a, b) => a.option_label.localeCompare(b.option_label, "en-AU"));
+            const selectedValue = typeof value === "string" ? value : "";
+
+            if (options.length > 8) {
+                return (
+                    <SearchablePicker
+                        value={selectedValue}
+                        onChange={(next) => setDynamicValue(attribute.attribute_id, next)}
+                        options={options.map((option) => ({
+                            value: option.attribute_option_id,
+                            label: option.option_label,
+                            searchText: `${option.option_code} ${option.option_label}`,
+                            description: option.option_code,
+                        }))}
+                        placeholder={`Select ${attribute.effective_label}`}
+                        searchPlaceholder={`Search ${attribute.effective_label.toLowerCase()}...`}
+                        emptyText="No matching options found."
+                        allowClear={!attribute.is_required}
+                    />
+                );
+            }
 
             return (
                 <Select
-                    value={selectedValue}
+                    value={selectedValue || undefined}
                     onValueChange={(next) =>
                         setDynamicValue(
                             attribute.attribute_id,
-                            next === "__none__" ? "" : next
+                            next === "__none__" ? "" : next,
                         )
                     }
                 >
-                    <SelectTrigger>
-                        <SelectValue
-                            placeholder={`Select ${attribute.effective_label}`}
-                        />
+                    <SelectTrigger className={FIELD_CLASS}>
+                        <SelectValue placeholder={`Select ${attribute.effective_label}`} />
                     </SelectTrigger>
-
                     <SelectContent>
-                        <SelectItem value="__none__">
-                            — Clear selection —
-                        </SelectItem>
-
-                        {attributeOptions
-                            .filter(
-                                (option) =>
-                                    option.attribute_id ===
-                                    attribute.attribute_id
-                            )
-                            .map((option) => (
-                                <SelectItem
-                                    key={option.attribute_option_id}
-                                    value={option.attribute_option_id}
-                                >
-                                    {option.option_label}
-                                </SelectItem>
-                            ))}
+                        {!attribute.is_required ? (
+                            <SelectItem value="__none__">— Clear selection —</SelectItem>
+                        ) : null}
+                        {options.map((option) => (
+                            <SelectItem key={option.attribute_option_id} value={option.attribute_option_id}>
+                                {option.option_label}
+                            </SelectItem>
+                        ))}
                     </SelectContent>
                 </Select>
             );
@@ -1126,13 +1342,14 @@ const Products = () => {
                     onChange={(event) =>
                         setDynamicValue(attribute.attribute_id, event.target.value)
                     }
-                    className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+                    className={TEXTAREA_CLASS}
                 />
             );
         }
 
         return (
             <Input
+                className={FIELD_CLASS}
                 type={
                     attribute.data_type === "number"
                         ? "number"
@@ -1202,32 +1419,25 @@ const Products = () => {
                     <div className="relative">
                         <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
                         <Input
+                            className={`${FIELD_CLASS} pl-10`}
                             value={searchTerm}
                             onChange={(event) => setSearchTerm(event.target.value)}
                             placeholder="Search by product name, code, category or keyword..."
-                            className="pl-10"
                         />
                     </div>
 
-                    <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Categories</SelectItem>
-                            {categories.map((category) => (
-                                <SelectItem
-                                    key={category.category_id}
-                                    value={category.category_id}
-                                >
-                                    {categoryPath.get(category.category_id)}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <SearchablePicker
+                        value={categoryFilter === "all" ? "" : categoryFilter}
+                        onChange={(value) => setCategoryFilter(value || "all")}
+                        options={categoryFilterOptions}
+                        placeholder="All Categories"
+                        searchPlaceholder="Search category name, code or path..."
+                        emptyText="No matching Product Category found."
+                        allowClear
+                    />
 
                     <Select value={typeFilter} onValueChange={setTypeFilter}>
-                        <SelectTrigger>
+                        <SelectTrigger className={FIELD_CLASS}>
                             <SelectValue placeholder="Product Type" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1244,7 +1454,7 @@ const Products = () => {
                         value={statusFilter}
                         onValueChange={(value) => setStatusFilter(value as StatusFilter)}
                     >
-                        <SelectTrigger>
+                        <SelectTrigger className={FIELD_CLASS}>
                             <SelectValue placeholder="Status" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1339,7 +1549,7 @@ const Products = () => {
                                     variant="ghost"
                                     size="icon"
                                     onClick={() => {
-                                        setViewingProduct(product);
+                                        setViewingProductId(product.product_id);
                                         setShowView(true);
                                     }}
                                     title="View Product"
@@ -1414,7 +1624,7 @@ const Products = () => {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => {
-                                    setViewingProduct(product);
+                                    setViewingProductId(product.product_id);
                                     setShowView(true);
                                 }}
                             >
@@ -1455,16 +1665,16 @@ const Products = () => {
                     if (!open) resetForm();
                 }}
             >
-                <DialogContent className="max-h-[90vh] w-[calc(100vw-24px)] max-w-5xl overflow-y-auto rounded-2xl p-4 sm:p-6">
-                    <DialogHeader>
+                <DialogContent className="max-h-[90vh] w-[calc(100vw-24px)] max-w-5xl overflow-hidden rounded-2xl p-0">
+                    <DialogHeader className="border-b border-[#E5E7EB] px-4 py-4 sm:px-6">
                         <DialogTitle>
                             {editingProduct ? "Edit Product" : "Add Product"}
                         </DialogTitle>
                     </DialogHeader>
 
-                    <div className="space-y-6">
-                        <section className="rounded-2xl border border-slate-200 p-4">
-                            <h3 className="font-bold text-slate-900">Product Information</h3>
+                    <div className="max-h-[calc(90vh-72px)] space-y-6 overflow-y-auto px-4 py-5 sm:px-6">
+                        <section className="rounded-2xl border border-[#E5E7EB] bg-[#FCFAFA] p-4">
+                            <SectionHeading number={1} title="Product Information" helper="Basic identity and classification used across REDS." />
                             <div className="mt-4 grid gap-4 md:grid-cols-2">
                                 <div className="space-y-2">
                                     <Label>Product Code *</Label>
@@ -1502,6 +1712,7 @@ const Products = () => {
                                 <div className="space-y-2">
                                     <Label>Product Name *</Label>
                                     <Input
+                                        className={FIELD_CLASS}
                                         value={productName}
                                         onChange={(event) => setProductName(event.target.value)}
                                     />
@@ -1509,33 +1720,118 @@ const Products = () => {
 
                                 <div className="space-y-2">
                                     <Label>Product Category *</Label>
-                                    <Select
-                                        value={categoryId}
-                                        onValueChange={(value) => {
-                                            setCategoryId(value);
-                                            setDynamicValues({});
-                                        }}
+
+                                    <div
+                                        ref={categoryComboboxRef}
+                                        className="relative"
                                     >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select Category" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {categories
-                                                .filter(
-                                                    (category) =>
-                                                        category.is_active ||
-                                                        category.category_id === categoryId,
-                                                )
-                                                .map((category) => (
-                                                    <SelectItem
-                                                        key={category.category_id}
-                                                        value={category.category_id}
-                                                    >
-                                                        {categoryPath.get(category.category_id)}
-                                                    </SelectItem>
-                                                ))}
-                                        </SelectContent>
-                                    </Select>
+                                        <button
+                                            type="button"
+                                            aria-haspopup="listbox"
+                                            aria-expanded={categoryComboboxOpen}
+                                            onClick={() => {
+                                                setCategoryComboboxOpen((current) => !current);
+                                                setCategorySearch("");
+                                            }}
+                                            className={`${FIELD_CLASS} flex w-full items-center justify-between px-3 text-left`}
+                                        >
+                                            <span
+                                                className={
+                                                    selectedCategory
+                                                        ? "truncate text-[#111827]"
+                                                        : "truncate text-[#6B7280]"
+                                                }
+                                            >
+                                                {selectedCategory
+                                                    ? categoryPath.get(selectedCategory.category_id) ??
+                                                    selectedCategory.category_name
+                                                    : "Select Category"}
+                                            </span>
+
+                                            <ChevronDown
+                                                className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${categoryComboboxOpen ? "rotate-180" : ""
+                                                    }`}
+                                            />
+                                        </button>
+
+                                        {categoryComboboxOpen ? (
+                                            <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-xl">
+                                                <div className="border-b border-[#E5E7EB] p-3">
+                                                    <div className="relative">
+                                                        <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
+                                                        <Input
+                                                            autoFocus
+                                                            className={`${FIELD_CLASS} pl-10`}
+                                                            value={categorySearch}
+                                                            onChange={(event) =>
+                                                                setCategorySearch(event.target.value)
+                                                            }
+                                                            placeholder="Type at least 2 letters..."
+                                                        />
+                                                    </div>
+
+                                                    <p className="mt-2 text-xs text-slate-500">
+                                                        Search by category name, code or full category path.
+                                                    </p>
+                                                </div>
+
+                                                <div
+                                                    role="listbox"
+                                                    className="max-h-64 overflow-y-auto p-1"
+                                                >
+                                                    {filteredCategoryOptions.length === 0 ? (
+                                                        <div className="px-3 py-6 text-center text-sm text-slate-500">
+                                                            No matching Product Category found.
+                                                        </div>
+                                                    ) : (
+                                                        filteredCategoryOptions.map((category) => {
+                                                            const path =
+                                                                categoryPath.get(category.category_id) ??
+                                                                category.category_name;
+                                                            const selected =
+                                                                category.category_id === categoryId;
+
+                                                            return (
+                                                                <button
+                                                                    key={category.category_id}
+                                                                    type="button"
+                                                                    role="option"
+                                                                    aria-selected={selected}
+                                                                    onClick={() => {
+                                                                        setCategoryId(category.category_id);
+                                                                        setDynamicValues({});
+                                                                        setCategorySearch("");
+                                                                        setCategoryComboboxOpen(false);
+                                                                    }}
+                                                                    className="flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left hover:bg-[#FBF1F1] focus:bg-[#FBF1F1] focus:outline-none"
+                                                                >
+                                                                    <Check
+                                                                        className={`mt-0.5 h-4 w-4 shrink-0 ${selected
+                                                                            ? "text-[#9E4B4B]"
+                                                                            : "text-transparent"
+                                                                            }`}
+                                                                    />
+
+                                                                    <span className="min-w-0">
+                                                                        <span className="block break-words text-sm font-semibold text-slate-900">
+                                                                            {path}
+                                                                        </span>
+                                                                        <span className="mt-0.5 block font-mono text-xs text-slate-500">
+                                                                            {category.category_code}
+                                                                        </span>
+                                                                    </span>
+                                                                </button>
+                                                            );
+                                                        })
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ) : null}
+                                    </div>
+
+                                    <p className="text-xs text-slate-500">
+                                        Categories are arranged by Parent → Child. Type two letters to narrow the list.
+                                    </p>
                                 </div>
 
                                 <div className="space-y-2">
@@ -1552,7 +1848,7 @@ const Products = () => {
                                             setIsStockItem(!service);
                                         }}
                                     >
-                                        <SelectTrigger>
+                                        <SelectTrigger className={FIELD_CLASS}>
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -1571,13 +1867,14 @@ const Products = () => {
                                         rows={3}
                                         value={description}
                                         onChange={(event) => setDescription(event.target.value)}
-                                        className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+                                        className={TEXTAREA_CLASS}
                                     />
                                 </div>
 
                                 <div className="space-y-2 md:col-span-2">
                                     <Label>Search Keywords</Label>
                                     <Input
+                                        className={FIELD_CLASS}
                                         value={searchKeywords}
                                         onChange={(event) => setSearchKeywords(event.target.value)}
                                         placeholder="Example: oak engineered timber natural"
@@ -1585,10 +1882,8 @@ const Products = () => {
                                 </div>
                             </div>
                         </section>
-                        <section className="rounded-2xl border border-slate-200 p-4">
-                            <h3 className="font-bold text-slate-900">
-                                Product Code Identity
-                            </h3>
+                        <section className="rounded-2xl border border-[#E5E7EB] bg-[#FCFAFA] p-4">
+                            <SectionHeading number={2} title="Product Code Identity" helper="Controlled product code identity. Immutable after creation." />
 
                             {!productCode ? (
                                 <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
@@ -1685,67 +1980,74 @@ const Products = () => {
                                 </div>
                             )}
                         </section>
-                        <section className="rounded-2xl border border-slate-200 p-4">
-                            <h3 className="font-bold text-slate-900">Units and Pricing</h3>
+                        <section className="rounded-2xl border border-[#E5E7EB] bg-[#FCFAFA] p-4">
+                            <SectionHeading number={3} title="Units and UOM" helper="Select the base unit and default transaction units." />
                             <div className="mt-4 grid gap-4 md:grid-cols-4">
-                                {[
-                                    ["Base UOM *", baseUom, setBaseUom],
-                                    ["Purchase UOM", purchaseUom, setPurchaseUom],
-                                    ["Request UOM", requestUom, setRequestUom],
-                                    ["Sales UOM", salesUom, setSalesUom],
-                                ].map(([label, value, setter]) => (
-                                    <div key={String(label)} className="space-y-2">
-                                        <Label>{label as string}</Label>
-                                        <Select
-                                            value={value as string}
-                                            onValueChange={setter as (value: string) => void}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select UOM" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {units
-                                                    .filter(
-                                                        (unit) => unit.is_active || unit.uom_code === value,
-                                                    )
-                                                    .map((unit) => (
-                                                        <SelectItem
-                                                            key={unit.uom_code}
-                                                            value={unit.uom_code}
-                                                        >
-                                                            {unit.uom_name} ({unit.uom_symbol})
-                                                        </SelectItem>
-                                                    ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                ))}
-
                                 <div className="space-y-2">
-                                    <Label>Cost Price (AUD)</Label>
-                                    <Input
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        value={costPrice}
-                                        onChange={(event) => setCostPrice(event.target.value)}
+                                    <Label>Base UOM *</Label>
+                                    <SearchablePicker
+                                        value={baseUom}
+                                        onChange={(value) => {
+                                            setBaseUom(value);
+                                            setUomConversions((current) =>
+                                                current.map((conversion) => ({ ...conversion, toUom: value })),
+                                            );
+                                            if (!coverageForm.coverageUom) {
+                                                setCoverageForm((current) => ({ ...current, coverageUom: value }));
+                                            }
+                                        }}
+                                        options={uomOptions.filter((option) => units.find((unit) => unit.uom_code === option.value)?.is_active || option.value === baseUom)}
+                                        placeholder={loadingUnits ? "Loading UOM..." : "Select Base UOM"}
+                                        searchPlaceholder="Search UOM code, name, symbol or category..."
+                                        emptyText="No active Units of Measure configured."
                                     />
                                 </div>
-
                                 <div className="space-y-2">
-                                    <Label>Default Sell Price (AUD)</Label>
-                                    <Input
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        value={sellPrice}
-                                        onChange={(event) => setSellPrice(event.target.value)}
+                                    <Label>Purchase UOM</Label>
+                                    <SearchablePicker
+                                        value={purchaseUom}
+                                        onChange={(value) => {
+                                            setPurchaseUom(value);
+                                            if (value && !coverageForm.sourceUom) {
+                                                setCoverageForm((current) => ({ ...current, sourceUom: value }));
+                                            }
+                                        }}
+                                        options={uomOptions.filter((option) => units.find((unit) => unit.uom_code === option.value)?.is_active || option.value === purchaseUom)}
+                                        placeholder="Select Purchase UOM"
+                                        searchPlaceholder="Search UOM code, name, symbol or category..."
+                                        emptyText="No active Units of Measure configured."
+                                        allowClear
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Request UOM</Label>
+                                    <SearchablePicker
+                                        value={requestUom}
+                                        onChange={setRequestUom}
+                                        options={uomOptions.filter((option) => units.find((unit) => unit.uom_code === option.value)?.is_active || option.value === requestUom)}
+                                        placeholder="Select Request UOM"
+                                        searchPlaceholder="Search UOM code, name, symbol or category..."
+                                        emptyText="No active Units of Measure configured."
+                                        allowClear
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Sales UOM</Label>
+                                    <SearchablePicker
+                                        value={salesUom}
+                                        onChange={setSalesUom}
+                                        options={uomOptions.filter((option) => units.find((unit) => unit.uom_code === option.value)?.is_active || option.value === salesUom)}
+                                        placeholder="Select Sales UOM"
+                                        searchPlaceholder="Search UOM code, name, symbol or category..."
+                                        emptyText="No active Units of Measure configured."
+                                        allowClear
                                     />
                                 </div>
 
                                 <div className="space-y-2">
                                     <Label>Default Waste %</Label>
                                     <Input
+                                        className={FIELD_CLASS}
                                         type="number"
                                         min="0"
                                         step="0.01"
@@ -1760,7 +2062,7 @@ const Products = () => {
                                         value={isActive ? "active" : "inactive"}
                                         onValueChange={(value) => setIsActive(value === "active")}
                                     >
-                                        <SelectTrigger>
+                                        <SelectTrigger className={FIELD_CLASS}>
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -1772,41 +2074,35 @@ const Products = () => {
                             </div>
 
                             <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                                {[
-                                    ["Stock Item", isStockItem, setIsStockItem],
-                                    ["Service Item", isServiceItem, setIsServiceItem],
-                                    ["Uses Coverage", usesCoverage, setUsesCoverage],
-                                ].map(([label, checked, setter]) => (
-                                    <label
-                                        key={String(label)}
-                                        className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 text-sm font-semibold"
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={checked as boolean}
-                                            onChange={(event) =>
-                                                (
-                                                    setter as React.Dispatch<
-                                                        React.SetStateAction<boolean>
-                                                    >
-                                                )(event.target.checked)
-                                            }
-                                            className="h-4 w-4 rounded border-slate-300 text-red-600"
-                                        />
-                                        {label as string}
-                                    </label>
-                                ))}
+                                <div className="rounded-xl border border-[#E5E7EB] bg-white p-3">
+                                    <p className="text-xs font-medium text-slate-500">Stock Item</p>
+                                    <p className="mt-1 font-bold text-slate-900">{productType === "Service" ? "No" : "Yes"}</p>
+                                    <p className="mt-1 text-xs text-slate-500">Derived automatically from Product Type.</p>
+                                </div>
+                                <div className="rounded-xl border border-[#E5E7EB] bg-white p-3">
+                                    <p className="text-xs font-medium text-slate-500">Service Item</p>
+                                    <p className="mt-1 font-bold text-slate-900">{productType === "Service" ? "Yes" : "No"}</p>
+                                    <p className="mt-1 text-xs text-slate-500">Derived automatically from Product Type.</p>
+                                </div>
+                                <label className="flex items-center gap-3 rounded-xl border border-[#E5E7EB] bg-white p-3 text-sm font-semibold">
+                                    <input
+                                        type="checkbox"
+                                        checked={usesCoverage}
+                                        onChange={(event) => setUsesCoverage(event.target.checked)}
+                                        className="h-4 w-4 rounded border-slate-300 text-red-600"
+                                    />
+                                    <span>
+                                        <span className="block">Uses Coverage / Yield</span>
+                                        <span className="mt-1 block text-xs font-normal text-slate-500">Enable structured coverage information for this Product.</span>
+                                    </span>
+                                </label>
                             </div>
                         </section>
 
-                        <section className="rounded-2xl border border-slate-200 p-4">
+                        <section className="rounded-2xl border border-[#E5E7EB] bg-[#FCFAFA] p-4">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
-                                    <h3 className="font-bold text-slate-900">UOM Conversions</h3>
-                                    <p className="mt-1 text-sm text-slate-500">
-                                        Define how purchasing, requesting or selling units convert
-                                        to the Base UOM.
-                                    </p>
+                                    <SectionHeading number={4} title="UOM Conversions" helper="Define how purchasing, requesting or selling units convert to the Base UOM." />
                                 </div>
 
                                 <Button
@@ -1862,39 +2158,34 @@ const Products = () => {
                                             <div className="grid gap-4 md:grid-cols-4">
                                                 <div className="space-y-2">
                                                     <Label>From UOM *</Label>
-                                                    <Select
+                                                    <SearchablePicker
                                                         value={conversion.fromUom}
-                                                        onValueChange={(value) =>
+                                                        onChange={(value) =>
                                                             setUomConversions((current) =>
                                                                 current.map((item) =>
                                                                     item.id === conversion.id
-                                                                        ? { ...item, fromUom: value }
+                                                                        ? { ...item, fromUom: value, toUom: baseUom }
                                                                         : item,
                                                                 ),
                                                             )
                                                         }
-                                                    >
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder="Select UOM" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {units
-                                                                .filter((unit) => unit.is_active)
-                                                                .map((unit) => (
-                                                                    <SelectItem
-                                                                        key={unit.uom_code}
-                                                                        value={unit.uom_code}
-                                                                    >
-                                                                        {unit.uom_name} ({unit.uom_symbol})
-                                                                    </SelectItem>
-                                                                ))}
-                                                        </SelectContent>
-                                                    </Select>
+                                                        options={uomOptions.filter((option) => {
+                                                            const unit = units.find((item) => item.uom_code === option.value);
+                                                            const usedByAnother = uomConversions.some(
+                                                                (item) => item.id !== conversion.id && item.fromUom === option.value,
+                                                            );
+                                                            return Boolean(unit?.is_active) && option.value !== baseUom && !usedByAnother;
+                                                        })}
+                                                        placeholder="Select From UOM"
+                                                        searchPlaceholder="Search UOM code, name, symbol or category..."
+                                                        emptyText="No available Units of Measure found."
+                                                    />
                                                 </div>
 
                                                 <div className="space-y-2">
                                                     <Label>Conversion Factor *</Label>
                                                     <Input
+                                                        className={FIELD_CLASS}
                                                         type="number"
                                                         min="0"
                                                         step="0.0001"
@@ -1916,35 +2207,13 @@ const Products = () => {
                                                 </div>
 
                                                 <div className="space-y-2">
-                                                    <Label>To UOM *</Label>
-                                                    <Select
-                                                        value={conversion.toUom}
-                                                        onValueChange={(value) =>
-                                                            setUomConversions((current) =>
-                                                                current.map((item) =>
-                                                                    item.id === conversion.id
-                                                                        ? { ...item, toUom: value }
-                                                                        : item,
-                                                                ),
-                                                            )
-                                                        }
-                                                    >
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder="Select UOM" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {units
-                                                                .filter((unit) => unit.is_active)
-                                                                .map((unit) => (
-                                                                    <SelectItem
-                                                                        key={unit.uom_code}
-                                                                        value={unit.uom_code}
-                                                                    >
-                                                                        {unit.uom_name} ({unit.uom_symbol})
-                                                                    </SelectItem>
-                                                                ))}
-                                                        </SelectContent>
-                                                    </Select>
+                                                    <Label>To Base UOM *</Label>
+                                                    <Input
+                                                        value={baseUom || "Select Base UOM first"}
+                                                        readOnly
+                                                        className="h-11 cursor-not-allowed rounded-xl border-[#E5E7EB] bg-[#F1F3F5] font-semibold text-[#6B7280]"
+                                                    />
+                                                    <p className="text-xs text-slate-500">To UOM is controlled by the selected Base UOM.</p>
                                                 </div>
 
                                                 <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold md:self-end">
@@ -1981,8 +2250,8 @@ const Products = () => {
                         </section>
 
                         {usesCoverage ? (
-                            <section className="rounded-2xl border border-slate-200 p-4">
-                                <h3 className="font-bold text-slate-900">Coverage / Yield</h3>
+                            <section className="rounded-2xl border border-[#E5E7EB] bg-[#FCFAFA] p-4">
+                                <SectionHeading number={5} title="Coverage / Yield" helper="Store structured estimated coverage per source unit." />
                                 <p className="mt-1 text-sm text-slate-500">
                                     Example: 1 box covers approximately 1.8 sqm.
                                 </p>
@@ -1990,6 +2259,7 @@ const Products = () => {
                                     <div className="space-y-2">
                                         <Label>Source Quantity *</Label>
                                         <Input
+                                            className={FIELD_CLASS}
                                             type="number"
                                             min="0"
                                             value={coverageForm.sourceQuantity}
@@ -2003,30 +2273,26 @@ const Products = () => {
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Source UOM *</Label>
-                                        <Select
+                                        <SearchablePicker
                                             value={coverageForm.sourceUom}
-                                            onValueChange={(value) =>
+                                            onChange={(value) =>
                                                 setCoverageForm({
                                                     ...coverageForm,
                                                     sourceUom: value,
                                                 })
                                             }
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select UOM" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {units.map((unit) => (
-                                                    <SelectItem key={unit.uom_code} value={unit.uom_code}>
-                                                        {unit.uom_name} ({unit.uom_symbol})
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                            options={uomOptions.filter((option) =>
+                                                units.find((unit) => unit.uom_code === option.value)?.is_active,
+                                            )}
+                                            placeholder="Select UOM"
+                                            searchPlaceholder="Search UOM code, name, symbol or category..."
+                                            emptyText="No active Units of Measure configured."
+                                        />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Coverage Quantity *</Label>
                                         <Input
+                                            className={FIELD_CLASS}
                                             type="number"
                                             min="0"
                                             step="0.0001"
@@ -2041,30 +2307,26 @@ const Products = () => {
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Coverage UOM *</Label>
-                                        <Select
+                                        <SearchablePicker
                                             value={coverageForm.coverageUom}
-                                            onValueChange={(value) =>
+                                            onChange={(value) =>
                                                 setCoverageForm({
                                                     ...coverageForm,
                                                     coverageUom: value,
                                                 })
                                             }
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select UOM" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {units.map((unit) => (
-                                                    <SelectItem key={unit.uom_code} value={unit.uom_code}>
-                                                        {unit.uom_name} ({unit.uom_symbol})
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                            options={uomOptions.filter((option) =>
+                                                units.find((unit) => unit.uom_code === option.value)?.is_active,
+                                            )}
+                                            placeholder="Select UOM"
+                                            searchPlaceholder="Search UOM code, name, symbol or category..."
+                                            emptyText="No active Units of Measure configured."
+                                        />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Minimum Coverage</Label>
                                         <Input
+                                            className={FIELD_CLASS}
                                             type="number"
                                             value={coverageForm.minimumCoverage}
                                             onChange={(event) =>
@@ -2078,6 +2340,7 @@ const Products = () => {
                                     <div className="space-y-2">
                                         <Label>Maximum Coverage</Label>
                                         <Input
+                                            className={FIELD_CLASS}
                                             type="number"
                                             value={coverageForm.maximumCoverage}
                                             onChange={(event) =>
@@ -2088,9 +2351,83 @@ const Products = () => {
                                             }
                                         />
                                     </div>
+                                    <div className="space-y-4 md:col-span-4">
+                                        <div className="space-y-2">
+                                            <Label>Coverage Type *</Label>
+
+                                            <div className="grid gap-3 sm:grid-cols-2">
+                                                <label
+                                                    className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm font-semibold transition ${coverageForm.isEstimate
+                                                        ? "border-[#9E4B4B] bg-[#FBF1F1] text-slate-900"
+                                                        : "border-[#E5E7EB] bg-[#F7F9FB] text-slate-700 hover:border-[#9E4B4B]"
+                                                        }`}
+                                                >
+                                                    <input
+                                                        type="radio"
+                                                        name="coverage-type"
+                                                        checked={coverageForm.isEstimate}
+                                                        onChange={() =>
+                                                            setCoverageForm({
+                                                                ...coverageForm,
+                                                                isEstimate: true,
+                                                            })
+                                                        }
+                                                        className="h-4 w-4 shrink-0 accent-[#9E4B4B]"
+                                                    />
+
+                                                    <span className="min-w-0">
+                                                        <span className="block">Estimated</span>
+                                                        <span className="mt-0.5 block text-xs font-normal leading-5 text-slate-500">
+                                                            Coverage may vary depending on site conditions and waste.
+                                                        </span>
+                                                    </span>
+                                                </label>
+
+                                                <label
+                                                    className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm font-semibold transition ${!coverageForm.isEstimate
+                                                        ? "border-[#9E4B4B] bg-[#FBF1F1] text-slate-900"
+                                                        : "border-[#E5E7EB] bg-[#F7F9FB] text-slate-700 hover:border-[#9E4B4B]"
+                                                        }`}
+                                                >
+                                                    <input
+                                                        type="radio"
+                                                        name="coverage-type"
+                                                        checked={!coverageForm.isEstimate}
+                                                        onChange={() =>
+                                                            setCoverageForm({
+                                                                ...coverageForm,
+                                                                isEstimate: false,
+                                                            })
+                                                        }
+                                                        className="h-4 w-4 shrink-0 accent-[#9E4B4B]"
+                                                    />
+
+                                                    <span className="min-w-0">
+                                                        <span className="block">Confirmed</span>
+                                                        <span className="mt-0.5 block text-xs font-normal leading-5 text-slate-500">
+                                                            Coverage is confirmed from reliable manufacturer data.
+                                                        </span>
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label>Default Coverage</Label>
+
+                                            <div className="rounded-xl border border-[#E5E7EB] bg-[#F1F3F5] px-4 py-3">
+                                                <p className="text-sm font-semibold text-slate-800">Yes</p>
+                                                <p className="mt-1 text-xs leading-5 text-slate-500">
+                                                    Phase 1 supports one default Coverage / Yield record per Product.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div className="space-y-2 md:col-span-2">
                                         <Label>Coverage Notes</Label>
                                         <Input
+                                            className={FIELD_CLASS}
                                             value={coverageForm.notes}
                                             onChange={(event) =>
                                                 setCoverageForm({
@@ -2104,130 +2441,10 @@ const Products = () => {
                             </section>
                         ) : null}
 
-                        {specificationType === "flooring" ? (
-                            <section className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4">
-                                <h3 className="font-bold text-slate-900">
-                                    Flooring Specifications
-                                </h3>
-                                <p className="mt-1 text-sm text-slate-500">
-                                    Structured values used for stock, receiving, damage and
-                                    coverage calculations.
-                                </p>
-                                <div className="mt-4 grid gap-4 md:grid-cols-4">
-                                    <div className="space-y-2">
-                                        <Label>Dimension Type</Label>
-                                        <Select
-                                            value={flooringForm.dimensionType}
-                                            onValueChange={(value) =>
-                                                setFlooringForm({
-                                                    ...flooringForm,
-                                                    dimensionType: value,
-                                                })
-                                            }
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="fixed">Fixed Length</SelectItem>
-                                                <SelectItem value="random">Random Length</SelectItem>
-                                                <SelectItem value="mixed">Mixed Length</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    {[
-                                        ["Plank Width (mm)", "width"],
-                                        ["Plank Length (mm)", "length"],
-                                        ["Minimum Length (mm)", "minLength"],
-                                        ["Maximum Length (mm)", "maxLength"],
-                                        ["Plank Thickness (mm)", "thickness"],
-                                        ["Planks per Box", "planksPerBox"],
-                                        ["Declared SQM per Box", "declaredSqmPerBox"],
-                                    ].map(([label, key]) => (
-                                        <div key={key} className="space-y-2">
-                                            <Label>{label}</Label>
-                                            <Input
-                                                type="number"
-                                                min="0"
-                                                step="0.0001"
-                                                value={flooringForm[key as keyof FlooringForm]}
-                                                onChange={(event) =>
-                                                    setFlooringForm({
-                                                        ...flooringForm,
-                                                        [key]: event.target.value,
-                                                    })
-                                                }
-                                            />
-                                        </div>
-                                    ))}
-                                    <div className="space-y-2">
-                                        <Label>Coverage Method</Label>
-                                        <Select
-                                            value={flooringForm.coverageMethod}
-                                            onValueChange={(value) =>
-                                                setFlooringForm({
-                                                    ...flooringForm,
-                                                    coverageMethod: value,
-                                                })
-                                            }
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="manufacturer_declared">
-                                                    Manufacturer Declared
-                                                </SelectItem>
-                                                <SelectItem value="calculated">Calculated</SelectItem>
-                                                <SelectItem value="manual">Manual</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Manufacturer Name</Label>
-                                        <Input
-                                            value={flooringForm.manufacturerName}
-                                            onChange={(event) =>
-                                                setFlooringForm({
-                                                    ...flooringForm,
-                                                    manufacturerName: event.target.value,
-                                                })
-                                            }
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Manufacturer Product Code</Label>
-                                        <Input
-                                            value={flooringForm.manufacturerCode}
-                                            onChange={(event) =>
-                                                setFlooringForm({
-                                                    ...flooringForm,
-                                                    manufacturerCode: event.target.value,
-                                                })
-                                            }
-                                        />
-                                    </div>
-                                    <div className="space-y-2 md:col-span-2">
-                                        <Label>Manufacturer Notes</Label>
-                                        <Input
-                                            value={flooringForm.manufacturerNotes}
-                                            onChange={(event) =>
-                                                setFlooringForm({
-                                                    ...flooringForm,
-                                                    manufacturerNotes: event.target.value,
-                                                })
-                                            }
-                                        />
-                                    </div>
-                                </div>
-                            </section>
-                        ) : null}
 
                         {categoryId ? (
-                            <section className="rounded-2xl border border-slate-200 p-4">
-                                <h3 className="font-bold text-slate-900">
-                                    Category-specific Product Details
-                                </h3>
+                            <section className="rounded-2xl border border-[#E5E7EB] bg-[#FCFAFA] p-4">
+                                <SectionHeading number={6} title="Dynamic Attributes" helper="Category-driven product details. Required fields must be completed before activation." />
 
                                 {loadingAttributes ? (
                                     <p className="mt-4 text-sm text-slate-500">
@@ -2281,6 +2498,57 @@ const Products = () => {
                             </section>
                         ) : null}
 
+                        <section className="rounded-2xl border border-[#E5E7EB] bg-[#FCFAFA] p-4">
+                            <SectionHeading
+                                number={7}
+                                title="Review and Status"
+                                helper="Confirm the product flags and status before saving."
+                            />
+
+                            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                                <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 text-sm">
+                                    <span className="text-slate-500">Product Type</span>
+                                    <p className="mt-1 font-semibold text-slate-900">
+                                        {productType}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 text-sm">
+                                    <span className="text-slate-500">Base UOM</span>
+                                    <p className="mt-1 font-semibold text-slate-900">
+                                        {baseUom || "Not selected"}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 text-sm">
+                                    <span className="text-slate-500">Stock Item</span>
+                                    <p className="mt-1 font-semibold text-slate-900">
+                                        {isStockItem ? "Yes" : "No"}
+                                    </p>
+                                    <p className="mt-1 text-xs text-slate-500">
+                                        Derived from Product Type.
+                                    </p>
+                                </div>
+
+                                <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 text-sm">
+                                    <span className="text-slate-500">Service Item</span>
+                                    <p className="mt-1 font-semibold text-slate-900">
+                                        {isServiceItem ? "Yes" : "No"}
+                                    </p>
+                                    <p className="mt-1 text-xs text-slate-500">
+                                        Derived from Product Type.
+                                    </p>
+                                </div>
+
+                                <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 text-sm sm:col-span-2 lg:col-span-1">
+                                    <span className="text-slate-500">Status</span>
+                                    <p className="mt-1 font-semibold text-slate-900">
+                                        {isActive ? "Active" : "Inactive"}
+                                    </p>
+                                </div>
+                            </div>
+                        </section>
+
                         <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end">
                             <Button
                                 variant="outline"
@@ -2305,60 +2573,18 @@ const Products = () => {
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={showView} onOpenChange={setShowView}>
-                <DialogContent className="w-[calc(100vw-24px)] max-w-2xl rounded-2xl">
-                    <DialogHeader>
-                        <DialogTitle>Product Details</DialogTitle>
-                    </DialogHeader>
+            <ProductDetailsDialog
+                open={showView}
+                onOpenChange={(open) => {
+                    setShowView(open);
 
-                    {viewingProduct ? (
-                        <div className="space-y-4">
-                            <div>
-                                <p className="text-xl font-bold text-slate-900">
-                                    {viewingProduct.product_name}
-                                </p>
-                                <p className="font-mono text-sm text-slate-500">
-                                    {viewingProduct.product_code}
-                                </p>
-                            </div>
-                            <div className="grid gap-3 sm:grid-cols-2">
-                                {[
-                                    [
-                                        "Category",
-                                        viewingProduct.product_categories?.category_name ?? "-",
-                                    ],
-                                    ["Product Type", viewingProduct.product_type],
-                                    ["Base UOM", viewingProduct.base_uom_code ?? "-"],
-                                    [
-                                        "Cost Price",
-                                        viewingProduct.cost_price === null
-                                            ? "-"
-                                            : `$${viewingProduct.cost_price.toFixed(2)}`,
-                                    ],
-                                    [
-                                        "Sell Price",
-                                        viewingProduct.default_sell_price === null
-                                            ? "-"
-                                            : `$${viewingProduct.default_sell_price.toFixed(2)}`,
-                                    ],
-                                    ["Coverage", viewingProduct.uses_coverage ? "Yes" : "No"],
-                                ].map(([label, value]) => (
-                                    <div key={label} className="rounded-xl bg-slate-50 p-3">
-                                        <p className="text-xs text-slate-500">{label}</p>
-                                        <p className="mt-1 font-semibold text-slate-900">{value}</p>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="rounded-xl bg-slate-50 p-3">
-                                <p className="text-xs text-slate-500">Description</p>
-                                <p className="mt-1 text-sm text-slate-700">
-                                    {viewingProduct.description || "-"}
-                                </p>
-                            </div>
-                        </div>
-                    ) : null}
-                </DialogContent>
-            </Dialog>
+                    if (!open) {
+                        setViewingProductId(null);
+                    }
+                }}
+                productId={viewingProductId}
+                role={role}
+            />
         </div>
     );
 };
