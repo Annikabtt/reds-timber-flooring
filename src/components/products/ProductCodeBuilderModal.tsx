@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Check, Hash, Loader2, PackageSearch, Palette, Ruler, ShieldCheck, Tag } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, Check, ChevronDown, Hash, Loader2, PackageSearch, Palette, Ruler, Search, ShieldCheck, Tag } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -66,6 +66,162 @@ type Props = {
 
 const titleCase = (value: string) =>
     value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+type SearchableOption = {
+    value: string;
+    label: string;
+    searchText: string;
+    description?: string | null;
+    swatch?: string | null;
+    searchCode?: string;
+    searchName?: string;
+};
+
+const SEARCHABLE_TRIGGER_CLASS =
+    "flex h-11 w-full items-center justify-between rounded-xl border border-[#E5E7EB] bg-[#F7F9FB] px-3 text-left text-sm text-[#111827] transition hover:border-[#9E4B4B] focus:border-[#9E4B4B] focus:outline-none focus:ring-2 focus:ring-[#9E4B4B]/20 disabled:cursor-not-allowed disabled:bg-[#F1F3F5] disabled:text-[#9CA3AF]";
+
+function SearchablePicker({
+    value,
+    onChange,
+    options,
+    placeholder,
+    searchPlaceholder,
+    disabled = false,
+    emptyText,
+}: {
+    value: string;
+    onChange: (value: string) => void;
+    options: SearchableOption[];
+    placeholder: string;
+    searchPlaceholder: string;
+    disabled?: boolean;
+    emptyText: string;
+}) {
+    const [open, setOpen] = useState(false);
+    const [search, setSearch] = useState("");
+    const rootRef = useRef<HTMLDivElement | null>(null);
+
+    const selected = options.find((option) => option.value === value) ?? null;
+    const keyword = search.trim().toLowerCase();
+
+    const filtered =
+        keyword.length < 2
+            ? options
+            : options
+                .filter((option) =>
+                    option.searchText.toLowerCase().includes(keyword),
+                )
+                .sort((a, b) => {
+                    const getRank = (option: SearchableOption) => {
+                        const code = option.searchCode?.toLowerCase() ?? "";
+                        const name = option.searchName?.toLowerCase() ?? "";
+                        const description =
+                            option.description?.toLowerCase() ?? "";
+
+                        if (code === keyword) return 1;
+                        if (code.startsWith(keyword)) return 2;
+                        if (name.startsWith(keyword)) return 3;
+                        if (name.includes(keyword)) return 4;
+                        if (description.includes(keyword)) return 5;
+
+                        return 6;
+                    };
+
+                    const rankDifference = getRank(a) - getRank(b);
+
+                    if (rankDifference !== 0) {
+                        return rankDifference;
+                    }
+
+                    return a.label.localeCompare(b.label, "en-AU", {
+                        numeric: true,
+                        sensitivity: "base",
+                    });
+                });
+
+    useEffect(() => {
+        if (!open) return;
+        const close = (event: MouseEvent) => {
+            if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+                setOpen(false);
+                setSearch("");
+            }
+        };
+        document.addEventListener("mousedown", close);
+        return () => document.removeEventListener("mousedown", close);
+    }, [open]);
+
+    return (
+        <div ref={rootRef} className="relative">
+            <button
+                type="button"
+                disabled={disabled}
+                aria-expanded={open}
+                aria-haspopup="listbox"
+                onClick={() => {
+                    if (disabled) return;
+                    setOpen((current) => !current);
+                    setSearch("");
+                }}
+                className={SEARCHABLE_TRIGGER_CLASS}
+            >
+                <span className={selected ? "truncate" : "truncate text-[#6B7280]"}>
+                    {selected?.label ?? placeholder}
+                </span>
+                <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+            </button>
+
+            {open ? (
+                <div className="absolute z-[80] mt-2 w-full min-w-[280px] overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-xl">
+                    <div className="border-b border-[#E5E7EB] p-3">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
+                            <Input
+                                autoFocus
+                                value={search}
+                                onChange={(event) => setSearch(event.target.value)}
+                                placeholder={searchPlaceholder}
+                                className="h-11 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] pl-10 hover:border-[#9E4B4B] focus-visible:border-[#9E4B4B] focus-visible:ring-[#9E4B4B]/20"
+                            />
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500">Type at least 2 letters to narrow the list.</p>
+                    </div>
+                    <div role="listbox" className="max-h-64 overflow-y-auto p-1">
+                        {filtered.length === 0 ? (
+                            <div className="px-3 py-6 text-center text-sm text-slate-500">{emptyText}</div>
+                        ) : (
+                            filtered.map((option) => (
+                                <button
+                                    key={option.value}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={option.value === value}
+                                    onClick={() => {
+                                        onChange(option.value);
+                                        setOpen(false);
+                                        setSearch("");
+                                    }}
+                                    className="flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left hover:bg-[#FBF1F1] focus:bg-[#FBF1F1] focus:outline-none"
+                                >
+                                    <Check className={`mt-0.5 h-4 w-4 shrink-0 ${option.value === value ? "text-[#9E4B4B]" : "text-transparent"}`} />
+                                    {option.swatch ? (
+                                        <span className="mt-0.5 h-4 w-4 shrink-0 rounded-full border border-slate-300" style={{ backgroundColor: option.swatch }} />
+                                    ) : null}
+                                    <span className="min-w-0">
+                                        <span className="block break-words text-sm font-semibold text-slate-900">{option.label}</span>
+                                        {option.description ? (
+                                            <span className="mt-0.5 block break-words text-xs text-slate-500">{option.description}</span>
+                                        ) : null}
+                                    </span>
+                                </button>
+                            ))
+                        )}
+                    </div>
+                </div>
+            ) : null}
+        </div>
+    );
+}
 
 const optionalInteger = (value: string) => {
     if (!value.trim()) return null;
@@ -248,6 +404,66 @@ export function ProductCodeBuilderModal({
         if (colourMode === "required") return colours.filter((x) => !x.isNotApplicable);
         return colours;
     }, [colours, colourMode]);
+
+
+    const familyOptions = useMemo<SearchableOption[]>(
+        () =>
+            [...families]
+                .sort(
+                    (a, b) =>
+                        a.code.localeCompare(b.code, "en-AU", {
+                            numeric: true,
+                        }) ||
+                        a.name.localeCompare(b.name, "en-AU", {
+                            sensitivity: "base",
+                        }),
+                )
+                .map((item) => ({
+                    value: item.id,
+                    label: `${item.code} — ${item.name}`,
+                    description: item.description,
+                    searchText: `${item.code} ${item.name} ${item.description ?? ""}`,
+                    searchCode: item.code,
+                    searchName: item.name,
+                })),
+        [families],
+    );
+
+    const variantOptions = useMemo<SearchableOption[]>(
+        () => [...variants]
+            .sort((a, b) => a.fullCode.localeCompare(b.fullCode, "en-AU", { numeric: true }) || a.name.localeCompare(b.name, "en-AU"))
+            .map((item) => ({
+                value: item.id,
+                label: `${item.fullCode} — ${item.name}`,
+                description: item.thicknessMm !== null
+                    ? `Thickness: ${item.thicknessMm} mm`
+                    : item.subtypeValue
+                        ? `Subtype: ${titleCase(item.subtypeValue)}`
+                        : null,
+                searchText: `${item.fullCode} ${item.name} ${item.thicknessMm ?? ""} ${item.subtypeValue ?? ""}`,
+            })),
+        [variants],
+    );
+
+    const sizeRuleOptions = useMemo<SearchableOption[]>(
+        () => sizeRules.map((item) => ({
+            value: item.id,
+            label: `${item.name} — ${item.exampleToken}`,
+            description: item.guidance,
+            searchText: `${item.code} ${item.name} ${item.exampleToken} ${item.guidance ?? ""}`,
+        })),
+        [sizeRules],
+    );
+
+    const colourOptions = useMemo<SearchableOption[]>(
+        () => availableColours.map((item) => ({
+            value: item.id,
+            label: `${item.code} — ${item.name}`,
+            searchText: `${item.code} ${item.name}`,
+            swatch: item.referenceHex,
+        })),
+        [availableColours],
+    );
 
     useEffect(() => {
         if (!family) {
@@ -525,28 +741,27 @@ export function ProductCodeBuilderModal({
 
                         <section className="grid gap-5 rounded-2xl border border-slate-200 p-4 sm:p-5 lg:grid-cols-2">
                             <Field label="Product Family *">
-                                <Select value={familyId} onValueChange={setFamilyId}>
-                                    <SelectTrigger className="h-11"><SelectValue placeholder="Select Product Family" /></SelectTrigger>
-                                    <SelectContent>
-                                        {families.map((x) => (
-                                            <SelectItem key={x.id} value={x.id}>{x.code} — {x.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <SearchablePicker
+                                    value={familyId}
+                                    onChange={setFamilyId}
+                                    options={familyOptions}
+                                    placeholder="Select Product Family"
+                                    searchPlaceholder="Search family code, name or description..."
+                                    emptyText="No matching Product Family found."
+                                />
                                 {family?.description && <Help>{family.description}</Help>}
                             </Field>
 
                             <Field label="Category Variant *">
-                                <Select value={variantId} onValueChange={setVariantId} disabled={!familyId}>
-                                    <SelectTrigger className="h-11">
-                                        <SelectValue placeholder={familyId ? "Select Category Variant" : "Select Product Family first"} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {variants.map((x) => (
-                                            <SelectItem key={x.id} value={x.id}>{x.fullCode} — {x.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <SearchablePicker
+                                    value={variantId}
+                                    onChange={setVariantId}
+                                    options={variantOptions}
+                                    placeholder={familyId ? "Select Category Variant" : "Select Product Family first"}
+                                    searchPlaceholder="Search category code, name, thickness or subtype..."
+                                    disabled={!familyId}
+                                    emptyText={familyId ? "No Category Variants are configured for this Family." : "Select Product Family first."}
+                                />
                                 {variant && (
                                     <Help>
                                         {variant.thicknessMm !== null
@@ -571,16 +786,19 @@ export function ProductCodeBuilderModal({
                             </Field>
 
                             <Field label="Size Rule *">
-                                <Select value={sizeRuleId} onValueChange={(value) => {
-                                    setSizeRuleId(value); setFirstValue(""); setSecondValue("");
-                                }} disabled={!variantId}>
-                                    <SelectTrigger className="h-11"><SelectValue placeholder="Select Size Rule" /></SelectTrigger>
-                                    <SelectContent>
-                                        {sizeRules.map((x) => (
-                                            <SelectItem key={x.id} value={x.id}>{x.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <SearchablePicker
+                                    value={sizeRuleId}
+                                    onChange={(value) => {
+                                        setSizeRuleId(value);
+                                        setFirstValue("");
+                                        setSecondValue("");
+                                    }}
+                                    options={sizeRuleOptions}
+                                    placeholder={variantId ? "Select Size Rule" : "Select Category Variant first"}
+                                    searchPlaceholder="Search size rule name, code or example..."
+                                    disabled={!variantId}
+                                    emptyText="No matching Size Rule found."
+                                />
                                 {sizeRule && <Help>Example: <span className="font-mono font-semibold">{sizeRule.exampleToken}</span></Help>}
                             </Field>
 
@@ -606,22 +824,15 @@ export function ProductCodeBuilderModal({
 
                             <div className="space-y-2 lg:col-span-2">
                                 <Label>Product Colour *</Label>
-                                <Select value={colourId} onValueChange={setColourId} disabled={!variantId}>
-                                    <SelectTrigger className="h-11"><SelectValue placeholder="Select Product Colour" /></SelectTrigger>
-                                    <SelectContent>
-                                        {availableColours.map((x) => (
-                                            <SelectItem key={x.id} value={x.id}>
-                                                <span className="flex items-center gap-2">
-                                                    {x.referenceHex && (
-                                                        <span className="h-4 w-4 rounded-full border border-slate-300"
-                                                            style={{ backgroundColor: x.referenceHex }} />
-                                                    )}
-                                                    {x.code} — {x.name}
-                                                </span>
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <SearchablePicker
+                                    value={colourId}
+                                    onChange={setColourId}
+                                    options={colourOptions}
+                                    placeholder={variantId ? "Select Product Colour" : "Select Category Variant first"}
+                                    searchPlaceholder="Search colour code or name..."
+                                    disabled={!variantId}
+                                    emptyText="No Product Colours are available for the selected rule."
+                                />
                                 <Help>
                                     Colour rule: {titleCase(colourMode)}. Screen colours are references only.
                                 </Help>
