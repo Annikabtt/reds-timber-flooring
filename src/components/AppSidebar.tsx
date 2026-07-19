@@ -10,6 +10,9 @@ import {
   Truck,
   Database,
   PackagePlus,
+  FileText,
+  ClipboardCheck,
+  GitBranchPlus,
   SlidersHorizontal,
 } from "lucide-react";
 
@@ -38,6 +41,9 @@ const desktopNavItems = [
 
   { title: "Work Orders", url: "/work-orders", icon: FolderKanban },
   { title: "Daily Progress Review", url: "/daily-reports", icon: Camera },
+  { title: "Quotations", url: "/quotations", icon: FileText },
+  { title: "Variations", url: "/variations", icon: GitBranchPlus },
+  { title: "Material Requirements", url: "/material-requirements", icon: ClipboardCheck },
   { title: "Suppliers", url: "/suppliers", icon: Truck },
   {
     title: "Stock Requests",

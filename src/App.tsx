@@ -6,6 +6,8 @@ import SystemWorkflow from "./pages/SystemWorkflow";
 import CustomerProposal from "./pages/CustomerProposal";
 import CustomerShowroom from "./pages/CustomerShowroom";
 import MaterialRequest from "./pages/MaterialRequest";
+import Quotations from "./pages/Quotations";
+import Variations from "./pages/Variations";
 import MaterialCatalog from "./pages/MaterialCatalog";
 import PricingSettings from "./pages/PricingSettings";
 import QuotationBuilder from "./pages/QuotationBuilder";
@@ -133,7 +135,11 @@ const App = () => (
             <Route path="/pricing" element={<PricingSettings />} />
             <Route path="/quotation-builder" element={<QuotationBuilder />} />
             <Route path="/materials" element={<MaterialCatalog />} />
-            <Route path="/material-request" element={<MaterialRequest />} />
+            <Route path="/quotations" element={<ProtectedRoute><Quotations /></ProtectedRoute>} />
+            <Route path="/variations" element={<ProtectedRoute><Variations /></ProtectedRoute>}/>
+
+            <Route path="/material-requirements" element={<ProtectedRoute><MaterialRequest /></ProtectedRoute>}/>
+            <Route path="/material-requirements" element={<ProtectedRoute><MaterialRequest /></ProtectedRoute>} />
             <Route path="/showroom" element={<CustomerShowroom />} />
             <Route path="/proposal" element={<CustomerProposal />} />
             <Route path="/job-card" element={<JobCard />} />
