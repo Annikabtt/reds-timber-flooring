@@ -1913,10 +1913,14 @@ const Variations = () => {
                             color: #111827 !important;
                             font-size: 9.5pt !important;
                             line-height: 1.35 !important;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
                         }
 
                         .variation-print-report h2 {
                             font-size: 15pt !important;
+                            color: #ffffff !important;
+                            font-weight: 800 !important;
                         }
 
                         .variation-print-block,
@@ -1928,11 +1932,54 @@ const Variations = () => {
                         }
 
                         .variation-print-header {
-                            border-radius: 0 !important;
+                            border: 1px solid #B98A8A !important;
+                            border-radius: 8px !important;
+                            overflow: hidden !important;
+                            box-shadow: none !important;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
                         }
 
                         .variation-print-header > div:first-child {
+                            background: #9E4B4B !important;
                             padding: 8pt 10pt !important;
+                            color: #ffffff !important;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
+                        }
+
+                        .variation-status-badge {
+                            border: 1px solid rgba(17, 24, 39, 0.16) !important;
+                            font-size: 7.5pt !important;
+                            font-weight: 800 !important;
+                            line-height: 1 !important;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
+                        }
+
+                        .variation-status-draft {
+                            background: #FFFFFF !important;
+                            color: #9E4B4B !important;
+                        }
+
+                        .variation-status-sent {
+                            background: #DBEAFE !important;
+                            color: #1D4ED8 !important;
+                        }
+
+                        .variation-status-accepted {
+                            background: #D1FAE5 !important;
+                            color: #047857 !important;
+                        }
+
+                        .variation-status-rejected {
+                            background: #FEE2E2 !important;
+                            color: #B91C1C !important;
+                        }
+
+                        .variation-status-cancelled {
+                            background: #E5E7EB !important;
+                            color: #374151 !important;
                         }
 
                         .variation-print-context,
@@ -1943,9 +1990,26 @@ const Variations = () => {
 
                         .variation-print-context > div,
                         .variation-print-totals > div {
+                            background: #FBF1F1 !important;
+                            border-color: #B98A8A !important;
                             padding: 7pt !important;
                             min-width: 0 !important;
                             overflow-wrap: anywhere !important;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
+                        }
+
+                        .variation-report-label {
+                            color: #6B7280 !important;
+                            font-size: 7pt !important;
+                            font-weight: 700 !important;
+                            letter-spacing: 0.02em !important;
+                        }
+
+                        .variation-report-value {
+                            color: #111827 !important;
+                            font-size: 8.5pt !important;
+                            font-weight: 600 !important;
                         }
 
                         .variation-print-context > div:last-child {
@@ -1953,10 +2017,22 @@ const Variations = () => {
                         }
 
                         .variation-print-lines {
-                            border-radius: 0 !important;
+                            border: 1px solid #B98A8A !important;
+                            border-radius: 8px !important;
                             overflow: visible !important;
                             break-inside: auto;
                             page-break-inside: auto;
+                        }
+
+                        .variation-section-title {
+                            background: #F5DEDE !important;
+                            color: #111827 !important;
+                            font-size: 9pt !important;
+                            font-weight: 800 !important;
+                            padding: 6pt 8pt !important;
+                            border-bottom: 1px solid #B98A8A !important;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
                         }
 
                         .variation-print-table-wrap {
@@ -1970,10 +2046,15 @@ const Variations = () => {
                             table-layout: fixed !important;
                             border-collapse: collapse !important;
                             font-size: 8.2pt !important;
+                            border: 1px solid #B98A8A !important;
                         }
 
                         .variation-print-table thead {
                             display: table-header-group !important;
+                            background: #9E4B4B !important;
+                            color: #FFFFFF !important;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
                         }
 
                         .variation-print-table tr {
@@ -1981,13 +2062,39 @@ const Variations = () => {
                             page-break-inside: avoid;
                         }
 
+                        .variation-print-table tbody tr:nth-child(odd) {
+                            background: #FFFFFF !important;
+                        }
+
+                        .variation-print-table tbody tr:nth-child(even) {
+                            background: #FBF1F1 !important;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
+                        }
+
                         .variation-print-table th,
                         .variation-print-table td {
+                            border-bottom: 1px solid #E5E7EB !important;
                             padding: 4pt 3.5pt !important;
                             overflow-wrap: anywhere !important;
                             word-break: normal !important;
                             white-space: normal !important;
                             vertical-align: top !important;
+                        }
+
+                        .variation-print-table th {
+                            color: #FFFFFF !important;
+                            font-size: 7.5pt !important;
+                            font-weight: 800 !important;
+                        }
+
+                        .variation-line-product {
+                            color: #111827 !important;
+                            font-weight: 700 !important;
+                        }
+
+                        .variation-line-description {
+                            color: #374151 !important;
                         }
 
                         .variation-print-table th:nth-child(1),
@@ -2030,6 +2137,54 @@ const Variations = () => {
                         .variation-print-table th:nth-child(9),
                         .variation-print-table td:nth-child(9) {
                             width: 12%;
+                        }
+
+                        .variation-print-totals {
+                            border: 1px solid #B98A8A !important;
+                            border-radius: 8px !important;
+                            background: #FBF1F1 !important;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
+                        }
+
+                        .variation-print-totals > div {
+                            border-right: 1px solid #B98A8A !important;
+                        }
+
+                        .variation-print-totals > div:last-child {
+                            background: #F5DEDE !important;
+                            border-right: 0 !important;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
+                        }
+
+                        .variation-print-totals > div:last-child .variation-report-value {
+                            color: #9E4B4B !important;
+                            font-size: 10pt !important;
+                            font-weight: 800 !important;
+                        }
+
+                        .variation-notes {
+                            background: #FBF1F1 !important;
+                            border: 1px solid #B98A8A !important;
+                        }
+
+                        .variation-rejection {
+                            background: #FEE2E2 !important;
+                            border: 1px solid #FCA5A5 !important;
+                        }
+
+                        .variation-rejection h3 {
+                            color: #B91C1C !important;
+                        }
+
+                        .variation-cancellation {
+                            background: #F3F4F6 !important;
+                            border: 1px solid #9CA3AF !important;
+                        }
+
+                        .variation-cancellation h3 {
+                            color: #374151 !important;
                         }
 
                         .print\\:hidden {
@@ -3316,7 +3471,7 @@ const Variations = () => {
                             </DialogHeader>
 
                             <div id="variation-detail-report" className="variation-print-report space-y-5">
-                                <section className="variation-print-header variation-print-block overflow-hidden rounded-2xl border border-[#B98A8A]">
+                                <section className="variation-print-header variation-print-block overflow-hidden rounded-lg border border-[#B98A8A]">
                                     <div className="flex flex-col gap-3 bg-[#9E4B4B] px-5 py-4 text-white sm:flex-row sm:items-center sm:justify-between">
                                         <div>
                                             <h2 className="text-xl font-bold">
@@ -3333,7 +3488,8 @@ const Variations = () => {
 
                                         <span
                                             className={[
-                                                "w-fit rounded-full px-3 py-1 text-xs font-bold",
+                                                "variation-status-badge w-fit rounded-full px-3 py-1 text-xs font-bold",
+                                                `variation-status-${viewingVariation.variation_status.toLowerCase()}`,
                                                 getStatusClassName(
                                                     viewingVariation.variation_status,
                                                 ),
@@ -3406,8 +3562,8 @@ const Variations = () => {
                                     </div>
                                 </section>
 
-                                <section className="variation-print-lines overflow-hidden rounded-2xl border border-slate-200">
-                                    <div className="bg-[#F5DEDE] px-4 py-3 font-bold">
+                                <section className="variation-print-lines overflow-hidden rounded-lg border border-[#B98A8A]">
+                                    <div className="variation-section-title bg-[#F5DEDE] px-4 py-3 font-bold text-[#111827]">
                                         Variation Lines
                                     </div>
 
@@ -3495,7 +3651,7 @@ const Variations = () => {
                                                                     key={
                                                                         line.variation_line_id
                                                                     }
-                                                                    className="border-b align-top"
+                                                                    className="border-b border-slate-200 align-top odd:bg-white even:bg-[#FBF1F1]"
                                                                 >
                                                                     <td className="px-3 py-3">
                                                                         {
@@ -3510,7 +3666,7 @@ const Variations = () => {
 
                                                                     <td className="px-3 py-3">
                                                                         {product && (
-                                                                            <div className="font-semibold">
+                                                                            <div className="variation-line-product font-semibold text-[#111827]">
                                                                                 {
                                                                                     product.product_code
                                                                                 }{" "}
@@ -3521,7 +3677,7 @@ const Variations = () => {
                                                                             </div>
                                                                         )}
 
-                                                                        <div>
+                                                                        <div className="variation-line-description text-[#374151]">
                                                                             {
                                                                                 line.description
                                                                             }
@@ -3566,7 +3722,7 @@ const Variations = () => {
                                                                         %
                                                                     </td>
 
-                                                                    <td className="px-3 py-3 text-right font-semibold">
+                                                                    <td className="px-3 py-3 text-right font-bold text-[#111827]">
                                                                         {formatMoney(
                                                                             line.line_total,
                                                                         )}
@@ -3581,7 +3737,7 @@ const Variations = () => {
                                     )}
                                 </section>
 
-                                <section className="variation-print-totals variation-print-block grid gap-px overflow-hidden rounded-2xl border border-[#B98A8A] bg-[#B98A8A] sm:grid-cols-4">
+                                <section className="variation-print-totals variation-print-block grid gap-px overflow-hidden rounded-lg border border-[#B98A8A] bg-[#B98A8A] sm:grid-cols-4">
                                     <ReportCell
                                         label="Subtotal"
                                         value={formatMoney(
@@ -3613,7 +3769,7 @@ const Variations = () => {
                                 </section>
 
                                 {viewingVariation.notes && (
-                                    <section className="variation-print-block rounded-2xl border border-slate-200 bg-[#FBF1F1] p-4">
+                                    <section className="variation-notes variation-print-block rounded-lg border border-[#B98A8A] bg-[#FBF1F1] p-4">
                                         <h3 className="font-bold">
                                             Notes
                                         </h3>
@@ -3627,7 +3783,7 @@ const Variations = () => {
                                 )}
 
                                 {viewingVariation.rejection_reason && (
-                                    <section className="variation-print-block rounded-2xl border border-rose-200 bg-rose-50 p-4">
+                                    <section className="variation-rejection variation-print-block rounded-lg border border-[#FCA5A5] bg-[#FEE2E2] p-4">
                                         <h3 className="font-bold text-rose-800">
                                             Rejection Reason
                                         </h3>
@@ -3641,7 +3797,7 @@ const Variations = () => {
                                 )}
 
                                 {viewingVariation.cancellation_reason && (
-                                    <section className="variation-print-block rounded-2xl border border-zinc-300 bg-zinc-100 p-4">
+                                    <section className="variation-cancellation variation-print-block rounded-lg border border-[#9CA3AF] bg-[#F3F4F6] p-4">
                                         <h3 className="font-bold text-zinc-800">
                                             Cancellation Reason
                                         </h3>
@@ -4233,19 +4389,22 @@ const ReportCell = ({
 }) => (
     <div
         className={[
-            "bg-[#FBF1F1] p-4",
+            "variation-report-cell bg-[#FBF1F1] p-4",
+            strong
+                ? "variation-report-cell-strong"
+                : "",
             wide
                 ? "sm:col-span-2 lg:col-span-2"
                 : "",
         ].join(" ")}
     >
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <div className="variation-report-label text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
             {label}
         </div>
 
         <div
             className={[
-                "mt-1",
+                "variation-report-value mt-1 text-[#111827]",
                 strong
                     ? "text-lg font-bold text-[#9E4B4B]"
                     : "font-medium",
