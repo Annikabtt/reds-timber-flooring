@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Building2,
   Download,
@@ -20,6 +20,8 @@ import {
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
+import { type AppRole, isAdmin, normalizeAppRole } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -54,9 +56,9 @@ import { StandardActions } from "@/components/common/StandardActions";
 type CustomerContact = {
   contact_id: string;
   contact_name: string;
-  position: string;
-  phone: string;
-  email: string;
+  position: string | null;
+  phone: string | null;
+  email: string | null;
   is_primary: boolean;
 };
 
@@ -64,12 +66,121 @@ type CustomerAddress = {
   address_id: string;
   address_type: string;
   address_line1: string;
-  address_line2: string;
-  suburb: string;
-  state: string;
-  postcode: string;
+  address_line2: string | null;
+  suburb: string | null;
+  state: string | null;
+  postcode: string | null;
   country: string;
   is_primary: boolean;
+};
+
+type CustomerFinancialSettingRow =
+  Database["public"]["Tables"]["customer_financial_settings"]["Row"];
+
+type CustomerFinancialSettingInsert =
+  Database["public"]["Tables"]["customer_financial_settings"]["Insert"];
+
+type CustomerFinancialSettingUpdate =
+  Database["public"]["Tables"]["customer_financial_settings"]["Update"];
+
+type PaymentTermsType =
+  | "Days After Bill"
+  | "Days After Bill Month"
+  | "Day of Current Month"
+  | "Day of Following Month";
+
+type LineAmountType = "Exclusive" | "Inclusive";
+
+type CustomerFinancialSettingsForm = {
+  defaultCurrency: string;
+  defaultSalesAccountCode: string;
+  defaultTaxType: string;
+  discountPercent: string;
+  paymentTermsType: PaymentTermsType;
+  paymentTermsDays: string;
+  invoiceDeliveryMethod: string;
+  statementDeliveryMethod: string;
+  lineAmountType: LineAmountType;
+  creditLimit: string;
+  isAccountOnHold: boolean;
+  accountHoldReason: string;
+  xeroContactId: string;
+  xeroContactName: string;
+  xeroContactNumber: string;
+  xeroBrandingThemeId: string;
+  xeroBrandingThemeName: string;
+  xeroStatus: string;
+  xeroLastSyncedAt: string;
+  xeroSyncError: string;
+};
+
+const DEFAULT_CUSTOMER_FINANCIAL_SETTINGS_FORM: CustomerFinancialSettingsForm = {
+  defaultCurrency: "AUD",
+  defaultSalesAccountCode: "",
+  defaultTaxType: "",
+  discountPercent: "0",
+  paymentTermsType: "Days After Bill",
+  paymentTermsDays: "30",
+  invoiceDeliveryMethod: "Email",
+  statementDeliveryMethod: "Email",
+  lineAmountType: "Exclusive",
+  creditLimit: "",
+  isAccountOnHold: false,
+  accountHoldReason: "",
+  xeroContactId: "",
+  xeroContactName: "",
+  xeroContactNumber: "",
+  xeroBrandingThemeId: "",
+  xeroBrandingThemeName: "",
+  xeroStatus: "Not Connected",
+  xeroLastSyncedAt: "",
+  xeroSyncError: "",
+};
+
+const PAYMENT_TERMS_OPTIONS: PaymentTermsType[] = [
+  "Days After Bill",
+  "Days After Bill Month",
+  "Day of Current Month",
+  "Day of Following Month",
+];
+
+const LINE_AMOUNT_TYPE_OPTIONS: LineAmountType[] = ["Exclusive", "Inclusive"];
+
+const DELIVERY_METHOD_OPTIONS = ["Email", "Paper", "Electronic"] as const;
+
+const XERO_STATUS_OPTIONS = ["Not Connected", "Synced", "Error", "Pending"] as const;
+
+const PAYMENT_TERM_PRESETS = [0, 7, 14, 21, 30, 45, 60, 90];
+
+type CustomerFinancialFormState = {
+  defaultCurrency: string;
+  defaultSalesAccountCode: string;
+  defaultTaxType: string;
+  lineAmountType: "Exclusive" | "Inclusive";
+  discountPercent: string;
+  paymentTermsType: PaymentTermsType;
+  paymentTermsDays: string;
+  creditLimit: string;
+  isAccountOnHold: boolean;
+  accountHoldReason: string;
+  invoiceDeliveryMethod: string;
+  statementDeliveryMethod: string;
+  xeroContactId: string;
+  xeroContactName: string;
+  xeroContactNumber: string;
+  xeroStatus: string;
+  xeroLastSyncedAt: string;
+  xeroSyncError: string;
+  xeroBrandingThemeId: string;
+  xeroBrandingThemeName: string;
+};
+
+type CustomerFinancialValidationErrors = {
+  defaultCurrency?: string;
+  discountPercent?: string;
+  creditLimit?: string;
+  paymentTermsDays?: string;
+  accountHoldReason?: string;
 };
 
 type PriceBook = {
@@ -151,6 +262,42 @@ type CustomerQuotation = {
   project_site_id: string | null;
 };
 
+const AUSTRALIAN_STATES = ["ACT", "NSW", "NT", "QLD", "SA", "TAS", "VIC", "WA"] as const;
+const EMPTY_SELECT_VALUE = "__none__";
+const customerInputClassName =
+  "h-11 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] text-base hover:border-[#9E4B4B] focus-visible:ring-[#9E4B4B] md:text-sm";
+const customerTextareaClassName =
+  "min-h-28 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] text-base hover:border-[#9E4B4B] focus-visible:ring-[#9E4B4B] md:text-sm";
+
+function CustomerFormSection({
+  number,
+  title,
+  description,
+  children,
+}: {
+  number: string;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="mb-5 flex gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#9E4B4B] text-xs font-black text-white">
+          {number}
+        </span>
+        <div>
+          <h3 className="text-sm font-black uppercase tracking-wide text-slate-900">
+            {title}
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
 export default function CustomerDatabase() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
@@ -161,10 +308,18 @@ export default function CustomerDatabase() {
   const [customerType, setCustomerType] = useState("Residential");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactPosition, setContactPosition] = useState("Customer");
   const [abn, setAbn] = useState("");
   const [priceBookId, setPriceBookId] = useState("");
-  const [address, setAddress] = useState("");
+  const [addressLine1, setAddressLine1] = useState("");
+  const [addressLine2, setAddressLine2] = useState("");
+  const [suburb, setSuburb] = useState("");
+  const [stateName, setStateName] = useState("");
+  const [postcode, setPostcode] = useState("");
+  const [country, setCountry] = useState("Australia");
   const [notes, setNotes] = useState("");
+  const [customerFormSaving, setCustomerFormSaving] = useState(false);
 
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
@@ -178,10 +333,71 @@ export default function CustomerDatabase() {
   const [editCustomerType, setEditCustomerType] = useState("Residential");
   const [editPhone, setEditPhone] = useState("");
   const [editEmail, setEditEmail] = useState("");
+  const [editContactName, setEditContactName] = useState("");
+  const [editContactPosition, setEditContactPosition] = useState("");
   const [editAbn, setEditAbn] = useState("");
   const [editPriceBookId, setEditPriceBookId] = useState("");
-  const [editAddress, setEditAddress] = useState("");
+  const [editAddressLine1, setEditAddressLine1] = useState("");
+  const [editAddressLine2, setEditAddressLine2] = useState("");
+  const [editSuburb, setEditSuburb] = useState("");
+  const [editStateName, setEditStateName] = useState("");
+  const [editPostcode, setEditPostcode] = useState("");
+  const [editCountry, setEditCountry] = useState("Australia");
   const [editNotes, setEditNotes] = useState("");
+
+  // Admin role detection
+  const [userRole, setUserRole] = useState<AppRole | null>(null);
+  const [roleLoading, setRoleLoading] = useState(true);
+
+  // Financial settings state
+  const [showFinancialSettingsDialog, setShowFinancialSettingsDialog] = useState(false);
+  const [financialFormSaving, setFinancialFormSaving] = useState(false);
+  const [existingFinancialSettingId, setExistingFinancialSettingId] = useState<string | null>(null);
+
+  const [financialForm, setFinancialForm] = useState<CustomerFinancialFormState>({
+    defaultCurrency: "AUD",
+    defaultSalesAccountCode: "",
+    defaultTaxType: "",
+    lineAmountType: "Exclusive",
+    discountPercent: "0",
+    paymentTermsType: "Days After Bill",
+    paymentTermsDays: "30",
+    creditLimit: "",
+    isAccountOnHold: false,
+    accountHoldReason: "",
+    invoiceDeliveryMethod: "Email",
+    statementDeliveryMethod: "Email",
+    xeroContactId: "",
+    xeroContactName: "",
+    xeroContactNumber: "",
+    xeroStatus: "Not Connected",
+    xeroLastSyncedAt: "",
+    xeroSyncError: "",
+    xeroBrandingThemeId: "",
+    xeroBrandingThemeName: "",
+  });
+
+  const [financialErrors, setFinancialErrors] = useState<CustomerFinancialValidationErrors>({});
+
+  // Get current user's app role
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      try {
+        const { data, error } = await supabase.rpc("current_app_role");
+        if (error) throw error;
+        const normalized = normalizeAppRole(data);
+        setUserRole(normalized);
+      } catch (err) {
+        setUserRole("viewer");
+      } finally {
+        setRoleLoading(false);
+      }
+    };
+
+    fetchUserRole();
+  }, []);
+
+  const isCurrentUserAdmin = !roleLoading && isAdmin(userRole ?? "viewer");
 
   const { data: priceBooks = [] } = useQuery({
     queryKey: ["price-books-for-customers"],
@@ -342,12 +558,124 @@ export default function CustomerDatabase() {
     },
   });
 
+  // Financial settings query (admin-only)
+  const {
+    data: customerFinancialSettings,
+    isLoading: financialSettingsLoading,
+    error: financialSettingsError,
+  } = useQuery({
+    queryKey: ["customer-financial-settings", selectedCustomerId],
+    enabled: isCurrentUserAdmin && Boolean(selectedCustomerId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("customer_financial_settings")
+        .select("*")
+        .eq("customer_id", selectedCustomerId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data as CustomerFinancialSettingRow | null;
+    },
+  });
+
+  // Reset and populate financial form when customer changes
+  useEffect(() => {
+    if (!isCurrentUserAdmin || !selectedCustomerId) {
+      setFinancialForm({
+        defaultCurrency: "AUD",
+        defaultSalesAccountCode: "",
+        defaultTaxType: "",
+        lineAmountType: "Exclusive",
+        discountPercent: "0",
+        paymentTermsType: "Days After Bill",
+        paymentTermsDays: "30",
+        creditLimit: "",
+        isAccountOnHold: false,
+        accountHoldReason: "",
+        invoiceDeliveryMethod: "Email",
+        statementDeliveryMethod: "Email",
+        xeroContactId: "",
+        xeroContactName: "",
+        xeroContactNumber: "",
+        xeroStatus: "Not Connected",
+        xeroLastSyncedAt: "",
+        xeroSyncError: "",
+        xeroBrandingThemeId: "",
+        xeroBrandingThemeName: "",
+      });
+      setExistingFinancialSettingId(null);
+      setFinancialErrors({});
+      return;
+    }
+
+    if (customerFinancialSettings) {
+      setExistingFinancialSettingId(customerFinancialSettings.customer_financial_setting_id);
+      setFinancialForm({
+        defaultCurrency: customerFinancialSettings.default_currency || "AUD",
+        defaultSalesAccountCode: customerFinancialSettings.default_sales_account_code || "",
+        defaultTaxType: customerFinancialSettings.default_tax_type || "",
+        lineAmountType: (customerFinancialSettings.line_amount_type as "Exclusive" | "Inclusive") || "Exclusive",
+        discountPercent: customerFinancialSettings.discount_percent?.toString() || "0",
+        paymentTermsType: (customerFinancialSettings.payment_terms_type as PaymentTermsType) || "Days After Bill",
+        paymentTermsDays: customerFinancialSettings.payment_terms_days?.toString() || "30",
+        creditLimit: customerFinancialSettings.credit_limit?.toString() || "",
+        isAccountOnHold: customerFinancialSettings.is_account_on_hold || false,
+        accountHoldReason: customerFinancialSettings.account_hold_reason || "",
+        invoiceDeliveryMethod: customerFinancialSettings.invoice_delivery_method || "Email",
+        statementDeliveryMethod: customerFinancialSettings.statement_delivery_method || "Email",
+        xeroContactId: customerFinancialSettings.xero_contact_id || "",
+        xeroContactName: customerFinancialSettings.xero_contact_name || "",
+        xeroContactNumber: customerFinancialSettings.xero_contact_number || "",
+        xeroStatus: customerFinancialSettings.xero_status || "Not Connected",
+        xeroLastSyncedAt: customerFinancialSettings.xero_last_synced_at || "",
+        xeroSyncError: customerFinancialSettings.xero_sync_error || "",
+        xeroBrandingThemeId: customerFinancialSettings.xero_branding_theme_id || "",
+        xeroBrandingThemeName: customerFinancialSettings.xero_branding_theme_name || "",
+      });
+      setFinancialErrors({});
+    } else if (!financialSettingsLoading) {
+      // No existing record - use defaults
+      setExistingFinancialSettingId(null);
+      setFinancialForm({
+        defaultCurrency: "AUD",
+        defaultSalesAccountCode: "",
+        defaultTaxType: "",
+        lineAmountType: "Exclusive",
+        discountPercent: "0",
+        paymentTermsType: "Days After Bill",
+        paymentTermsDays: "30",
+        creditLimit: "",
+        isAccountOnHold: false,
+        accountHoldReason: "",
+        invoiceDeliveryMethod: "Email",
+        statementDeliveryMethod: "Email",
+        xeroContactId: "",
+        xeroContactName: "",
+        xeroContactNumber: "",
+        xeroStatus: "Not Connected",
+        xeroLastSyncedAt: "",
+        xeroSyncError: "",
+        xeroBrandingThemeId: "",
+        xeroBrandingThemeName: "",
+      });
+      setFinancialErrors({});
+    }
+  }, [selectedCustomerId, isCurrentUserAdmin, customerFinancialSettings, financialSettingsLoading]);
+
   const handleAddCustomer = async () => {
     const trimmedCustomerName = customerName.trim();
     const trimmedPhone = phone.trim();
     const trimmedEmail = email.trim();
+    const trimmedContactName = contactName.trim() || trimmedCustomerName;
+    const trimmedContactPosition =
+      contactPosition.trim() || (customerType === "Commercial" ? "Primary Contact" : "Customer");
     const trimmedAbn = abn.trim();
-    const trimmedAddress = address.trim();
+    const trimmedAddressLine1 = addressLine1.trim();
+    const trimmedAddressLine2 = addressLine2.trim();
+    const trimmedSuburb = suburb.trim();
+    const trimmedState = stateName.trim();
+    const trimmedPostcode = postcode.trim();
+    const trimmedCountry = country.trim() || "Australia";
     const trimmedNotes = notes.trim();
 
     if (!trimmedCustomerName) {
@@ -360,93 +688,98 @@ export default function CustomerDatabase() {
       return;
     }
 
-    if (!trimmedAddress) {
-      alert("Address is required.");
+    if (!trimmedAddressLine1) {
+      alert("Address Line 1 is required.");
       return;
     }
 
     const customerCode = "CUS-" + Date.now().toString().slice(-6);
 
-    const { data: createdCustomer, error: customerError } = await supabase
-      .from("customers")
-      .insert({
-        customer_code: customerCode,
-        customer_name: trimmedCustomerName,
-        customer_type: customerType,
-        phone: trimmedPhone || null,
-        email: trimmedEmail || null,
-        abn: customerType === "Commercial" ? trimmedAbn || null : null,
-        price_book_id: priceBookId || null,
-        notes: trimmedNotes || null,
-        is_active: true,
-        is_deleted: false,
-      })
-      .select("customer_id")
-      .single();
+    setCustomerFormSaving(true);
 
-    if (customerError) {
-      alert(customerError.message);
-      return;
-    }
+    try {
+      const { data: createdCustomer, error: customerError } = await supabase
+        .from("customers")
+        .insert({
+          customer_code: customerCode,
+          customer_name: trimmedCustomerName,
+          customer_type: customerType,
+          phone: trimmedPhone || null,
+          email: trimmedEmail || null,
+          abn: customerType === "Commercial" ? trimmedAbn || null : null,
+          price_book_id: priceBookId || null,
+          notes: trimmedNotes || null,
+          is_active: true,
+          is_deleted: false,
+        })
+        .select("customer_id")
+        .single();
 
-    if (!createdCustomer?.customer_id) {
-      alert("Customer was created but customer ID was not returned.");
-      return;
-    }
+      if (customerError) throw customerError;
 
-    const { error: contactError } = await supabase
-      .from("customer_contacts")
-      .insert({
-        customer_id: createdCustomer.customer_id,
-        contact_name: trimmedCustomerName,
-        position: customerType === "Commercial" ? "Primary Contact" : "Customer",
-        phone: trimmedPhone || null,
-        email: trimmedEmail || null,
-        is_primary: true,
-        is_active: true,
-        is_deleted: false,
+      if (!createdCustomer?.customer_id) {
+        throw new Error("Customer was created but customer ID was not returned.");
+      }
+
+      const { error: contactError } = await supabase
+        .from("customer_contacts")
+        .insert({
+          customer_id: createdCustomer.customer_id,
+          contact_name: trimmedContactName,
+          position: trimmedContactPosition || null,
+          phone: trimmedPhone || null,
+          email: trimmedEmail || null,
+          is_primary: true,
+          is_active: true,
+          is_deleted: false,
+        });
+
+      if (contactError) throw contactError;
+
+      const { error: addressError } = await supabase
+        .from("customer_addresses")
+        .insert({
+          customer_id: createdCustomer.customer_id,
+          address_type: "Billing",
+          address_line1: trimmedAddressLine1,
+          address_line2: trimmedAddressLine2 || null,
+          suburb: trimmedSuburb || null,
+          state: trimmedState || null,
+          postcode: trimmedPostcode || null,
+          country: trimmedCountry,
+          is_primary: true,
+          is_active: true,
+          is_deleted: false,
+        });
+
+      if (addressError) throw addressError;
+
+      setCustomerName("");
+      setCustomerType("Residential");
+      setPhone("");
+      setEmail("");
+      setContactName("");
+      setContactPosition("Customer");
+      setAbn("");
+      setPriceBookId("");
+      setAddressLine1("");
+      setAddressLine2("");
+      setSuburb("");
+      setStateName("");
+      setPostcode("");
+      setCountry("Australia");
+      setNotes("");
+
+      setShowAddDialog(false);
+
+      queryClient.invalidateQueries({
+        queryKey: ["customers"],
       });
-
-    if (contactError) {
-      alert(contactError.message);
-      return;
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Customer could not be created.");
+    } finally {
+      setCustomerFormSaving(false);
     }
-
-    const { error: addressError } = await supabase
-      .from("customer_addresses")
-      .insert({
-        customer_id: createdCustomer.customer_id,
-        address_type: "Billing",
-        address_line1: trimmedAddress,
-        address_line2: null,
-        suburb: null,
-        state: null,
-        postcode: null,
-        country: "Australia",
-        is_primary: true,
-        is_active: true,
-        is_deleted: false,
-      });
-
-    if (addressError) {
-      alert(addressError.message);
-      return;
-    }
-
-    setCustomerName("");
-    setCustomerType("Residential");
-    setPhone("");
-    setEmail("");
-    setAbn("");
-    setPriceBookId("");
-    setAddress("");
-    setNotes("");
-
-    setShowAddDialog(false);
-
-    queryClient.invalidateQueries({
-      queryKey: ["customers"],
-    });
   };
 
   const getPrimaryContact = (customer: Customer) => {
@@ -468,6 +801,19 @@ export default function CustomerDatabase() {
       addresses.find((addressItem) => addressItem.is_primary) ||
       addresses[0] ||
       null
+    );
+  };
+
+  const getBillingAddress = (customer: Customer) => {
+    const addresses = customer.customer_addresses ?? [];
+
+    return (
+      addresses.find(
+        (addressItem) =>
+          addressItem.address_type === "Billing" && addressItem.is_primary
+      ) ||
+      addresses.find((addressItem) => addressItem.address_type === "Billing") ||
+      getPreferredAddress(customer)
     );
   };
 
@@ -565,16 +911,26 @@ export default function CustomerDatabase() {
 
   const openEditCustomer = (customer: Customer) => {
     const primaryContact = getPrimaryContact(customer);
-    const primaryAddress = getPrimaryAddress(customer);
+    const billingAddress = getBillingAddress(customer);
 
     setEditingCustomer(customer);
     setEditCustomerName(customer.customer_name || "");
     setEditCustomerType(customer.customer_type || "Residential");
+    setEditContactName(primaryContact?.contact_name || customer.customer_name || "");
+    setEditContactPosition(
+      primaryContact?.position ||
+        (customer.customer_type === "Commercial" ? "Primary Contact" : "Customer")
+    );
     setEditPhone(primaryContact?.phone || customer.phone || "");
     setEditEmail(primaryContact?.email || customer.email || "");
     setEditAbn(customer.abn || "");
     setEditPriceBookId(customer.price_book_id || "");
-    setEditAddress(primaryAddress?.address_line1 || "");
+    setEditAddressLine1(billingAddress?.address_line1 || "");
+    setEditAddressLine2(billingAddress?.address_line2 || "");
+    setEditSuburb(billingAddress?.suburb || "");
+    setEditStateName(billingAddress?.state || "");
+    setEditPostcode(billingAddress?.postcode || "");
+    setEditCountry(billingAddress?.country || "Australia");
     setEditNotes(customer.notes || "");
     setShowEditDialog(true);
   };
@@ -588,8 +944,17 @@ export default function CustomerDatabase() {
     const trimmedCustomerName = editCustomerName.trim();
     const trimmedPhone = editPhone.trim();
     const trimmedEmail = editEmail.trim();
+    const trimmedContactName = editContactName.trim() || trimmedCustomerName;
+    const trimmedContactPosition =
+      editContactPosition.trim() ||
+      (editCustomerType === "Commercial" ? "Primary Contact" : "Customer");
     const trimmedAbn = editAbn.trim();
-    const trimmedAddress = editAddress.trim();
+    const trimmedAddressLine1 = editAddressLine1.trim();
+    const trimmedAddressLine2 = editAddressLine2.trim();
+    const trimmedSuburb = editSuburb.trim();
+    const trimmedState = editStateName.trim();
+    const trimmedPostcode = editPostcode.trim();
+    const trimmedCountry = editCountry.trim() || "Australia";
     const trimmedNotes = editNotes.trim();
 
     if (!trimmedCustomerName) {
@@ -602,120 +967,113 @@ export default function CustomerDatabase() {
       return;
     }
 
-    if (!trimmedAddress) {
-      alert("Address is required.");
+    if (!trimmedAddressLine1) {
+      alert("Address Line 1 is required.");
       return;
     }
 
     const primaryContact = getPrimaryContact(editingCustomer);
-    const primaryAddress = getPrimaryAddress(editingCustomer);
+    const billingAddress = getBillingAddress(editingCustomer);
 
-    const { error: customerError } = await supabase
-      .from("customers")
-      .update({
-        customer_name: trimmedCustomerName,
-        customer_type: editCustomerType,
-        price_book_id: editPriceBookId || null,
-        phone: trimmedPhone || null,
-        email: trimmedEmail || null,
-        abn: editCustomerType === "Commercial" ? trimmedAbn || null : null,
-        notes: trimmedNotes || null,
-      })
-      .eq("customer_id", editingCustomer.customer_id);
+    setCustomerFormSaving(true);
 
-    if (customerError) {
-      alert(customerError.message);
-      return;
-    }
-
-    if (primaryContact?.contact_id) {
-      const { error: contactError } = await supabase
-        .from("customer_contacts")
+    try {
+      const { error: customerError } = await supabase
+        .from("customers")
         .update({
-          contact_name: trimmedCustomerName,
-          position:
-            editCustomerType === "Commercial" ? "Primary Contact" : "Customer",
+          customer_name: trimmedCustomerName,
+          customer_type: editCustomerType,
+          price_book_id: editPriceBookId || null,
           phone: trimmedPhone || null,
           email: trimmedEmail || null,
-          is_primary: true,
-          is_active: true,
+          abn: editCustomerType === "Commercial" ? trimmedAbn || null : null,
+          notes: trimmedNotes || null,
         })
-        .eq("contact_id", primaryContact.contact_id);
+        .eq("customer_id", editingCustomer.customer_id);
 
-      if (contactError) {
-        alert(contactError.message);
-        return;
-      }
-    } else {
-      const { error: contactInsertError } = await supabase
-        .from("customer_contacts")
-        .insert({
-          customer_id: editingCustomer.customer_id,
-          contact_name: trimmedCustomerName,
-          position:
-            editCustomerType === "Commercial" ? "Primary Contact" : "Customer",
-          phone: trimmedPhone || null,
-          email: trimmedEmail || null,
-          is_primary: true,
-          is_active: true,
-          is_deleted: false,
-        });
+      if (customerError) throw customerError;
 
-      if (contactInsertError) {
-        alert(contactInsertError.message);
-        return;
+      if (primaryContact?.contact_id) {
+        const { error: contactError } = await supabase
+          .from("customer_contacts")
+          .update({
+            contact_name: trimmedContactName,
+            position: trimmedContactPosition || null,
+            phone: trimmedPhone || null,
+            email: trimmedEmail || null,
+            is_primary: true,
+            is_active: true,
+          })
+          .eq("contact_id", primaryContact.contact_id)
+          .eq("customer_id", editingCustomer.customer_id);
+
+        if (contactError) throw contactError;
+      } else {
+        const { error: contactInsertError } = await supabase
+          .from("customer_contacts")
+          .insert({
+            customer_id: editingCustomer.customer_id,
+            contact_name: trimmedContactName,
+            position: trimmedContactPosition || null,
+            phone: trimmedPhone || null,
+            email: trimmedEmail || null,
+            is_primary: true,
+            is_active: true,
+            is_deleted: false,
+          });
+
+        if (contactInsertError) throw contactInsertError;
       }
+
+      if (billingAddress?.address_id) {
+        const { error: addressError } = await supabase
+          .from("customer_addresses")
+          .update({
+            address_type: "Billing",
+            address_line1: trimmedAddressLine1,
+            address_line2: trimmedAddressLine2 || null,
+            suburb: trimmedSuburb || null,
+            state: trimmedState || null,
+            postcode: trimmedPostcode || null,
+            country: trimmedCountry,
+            is_primary: true,
+            is_active: true,
+          })
+          .eq("address_id", billingAddress.address_id)
+          .eq("customer_id", editingCustomer.customer_id);
+
+        if (addressError) throw addressError;
+      } else {
+        const { error: addressInsertError } = await supabase
+          .from("customer_addresses")
+          .insert({
+            customer_id: editingCustomer.customer_id,
+            address_type: "Billing",
+            address_line1: trimmedAddressLine1,
+            address_line2: trimmedAddressLine2 || null,
+            suburb: trimmedSuburb || null,
+            state: trimmedState || null,
+            postcode: trimmedPostcode || null,
+            country: trimmedCountry,
+            is_primary: true,
+            is_active: true,
+            is_deleted: false,
+          });
+
+        if (addressInsertError) throw addressInsertError;
+      }
+
+      setShowEditDialog(false);
+      setEditingCustomer(null);
+
+      queryClient.invalidateQueries({
+        queryKey: ["customers"],
+      });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Customer could not be saved.");
+    } finally {
+      setCustomerFormSaving(false);
     }
-
-    if (primaryAddress?.address_id) {
-      const { error: addressError } = await supabase
-        .from("customer_addresses")
-        .update({
-          address_type: "Billing",
-          address_line1: trimmedAddress,
-          address_line2: null,
-          suburb: null,
-          state: null,
-          postcode: null,
-          country: "Australia",
-          is_primary: true,
-          is_active: true,
-        })
-        .eq("address_id", primaryAddress.address_id);
-
-      if (addressError) {
-        alert(addressError.message);
-        return;
-      }
-    } else {
-      const { error: addressInsertError } = await supabase
-        .from("customer_addresses")
-        .insert({
-          customer_id: editingCustomer.customer_id,
-          address_type: "Billing",
-          address_line1: trimmedAddress,
-          address_line2: null,
-          suburb: null,
-          state: null,
-          postcode: null,
-          country: "Australia",
-          is_primary: true,
-          is_active: true,
-          is_deleted: false,
-        });
-
-      if (addressInsertError) {
-        alert(addressInsertError.message);
-        return;
-      }
-    }
-
-    setShowEditDialog(false);
-    setEditingCustomer(null);
-
-    queryClient.invalidateQueries({
-      queryKey: ["customers"],
-    });
   };
 
   const handleToggleCustomerActive = async (customer: Customer) => {
@@ -769,6 +1127,188 @@ export default function CustomerDatabase() {
     queryClient.invalidateQueries({
       queryKey: ["customers"],
     });
+  };
+
+  const validateFinancialForm = (): boolean => {
+    const errors: CustomerFinancialValidationErrors = {};
+
+    if (financialForm.defaultCurrency.trim().length !== 3 || !/^[A-Z]{3}$/.test(financialForm.defaultCurrency)) {
+      errors.defaultCurrency = "Currency must be exactly 3 uppercase letters (e.g., AUD)";
+    }
+
+    const discountNum = parseFloat(financialForm.discountPercent);
+    if (isNaN(discountNum) || discountNum < 0 || discountNum > 100) {
+      errors.discountPercent = "Discount percent must be between 0 and 100";
+    }
+
+    if (financialForm.creditLimit.trim()) {
+      const creditNum = parseFloat(financialForm.creditLimit);
+      if (isNaN(creditNum) || creditNum < 0) {
+        errors.creditLimit = "Credit limit must be a positive number or blank";
+      }
+    }
+
+    const daysNum = parseInt(financialForm.paymentTermsDays);
+    if (isNaN(daysNum)) {
+      errors.paymentTermsDays = "Payment terms days must be a valid number";
+    } else if (
+      financialForm.paymentTermsType === "Day of Current Month" ||
+      financialForm.paymentTermsType === "Day of Following Month"
+    ) {
+      if (daysNum < 1 || daysNum > 31) {
+        errors.paymentTermsDays = "Day of month must be between 1 and 31";
+      }
+    } else {
+      if (daysNum < 0 || daysNum > 365) {
+        errors.paymentTermsDays = "Days must be between 0 and 365";
+      }
+    }
+
+    if (financialForm.isAccountOnHold && !financialForm.accountHoldReason.trim()) {
+      errors.accountHoldReason = "Account hold reason is required when account is on hold";
+    }
+
+    setFinancialErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleOpenFinancialSettings = () => {
+    setShowFinancialSettingsDialog(true);
+  };
+
+  const handleSaveFinancialSettings = async () => {
+    if (!viewingCustomer) {
+      alert("No customer selected.");
+      return;
+    }
+
+    if (!validateFinancialForm()) {
+      alert("Please fix validation errors before saving.");
+      return;
+    }
+
+    setFinancialFormSaving(true);
+
+    try {
+      const payload = {
+        customer_id: viewingCustomer.customer_id,
+        default_currency: financialForm.defaultCurrency.trim(),
+        default_sales_account_code: financialForm.defaultSalesAccountCode.trim() || null,
+        default_tax_type: financialForm.defaultTaxType.trim() || null,
+        line_amount_type: financialForm.lineAmountType,
+        discount_percent: parseFloat(financialForm.discountPercent) || 0,
+        payment_terms_type: financialForm.paymentTermsType,
+        payment_terms_days: parseInt(financialForm.paymentTermsDays) || 0,
+        credit_limit: financialForm.creditLimit.trim() ? parseFloat(financialForm.creditLimit) : null,
+        is_account_on_hold: financialForm.isAccountOnHold,
+        account_hold_reason: financialForm.isAccountOnHold ? financialForm.accountHoldReason.trim() || null : null,
+        invoice_delivery_method: financialForm.invoiceDeliveryMethod.trim() || null,
+        statement_delivery_method: financialForm.statementDeliveryMethod.trim() || null,
+        xero_contact_id: financialForm.xeroContactId.trim() || null,
+        xero_contact_name: financialForm.xeroContactName.trim() || null,
+        xero_contact_number: financialForm.xeroContactNumber.trim() || null,
+        xero_status: financialForm.xeroStatus,
+        xero_last_synced_at: financialForm.xeroLastSyncedAt || null,
+        xero_sync_error: financialForm.xeroSyncError.trim() || null,
+        xero_branding_theme_id: financialForm.xeroBrandingThemeId.trim() || null,
+        xero_branding_theme_name: financialForm.xeroBrandingThemeName.trim() || null,
+      };
+
+      let result;
+
+      if (existingFinancialSettingId) {
+        // Update existing
+        const { data, error } = await supabase
+          .from("customer_financial_settings")
+          .update(payload)
+          .eq("customer_financial_setting_id", existingFinancialSettingId)
+          .select("*")
+          .single();
+
+        if (error) throw error;
+        result = data;
+      } else {
+        // Insert new
+        const { data, error } = await supabase
+          .from("customer_financial_settings")
+          .insert(payload)
+          .select("*")
+          .single();
+
+        if (error) throw error;
+        result = data;
+      }
+
+      // Update local state with returned data
+      if (result) {
+        setExistingFinancialSettingId(result.customer_financial_setting_id);
+        setFinancialForm({
+          defaultCurrency: result.default_currency || "AUD",
+          defaultSalesAccountCode: result.default_sales_account_code || "",
+          defaultTaxType: result.default_tax_type || "",
+          lineAmountType: (result.line_amount_type as "Exclusive" | "Inclusive") || "Exclusive",
+          discountPercent: result.discount_percent?.toString() || "0",
+          paymentTermsType: (result.payment_terms_type as PaymentTermsType) || "Days After Bill",
+          paymentTermsDays: result.payment_terms_days?.toString() || "30",
+          creditLimit: result.credit_limit?.toString() || "",
+          isAccountOnHold: result.is_account_on_hold || false,
+          accountHoldReason: result.account_hold_reason || "",
+          invoiceDeliveryMethod: result.invoice_delivery_method || "Email",
+          statementDeliveryMethod: result.statement_delivery_method || "Email",
+          xeroContactId: result.xero_contact_id || "",
+          xeroContactName: result.xero_contact_name || "",
+          xeroContactNumber: result.xero_contact_number || "",
+          xeroStatus: result.xero_status || "Not Connected",
+          xeroLastSyncedAt: result.xero_last_synced_at || "",
+          xeroSyncError: result.xero_sync_error || "",
+          xeroBrandingThemeId: result.xero_branding_theme_id || "",
+          xeroBrandingThemeName: result.xero_branding_theme_name || "",
+        });
+      }
+
+      setShowFinancialSettingsDialog(false);
+      queryClient.invalidateQueries({
+        queryKey: ["customer-financial-settings", viewingCustomer.customer_id],
+      });
+    } catch (error) {
+      alert(
+        `Error saving financial settings: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    } finally {
+      setFinancialFormSaving(false);
+    }
+  };
+
+  const handleCancelFinancialSettings = () => {
+    setShowFinancialSettingsDialog(false);
+    // Reset form to previous saved state or defaults
+    if (customerFinancialSettings) {
+      setFinancialForm({
+        defaultCurrency: customerFinancialSettings.default_currency || "AUD",
+        defaultSalesAccountCode: customerFinancialSettings.default_sales_account_code || "",
+        defaultTaxType: customerFinancialSettings.default_tax_type || "",
+        lineAmountType: (customerFinancialSettings.line_amount_type as "Exclusive" | "Inclusive") || "Exclusive",
+        discountPercent: customerFinancialSettings.discount_percent?.toString() || "0",
+        paymentTermsType: (customerFinancialSettings.payment_terms_type as PaymentTermsType) || "Days After Bill",
+        paymentTermsDays: customerFinancialSettings.payment_terms_days?.toString() || "30",
+        creditLimit: customerFinancialSettings.credit_limit?.toString() || "",
+        isAccountOnHold: customerFinancialSettings.is_account_on_hold || false,
+        accountHoldReason: customerFinancialSettings.account_hold_reason || "",
+        invoiceDeliveryMethod: customerFinancialSettings.invoice_delivery_method || "Email",
+        statementDeliveryMethod: customerFinancialSettings.statement_delivery_method || "Email",
+        xeroContactId: customerFinancialSettings.xero_contact_id || "",
+        xeroContactName: customerFinancialSettings.xero_contact_name || "",
+        xeroContactNumber: customerFinancialSettings.xero_contact_number || "",
+        xeroStatus: customerFinancialSettings.xero_status || "Not Connected",
+        xeroLastSyncedAt: customerFinancialSettings.xero_last_synced_at || "",
+        xeroSyncError: customerFinancialSettings.xero_sync_error || "",
+        xeroBrandingThemeId: customerFinancialSettings.xero_branding_theme_id || "",
+        xeroBrandingThemeName: customerFinancialSettings.xero_branding_theme_name || "",
+      });
+    }
+    setFinancialErrors({});
   };
 
   const customerSummary = useMemo(() => {
@@ -1668,6 +2208,120 @@ export default function CustomerDatabase() {
                           </TabsContent>
 
                           <TabsContent value="financial" className="mt-0 space-y-4">
+                            {isCurrentUserAdmin && (
+                              <>
+                                <DetailCard
+                                  title="Financial Settings"
+                                  action={
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={handleOpenFinancialSettings}
+                                      className="h-8 text-xs font-bold"
+                                    >
+                                      Edit Settings
+                                    </Button>
+                                  }
+                                >
+                                  {financialSettingsLoading ? (
+                                    <div className="text-center text-sm text-slate-500">Loading...</div>
+                                  ) : financialSettingsError ? (
+                                    <div className="text-center text-sm text-red-600">
+                                      Error loading financial settings
+                                    </div>
+                                  ) : (
+                                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                      <DetailField
+                                        label="Default Currency"
+                                        value={customerFinancialSettings?.default_currency || "Not configured"}
+                                      />
+                                      <DetailField
+                                        label="Line Amount Type"
+                                        value={customerFinancialSettings?.line_amount_type || "Not configured"}
+                                      />
+                                      <DetailField
+                                        label="Discount %"
+                                        value={
+                                          customerFinancialSettings?.discount_percent != null
+                                            ? `${customerFinancialSettings.discount_percent}%`
+                                            : "Not configured"
+                                        }
+                                      />
+                                      <DetailField
+                                        label="Payment Terms"
+                                        value={
+                                          customerFinancialSettings?.payment_terms_type
+                                            ? `${customerFinancialSettings.payment_terms_type} (${customerFinancialSettings.payment_terms_days} days)`
+                                            : "Not configured"
+                                        }
+                                      />
+                                      <DetailField
+                                        label="Credit Limit"
+                                        value={
+                                          customerFinancialSettings?.credit_limit
+                                            ? formatMoney(customerFinancialSettings.credit_limit)
+                                            : "No limit configured"
+                                        }
+                                      />
+                                      <DetailField
+                                        label="Account Hold"
+                                        value={
+                                          customerFinancialSettings?.is_account_on_hold
+                                            ? `On Hold: ${customerFinancialSettings.account_hold_reason || "No reason provided"}`
+                                            : "Not on hold"
+                                        }
+                                      />
+                                      <DetailField
+                                        label="Invoice Delivery"
+                                        value={customerFinancialSettings?.invoice_delivery_method || "Not configured"}
+                                      />
+                                      <DetailField
+                                        label="Statement Delivery"
+                                        value={customerFinancialSettings?.statement_delivery_method || "Not configured"}
+                                      />
+                                    </div>
+                                  )}
+                                </DetailCard>
+
+                                <DetailCard title="Xero Settings">
+                                  {financialSettingsLoading ? (
+                                    <div className="text-center text-sm text-slate-500">Loading...</div>
+                                  ) : (
+                                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                      <DetailField
+                                        label="Xero Status"
+                                        value={customerFinancialSettings?.xero_status || "Not connected"}
+                                      />
+                                      <DetailField
+                                        label="Xero Contact ID"
+                                        value={customerFinancialSettings?.xero_contact_id || "Not connected"}
+                                      />
+                                      <DetailField
+                                        label="Xero Contact Name"
+                                        value={customerFinancialSettings?.xero_contact_name || "Not connected"}
+                                      />
+                                      <DetailField
+                                        label="Last Synced"
+                                        value={
+                                          customerFinancialSettings?.xero_last_synced_at
+                                            ? formatShortDate(customerFinancialSettings.xero_last_synced_at)
+                                            : "Never synced"
+                                        }
+                                      />
+                                      {customerFinancialSettings?.xero_sync_error && (
+                                        <div className="md:col-span-2 xl:col-span-3">
+                                          <DetailField
+                                            label="Sync Error"
+                                            value={customerFinancialSettings.xero_sync_error}
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </DetailCard>
+                              </>
+                            )}
+
                             <DetailCard title="Invoices">
                               {selectedCustomerContext.invoices.length ? (
                                 <DetailTable
@@ -1842,27 +2496,26 @@ export default function CustomerDatabase() {
           open={showEditDialog}
           onOpenChange={setShowEditDialog}
         >
-          <DialogContent className="max-h-[90vh] w-[calc(100vw-24px)] max-w-lg overflow-y-auto rounded-2xl p-4 sm:p-6">
-            <DialogHeader>
+          <DialogContent className="flex max-h-[92vh] w-[calc(100vw-24px)] max-w-4xl flex-col overflow-hidden rounded-2xl p-0">
+            <DialogHeader className="border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
               <DialogTitle className="text-lg font-bold text-slate-900">
                 Edit Customer
               </DialogTitle>
+              <p className="text-sm text-slate-500">
+                {editingCustomer?.customer_code || "Customer record"}
+              </p>
             </DialogHeader>
 
-            <div className="space-y-5 text-sm">
-              <section className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                <div className="mb-4">
-                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-800">
-                    Customer Profile
-                  </h3>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {editingCustomer?.customer_code || "Customer record"}
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <Label>Customer Type</Label>
+            <div className="flex-1 overflow-y-auto bg-slate-50 px-4 py-5 sm:px-6">
+              <div className="space-y-5 text-sm">
+                <CustomerFormSection
+                  number="01"
+                  title="Customer Profile"
+                  description="Core customer details used across projects, quotations, invoices, and reporting."
+                >
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Customer Type</Label>
                     <Select
                       value={editCustomerType}
                       onValueChange={(value) => {
@@ -1870,9 +2523,16 @@ export default function CustomerDatabase() {
                         if (value === "Residential") {
                           setEditAbn("");
                         }
+                        const currentDefault =
+                          editCustomerType === "Commercial" ? "Primary Contact" : "Customer";
+                        if (!editContactPosition.trim() || editContactPosition === currentDefault) {
+                          setEditContactPosition(
+                            value === "Commercial" ? "Primary Contact" : "Customer"
+                          );
+                        }
                       }}
                     >
-                      <SelectTrigger className="h-11 rounded-xl bg-white text-base md:text-sm">
+                      <SelectTrigger className={customerInputClassName}>
                         <SelectValue placeholder="Select customer type" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1880,26 +2540,26 @@ export default function CustomerDatabase() {
                         <SelectItem value="Commercial">Commercial</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
+                    </div>
 
-                  <div>
-                    <Label>
+                    <div className="space-y-2">
+                      <Label>
                       {editCustomerType === "Commercial"
                         ? "Business / Company Name"
                         : "Customer Name"}
-                    </Label>
+                      </Label>
                     <Input
-                      className="h-11 rounded-xl bg-white text-base md:text-sm"
+                      className={customerInputClassName}
                       value={editCustomerName}
                       onChange={(e) => setEditCustomerName(e.target.value)}
                     />
-                  </div>
+                    </div>
 
                   {editCustomerType === "Commercial" && (
-                    <div>
+                    <div className="space-y-2">
                       <Label>ABN</Label>
                       <Input
-                        className="h-11 rounded-xl bg-white text-base md:text-sm"
+                        className={customerInputClassName}
                         value={editAbn}
                         onChange={(e) => setEditAbn(e.target.value)}
                         placeholder="Australian Business Number"
@@ -1907,13 +2567,13 @@ export default function CustomerDatabase() {
                     </div>
                   )}
 
-                  <div>
+                    <div className="space-y-2">
                     <Label>Price Book</Label>
                     <Select
                       value={editPriceBookId}
                       onValueChange={setEditPriceBookId}
                     >
-                      <SelectTrigger className="h-11 rounded-xl bg-white text-base md:text-sm">
+                      <SelectTrigger className={customerInputClassName}>
                         <SelectValue placeholder="Select default price book" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1933,92 +2593,152 @@ export default function CustomerDatabase() {
                         )}
                       </SelectContent>
                     </Select>
+                    </div>
                   </div>
-                </div>
-              </section>
+                </CustomerFormSection>
 
-              <section className="rounded-2xl border border-slate-100 bg-white p-4">
-                <div className="mb-4">
-                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-800">
-                    Contact Details
-                  </h3>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Primary contact details for this customer.
-                  </p>
-                </div>
+                <CustomerFormSection
+                  number="02"
+                  title="Primary Contact"
+                  description="Main person and communication details for this customer."
+                >
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Contact Name</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={editContactName}
+                        onChange={(e) => setEditContactName(e.target.value)}
+                      />
+                    </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <Label>
-                      {editCustomerType === "Commercial" ? "Business Phone" : "Phone"}
-                    </Label>
+                    <div className="space-y-2">
+                      <Label>Position</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={editContactPosition}
+                        onChange={(e) => setEditContactPosition(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Phone</Label>
                     <Input
-                      className="h-11 rounded-xl text-base md:text-sm"
+                      className={customerInputClassName}
                       value={editPhone}
                       onChange={(e) => setEditPhone(e.target.value)}
                     />
-                  </div>
+                    </div>
 
-                  <div>
-                    <Label>
-                      {editCustomerType === "Commercial" ? "Business Email" : "Email"}
-                    </Label>
+                    <div className="space-y-2">
+                      <Label>Email</Label>
                     <Input
-                      className="h-11 rounded-xl text-base md:text-sm"
+                      type="email"
+                      className={customerInputClassName}
                       value={editEmail}
                       onChange={(e) => setEditEmail(e.target.value)}
                     />
+                    </div>
                   </div>
-                </div>
-              </section>
+                </CustomerFormSection>
 
-              <section className="rounded-2xl border border-slate-100 bg-white p-4">
-                <div className="mb-4">
-                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-800">
-                    Address
-                  </h3>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Primary billing address.
-                  </p>
-                </div>
+                <CustomerFormSection
+                  number="03"
+                  title="Billing Address"
+                  description="Structured Australian billing address saved into dedicated address fields."
+                >
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Address Line 1 / Street Address</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={editAddressLine1}
+                        onChange={(e) => setEditAddressLine1(e.target.value)}
+                      />
+                    </div>
 
-                <div>
-                  <Label>
-                    {editCustomerType === "Commercial"
-                      ? "Business / Billing Address"
-                      : "Address"}
-                  </Label>
-                  <Input
-                    className="h-11 rounded-xl text-base md:text-sm"
-                    value={editAddress}
-                    onChange={(e) => setEditAddress(e.target.value)}
-                  />
-                </div>
-              </section>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Address Line 2 / Unit, Level, Building</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={editAddressLine2}
+                        onChange={(e) => setEditAddressLine2(e.target.value)}
+                      />
+                    </div>
 
-              <section className="rounded-2xl border border-slate-100 bg-white p-4">
-                <div className="mb-4">
-                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-800">
-                    Notes
-                  </h3>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Optional internal notes.
-                  </p>
-                </div>
+                    <div className="space-y-2">
+                      <Label>Suburb</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={editSuburb}
+                        onChange={(e) => setEditSuburb(e.target.value)}
+                      />
+                    </div>
 
+                    <div className="space-y-2">
+                      <Label>State</Label>
+                      <Select
+                        value={editStateName || EMPTY_SELECT_VALUE}
+                        onValueChange={(value) =>
+                          setEditStateName(value === EMPTY_SELECT_VALUE ? "" : value)
+                        }
+                      >
+                        <SelectTrigger className={customerInputClassName}>
+                          <SelectValue placeholder="Select state" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={EMPTY_SELECT_VALUE}>Select state</SelectItem>
+                          {AUSTRALIAN_STATES.map((stateCode) => (
+                            <SelectItem key={stateCode} value={stateCode}>
+                              {stateCode}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Postcode</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={editPostcode}
+                        onChange={(e) => setEditPostcode(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Country</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={editCountry}
+                        onChange={(e) => setEditCountry(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </CustomerFormSection>
+
+                <CustomerFormSection
+                  number="04"
+                  title="Notes"
+                  description="Optional internal notes for sales, billing, access, or project context."
+                >
                 <Textarea
-                  className="min-h-24 rounded-xl text-base md:text-sm"
+                  className={customerTextareaClassName}
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
                 />
-              </section>
+                </CustomerFormSection>
+              </div>
+            </div>
 
+            <div className="border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
               <Button
                 type="button"
                 onClick={handleSaveEditCustomer}
+                disabled={customerFormSaving}
                 className="h-11 w-full rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700"
               >
-                Save Changes
+                {customerFormSaving ? "Saving..." : "Save Changes"}
               </Button>
             </div>
           </DialogContent>
@@ -2028,28 +2748,26 @@ export default function CustomerDatabase() {
           open={showAddDialog}
           onOpenChange={setShowAddDialog}
         >
-          <DialogContent className="max-h-[90vh] w-[calc(100vw-24px)] max-w-lg overflow-y-auto rounded-2xl p-4 sm:p-6">
-            <DialogHeader>
+          <DialogContent className="flex max-h-[92vh] w-[calc(100vw-24px)] max-w-4xl flex-col overflow-hidden rounded-2xl p-0">
+            <DialogHeader className="border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
               <DialogTitle className="text-lg font-bold text-slate-900">
                 Add Customer
               </DialogTitle>
+              <p className="text-sm text-slate-500">
+                Create a customer profile with primary contact and billing address.
+              </p>
             </DialogHeader>
 
-            <div className="space-y-5 text-sm">
-              {/* Customer Profile */}
-              <section className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                <div className="mb-4">
-                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-800">
-                    Customer Profile
-                  </h3>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Basic customer identity used across projects, quotes, invoices, and Xero export.
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <Label>Customer Type</Label>
+            <div className="flex-1 overflow-y-auto bg-slate-50 px-4 py-5 sm:px-6">
+              <div className="space-y-5 text-sm">
+                <CustomerFormSection
+                  number="01"
+                  title="Customer Profile"
+                  description="Core customer details used across projects, quotations, invoices, and reporting."
+                >
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Customer Type</Label>
                     <Select
                       value={customerType}
                       onValueChange={(value) => {
@@ -2057,9 +2775,16 @@ export default function CustomerDatabase() {
                         if (value === "Residential") {
                           setAbn("");
                         }
+                        const currentDefault =
+                          customerType === "Commercial" ? "Primary Contact" : "Customer";
+                        if (!contactPosition.trim() || contactPosition === currentDefault) {
+                          setContactPosition(
+                            value === "Commercial" ? "Primary Contact" : "Customer"
+                          );
+                        }
                       }}
                     >
-                      <SelectTrigger className="h-11 rounded-xl bg-white text-base md:text-sm">
+                      <SelectTrigger className={customerInputClassName}>
                         <SelectValue placeholder="Select customer type" />
                       </SelectTrigger>
                       <SelectContent>
@@ -2067,30 +2792,48 @@ export default function CustomerDatabase() {
                         <SelectItem value="Commercial">Commercial</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
+                    </div>
 
-                  <div>
-                    <Label>
+                    <div className="space-y-2">
+                      <Label>
                       {customerType === "Commercial"
                         ? "Business / Company Name"
                         : "Customer Name"}
-                    </Label>
+                      </Label>
                     <Input
-                      className="h-11 rounded-xl bg-white text-base md:text-sm"
+                      className={customerInputClassName}
                       value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
+                      onChange={(e) => {
+                        const nextValue = e.target.value;
+                        setCustomerName(nextValue);
+                        if (!contactName.trim()) {
+                          setContactName(nextValue);
+                        }
+                      }}
                       placeholder={
                         customerType === "Commercial"
                           ? "Business or company name"
                           : "Customer full name"
                       }
                     />
-                  </div>
+                    </div>
 
-                  <div>
-                    <Label>Price Book</Label>
+                    {customerType === "Commercial" && (
+                      <div className="space-y-2">
+                        <Label>ABN</Label>
+                        <Input
+                          className={customerInputClassName}
+                          value={abn}
+                          onChange={(e) => setAbn(e.target.value)}
+                          placeholder="Australian Business Number"
+                        />
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label>Price Book</Label>
                     <Select value={priceBookId} onValueChange={setPriceBookId}>
-                      <SelectTrigger className="h-11 rounded-xl bg-white text-base md:text-sm">
+                      <SelectTrigger className={customerInputClassName}>
                         <SelectValue placeholder="Select default price book" />
                       </SelectTrigger>
                       <SelectContent>
@@ -2114,40 +2857,44 @@ export default function CustomerDatabase() {
                     <p className="mt-1 text-xs text-slate-500">
                       Used later for customer material selection, estimates, proposals, and invoices.
                     </p>
+                    </div>
                   </div>
+                </CustomerFormSection>
 
-                  {customerType === "Commercial" && (
-                    <div>
-                      <Label>ABN</Label>
+                <CustomerFormSection
+                  number="02"
+                  title="Primary Contact"
+                  description="Main person and communication details saved as the primary customer contact."
+                >
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Contact Name</Label>
                       <Input
-                        className="h-11 rounded-xl bg-white text-base md:text-sm"
-                        value={abn}
-                        onChange={(e) => setAbn(e.target.value)}
-                        placeholder="Australian Business Number"
+                        className={customerInputClassName}
+                        value={contactName}
+                        onChange={(e) => setContactName(e.target.value)}
+                        placeholder={
+                          customerType === "Commercial" ? "Primary contact name" : "Customer full name"
+                        }
                       />
                     </div>
-                  )}
-                </div>
-              </section>
 
-              {/* Contact Details */}
-              <section className="rounded-2xl border border-slate-100 bg-white p-4">
-                <div className="mb-4">
-                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-800">
-                    Contact Details
-                  </h3>
-                  <p className="mt-1 text-xs text-slate-500">
-                    This will be saved as the primary contact for this customer.
-                  </p>
-                </div>
+                    <div className="space-y-2">
+                      <Label>Position</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={contactPosition}
+                        onChange={(e) => setContactPosition(e.target.value)}
+                        placeholder={
+                          customerType === "Commercial" ? "Primary Contact" : "Customer"
+                        }
+                      />
+                    </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <Label>
-                      {customerType === "Commercial" ? "Business Phone" : "Phone"}
-                    </Label>
+                    <div className="space-y-2">
+                      <Label>Phone</Label>
                     <Input
-                      className="h-11 rounded-xl text-base md:text-sm"
+                      className={customerInputClassName}
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder={
@@ -2156,14 +2903,13 @@ export default function CustomerDatabase() {
                           : "Customer phone"
                       }
                     />
-                  </div>
+                    </div>
 
-                  <div>
-                    <Label>
-                      {customerType === "Commercial" ? "Business Email" : "Email"}
-                    </Label>
+                    <div className="space-y-2">
+                      <Label>Email</Label>
                     <Input
-                      className="h-11 rounded-xl text-base md:text-sm"
+                      type="email"
+                      className={customerInputClassName}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder={
@@ -2172,51 +2918,96 @@ export default function CustomerDatabase() {
                           : "Customer email"
                       }
                     />
+                    </div>
                   </div>
-                </div>
-              </section>
+                </CustomerFormSection>
 
-              {/* Address */}
-              <section className="rounded-2xl border border-slate-100 bg-white p-4">
-                <div className="mb-4">
-                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-800">
-                    Address
-                  </h3>
-                  <p className="mt-1 text-xs text-slate-500">
-                    This will be saved as the primary billing address.
-                  </p>
-                </div>
+                <CustomerFormSection
+                  number="03"
+                  title="Billing Address"
+                  description="Structured Australian billing address saved into dedicated address fields."
+                >
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Address Line 1 / Street Address</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={addressLine1}
+                        onChange={(e) => setAddressLine1(e.target.value)}
+                        placeholder="Street number and street name"
+                      />
+                    </div>
 
-                <div>
-                  <Label>
-                    {customerType === "Commercial" ? "Business / Billing Address" : "Address"}
-                  </Label>
-                  <Input
-                    className="h-11 rounded-xl text-base md:text-sm"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder={
-                      customerType === "Commercial"
-                        ? "Office or billing address"
-                        : "Customer address"
-                    }
-                  />
-                </div>
-              </section>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Address Line 2 / Unit, Level, Building</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={addressLine2}
+                        onChange={(e) => setAddressLine2(e.target.value)}
+                        placeholder="Unit, level, building, or suite"
+                      />
+                    </div>
 
-              {/* Notes */}
-              <section className="rounded-2xl border border-slate-100 bg-white p-4">
-                <div className="mb-4">
-                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-800">
-                    Notes
-                  </h3>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Optional internal notes for sales, billing, access, or project context.
-                  </p>
-                </div>
+                    <div className="space-y-2">
+                      <Label>Suburb</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={suburb}
+                        onChange={(e) => setSuburb(e.target.value)}
+                        placeholder="Suburb"
+                      />
+                    </div>
 
+                    <div className="space-y-2">
+                      <Label>State</Label>
+                      <Select
+                        value={stateName || EMPTY_SELECT_VALUE}
+                        onValueChange={(value) =>
+                          setStateName(value === EMPTY_SELECT_VALUE ? "" : value)
+                        }
+                      >
+                        <SelectTrigger className={customerInputClassName}>
+                          <SelectValue placeholder="Select state" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={EMPTY_SELECT_VALUE}>Select state</SelectItem>
+                          {AUSTRALIAN_STATES.map((stateCode) => (
+                            <SelectItem key={stateCode} value={stateCode}>
+                              {stateCode}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Postcode</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={postcode}
+                        onChange={(e) => setPostcode(e.target.value)}
+                        placeholder="Postcode"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Country</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={country}
+                        onChange={(e) => setCountry(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </CustomerFormSection>
+
+                <CustomerFormSection
+                  number="04"
+                  title="Notes"
+                  description="Optional internal notes for sales, billing, access, or project context."
+                >
                 <Textarea
-                  className="min-h-24 rounded-xl text-base md:text-sm"
+                  className={customerTextareaClassName}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder={
@@ -2225,13 +3016,479 @@ export default function CustomerDatabase() {
                       : "Access notes, job notes, customer notes"
                   }
                 />
-              </section>
+                </CustomerFormSection>
+              </div>
+            </div>
 
+            <div className="border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
               <Button
+                type="button"
                 onClick={handleAddCustomer}
+                disabled={customerFormSaving}
                 className="h-11 w-full rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700"
               >
-                Create Customer
+                {customerFormSaving ? "Saving..." : "Create Customer"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showFinancialSettingsDialog} onOpenChange={setShowFinancialSettingsDialog}>
+          <DialogContent className="flex max-h-[92vh] w-[calc(100vw-24px)] max-w-3xl flex-col overflow-hidden rounded-2xl p-0">
+            <DialogHeader className="border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
+              <DialogTitle className="text-lg font-bold text-slate-900">
+                Financial Settings
+              </DialogTitle>
+              <p className="text-sm text-slate-500">
+                {viewingCustomer?.customer_code || "Customer"} · Configure payment terms, Xero integration, and account settings
+              </p>
+            </DialogHeader>
+
+            {financialSettingsError && (
+              <div className="border-b border-red-200 bg-red-50 px-5 py-3 sm:px-6">
+                <p className="text-sm text-red-600">
+                  Error loading financial settings: {(financialSettingsError as Error).message}
+                </p>
+              </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto bg-slate-50 px-4 py-5 sm:px-6">
+              <div className="space-y-5 text-sm">
+                <CustomerFormSection
+                  number="01"
+                  title="Currency & Tax"
+                  description="Default currency and tax configuration for invoicing."
+                >
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Default Currency</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={financialForm.defaultCurrency}
+                        onChange={(e) =>
+                          setFinancialForm({
+                            ...financialForm,
+                            defaultCurrency: e.target.value.toUpperCase(),
+                          })
+                        }
+                        placeholder="AUD"
+                        maxLength={3}
+                      />
+                      {financialErrors.defaultCurrency && (
+                        <p className="text-xs text-red-600">{financialErrors.defaultCurrency}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Default Tax Type</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={financialForm.defaultTaxType}
+                        onChange={(e) =>
+                          setFinancialForm({
+                            ...financialForm,
+                            defaultTaxType: e.target.value,
+                          })
+                        }
+                        placeholder="e.g., Tax on Sales"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Default Sales Account Code</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={financialForm.defaultSalesAccountCode}
+                        onChange={(e) =>
+                          setFinancialForm({
+                            ...financialForm,
+                            defaultSalesAccountCode: e.target.value,
+                          })
+                        }
+                        placeholder="e.g., 4000"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Line Amount Type</Label>
+                      <Select
+                        value={financialForm.lineAmountType}
+                        onValueChange={(value) =>
+                          setFinancialForm({
+                            ...financialForm,
+                            lineAmountType: value as "Exclusive" | "Inclusive",
+                          })
+                        }
+                      >
+                        <SelectTrigger className={customerInputClassName}>
+                          <SelectValue placeholder="Select line amount type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {LINE_AMOUNT_TYPE_OPTIONS.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CustomerFormSection>
+
+                <CustomerFormSection
+                  number="02"
+                  title="Payment Terms"
+                  description="Payment term settings for customer invoices."
+                >
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Payment Terms Type</Label>
+                      <Select
+                        value={financialForm.paymentTermsType}
+                        onValueChange={(value) =>
+                          setFinancialForm({
+                            ...financialForm,
+                            paymentTermsType: value as PaymentTermsType,
+                          })
+                        }
+                      >
+                        <SelectTrigger className={customerInputClassName}>
+                          <SelectValue placeholder="Select payment terms type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PAYMENT_TERMS_OPTIONS.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>
+                        {financialForm.paymentTermsType === "Day of Current Month" ||
+                        financialForm.paymentTermsType === "Day of Following Month"
+                          ? "Day of Month (1-31)"
+                          : "Days (0-365)"}
+                      </Label>
+                      <Input
+                        className={customerInputClassName}
+                        type="number"
+                        value={financialForm.paymentTermsDays}
+                        onChange={(e) =>
+                          setFinancialForm({
+                            ...financialForm,
+                            paymentTermsDays: e.target.value,
+                          })
+                        }
+                      />
+                      {financialErrors.paymentTermsDays && (
+                        <p className="text-xs text-red-600">{financialErrors.paymentTermsDays}</p>
+                      )}
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {PAYMENT_TERM_PRESETS.map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() =>
+                              setFinancialForm({
+                                ...financialForm,
+                                paymentTermsDays: preset.toString(),
+                              })
+                            }
+                            className="inline-flex rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-slate-400 hover:bg-slate-50"
+                          >
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Discount %</Label>
+                      <Input
+                        className={customerInputClassName}
+                        type="number"
+                        step="0.01"
+                        value={financialForm.discountPercent}
+                        onChange={(e) =>
+                          setFinancialForm({
+                            ...financialForm,
+                            discountPercent: e.target.value,
+                          })
+                        }
+                      />
+                      {financialErrors.discountPercent && (
+                        <p className="text-xs text-red-600">{financialErrors.discountPercent}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Credit Limit (Optional)</Label>
+                      <Input
+                        className={customerInputClassName}
+                        type="number"
+                        step="0.01"
+                        value={financialForm.creditLimit}
+                        onChange={(e) =>
+                          setFinancialForm({
+                            ...financialForm,
+                            creditLimit: e.target.value,
+                          })
+                        }
+                        placeholder="Leave blank for no limit"
+                      />
+                      {financialErrors.creditLimit && (
+                        <p className="text-xs text-red-600">{financialErrors.creditLimit}</p>
+                      )}
+                    </div>
+                  </div>
+                </CustomerFormSection>
+
+                <CustomerFormSection
+                  number="03"
+                  title="Account Hold"
+                  description="Temporarily hold or suspend account activity."
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="isAccountOnHold"
+                        checked={financialForm.isAccountOnHold}
+                        onChange={(e) =>
+                          setFinancialForm({
+                            ...financialForm,
+                            isAccountOnHold: e.target.checked,
+                          })
+                        }
+                        className="h-4 w-4 rounded border-slate-300"
+                      />
+                      <Label htmlFor="isAccountOnHold" className="cursor-pointer">
+                        Place account on hold
+                      </Label>
+                    </div>
+
+                    {financialForm.isAccountOnHold && (
+                      <div className="space-y-2">
+                        <Label>Hold Reason</Label>
+                        <Textarea
+                          className={customerTextareaClassName}
+                          value={financialForm.accountHoldReason}
+                          onChange={(e) =>
+                            setFinancialForm({
+                              ...financialForm,
+                              accountHoldReason: e.target.value,
+                            })
+                          }
+                          placeholder="e.g., Awaiting payment / Credit limit exceeded"
+                        />
+                        {financialErrors.accountHoldReason && (
+                          <p className="text-xs text-red-600">{financialErrors.accountHoldReason}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </CustomerFormSection>
+
+                <CustomerFormSection
+                  number="04"
+                  title="Delivery Methods"
+                  description="How invoices and statements are delivered to this customer."
+                >
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Invoice Delivery</Label>
+                      <Select
+                        value={financialForm.invoiceDeliveryMethod}
+                        onValueChange={(value) =>
+                          setFinancialForm({
+                            ...financialForm,
+                            invoiceDeliveryMethod: value,
+                          })
+                        }
+                      >
+                        <SelectTrigger className={customerInputClassName}>
+                          <SelectValue placeholder="Select delivery method" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from(DELIVERY_METHOD_OPTIONS).map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Statement Delivery</Label>
+                      <Select
+                        value={financialForm.statementDeliveryMethod}
+                        onValueChange={(value) =>
+                          setFinancialForm({
+                            ...financialForm,
+                            statementDeliveryMethod: value,
+                          })
+                        }
+                      >
+                        <SelectTrigger className={customerInputClassName}>
+                          <SelectValue placeholder="Select delivery method" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from(DELIVERY_METHOD_OPTIONS).map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CustomerFormSection>
+
+                <CustomerFormSection
+                  number="05"
+                  title="Xero Integration"
+                  description="Xero synchronization and contact mapping settings."
+                >
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Xero Status</Label>
+                      <Select
+                        value={financialForm.xeroStatus}
+                        onValueChange={(value) =>
+                          setFinancialForm({
+                            ...financialForm,
+                            xeroStatus: value,
+                          })
+                        }
+                      >
+                        <SelectTrigger className={customerInputClassName}>
+                          <SelectValue placeholder="Select Xero status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {XERO_STATUS_OPTIONS.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Xero Contact ID</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={financialForm.xeroContactId}
+                        onChange={(e) =>
+                          setFinancialForm({
+                            ...financialForm,
+                            xeroContactId: e.target.value,
+                          })
+                        }
+                        placeholder="Xero contact UUID"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Xero Contact Name</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={financialForm.xeroContactName}
+                        onChange={(e) =>
+                          setFinancialForm({
+                            ...financialForm,
+                            xeroContactName: e.target.value,
+                          })
+                        }
+                        placeholder="Synced from Xero"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Xero Contact Number</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={financialForm.xeroContactNumber}
+                        onChange={(e) =>
+                          setFinancialForm({
+                            ...financialForm,
+                            xeroContactNumber: e.target.value,
+                          })
+                        }
+                        placeholder="Xero contact reference"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Xero Branding Theme ID</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={financialForm.xeroBrandingThemeId}
+                        onChange={(e) =>
+                          setFinancialForm({
+                            ...financialForm,
+                            xeroBrandingThemeId: e.target.value,
+                          })
+                        }
+                        placeholder="Xero branding theme UUID"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Xero Branding Theme Name</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={financialForm.xeroBrandingThemeName}
+                        onChange={(e) =>
+                          setFinancialForm({
+                            ...financialForm,
+                            xeroBrandingThemeName: e.target.value,
+                          })
+                        }
+                        placeholder="Synced from Xero"
+                      />
+                    </div>
+
+                    {financialForm.xeroLastSyncedAt && (
+                      <div className="space-y-2 md:col-span-2">
+                        <Label>Last Synced</Label>
+                        <p className="text-sm text-slate-600">
+                          {formatShortDate(financialForm.xeroLastSyncedAt)}
+                        </p>
+                      </div>
+                    )}
+
+                    {financialForm.xeroSyncError && (
+                      <div className="space-y-2 md:col-span-2">
+                        <Label>Sync Error</Label>
+                        <p className="text-sm text-red-600">{financialForm.xeroSyncError}</p>
+                      </div>
+                    )}
+                  </div>
+                </CustomerFormSection>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-200 bg-white px-5 py-4 sm:px-6 flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCancelFinancialSettings}
+                className="flex-1 h-11 rounded-xl text-sm font-bold"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSaveFinancialSettings}
+                disabled={financialFormSaving}
+                className="flex-1 h-11 rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700"
+              >
+                {financialFormSaving ? "Saving..." : "Save Financial Settings"}
               </Button>
             </div>
           </DialogContent>
@@ -2612,19 +3869,24 @@ export default function CustomerDatabase() {
 function DetailCard({
   title,
   icon,
+  action,
   children,
 }: {
   title: string;
   icon?: ReactNode;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-4 flex items-center gap-2">
-        {icon ? <span className="text-[#9E4B4B]">{icon}</span> : null}
-        <h3 className="text-sm font-black uppercase tracking-wide text-slate-800">
-          {title}
-        </h3>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {icon ? <span className="text-[#9E4B4B]">{icon}</span> : null}
+          <h3 className="text-sm font-black uppercase tracking-wide text-slate-800">
+            {title}
+          </h3>
+        </div>
+        {action && <div>{action}</div>}
       </div>
       {children}
     </section>
