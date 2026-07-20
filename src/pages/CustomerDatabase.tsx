@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
+  ArrowLeft,
   Building2,
   Download,
   FileSpreadsheet,
@@ -896,8 +897,15 @@ export default function CustomerDatabase() {
 
     if (!priceBook) return "Not set";
     return priceBook.price_book_name
-      ? `${priceBook.price_book_code} · ${priceBook.price_book_name}`
+      ? `${priceBook.price_book_code} Â· ${priceBook.price_book_name}`
       : priceBook.price_book_code;
+  };
+
+  const clearDetailView = () => {
+    setViewingCustomer(null);
+    setCustomerDetailTab("overview");
+    setDetailProjectSearch("");
+    setDetailProjectStatus("All");
   };
 
   const openViewCustomer = (customer: Customer) => {
@@ -905,7 +913,6 @@ export default function CustomerDatabase() {
     setCustomerDetailTab("overview");
     setDetailProjectSearch("");
     setDetailProjectStatus("All");
-    setShowViewDialog(true);
   };
 
 
@@ -919,7 +926,7 @@ export default function CustomerDatabase() {
     setEditContactName(primaryContact?.contact_name || customer.customer_name || "");
     setEditContactPosition(
       primaryContact?.position ||
-        (customer.customer_type === "Commercial" ? "Primary Contact" : "Customer")
+      (customer.customer_type === "Commercial" ? "Primary Contact" : "Customer")
     );
     setEditPhone(primaryContact?.phone || customer.phone || "");
     setEditEmail(primaryContact?.email || customer.email || "");
@@ -1272,8 +1279,7 @@ export default function CustomerDatabase() {
       });
     } catch (error) {
       alert(
-        `Error saving financial settings: ${
-          error instanceof Error ? error.message : "Unknown error"
+        `Error saving financial settings: ${error instanceof Error ? error.message : "Unknown error"
         }`
       );
     } finally {
@@ -1851,671 +1857,667 @@ export default function CustomerDatabase() {
 
   return (
     <div className="w-full space-y-5">
-      <div className="w-full space-y-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-50">
-                <Building2 className="h-6 w-6 text-red-600" />
-              </div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-50">
+              <Building2 className="h-6 w-6 text-red-600" />
+            </div>
 
-              <div className="min-w-0">
-                <h1 className="text-2xl font-black leading-tight text-slate-900 md:text-3xl">
-                  Customers
-                </h1>
-                <p className="mt-0.5 text-sm text-slate-500">
-                  Manage residential and commercial customers.
-                </p>
-              </div>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-black leading-tight text-slate-900 md:text-3xl">
+                Customers
+              </h1>
+              <p className="mt-0.5 text-sm text-slate-500">
+                Manage residential and commercial customers.
+              </p>
             </div>
           </div>
-
-          <Button
-            onClick={() => setShowAddDialog(true)}
-            className="flex h-11 w-full items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700 sm:w-auto sm:px-6"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add Customer
-          </Button>
         </div>
 
-        <Dialog
-          open={showViewDialog}
-          onOpenChange={(open) => {
-            setShowViewDialog(open);
-
-            if (!open) {
-              setViewingCustomer(null);
-            }
-          }}
+        <Button
+          onClick={() => setShowAddDialog(true)}
+          className="flex h-11 w-full items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700 sm:w-auto sm:px-6"
         >
-          <DialogContent className="h-[100dvh] w-screen max-w-none overflow-hidden rounded-none border-0 bg-slate-100 p-0 sm:h-[96vh] sm:w-[96vw] sm:rounded-2xl sm:border">
-            <DialogHeader className="sr-only">
-              <DialogTitle>Customer Detail</DialogTitle>
-            </DialogHeader>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Customer
+        </Button>
+      </div>
 
-            {viewingCustomer && selectedCustomerContext ? (
-              <div className="flex h-full min-h-0 flex-col">
-                <header className="shrink-0 border-b border-slate-200 bg-white">
-                  <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-start lg:justify-between lg:p-6">
-                    <div className="flex min-w-0 flex-col gap-4 sm:flex-row">
-                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[#9E4B4B] text-xl font-black text-white">
-                        {getCustomerInitials(viewingCustomer.customer_name)}
+      {viewingCustomer && selectedCustomerContext ? (
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-0 overflow-hidden">
+          <div className="flex flex-col">
+            <div className="border-b border-slate-200 bg-white p-3 sm:p-4 lg:p-6">
+              <Button
+                onClick={clearDetailView}
+                variant="ghost"
+                size="sm"
+                className="mb-3 h-9 px-3 text-sm font-semibold text-slate-600 hover:text-slate-900"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Customers
+              </Button>
+            </div>
+
+            <header className="shrink-0 border-b border-slate-200 bg-white">
+              <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-start lg:justify-between lg:p-6">
+                <div className="flex min-w-0 flex-col gap-4 sm:flex-row">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[#9E4B4B] text-xl font-black text-white">
+                    {getCustomerInitials(viewingCustomer.customer_name)}
+                  </div>
+
+                  <div className="min-w-0 space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="break-words text-2xl font-black leading-tight text-slate-950 md:text-3xl">
+                        {viewingCustomer.customer_name}
+                      </h2>
+                      <ActiveStatusBadge isActive={viewingCustomer.is_active} />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                      <span className="font-mono font-semibold text-slate-700">
+                        {viewingCustomer.customer_code}
+                      </span>
+                      <span>Â·</span>
+                      <span>{viewingCustomer.customer_type}</span>
+                      <span>Â·</span>
+                      <span>{getCustomerPriceBookLabel(viewingCustomer)}</span>
+                    </div>
+
+                    <div className="grid gap-2 text-sm text-slate-700 lg:grid-cols-2">
+                      <div className="flex min-w-0 items-start gap-2">
+                        <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                        <div className="min-w-0">
+                          <div className="font-semibold text-slate-900">
+                            {selectedCustomerContext.contactSummary.name}
+                          </div>
+                          {selectedCustomerContext.contactSummary.position ? (
+                            <div className="text-slate-500">
+                              {selectedCustomerContext.contactSummary.position}
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
 
-                      <div className="min-w-0 space-y-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h2 className="break-words text-2xl font-black leading-tight text-slate-950 md:text-3xl">
-                            {viewingCustomer.customer_name}
-                          </h2>
-                          <ActiveStatusBadge isActive={viewingCustomer.is_active} />
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
-                          <span className="font-mono font-semibold text-slate-700">
-                            {viewingCustomer.customer_code}
+                      <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-2">
+                        {selectedCustomerContext.contactSummary.phone ? (
+                          <a
+                            className="inline-flex min-w-0 items-center gap-2 text-[#9E4B4B] hover:underline"
+                            href={`tel:${selectedCustomerContext.contactSummary.phone}`}
+                          >
+                            <Phone className="h-4 w-4 shrink-0" />
+                            <span className="break-all">
+                              {selectedCustomerContext.contactSummary.phone}
+                            </span>
+                          </a>
+                        ) : (
+                          <span className="inline-flex items-center gap-2 text-slate-500">
+                            <Phone className="h-4 w-4" />
+                            No phone recorded
                           </span>
-                          <span>·</span>
-                          <span>{viewingCustomer.customer_type}</span>
-                          <span>·</span>
-                          <span>{getCustomerPriceBookLabel(viewingCustomer)}</span>
-                        </div>
+                        )}
 
-                        <div className="grid gap-2 text-sm text-slate-700 lg:grid-cols-2">
-                          <div className="flex min-w-0 items-start gap-2">
-                            <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                            <div className="min-w-0">
-                              <div className="font-semibold text-slate-900">
-                                {selectedCustomerContext.contactSummary.name}
-                              </div>
-                              {selectedCustomerContext.contactSummary.position ? (
-                                <div className="text-slate-500">
-                                  {selectedCustomerContext.contactSummary.position}
-                                </div>
-                              ) : null}
-                            </div>
-                          </div>
-
-                          <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-2">
-                            {selectedCustomerContext.contactSummary.phone ? (
-                              <a
-                                className="inline-flex min-w-0 items-center gap-2 text-[#9E4B4B] hover:underline"
-                                href={`tel:${selectedCustomerContext.contactSummary.phone}`}
-                              >
-                                <Phone className="h-4 w-4 shrink-0" />
-                                <span className="break-all">
-                                  {selectedCustomerContext.contactSummary.phone}
-                                </span>
-                              </a>
-                            ) : (
-                              <span className="inline-flex items-center gap-2 text-slate-500">
-                                <Phone className="h-4 w-4" />
-                                No phone recorded
-                              </span>
-                            )}
-
-                            {selectedCustomerContext.contactSummary.email ? (
-                              <a
-                                className="inline-flex min-w-0 items-center gap-2 text-[#9E4B4B] hover:underline"
-                                href={`mailto:${selectedCustomerContext.contactSummary.email}`}
-                              >
-                                <Mail className="h-4 w-4 shrink-0" />
-                                <span className="break-all">
-                                  {selectedCustomerContext.contactSummary.email}
-                                </span>
-                              </a>
-                            ) : (
-                              <span className="inline-flex items-center gap-2 text-slate-500">
-                                <Mail className="h-4 w-4" />
-                                No email recorded
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-start gap-2 text-sm text-slate-700">
-                          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                          <span>{formatDetailAddress(selectedCustomerContext.preferredAddress)}</span>
-                        </div>
+                        {selectedCustomerContext.contactSummary.email ? (
+                          <a
+                            className="inline-flex min-w-0 items-center gap-2 text-[#9E4B4B] hover:underline"
+                            href={`mailto:${selectedCustomerContext.contactSummary.email}`}
+                          >
+                            <Mail className="h-4 w-4 shrink-0" />
+                            <span className="break-all">
+                              {selectedCustomerContext.contactSummary.email}
+                            </span>
+                          </a>
+                        ) : (
+                          <span className="inline-flex items-center gap-2 text-slate-500">
+                            <Mail className="h-4 w-4" />
+                            No email recorded
+                          </span>
+                        )}
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-2 lg:justify-end">
+                    <div className="flex items-start gap-2 text-sm text-slate-700">
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                      <span>{formatDetailAddress(selectedCustomerContext.preferredAddress)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 lg:justify-end">
+                  <Button
+                    type="button"
+                    className="rounded-xl bg-[#9E4B4B] hover:bg-[#873f3f]"
+                    onClick={() => {
+                      clearDetailView();
+                      openEditCustomer(viewingCustomer);
+                    }}
+                  >
+                    Edit Customer
+                  </Button>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button type="button" variant="outline" className="rounded-xl">
+                        New <ChevronDown className="ml-2 h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuLabel>Customer actions</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem disabled title="Available after module integration">
+                        New Project
+                      </DropdownMenuItem>
+                      <DropdownMenuItem disabled title="Available after module integration">
+                        New Quotation
+                      </DropdownMenuItem>
+                      <DropdownMenuItem disabled title="Available after module integration">
+                        New Variation
+                      </DropdownMenuItem>
+                      <DropdownMenuItem disabled title="Available after module integration">
+                        New Invoice
+                      </DropdownMenuItem>
+                      <DropdownMenuItem disabled title="Available after module integration">
+                        Record Payment
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
                       <Button
                         type="button"
-                        className="rounded-xl bg-[#9E4B4B] hover:bg-[#873f3f]"
-                        onClick={() => {
-                          setShowViewDialog(false);
-                          openEditCustomer(viewingCustomer);
-                        }}
+                        variant="outline"
+                        size="icon"
+                        className="rounded-xl"
+                        aria-label="More customer actions"
                       >
-                        Edit Customer
+                        <MoreHorizontal className="h-4 w-4" />
                       </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem disabled title="Available after module integration">
+                        More actions unavailable
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            </header>
 
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button type="button" variant="outline" className="rounded-xl">
-                            New <ChevronDown className="ml-2 h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56">
-                          <DropdownMenuLabel>Customer actions</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem disabled title="Available after module integration">
-                            New Project
-                          </DropdownMenuItem>
-                          <DropdownMenuItem disabled title="Available after module integration">
-                            New Quotation
-                          </DropdownMenuItem>
-                          <DropdownMenuItem disabled title="Available after module integration">
-                            New Variation
-                          </DropdownMenuItem>
-                          <DropdownMenuItem disabled title="Available after module integration">
-                            New Invoice
-                          </DropdownMenuItem>
-                          <DropdownMenuItem disabled title="Available after module integration">
-                            Record Payment
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+            <Tabs
+              value={customerDetailTab}
+              onValueChange={setCustomerDetailTab}
+              className="flex min-h-0 flex-1 flex-col"
+            >
+              <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-2 lg:px-6">
+                <TabsList className="max-w-full justify-start overflow-x-auto bg-slate-100">
+                  <TabsTrigger value="overview">Overview</TabsTrigger>
+                  <TabsTrigger value="projects">Projects</TabsTrigger>
+                  <TabsTrigger value="financial">Financial</TabsTrigger>
+                  <TabsTrigger value="contact">Contact Details</TabsTrigger>
+                  <TabsTrigger value="files">Files</TabsTrigger>
+                </TabsList>
+              </div>
 
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="rounded-xl"
-                            aria-label="More customer actions"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem disabled title="Available after module integration">
-                            More actions unavailable
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-                </header>
+              <ScrollArea className="min-h-0 flex-1">
+                <div className="space-y-4 p-4 lg:p-6">
+                  {customerDetailLoading ? (
+                    <DetailEmptyState title="Loading customer detail..." />
+                  ) : customerDetailError ? (
+                    <DetailEmptyState
+                      title="Customer detail could not be loaded."
+                      description={(customerDetailError as Error).message}
+                    />
+                  ) : (
+                    <>
+                      <TabsContent value="overview" className="mt-0 space-y-4">
+                        <div className="grid gap-4 xl:grid-cols-4">
+                          <DetailCard title="Accounts Receivable" icon={<CreditCard className="h-5 w-5" />}>
+                            <MetricGrid
+                              metrics={[
+                                ["Outstanding", formatMoney(selectedCustomerContext.outstanding)],
+                                ["Overdue", formatMoney(selectedCustomerContext.overdue)],
+                                ["Unallocated Payments", formatMoney(selectedCustomerContext.unallocatedPayments)],
+                                ["Average Days to Pay", "Not available"],
+                              ]}
+                            />
+                          </DetailCard>
 
-                <Tabs
-                  value={customerDetailTab}
-                  onValueChange={setCustomerDetailTab}
-                  className="flex min-h-0 flex-1 flex-col"
-                >
-                  <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-2 lg:px-6">
-                    <TabsList className="max-w-full justify-start overflow-x-auto bg-slate-100">
-                      <TabsTrigger value="overview">Overview</TabsTrigger>
-                      <TabsTrigger value="projects">Projects</TabsTrigger>
-                      <TabsTrigger value="financial">Financial</TabsTrigger>
-                      <TabsTrigger value="contact">Contact Details</TabsTrigger>
-                      <TabsTrigger value="files">Files</TabsTrigger>
-                    </TabsList>
-                  </div>
+                          <DetailCard title="Project Summary" icon={<FolderKanban className="h-5 w-5" />}>
+                            <MetricGrid
+                              metrics={[
+                                ["Active Projects", String(selectedCustomerContext.activeProjects)],
+                                ["Quoted Projects", String(selectedCustomerContext.quotedProjects)],
+                                ["Completed Projects", String(selectedCustomerContext.completedProjects)],
+                                ["Total Sites", String(selectedCustomerContext.sites.length)],
+                              ]}
+                            />
+                          </DetailCard>
 
-                  <ScrollArea className="min-h-0 flex-1">
-                    <div className="space-y-4 p-4 lg:p-6">
-                      {customerDetailLoading ? (
-                        <DetailEmptyState title="Loading customer detail..." />
-                      ) : customerDetailError ? (
-                        <DetailEmptyState
-                          title="Customer detail could not be loaded."
-                          description={(customerDetailError as Error).message}
-                        />
-                      ) : (
-                        <>
-                          <TabsContent value="overview" className="mt-0 space-y-4">
-                            <div className="grid gap-4 xl:grid-cols-4">
-                              <DetailCard title="Accounts Receivable" icon={<CreditCard className="h-5 w-5" />}>
-                                <MetricGrid
-                                  metrics={[
-                                    ["Outstanding", formatMoney(selectedCustomerContext.outstanding)],
-                                    ["Overdue", formatMoney(selectedCustomerContext.overdue)],
-                                    ["Unallocated Payments", formatMoney(selectedCustomerContext.unallocatedPayments)],
-                                    ["Average Days to Pay", "Not available"],
-                                  ]}
-                                />
-                              </DetailCard>
+                          <DetailCard title="Commercial Summary" icon={<FileText className="h-5 w-5" />}>
+                            <MetricGrid
+                              metrics={[
+                                ["Accepted Quotations", String(selectedCustomerContext.acceptedQuotations)],
+                                ["Accepted Variations", "Not available"],
+                                ["Uninvoiced Value", "Not available"],
+                                ["Invoice Value", formatMoney(selectedCustomerContext.invoiceValue)],
+                              ]}
+                            />
+                          </DetailCard>
 
-                              <DetailCard title="Project Summary" icon={<FolderKanban className="h-5 w-5" />}>
-                                <MetricGrid
-                                  metrics={[
-                                    ["Active Projects", String(selectedCustomerContext.activeProjects)],
-                                    ["Quoted Projects", String(selectedCustomerContext.quotedProjects)],
-                                    ["Completed Projects", String(selectedCustomerContext.completedProjects)],
-                                    ["Total Sites", String(selectedCustomerContext.sites.length)],
-                                  ]}
-                                />
-                              </DetailCard>
-
-                              <DetailCard title="Commercial Summary" icon={<FileText className="h-5 w-5" />}>
-                                <MetricGrid
-                                  metrics={[
-                                    ["Accepted Quotations", String(selectedCustomerContext.acceptedQuotations)],
-                                    ["Accepted Variations", "Not available"],
-                                    ["Uninvoiced Value", "Not available"],
-                                    ["Invoice Value", formatMoney(selectedCustomerContext.invoiceValue)],
-                                  ]}
-                                />
-                              </DetailCard>
-
-                              <DetailCard title="Attention" icon={<Filter className="h-5 w-5" />}>
-                                {selectedCustomerContext.warnings.length ? (
-                                  <div className="space-y-2">
-                                    {selectedCustomerContext.warnings.map((warning) => (
-                                      <div
-                                        key={warning}
-                                        className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900"
-                                      >
-                                        {warning}
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <DetailEmptyState title="No customer warnings." compact />
-                                )}
-                              </DetailCard>
-                            </div>
-
-                            <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
-                              <DetailCard title="Recent Activity">
-                                {selectedCustomerContext.recentActivity.length ? (
-                                  <div className="divide-y divide-slate-100">
-                                    {selectedCustomerContext.recentActivity.map((item) => (
-                                      <div key={item.id} className="py-3 first:pt-0 last:pb-0">
-                                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                                          <div>
-                                            <div className="font-semibold text-slate-900">
-                                              {item.label}
-                                            </div>
-                                            <div className="text-sm text-slate-500">
-                                              {item.description}
-                                            </div>
-                                          </div>
-                                          <div className="text-sm text-slate-500">
-                                            {formatShortDate(item.date)}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <DetailEmptyState title="No recent customer activity." compact />
-                                )}
-                              </DetailCard>
-
-                              <DetailCard title="Quick Actions">
-                                <div className="grid gap-2">
-                                  {["New Project", "New Quotation", "New Variation", "New Invoice", "Record Payment"].map((label) => (
-                                    <Button
-                                      key={label}
-                                      type="button"
-                                      variant="outline"
-                                      disabled
-                                      title="Available after module integration"
-                                      className="justify-start rounded-xl"
-                                    >
-                                      {label}
-                                    </Button>
-                                  ))}
-                                </div>
-                              </DetailCard>
-                            </div>
-                          </TabsContent>
-
-                          <TabsContent value="projects" className="mt-0 space-y-4">
-                            <DetailCard title="Projects">
-                              <div className="mb-4 grid gap-3 md:grid-cols-[1fr_220px]">
-                                <Input
-                                  value={detailProjectSearch}
-                                  onChange={(event) => setDetailProjectSearch(event.target.value)}
-                                  placeholder="Search projects..."
-                                  className="h-11 rounded-xl bg-[#F7F9FB]"
-                                />
-                                <Select value={detailProjectStatus} onValueChange={setDetailProjectStatus}>
-                                  <SelectTrigger className="h-11 rounded-xl bg-[#F7F9FB]">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {detailProjectStatuses.map((projectStatus) => (
-                                      <SelectItem key={projectStatus} value={projectStatus}>
-                                        {projectStatus === "All" ? "All statuses" : projectStatus}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-
-                              {filteredDetailProjects.length ? (
-                                <DetailTable
-                                  headers={["Project No.", "Project Name", "Status", "Sites", "Created", "Action"]}
-                                  rows={filteredDetailProjects.map((project) => [
-                                    project.project_no,
-                                    project.project_name,
-                                    project.project_status,
-                                    String(selectedCustomerContext.sites.filter((site) => site.project_id === project.project_id).length),
-                                    formatShortDate(project.created_at),
-                                    "View in Projects",
-                                  ])}
-                                />
-                              ) : (
-                                <DetailEmptyState title="No projects found." />
-                              )}
-                            </DetailCard>
-                          </TabsContent>
-
-                          <TabsContent value="financial" className="mt-0 space-y-4">
-                            {isCurrentUserAdmin && (
-                              <>
-                                <DetailCard
-                                  title="Financial Settings"
-                                  action={
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={handleOpenFinancialSettings}
-                                      className="h-8 text-xs font-bold"
-                                    >
-                                      Edit Settings
-                                    </Button>
-                                  }
-                                >
-                                  {financialSettingsLoading ? (
-                                    <div className="text-center text-sm text-slate-500">Loading...</div>
-                                  ) : financialSettingsError ? (
-                                    <div className="text-center text-sm text-red-600">
-                                      Error loading financial settings
-                                    </div>
-                                  ) : (
-                                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                                      <DetailField
-                                        label="Default Currency"
-                                        value={customerFinancialSettings?.default_currency || "Not configured"}
-                                      />
-                                      <DetailField
-                                        label="Line Amount Type"
-                                        value={customerFinancialSettings?.line_amount_type || "Not configured"}
-                                      />
-                                      <DetailField
-                                        label="Discount %"
-                                        value={
-                                          customerFinancialSettings?.discount_percent != null
-                                            ? `${customerFinancialSettings.discount_percent}%`
-                                            : "Not configured"
-                                        }
-                                      />
-                                      <DetailField
-                                        label="Payment Terms"
-                                        value={
-                                          customerFinancialSettings?.payment_terms_type
-                                            ? `${customerFinancialSettings.payment_terms_type} (${customerFinancialSettings.payment_terms_days} days)`
-                                            : "Not configured"
-                                        }
-                                      />
-                                      <DetailField
-                                        label="Credit Limit"
-                                        value={
-                                          customerFinancialSettings?.credit_limit
-                                            ? formatMoney(customerFinancialSettings.credit_limit)
-                                            : "No limit configured"
-                                        }
-                                      />
-                                      <DetailField
-                                        label="Account Hold"
-                                        value={
-                                          customerFinancialSettings?.is_account_on_hold
-                                            ? `On Hold: ${customerFinancialSettings.account_hold_reason || "No reason provided"}`
-                                            : "Not on hold"
-                                        }
-                                      />
-                                      <DetailField
-                                        label="Invoice Delivery"
-                                        value={customerFinancialSettings?.invoice_delivery_method || "Not configured"}
-                                      />
-                                      <DetailField
-                                        label="Statement Delivery"
-                                        value={customerFinancialSettings?.statement_delivery_method || "Not configured"}
-                                      />
-                                    </div>
-                                  )}
-                                </DetailCard>
-
-                                <DetailCard title="Xero Settings">
-                                  {financialSettingsLoading ? (
-                                    <div className="text-center text-sm text-slate-500">Loading...</div>
-                                  ) : (
-                                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                                      <DetailField
-                                        label="Xero Status"
-                                        value={customerFinancialSettings?.xero_status || "Not connected"}
-                                      />
-                                      <DetailField
-                                        label="Xero Contact ID"
-                                        value={customerFinancialSettings?.xero_contact_id || "Not connected"}
-                                      />
-                                      <DetailField
-                                        label="Xero Contact Name"
-                                        value={customerFinancialSettings?.xero_contact_name || "Not connected"}
-                                      />
-                                      <DetailField
-                                        label="Last Synced"
-                                        value={
-                                          customerFinancialSettings?.xero_last_synced_at
-                                            ? formatShortDate(customerFinancialSettings.xero_last_synced_at)
-                                            : "Never synced"
-                                        }
-                                      />
-                                      {customerFinancialSettings?.xero_sync_error && (
-                                        <div className="md:col-span-2 xl:col-span-3">
-                                          <DetailField
-                                            label="Sync Error"
-                                            value={customerFinancialSettings.xero_sync_error}
-                                          />
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </DetailCard>
-                              </>
-                            )}
-
-                            <DetailCard title="Invoices">
-                              {selectedCustomerContext.invoices.length ? (
-                                <DetailTable
-                                  headers={["Invoice No.", "Project", "Issue Date", "Due Date", "Total", "Paid", "Balance", "Status"]}
-                                  rows={selectedCustomerContext.invoices.map((invoice) => [
-                                    invoice.invoice_no,
-                                    selectedCustomerContext.projects.find((project) => project.project_id === invoice.project_id)?.project_no || "-",
-                                    formatShortDate(invoice.invoice_date),
-                                    formatShortDate(invoice.due_date),
-                                    formatMoney(invoice.total_amount),
-                                    formatMoney(invoice.paid_amount),
-                                    formatMoney(invoice.balance_amount),
-                                    invoice.invoice_status,
-                                  ])}
-                                />
-                              ) : (
-                                <DetailEmptyState title="No invoices found." />
-                              )}
-                            </DetailCard>
-
-                            <DetailCard title="Payments">
-                              {selectedCustomerContext.payments.length ? (
-                                <DetailTable
-                                  headers={["Payment No.", "Date", "Invoice", "Method", "Reference", "Amount"]}
-                                  rows={selectedCustomerContext.payments.map((payment) => {
-                                    const allocation = customerDetail?.allocations.find(
-                                      (item) => item.customer_payment_id === payment.customer_payment_id
-                                    );
-                                    const invoice = selectedCustomerContext.invoices.find(
-                                      (item) => item.customer_invoice_id === allocation?.customer_invoice_id
-                                    );
-                                    return [
-                                      payment.payment_no,
-                                      formatShortDate(payment.payment_date),
-                                      invoice?.invoice_no || "-",
-                                      payment.payment_method,
-                                      payment.reference_no || "-",
-                                      formatMoney(payment.amount),
-                                    ];
-                                  })}
-                                />
-                              ) : (
-                                <DetailEmptyState title="No payments found." />
-                              )}
-                            </DetailCard>
-
-                            <DetailCard title="Quotations">
-                              {selectedCustomerContext.quotations.length ? (
-                                <DetailTable
-                                  headers={["Quotation No.", "Project/Site", "Issue Date", "Total", "Status"]}
-                                  rows={selectedCustomerContext.quotations.map((quotation) => {
-                                    const site = selectedCustomerContext.sites.find(
-                                      (item) => item.site_id === quotation.project_site_id
-                                    );
-                                    const project = selectedCustomerContext.projects.find(
-                                      (item) => item.project_id === site?.project_id
-                                    );
-                                    return [
-                                      quotation.quotation_no,
-                                      site ? `${project?.project_no || "-"} / ${site.site_code}` : "-",
-                                      formatShortDate(quotation.issue_date),
-                                      formatMoney(quotation.total_amount),
-                                      quotation.quotation_status,
-                                    ];
-                                  })}
-                                />
-                              ) : (
-                                <DetailEmptyState title="No quotations found." />
-                              )}
-                            </DetailCard>
-
-                            <DetailCard title="Variations">
-                              <DetailEmptyState
-                                title="Not available"
-                                description="Variation records are not available in the generated Supabase types for this task."
-                              />
-                            </DetailCard>
-                          </TabsContent>
-
-                          <TabsContent value="contact" className="mt-0 space-y-4">
-                            <DetailCard title="Customer / Company Information">
-                              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                                <DetailField label="Customer Code" value={viewingCustomer.customer_code} />
-                                <DetailField label="Customer Name" value={viewingCustomer.customer_name} />
-                                <DetailField label="Customer Type" value={viewingCustomer.customer_type} />
-                                <DetailField label="Phone" value={viewingCustomer.phone || "-"} />
-                                <DetailField label="Email" value={viewingCustomer.email || "-"} />
-                                <DetailField label="ABN" value={viewingCustomer.abn || "-"} />
-                                <DetailField label="Price Book" value={getCustomerPriceBookLabel(viewingCustomer)} />
-                                <DetailField label="Status" value={viewingCustomer.is_active ? "Active" : "Inactive"} />
-                                <div className="md:col-span-2 xl:col-span-4">
-                                  <DetailField label="Notes" value={viewingCustomer.notes || "No notes."} />
-                                </div>
-                              </div>
-                            </DetailCard>
-
-                            <DetailCard title="Contacts">
-                              {viewingCustomer.customer_contacts?.length ? (
-                                <DetailTable
-                                  headers={["Contact Name", "Position", "Phone", "Email", "Primary"]}
-                                  rows={viewingCustomer.customer_contacts.map((contact) => [
-                                    contact.contact_name,
-                                    contact.position || "-",
-                                    contact.phone || "-",
-                                    contact.email || "-",
-                                    contact.is_primary ? "Primary" : "-",
-                                  ])}
-                                />
-                              ) : (
-                                <DetailEmptyState title="No contacts found." />
-                              )}
-                            </DetailCard>
-
-                            <DetailCard title="Addresses">
-                              {viewingCustomer.customer_addresses?.length ? (
-                                <DetailTable
-                                  headers={["Type", "Address Line 1", "Address Line 2", "Suburb", "State", "Postcode", "Country", "Primary"]}
-                                  rows={viewingCustomer.customer_addresses.map((addressItem) => [
-                                    addressItem.address_type,
-                                    addressItem.address_line1,
-                                    addressItem.address_line2 || "-",
-                                    addressItem.suburb || "-",
-                                    addressItem.state || "-",
-                                    addressItem.postcode || "-",
-                                    addressItem.country || "-",
-                                    addressItem.is_primary ? "Primary" : "-",
-                                  ])}
-                                />
-                              ) : (
-                                <DetailEmptyState title="No addresses found." />
-                              )}
-                            </DetailCard>
-                          </TabsContent>
-
-                          <TabsContent value="files" className="mt-0">
-                            <DetailCard title="Files">
-                              <DetailEmptyState
-                                title="Customer file storage is not configured yet."
-                                description="Future document categories are shown for planning only."
-                              />
-                              <div className="mt-4 flex flex-wrap gap-2">
-                                {[
-                                  "Customer Agreement",
-                                  "Credit Application",
-                                  "Purchase Order",
-                                  "Contract",
-                                  "ABN Document",
-                                  "Correspondence",
-                                  "Other",
-                                ].map((label) => (
-                                  <span
-                                    key={label}
-                                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700"
+                          <DetailCard title="Attention" icon={<Filter className="h-5 w-5" />}>
+                            {selectedCustomerContext.warnings.length ? (
+                              <div className="space-y-2">
+                                {selectedCustomerContext.warnings.map((warning) => (
+                                  <div
+                                    key={warning}
+                                    className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900"
                                   >
-                                    {label}
-                                  </span>
+                                    {warning}
+                                  </div>
                                 ))}
                               </div>
+                            ) : (
+                              <DetailEmptyState title="No customer warnings." compact />
+                            )}
+                          </DetailCard>
+                        </div>
+
+                        <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
+                          <DetailCard title="Recent Activity">
+                            {selectedCustomerContext.recentActivity.length ? (
+                              <div className="divide-y divide-slate-100">
+                                {selectedCustomerContext.recentActivity.map((item) => (
+                                  <div key={item.id} className="py-3 first:pt-0 last:pb-0">
+                                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                      <div>
+                                        <div className="font-semibold text-slate-900">
+                                          {item.label}
+                                        </div>
+                                        <div className="text-sm text-slate-500">
+                                          {item.description}
+                                        </div>
+                                      </div>
+                                      <div className="text-sm text-slate-500">
+                                        {formatShortDate(item.date)}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <DetailEmptyState title="No recent customer activity." compact />
+                            )}
+                          </DetailCard>
+
+                          <DetailCard title="Quick Actions">
+                            <div className="grid gap-2">
+                              {["New Project", "New Quotation", "New Variation", "New Invoice", "Record Payment"].map((label) => (
+                                <Button
+                                  key={label}
+                                  type="button"
+                                  variant="outline"
+                                  disabled
+                                  title="Available after module integration"
+                                  className="justify-start rounded-xl"
+                                >
+                                  {label}
+                                </Button>
+                              ))}
+                            </div>
+                          </DetailCard>
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="projects" className="mt-0 space-y-4">
+                        <DetailCard title="Projects">
+                          <div className="mb-4 grid gap-3 md:grid-cols-[1fr_220px]">
+                            <Input
+                              value={detailProjectSearch}
+                              onChange={(event) => setDetailProjectSearch(event.target.value)}
+                              placeholder="Search projects..."
+                              className="h-11 rounded-xl bg-[#F7F9FB]"
+                            />
+                            <Select value={detailProjectStatus} onValueChange={setDetailProjectStatus}>
+                              <SelectTrigger className="h-11 rounded-xl bg-[#F7F9FB]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {detailProjectStatuses.map((projectStatus) => (
+                                  <SelectItem key={projectStatus} value={projectStatus}>
+                                    {projectStatus === "All" ? "All statuses" : projectStatus}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {filteredDetailProjects.length ? (
+                            <DetailTable
+                              headers={["Project No.", "Project Name", "Status", "Sites", "Created", "Action"]}
+                              rows={filteredDetailProjects.map((project) => [
+                                project.project_no,
+                                project.project_name,
+                                project.project_status,
+                                String(selectedCustomerContext.sites.filter((site) => site.project_id === project.project_id).length),
+                                formatShortDate(project.created_at),
+                                "View in Projects",
+                              ])}
+                            />
+                          ) : (
+                            <DetailEmptyState title="No projects found." />
+                          )}
+                        </DetailCard>
+                      </TabsContent>
+
+                      <TabsContent value="financial" className="mt-0 space-y-4">
+                        {isCurrentUserAdmin && (
+                          <>
+                            <DetailCard
+                              title="Financial Settings"
+                              action={
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={handleOpenFinancialSettings}
+                                  className="h-8 text-xs font-bold"
+                                >
+                                  Edit Settings
+                                </Button>
+                              }
+                            >
+                              {financialSettingsLoading ? (
+                                <div className="text-center text-sm text-slate-500">Loading...</div>
+                              ) : financialSettingsError ? (
+                                <div className="text-center text-sm text-red-600">
+                                  Error loading financial settings
+                                </div>
+                              ) : (
+                                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                  <DetailField
+                                    label="Default Currency"
+                                    value={customerFinancialSettings?.default_currency || "Not configured"}
+                                  />
+                                  <DetailField
+                                    label="Line Amount Type"
+                                    value={customerFinancialSettings?.line_amount_type || "Not configured"}
+                                  />
+                                  <DetailField
+                                    label="Discount %"
+                                    value={
+                                      customerFinancialSettings?.discount_percent != null
+                                        ? `${customerFinancialSettings.discount_percent}%`
+                                        : "Not configured"
+                                    }
+                                  />
+                                  <DetailField
+                                    label="Payment Terms"
+                                    value={
+                                      customerFinancialSettings?.payment_terms_type
+                                        ? `${customerFinancialSettings.payment_terms_type} (${customerFinancialSettings.payment_terms_days} days)`
+                                        : "Not configured"
+                                    }
+                                  />
+                                  <DetailField
+                                    label="Credit Limit"
+                                    value={
+                                      customerFinancialSettings?.credit_limit
+                                        ? formatMoney(customerFinancialSettings.credit_limit)
+                                        : "No limit configured"
+                                    }
+                                  />
+                                  <DetailField
+                                    label="Account Hold"
+                                    value={
+                                      customerFinancialSettings?.is_account_on_hold
+                                        ? `On Hold: ${customerFinancialSettings.account_hold_reason || "No reason provided"}`
+                                        : "Not on hold"
+                                    }
+                                  />
+                                  <DetailField
+                                    label="Invoice Delivery"
+                                    value={customerFinancialSettings?.invoice_delivery_method || "Not configured"}
+                                  />
+                                  <DetailField
+                                    label="Statement Delivery"
+                                    value={customerFinancialSettings?.statement_delivery_method || "Not configured"}
+                                  />
+                                </div>
+                              )}
                             </DetailCard>
-                          </TabsContent>
-                        </>
-                      )}
-                    </div>
-                  </ScrollArea>
-                </Tabs>
-              </div>
-            ) : null}
-          </DialogContent>
-        </Dialog>
 
-        <Dialog
-          open={showEditDialog}
-          onOpenChange={setShowEditDialog}
-        >
-          <DialogContent className="flex max-h-[92vh] w-[calc(100vw-24px)] max-w-4xl flex-col overflow-hidden rounded-2xl p-0">
-            <DialogHeader className="border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
-              <DialogTitle className="text-lg font-bold text-slate-900">
-                Edit Customer
-              </DialogTitle>
-              <p className="text-sm text-slate-500">
-                {editingCustomer?.customer_code || "Customer record"}
-              </p>
-            </DialogHeader>
+                            <DetailCard title="Xero Settings">
+                              {financialSettingsLoading ? (
+                                <div className="text-center text-sm text-slate-500">Loading...</div>
+                              ) : (
+                                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                  <DetailField
+                                    label="Xero Status"
+                                    value={customerFinancialSettings?.xero_status || "Not connected"}
+                                  />
+                                  <DetailField
+                                    label="Xero Contact ID"
+                                    value={customerFinancialSettings?.xero_contact_id || "Not connected"}
+                                  />
+                                  <DetailField
+                                    label="Xero Contact Name"
+                                    value={customerFinancialSettings?.xero_contact_name || "Not connected"}
+                                  />
+                                  <DetailField
+                                    label="Last Synced"
+                                    value={
+                                      customerFinancialSettings?.xero_last_synced_at
+                                        ? formatShortDate(customerFinancialSettings.xero_last_synced_at)
+                                        : "Never synced"
+                                    }
+                                  />
+                                  {customerFinancialSettings?.xero_sync_error && (
+                                    <div className="md:col-span-2 xl:col-span-3">
+                                      <DetailField
+                                        label="Sync Error"
+                                        value={customerFinancialSettings.xero_sync_error}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </DetailCard>
+                          </>
+                        )}
 
-            <div className="flex-1 overflow-y-auto bg-slate-50 px-4 py-5 sm:px-6">
-              <div className="space-y-5 text-sm">
-                <CustomerFormSection
-                  number="01"
-                  title="Customer Profile"
-                  description="Core customer details used across projects, quotations, invoices, and reporting."
-                >
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Customer Type</Label>
+                        <DetailCard title="Invoices">
+                          {selectedCustomerContext.invoices.length ? (
+                            <DetailTable
+                              headers={["Invoice No.", "Project", "Issue Date", "Due Date", "Total", "Paid", "Balance", "Status"]}
+                              rows={selectedCustomerContext.invoices.map((invoice) => [
+                                invoice.invoice_no,
+                                selectedCustomerContext.projects.find((project) => project.project_id === invoice.project_id)?.project_no || "-",
+                                formatShortDate(invoice.invoice_date),
+                                formatShortDate(invoice.due_date),
+                                formatMoney(invoice.total_amount),
+                                formatMoney(invoice.paid_amount),
+                                formatMoney(invoice.balance_amount),
+                                invoice.invoice_status,
+                              ])}
+                            />
+                          ) : (
+                            <DetailEmptyState title="No invoices found." />
+                          )}
+                        </DetailCard>
+
+                        <DetailCard title="Payments">
+                          {selectedCustomerContext.payments.length ? (
+                            <DetailTable
+                              headers={["Payment No.", "Date", "Invoice", "Method", "Reference", "Amount"]}
+                              rows={selectedCustomerContext.payments.map((payment) => {
+                                const allocation = customerDetail?.allocations.find(
+                                  (item) => item.customer_payment_id === payment.customer_payment_id
+                                );
+                                const invoice = selectedCustomerContext.invoices.find(
+                                  (item) => item.customer_invoice_id === allocation?.customer_invoice_id
+                                );
+                                return [
+                                  payment.payment_no,
+                                  formatShortDate(payment.payment_date),
+                                  invoice?.invoice_no || "-",
+                                  payment.payment_method,
+                                  payment.reference_no || "-",
+                                  formatMoney(payment.amount),
+                                ];
+                              })}
+                            />
+                          ) : (
+                            <DetailEmptyState title="No payments found." />
+                          )}
+                        </DetailCard>
+
+                        <DetailCard title="Quotations">
+                          {selectedCustomerContext.quotations.length ? (
+                            <DetailTable
+                              headers={["Quotation No.", "Project/Site", "Issue Date", "Total", "Status"]}
+                              rows={selectedCustomerContext.quotations.map((quotation) => {
+                                const site = selectedCustomerContext.sites.find(
+                                  (item) => item.site_id === quotation.project_site_id
+                                );
+                                const project = selectedCustomerContext.projects.find(
+                                  (item) => item.project_id === site?.project_id
+                                );
+                                return [
+                                  quotation.quotation_no,
+                                  site ? `${project?.project_no || "-"} / ${site.site_code}` : "-",
+                                  formatShortDate(quotation.issue_date),
+                                  formatMoney(quotation.total_amount),
+                                  quotation.quotation_status,
+                                ];
+                              })}
+                            />
+                          ) : (
+                            <DetailEmptyState title="No quotations found." />
+                          )}
+                        </DetailCard>
+
+                        <DetailCard title="Variations">
+                          <DetailEmptyState
+                            title="Not available"
+                            description="Variation records are not available in the generated Supabase types for this task."
+                          />
+                        </DetailCard>
+                      </TabsContent>
+
+                      <TabsContent value="contact" className="mt-0 space-y-4">
+                        <DetailCard title="Customer / Company Information">
+                          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                            <DetailField label="Customer Code" value={viewingCustomer.customer_code} />
+                            <DetailField label="Customer Name" value={viewingCustomer.customer_name} />
+                            <DetailField label="Customer Type" value={viewingCustomer.customer_type} />
+                            <DetailField label="Phone" value={viewingCustomer.phone || "-"} />
+                            <DetailField label="Email" value={viewingCustomer.email || "-"} />
+                            <DetailField label="ABN" value={viewingCustomer.abn || "-"} />
+                            <DetailField label="Price Book" value={getCustomerPriceBookLabel(viewingCustomer)} />
+                            <DetailField label="Status" value={viewingCustomer.is_active ? "Active" : "Inactive"} />
+                            <div className="md:col-span-2 xl:col-span-4">
+                              <DetailField label="Notes" value={viewingCustomer.notes || "No notes."} />
+                            </div>
+                          </div>
+                        </DetailCard>
+
+                        <DetailCard title="Contacts">
+                          {viewingCustomer.customer_contacts?.length ? (
+                            <DetailTable
+                              headers={["Contact Name", "Position", "Phone", "Email", "Primary"]}
+                              rows={viewingCustomer.customer_contacts.map((contact) => [
+                                contact.contact_name,
+                                contact.position || "-",
+                                contact.phone || "-",
+                                contact.email || "-",
+                                contact.is_primary ? "Primary" : "-",
+                              ])}
+                            />
+                          ) : (
+                            <DetailEmptyState title="No contacts found." />
+                          )}
+                        </DetailCard>
+
+                        <DetailCard title="Addresses">
+                          {viewingCustomer.customer_addresses?.length ? (
+                            <DetailTable
+                              headers={["Type", "Address Line 1", "Address Line 2", "Suburb", "State", "Postcode", "Country", "Primary"]}
+                              rows={viewingCustomer.customer_addresses.map((addressItem) => [
+                                addressItem.address_type,
+                                addressItem.address_line1,
+                                addressItem.address_line2 || "-",
+                                addressItem.suburb || "-",
+                                addressItem.state || "-",
+                                addressItem.postcode || "-",
+                                addressItem.country || "-",
+                                addressItem.is_primary ? "Primary" : "-",
+                              ])}
+                            />
+                          ) : (
+                            <DetailEmptyState title="No addresses found." />
+                          )}
+                        </DetailCard>
+                      </TabsContent>
+
+                      <TabsContent value="files" className="mt-0">
+                        <DetailCard title="Files">
+                          <DetailEmptyState
+                            title="Customer file storage is not configured yet."
+                            description="Future document categories are shown for planning only."
+                          />
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {[
+                              "Customer Agreement",
+                              "Credit Application",
+                              "Purchase Order",
+                              "Contract",
+                              "ABN Document",
+                              "Correspondence",
+                              "Other",
+                            ].map((label) => (
+                              <span
+                                key={label}
+                                className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700"
+                              >
+                                {label}
+                              </span>
+                            ))}
+                          </div>
+                        </DetailCard>
+                      </TabsContent>
+                    </>
+                  )}
+                </div>
+              </ScrollArea>
+            </Tabs>
+          </div>
+        </div>
+      ) : null}
+
+      <Dialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+      >
+        <DialogContent className="flex max-h-[92vh] w-[calc(100vw-24px)] max-w-4xl flex-col overflow-hidden rounded-2xl p-0">
+          <DialogHeader className="border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
+            <DialogTitle className="text-lg font-bold text-slate-900">
+              Edit Customer
+            </DialogTitle>
+            <p className="text-sm text-slate-500">
+              {editingCustomer?.customer_code || "Customer record"}
+            </p>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto bg-slate-50 px-4 py-5 sm:px-6">
+            <div className="space-y-5 text-sm">
+              <CustomerFormSection
+                number="01"
+                title="Customer Profile"
+                description="Core customer details used across projects, quotations, invoices, and reporting."
+              >
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Customer Type</Label>
                     <Select
                       value={editCustomerType}
                       onValueChange={(value) => {
@@ -2540,20 +2542,20 @@ export default function CustomerDatabase() {
                         <SelectItem value="Commercial">Commercial</SelectItem>
                       </SelectContent>
                     </Select>
-                    </div>
+                  </div>
 
-                    <div className="space-y-2">
-                      <Label>
+                  <div className="space-y-2">
+                    <Label>
                       {editCustomerType === "Commercial"
                         ? "Business / Company Name"
                         : "Customer Name"}
-                      </Label>
+                    </Label>
                     <Input
                       className={customerInputClassName}
                       value={editCustomerName}
                       onChange={(e) => setEditCustomerName(e.target.value)}
                     />
-                    </div>
+                  </div>
 
                   {editCustomerType === "Commercial" && (
                     <div className="space-y-2">
@@ -2567,7 +2569,7 @@ export default function CustomerDatabase() {
                     </div>
                   )}
 
-                    <div className="space-y-2">
+                  <div className="space-y-2">
                     <Label>Price Book</Label>
                     <Select
                       value={editPriceBookId}
@@ -2593,181 +2595,181 @@ export default function CustomerDatabase() {
                         )}
                       </SelectContent>
                     </Select>
-                    </div>
                   </div>
-                </CustomerFormSection>
+                </div>
+              </CustomerFormSection>
 
-                <CustomerFormSection
-                  number="02"
-                  title="Primary Contact"
-                  description="Main person and communication details for this customer."
-                >
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Contact Name</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={editContactName}
-                        onChange={(e) => setEditContactName(e.target.value)}
-                      />
-                    </div>
+              <CustomerFormSection
+                number="02"
+                title="Primary Contact"
+                description="Main person and communication details for this customer."
+              >
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Contact Name</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={editContactName}
+                      onChange={(e) => setEditContactName(e.target.value)}
+                    />
+                  </div>
 
-                    <div className="space-y-2">
-                      <Label>Position</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={editContactPosition}
-                        onChange={(e) => setEditContactPosition(e.target.value)}
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <Label>Position</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={editContactPosition}
+                      onChange={(e) => setEditContactPosition(e.target.value)}
+                    />
+                  </div>
 
-                    <div className="space-y-2">
-                      <Label>Phone</Label>
+                  <div className="space-y-2">
+                    <Label>Phone</Label>
                     <Input
                       className={customerInputClassName}
                       value={editPhone}
                       onChange={(e) => setEditPhone(e.target.value)}
                     />
-                    </div>
+                  </div>
 
-                    <div className="space-y-2">
-                      <Label>Email</Label>
+                  <div className="space-y-2">
+                    <Label>Email</Label>
                     <Input
                       type="email"
                       className={customerInputClassName}
                       value={editEmail}
                       onChange={(e) => setEditEmail(e.target.value)}
                     />
-                    </div>
                   </div>
-                </CustomerFormSection>
+                </div>
+              </CustomerFormSection>
 
-                <CustomerFormSection
-                  number="03"
-                  title="Billing Address"
-                  description="Structured Australian billing address saved into dedicated address fields."
-                >
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2 md:col-span-2">
-                      <Label>Address Line 1 / Street Address</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={editAddressLine1}
-                        onChange={(e) => setEditAddressLine1(e.target.value)}
-                      />
-                    </div>
-
-                    <div className="space-y-2 md:col-span-2">
-                      <Label>Address Line 2 / Unit, Level, Building</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={editAddressLine2}
-                        onChange={(e) => setEditAddressLine2(e.target.value)}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Suburb</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={editSuburb}
-                        onChange={(e) => setEditSuburb(e.target.value)}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>State</Label>
-                      <Select
-                        value={editStateName || EMPTY_SELECT_VALUE}
-                        onValueChange={(value) =>
-                          setEditStateName(value === EMPTY_SELECT_VALUE ? "" : value)
-                        }
-                      >
-                        <SelectTrigger className={customerInputClassName}>
-                          <SelectValue placeholder="Select state" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={EMPTY_SELECT_VALUE}>Select state</SelectItem>
-                          {AUSTRALIAN_STATES.map((stateCode) => (
-                            <SelectItem key={stateCode} value={stateCode}>
-                              {stateCode}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Postcode</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={editPostcode}
-                        onChange={(e) => setEditPostcode(e.target.value)}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Country</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={editCountry}
-                        onChange={(e) => setEditCountry(e.target.value)}
-                      />
-                    </div>
+              <CustomerFormSection
+                number="03"
+                title="Billing Address"
+                description="Structured Australian billing address saved into dedicated address fields."
+              >
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Address Line 1 / Street Address</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={editAddressLine1}
+                      onChange={(e) => setEditAddressLine1(e.target.value)}
+                    />
                   </div>
-                </CustomerFormSection>
 
-                <CustomerFormSection
-                  number="04"
-                  title="Notes"
-                  description="Optional internal notes for sales, billing, access, or project context."
-                >
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Address Line 2 / Unit, Level, Building</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={editAddressLine2}
+                      onChange={(e) => setEditAddressLine2(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Suburb</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={editSuburb}
+                      onChange={(e) => setEditSuburb(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>State</Label>
+                    <Select
+                      value={editStateName || EMPTY_SELECT_VALUE}
+                      onValueChange={(value) =>
+                        setEditStateName(value === EMPTY_SELECT_VALUE ? "" : value)
+                      }
+                    >
+                      <SelectTrigger className={customerInputClassName}>
+                        <SelectValue placeholder="Select state" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={EMPTY_SELECT_VALUE}>Select state</SelectItem>
+                        {AUSTRALIAN_STATES.map((stateCode) => (
+                          <SelectItem key={stateCode} value={stateCode}>
+                            {stateCode}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Postcode</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={editPostcode}
+                      onChange={(e) => setEditPostcode(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Country</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={editCountry}
+                      onChange={(e) => setEditCountry(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </CustomerFormSection>
+
+              <CustomerFormSection
+                number="04"
+                title="Notes"
+                description="Optional internal notes for sales, billing, access, or project context."
+              >
                 <Textarea
                   className={customerTextareaClassName}
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
                 />
-                </CustomerFormSection>
-              </div>
+              </CustomerFormSection>
             </div>
+          </div>
 
-            <div className="border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
-              <Button
-                type="button"
-                onClick={handleSaveEditCustomer}
-                disabled={customerFormSaving}
-                className="h-11 w-full rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700"
+          <div className="border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
+            <Button
+              type="button"
+              onClick={handleSaveEditCustomer}
+              disabled={customerFormSaving}
+              className="h-11 w-full rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700"
+            >
+              {customerFormSaving ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+      >
+        <DialogContent className="flex max-h-[92vh] w-[calc(100vw-24px)] max-w-4xl flex-col overflow-hidden rounded-2xl p-0">
+          <DialogHeader className="border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
+            <DialogTitle className="text-lg font-bold text-slate-900">
+              Add Customer
+            </DialogTitle>
+            <p className="text-sm text-slate-500">
+              Create a customer profile with primary contact and billing address.
+            </p>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto bg-slate-50 px-4 py-5 sm:px-6">
+            <div className="space-y-5 text-sm">
+              <CustomerFormSection
+                number="01"
+                title="Customer Profile"
+                description="Core customer details used across projects, quotations, invoices, and reporting."
               >
-                {customerFormSaving ? "Saving..." : "Save Changes"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog
-          open={showAddDialog}
-          onOpenChange={setShowAddDialog}
-        >
-          <DialogContent className="flex max-h-[92vh] w-[calc(100vw-24px)] max-w-4xl flex-col overflow-hidden rounded-2xl p-0">
-            <DialogHeader className="border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
-              <DialogTitle className="text-lg font-bold text-slate-900">
-                Add Customer
-              </DialogTitle>
-              <p className="text-sm text-slate-500">
-                Create a customer profile with primary contact and billing address.
-              </p>
-            </DialogHeader>
-
-            <div className="flex-1 overflow-y-auto bg-slate-50 px-4 py-5 sm:px-6">
-              <div className="space-y-5 text-sm">
-                <CustomerFormSection
-                  number="01"
-                  title="Customer Profile"
-                  description="Core customer details used across projects, quotations, invoices, and reporting."
-                >
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Customer Type</Label>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Customer Type</Label>
                     <Select
                       value={customerType}
                       onValueChange={(value) => {
@@ -2792,14 +2794,14 @@ export default function CustomerDatabase() {
                         <SelectItem value="Commercial">Commercial</SelectItem>
                       </SelectContent>
                     </Select>
-                    </div>
+                  </div>
 
-                    <div className="space-y-2">
-                      <Label>
+                  <div className="space-y-2">
+                    <Label>
                       {customerType === "Commercial"
                         ? "Business / Company Name"
                         : "Customer Name"}
-                      </Label>
+                    </Label>
                     <Input
                       className={customerInputClassName}
                       value={customerName}
@@ -2816,22 +2818,22 @@ export default function CustomerDatabase() {
                           : "Customer full name"
                       }
                     />
-                    </div>
+                  </div>
 
-                    {customerType === "Commercial" && (
-                      <div className="space-y-2">
-                        <Label>ABN</Label>
-                        <Input
-                          className={customerInputClassName}
-                          value={abn}
-                          onChange={(e) => setAbn(e.target.value)}
-                          placeholder="Australian Business Number"
-                        />
-                      </div>
-                    )}
-
+                  {customerType === "Commercial" && (
                     <div className="space-y-2">
-                      <Label>Price Book</Label>
+                      <Label>ABN</Label>
+                      <Input
+                        className={customerInputClassName}
+                        value={abn}
+                        onChange={(e) => setAbn(e.target.value)}
+                        placeholder="Australian Business Number"
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label>Price Book</Label>
                     <Select value={priceBookId} onValueChange={setPriceBookId}>
                       <SelectTrigger className={customerInputClassName}>
                         <SelectValue placeholder="Select default price book" />
@@ -2857,42 +2859,42 @@ export default function CustomerDatabase() {
                     <p className="mt-1 text-xs text-slate-500">
                       Used later for customer material selection, estimates, proposals, and invoices.
                     </p>
-                    </div>
                   </div>
-                </CustomerFormSection>
+                </div>
+              </CustomerFormSection>
 
-                <CustomerFormSection
-                  number="02"
-                  title="Primary Contact"
-                  description="Main person and communication details saved as the primary customer contact."
-                >
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Contact Name</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={contactName}
-                        onChange={(e) => setContactName(e.target.value)}
-                        placeholder={
-                          customerType === "Commercial" ? "Primary contact name" : "Customer full name"
-                        }
-                      />
-                    </div>
+              <CustomerFormSection
+                number="02"
+                title="Primary Contact"
+                description="Main person and communication details saved as the primary customer contact."
+              >
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Contact Name</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={contactName}
+                      onChange={(e) => setContactName(e.target.value)}
+                      placeholder={
+                        customerType === "Commercial" ? "Primary contact name" : "Customer full name"
+                      }
+                    />
+                  </div>
 
-                    <div className="space-y-2">
-                      <Label>Position</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={contactPosition}
-                        onChange={(e) => setContactPosition(e.target.value)}
-                        placeholder={
-                          customerType === "Commercial" ? "Primary Contact" : "Customer"
-                        }
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <Label>Position</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={contactPosition}
+                      onChange={(e) => setContactPosition(e.target.value)}
+                      placeholder={
+                        customerType === "Commercial" ? "Primary Contact" : "Customer"
+                      }
+                    />
+                  </div>
 
-                    <div className="space-y-2">
-                      <Label>Phone</Label>
+                  <div className="space-y-2">
+                    <Label>Phone</Label>
                     <Input
                       className={customerInputClassName}
                       value={phone}
@@ -2903,10 +2905,10 @@ export default function CustomerDatabase() {
                           : "Customer phone"
                       }
                     />
-                    </div>
+                  </div>
 
-                    <div className="space-y-2">
-                      <Label>Email</Label>
+                  <div className="space-y-2">
+                    <Label>Email</Label>
                     <Input
                       type="email"
                       className={customerInputClassName}
@@ -2918,94 +2920,94 @@ export default function CustomerDatabase() {
                           : "Customer email"
                       }
                     />
-                    </div>
                   </div>
-                </CustomerFormSection>
+                </div>
+              </CustomerFormSection>
 
-                <CustomerFormSection
-                  number="03"
-                  title="Billing Address"
-                  description="Structured Australian billing address saved into dedicated address fields."
-                >
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2 md:col-span-2">
-                      <Label>Address Line 1 / Street Address</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={addressLine1}
-                        onChange={(e) => setAddressLine1(e.target.value)}
-                        placeholder="Street number and street name"
-                      />
-                    </div>
-
-                    <div className="space-y-2 md:col-span-2">
-                      <Label>Address Line 2 / Unit, Level, Building</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={addressLine2}
-                        onChange={(e) => setAddressLine2(e.target.value)}
-                        placeholder="Unit, level, building, or suite"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Suburb</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={suburb}
-                        onChange={(e) => setSuburb(e.target.value)}
-                        placeholder="Suburb"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>State</Label>
-                      <Select
-                        value={stateName || EMPTY_SELECT_VALUE}
-                        onValueChange={(value) =>
-                          setStateName(value === EMPTY_SELECT_VALUE ? "" : value)
-                        }
-                      >
-                        <SelectTrigger className={customerInputClassName}>
-                          <SelectValue placeholder="Select state" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={EMPTY_SELECT_VALUE}>Select state</SelectItem>
-                          {AUSTRALIAN_STATES.map((stateCode) => (
-                            <SelectItem key={stateCode} value={stateCode}>
-                              {stateCode}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Postcode</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={postcode}
-                        onChange={(e) => setPostcode(e.target.value)}
-                        placeholder="Postcode"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Country</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={country}
-                        onChange={(e) => setCountry(e.target.value)}
-                      />
-                    </div>
+              <CustomerFormSection
+                number="03"
+                title="Billing Address"
+                description="Structured Australian billing address saved into dedicated address fields."
+              >
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Address Line 1 / Street Address</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={addressLine1}
+                      onChange={(e) => setAddressLine1(e.target.value)}
+                      placeholder="Street number and street name"
+                    />
                   </div>
-                </CustomerFormSection>
 
-                <CustomerFormSection
-                  number="04"
-                  title="Notes"
-                  description="Optional internal notes for sales, billing, access, or project context."
-                >
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Address Line 2 / Unit, Level, Building</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={addressLine2}
+                      onChange={(e) => setAddressLine2(e.target.value)}
+                      placeholder="Unit, level, building, or suite"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Suburb</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={suburb}
+                      onChange={(e) => setSuburb(e.target.value)}
+                      placeholder="Suburb"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>State</Label>
+                    <Select
+                      value={stateName || EMPTY_SELECT_VALUE}
+                      onValueChange={(value) =>
+                        setStateName(value === EMPTY_SELECT_VALUE ? "" : value)
+                      }
+                    >
+                      <SelectTrigger className={customerInputClassName}>
+                        <SelectValue placeholder="Select state" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={EMPTY_SELECT_VALUE}>Select state</SelectItem>
+                        {AUSTRALIAN_STATES.map((stateCode) => (
+                          <SelectItem key={stateCode} value={stateCode}>
+                            {stateCode}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Postcode</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={postcode}
+                      onChange={(e) => setPostcode(e.target.value)}
+                      placeholder="Postcode"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Country</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={country}
+                      onChange={(e) => setCountry(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </CustomerFormSection>
+
+              <CustomerFormSection
+                number="04"
+                title="Notes"
+                description="Optional internal notes for sales, billing, access, or project context."
+              >
                 <Textarea
                   className={customerTextareaClassName}
                   value={notes}
@@ -3016,853 +3018,855 @@ export default function CustomerDatabase() {
                       : "Access notes, job notes, customer notes"
                   }
                 />
-                </CustomerFormSection>
-              </div>
+              </CustomerFormSection>
             </div>
+          </div>
 
-            <div className="border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
-              <Button
-                type="button"
-                onClick={handleAddCustomer}
-                disabled={customerFormSaving}
-                className="h-11 w-full rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700"
-              >
-                {customerFormSaving ? "Saving..." : "Create Customer"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+          <div className="border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
+            <Button
+              type="button"
+              onClick={handleAddCustomer}
+              disabled={customerFormSaving}
+              className="h-11 w-full rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700"
+            >
+              {customerFormSaving ? "Saving..." : "Create Customer"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-        <Dialog open={showFinancialSettingsDialog} onOpenChange={setShowFinancialSettingsDialog}>
-          <DialogContent className="flex max-h-[92vh] w-[calc(100vw-24px)] max-w-3xl flex-col overflow-hidden rounded-2xl p-0">
-            <DialogHeader className="border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
-              <DialogTitle className="text-lg font-bold text-slate-900">
-                Financial Settings
-              </DialogTitle>
-              <p className="text-sm text-slate-500">
-                {viewingCustomer?.customer_code || "Customer"} · Configure payment terms, Xero integration, and account settings
+      <Dialog open={showFinancialSettingsDialog} onOpenChange={setShowFinancialSettingsDialog}>
+        <DialogContent className="flex max-h-[92vh] w-[calc(100vw-24px)] max-w-3xl flex-col overflow-hidden rounded-2xl p-0">
+          <DialogHeader className="border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
+            <DialogTitle className="text-lg font-bold text-slate-900">
+              Financial Settings
+            </DialogTitle>
+            <p className="text-sm text-slate-500">
+              {viewingCustomer?.customer_code || "Customer"} Â· Configure payment terms, Xero integration, and account settings
+            </p>
+          </DialogHeader>
+
+          {financialSettingsError && (
+            <div className="border-b border-red-200 bg-red-50 px-5 py-3 sm:px-6">
+              <p className="text-sm text-red-600">
+                Error loading financial settings: {(financialSettingsError as Error).message}
               </p>
-            </DialogHeader>
+            </div>
+          )}
 
-            {financialSettingsError && (
-              <div className="border-b border-red-200 bg-red-50 px-5 py-3 sm:px-6">
-                <p className="text-sm text-red-600">
-                  Error loading financial settings: {(financialSettingsError as Error).message}
-                </p>
-              </div>
-            )}
-
-            <div className="flex-1 overflow-y-auto bg-slate-50 px-4 py-5 sm:px-6">
-              <div className="space-y-5 text-sm">
-                <CustomerFormSection
-                  number="01"
-                  title="Currency & Tax"
-                  description="Default currency and tax configuration for invoicing."
-                >
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Default Currency</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={financialForm.defaultCurrency}
-                        onChange={(e) =>
-                          setFinancialForm({
-                            ...financialForm,
-                            defaultCurrency: e.target.value.toUpperCase(),
-                          })
-                        }
-                        placeholder="AUD"
-                        maxLength={3}
-                      />
-                      {financialErrors.defaultCurrency && (
-                        <p className="text-xs text-red-600">{financialErrors.defaultCurrency}</p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Default Tax Type</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={financialForm.defaultTaxType}
-                        onChange={(e) =>
-                          setFinancialForm({
-                            ...financialForm,
-                            defaultTaxType: e.target.value,
-                          })
-                        }
-                        placeholder="e.g., Tax on Sales"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Default Sales Account Code</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={financialForm.defaultSalesAccountCode}
-                        onChange={(e) =>
-                          setFinancialForm({
-                            ...financialForm,
-                            defaultSalesAccountCode: e.target.value,
-                          })
-                        }
-                        placeholder="e.g., 4000"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Line Amount Type</Label>
-                      <Select
-                        value={financialForm.lineAmountType}
-                        onValueChange={(value) =>
-                          setFinancialForm({
-                            ...financialForm,
-                            lineAmountType: value as "Exclusive" | "Inclusive",
-                          })
-                        }
-                      >
-                        <SelectTrigger className={customerInputClassName}>
-                          <SelectValue placeholder="Select line amount type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {LINE_AMOUNT_TYPE_OPTIONS.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+          <div className="flex-1 overflow-y-auto bg-slate-50 px-4 py-5 sm:px-6">
+            <div className="space-y-5 text-sm">
+              <CustomerFormSection
+                number="01"
+                title="Currency & Tax"
+                description="Default currency and tax configuration for invoicing."
+              >
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Default Currency</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={financialForm.defaultCurrency}
+                      onChange={(e) =>
+                        setFinancialForm({
+                          ...financialForm,
+                          defaultCurrency: e.target.value.toUpperCase(),
+                        })
+                      }
+                      placeholder="AUD"
+                      maxLength={3}
+                    />
+                    {financialErrors.defaultCurrency && (
+                      <p className="text-xs text-red-600">{financialErrors.defaultCurrency}</p>
+                    )}
                   </div>
-                </CustomerFormSection>
 
-                <CustomerFormSection
-                  number="02"
-                  title="Payment Terms"
-                  description="Payment term settings for customer invoices."
-                >
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Payment Terms Type</Label>
-                      <Select
-                        value={financialForm.paymentTermsType}
-                        onValueChange={(value) =>
-                          setFinancialForm({
-                            ...financialForm,
-                            paymentTermsType: value as PaymentTermsType,
-                          })
-                        }
-                      >
-                        <SelectTrigger className={customerInputClassName}>
-                          <SelectValue placeholder="Select payment terms type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {PAYMENT_TERMS_OPTIONS.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div className="space-y-2">
+                    <Label>Default Tax Type</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={financialForm.defaultTaxType}
+                      onChange={(e) =>
+                        setFinancialForm({
+                          ...financialForm,
+                          defaultTaxType: e.target.value,
+                        })
+                      }
+                      placeholder="e.g., Tax on Sales"
+                    />
+                  </div>
 
-                    <div className="space-y-2">
-                      <Label>
-                        {financialForm.paymentTermsType === "Day of Current Month" ||
-                        financialForm.paymentTermsType === "Day of Following Month"
-                          ? "Day of Month (1-31)"
-                          : "Days (0-365)"}
-                      </Label>
-                      <Input
-                        className={customerInputClassName}
-                        type="number"
-                        value={financialForm.paymentTermsDays}
-                        onChange={(e) =>
-                          setFinancialForm({
-                            ...financialForm,
-                            paymentTermsDays: e.target.value,
-                          })
-                        }
-                      />
-                      {financialErrors.paymentTermsDays && (
-                        <p className="text-xs text-red-600">{financialErrors.paymentTermsDays}</p>
-                      )}
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {PAYMENT_TERM_PRESETS.map((preset) => (
-                          <button
-                            key={preset}
-                            type="button"
-                            onClick={() =>
-                              setFinancialForm({
-                                ...financialForm,
-                                paymentTermsDays: preset.toString(),
-                              })
-                            }
-                            className="inline-flex rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-slate-400 hover:bg-slate-50"
-                          >
-                            {preset}
-                          </button>
+                  <div className="space-y-2">
+                    <Label>Default Sales Account Code</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={financialForm.defaultSalesAccountCode}
+                      onChange={(e) =>
+                        setFinancialForm({
+                          ...financialForm,
+                          defaultSalesAccountCode: e.target.value,
+                        })
+                      }
+                      placeholder="e.g., 4000"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Line Amount Type</Label>
+                    <Select
+                      value={financialForm.lineAmountType}
+                      onValueChange={(value) =>
+                        setFinancialForm({
+                          ...financialForm,
+                          lineAmountType: value as "Exclusive" | "Inclusive",
+                        })
+                      }
+                    >
+                      <SelectTrigger className={customerInputClassName}>
+                        <SelectValue placeholder="Select line amount type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LINE_AMOUNT_TYPE_OPTIONS.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
                         ))}
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Discount %</Label>
-                      <Input
-                        className={customerInputClassName}
-                        type="number"
-                        step="0.01"
-                        value={financialForm.discountPercent}
-                        onChange={(e) =>
-                          setFinancialForm({
-                            ...financialForm,
-                            discountPercent: e.target.value,
-                          })
-                        }
-                      />
-                      {financialErrors.discountPercent && (
-                        <p className="text-xs text-red-600">{financialErrors.discountPercent}</p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Credit Limit (Optional)</Label>
-                      <Input
-                        className={customerInputClassName}
-                        type="number"
-                        step="0.01"
-                        value={financialForm.creditLimit}
-                        onChange={(e) =>
-                          setFinancialForm({
-                            ...financialForm,
-                            creditLimit: e.target.value,
-                          })
-                        }
-                        placeholder="Leave blank for no limit"
-                      />
-                      {financialErrors.creditLimit && (
-                        <p className="text-xs text-red-600">{financialErrors.creditLimit}</p>
-                      )}
-                    </div>
+                      </SelectContent>
+                    </Select>
                   </div>
-                </CustomerFormSection>
+                </div>
+              </CustomerFormSection>
 
-                <CustomerFormSection
-                  number="03"
-                  title="Account Hold"
-                  description="Temporarily hold or suspend account activity."
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        id="isAccountOnHold"
-                        checked={financialForm.isAccountOnHold}
-                        onChange={(e) =>
-                          setFinancialForm({
-                            ...financialForm,
-                            isAccountOnHold: e.target.checked,
-                          })
-                        }
-                        className="h-4 w-4 rounded border-slate-300"
-                      />
-                      <Label htmlFor="isAccountOnHold" className="cursor-pointer">
-                        Place account on hold
-                      </Label>
-                    </div>
+              <CustomerFormSection
+                number="02"
+                title="Payment Terms"
+                description="Payment term settings for customer invoices."
+              >
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Payment Terms Type</Label>
+                    <Select
+                      value={financialForm.paymentTermsType}
+                      onValueChange={(value) =>
+                        setFinancialForm({
+                          ...financialForm,
+                          paymentTermsType: value as PaymentTermsType,
+                        })
+                      }
+                    >
+                      <SelectTrigger className={customerInputClassName}>
+                        <SelectValue placeholder="Select payment terms type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PAYMENT_TERMS_OPTIONS.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                    {financialForm.isAccountOnHold && (
-                      <div className="space-y-2">
-                        <Label>Hold Reason</Label>
-                        <Textarea
-                          className={customerTextareaClassName}
-                          value={financialForm.accountHoldReason}
-                          onChange={(e) =>
+                  <div className="space-y-2">
+                    <Label>
+                      {financialForm.paymentTermsType === "Day of Current Month" ||
+                        financialForm.paymentTermsType === "Day of Following Month"
+                        ? "Day of Month (1-31)"
+                        : "Days (0-365)"}
+                    </Label>
+                    <Input
+                      className={customerInputClassName}
+                      type="number"
+                      value={financialForm.paymentTermsDays}
+                      onChange={(e) =>
+                        setFinancialForm({
+                          ...financialForm,
+                          paymentTermsDays: e.target.value,
+                        })
+                      }
+                    />
+                    {financialErrors.paymentTermsDays && (
+                      <p className="text-xs text-red-600">{financialErrors.paymentTermsDays}</p>
+                    )}
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {PAYMENT_TERM_PRESETS.map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() =>
                             setFinancialForm({
                               ...financialForm,
-                              accountHoldReason: e.target.value,
+                              paymentTermsDays: preset.toString(),
                             })
                           }
-                          placeholder="e.g., Awaiting payment / Credit limit exceeded"
-                        />
-                        {financialErrors.accountHoldReason && (
-                          <p className="text-xs text-red-600">{financialErrors.accountHoldReason}</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </CustomerFormSection>
-
-                <CustomerFormSection
-                  number="04"
-                  title="Delivery Methods"
-                  description="How invoices and statements are delivered to this customer."
-                >
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Invoice Delivery</Label>
-                      <Select
-                        value={financialForm.invoiceDeliveryMethod}
-                        onValueChange={(value) =>
-                          setFinancialForm({
-                            ...financialForm,
-                            invoiceDeliveryMethod: value,
-                          })
-                        }
-                      >
-                        <SelectTrigger className={customerInputClassName}>
-                          <SelectValue placeholder="Select delivery method" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Array.from(DELIVERY_METHOD_OPTIONS).map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Statement Delivery</Label>
-                      <Select
-                        value={financialForm.statementDeliveryMethod}
-                        onValueChange={(value) =>
-                          setFinancialForm({
-                            ...financialForm,
-                            statementDeliveryMethod: value,
-                          })
-                        }
-                      >
-                        <SelectTrigger className={customerInputClassName}>
-                          <SelectValue placeholder="Select delivery method" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Array.from(DELIVERY_METHOD_OPTIONS).map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                          className="inline-flex rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-slate-400 hover:bg-slate-50"
+                        >
+                          {preset}
+                        </button>
+                      ))}
                     </div>
                   </div>
-                </CustomerFormSection>
 
-                <CustomerFormSection
-                  number="05"
-                  title="Xero Integration"
-                  description="Xero synchronization and contact mapping settings."
-                >
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>Xero Status</Label>
-                      <Select
-                        value={financialForm.xeroStatus}
-                        onValueChange={(value) =>
-                          setFinancialForm({
-                            ...financialForm,
-                            xeroStatus: value,
-                          })
-                        }
-                      >
-                        <SelectTrigger className={customerInputClassName}>
-                          <SelectValue placeholder="Select Xero status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {XERO_STATUS_OPTIONS.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Xero Contact ID</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={financialForm.xeroContactId}
-                        onChange={(e) =>
-                          setFinancialForm({
-                            ...financialForm,
-                            xeroContactId: e.target.value,
-                          })
-                        }
-                        placeholder="Xero contact UUID"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Xero Contact Name</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={financialForm.xeroContactName}
-                        onChange={(e) =>
-                          setFinancialForm({
-                            ...financialForm,
-                            xeroContactName: e.target.value,
-                          })
-                        }
-                        placeholder="Synced from Xero"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Xero Contact Number</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={financialForm.xeroContactNumber}
-                        onChange={(e) =>
-                          setFinancialForm({
-                            ...financialForm,
-                            xeroContactNumber: e.target.value,
-                          })
-                        }
-                        placeholder="Xero contact reference"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Xero Branding Theme ID</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={financialForm.xeroBrandingThemeId}
-                        onChange={(e) =>
-                          setFinancialForm({
-                            ...financialForm,
-                            xeroBrandingThemeId: e.target.value,
-                          })
-                        }
-                        placeholder="Xero branding theme UUID"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Xero Branding Theme Name</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={financialForm.xeroBrandingThemeName}
-                        onChange={(e) =>
-                          setFinancialForm({
-                            ...financialForm,
-                            xeroBrandingThemeName: e.target.value,
-                          })
-                        }
-                        placeholder="Synced from Xero"
-                      />
-                    </div>
-
-                    {financialForm.xeroLastSyncedAt && (
-                      <div className="space-y-2 md:col-span-2">
-                        <Label>Last Synced</Label>
-                        <p className="text-sm text-slate-600">
-                          {formatShortDate(financialForm.xeroLastSyncedAt)}
-                        </p>
-                      </div>
-                    )}
-
-                    {financialForm.xeroSyncError && (
-                      <div className="space-y-2 md:col-span-2">
-                        <Label>Sync Error</Label>
-                        <p className="text-sm text-red-600">{financialForm.xeroSyncError}</p>
-                      </div>
+                  <div className="space-y-2">
+                    <Label>Discount %</Label>
+                    <Input
+                      className={customerInputClassName}
+                      type="number"
+                      step="0.01"
+                      value={financialForm.discountPercent}
+                      onChange={(e) =>
+                        setFinancialForm({
+                          ...financialForm,
+                          discountPercent: e.target.value,
+                        })
+                      }
+                    />
+                    {financialErrors.discountPercent && (
+                      <p className="text-xs text-red-600">{financialErrors.discountPercent}</p>
                     )}
                   </div>
-                </CustomerFormSection>
-              </div>
-            </div>
 
-            <div className="border-t border-slate-200 bg-white px-5 py-4 sm:px-6 flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleCancelFinancialSettings}
-                className="flex-1 h-11 rounded-xl text-sm font-bold"
+                  <div className="space-y-2">
+                    <Label>Credit Limit (Optional)</Label>
+                    <Input
+                      className={customerInputClassName}
+                      type="number"
+                      step="0.01"
+                      value={financialForm.creditLimit}
+                      onChange={(e) =>
+                        setFinancialForm({
+                          ...financialForm,
+                          creditLimit: e.target.value,
+                        })
+                      }
+                      placeholder="Leave blank for no limit"
+                    />
+                    {financialErrors.creditLimit && (
+                      <p className="text-xs text-red-600">{financialErrors.creditLimit}</p>
+                    )}
+                  </div>
+                </div>
+              </CustomerFormSection>
+
+              <CustomerFormSection
+                number="03"
+                title="Account Hold"
+                description="Temporarily hold or suspend account activity."
               >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                onClick={handleSaveFinancialSettings}
-                disabled={financialFormSaving}
-                className="flex-1 h-11 rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700"
-              >
-                {financialFormSaving ? "Saving..." : "Save Financial Settings"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="isAccountOnHold"
+                      checked={financialForm.isAccountOnHold}
+                      onChange={(e) =>
+                        setFinancialForm({
+                          ...financialForm,
+                          isAccountOnHold: e.target.checked,
+                        })
+                      }
+                      className="h-4 w-4 rounded border-slate-300"
+                    />
+                    <Label htmlFor="isAccountOnHold" className="cursor-pointer">
+                      Place account on hold
+                    </Label>
+                  </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-              All Customers
-            </p>
-            <p className="mt-2 text-2xl font-black text-slate-900">
-              {customerSummary.allCount}
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              Total customer records
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-              Commercial
-            </p>
-            <p className="mt-2 text-2xl font-black text-slate-900">
-              {customerSummary.commercialCount}
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              Business / builder customers
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-              Residential
-            </p>
-            <p className="mt-2 text-2xl font-black text-slate-900">
-              {customerSummary.residentialCount}
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              Home owner customers
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-              Inactive
-            </p>
-            <p className="mt-2 text-2xl font-black text-slate-900">
-              {customerSummary.inactiveCount}
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              Hidden from new work
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wide text-amber-700">
-              Missing Price Book
-            </p>
-            <p className="mt-2 text-2xl font-black text-amber-900">
-              {customerSummary.missingPriceBookCount}
-            </p>
-            <p className="mt-1 text-xs text-amber-700">
-              Needs sales default
-            </p>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_180px_180px_auto] xl:items-center">
-            <div className="relative min-w-0">
-              <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                size={20}
-              />
-
-              <input
-                type="text"
-                placeholder="Search by code, name, contact, address, phone, email, ABN, or price book..."
-                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                <Filter className="mr-2 h-4 w-4 text-slate-400" />
-                <SelectValue placeholder="Customer type" />
-              </SelectTrigger>
-
-              <SelectContent>
-                <SelectItem value="All">All Types</SelectItem>
-                <SelectItem value="Residential">Residential</SelectItem>
-                <SelectItem value="Commercial">Commercial</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
-                <Filter className="mr-2 h-4 w-4 text-slate-400" />
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-
-              <SelectContent>
-                <SelectItem value="All">All Status</SelectItem>
-                <SelectItem value="Active">Active</SelectItem>
-                <SelectItem value="Inactive">Inactive</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:flex xl:justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handlePrintCustomers}
-                className="h-10 gap-2 rounded-xl text-xs font-bold"
-              >
-                <Printer className="h-4 w-4" />
-                Print
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handlePrintCustomers}
-                className="h-10 gap-2 rounded-xl text-xs font-bold"
-              >
-                <FileText className="h-4 w-4" />
-                PDF
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleExportCsv}
-                className="h-10 gap-2 rounded-xl text-xs font-bold"
-              >
-                <Download className="h-4 w-4" />
-                CSV
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleExportExcel}
-                className="h-10 gap-2 rounded-xl text-xs font-bold"
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-                Excel
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-          {isLoading ? (
-            <div className="p-8 text-center text-slate-500">
-              Loading customers...
-            </div>
-
-          ) : error ? (
-            <div className="p-8 text-center text-red-600">
-              <div className="font-bold">Failed to load customers.</div>
-              <div className="mt-2 text-xs text-red-500">
-                Please refresh the page or contact an administrator if the problem continues.
-              </div>
-            </div>
-
-          ) : filteredCustomers.length === 0 ? (
-            <div className="p-8 text-center text-slate-500">
-              No customers found.
-            </div>
-          ) : (
-            <>
-              {/* Mobile cards */}
-              <div className="space-y-3 p-3 md:hidden">
-                {filteredCustomers.map((customer) => (
-                  <div
-                    key={customer.customer_id}
-                    className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-base font-bold text-slate-900 break-words">
-                          {customer.customer_name}
-                        </p>
-                        <p className="mt-1 text-xs font-mono text-slate-400">
-                          {customer.customer_code}
-                        </p>
-                      </div>
-
-                      <ActiveStatusBadge
-                        isActive={customer.is_active}
-                        className="shrink-0"
+                  {financialForm.isAccountOnHold && (
+                    <div className="space-y-2">
+                      <Label>Hold Reason</Label>
+                      <Textarea
+                        className={customerTextareaClassName}
+                        value={financialForm.accountHoldReason}
+                        onChange={(e) =>
+                          setFinancialForm({
+                            ...financialForm,
+                            accountHoldReason: e.target.value,
+                          })
+                        }
+                        placeholder="e.g., Awaiting payment / Credit limit exceeded"
                       />
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
-                        {customer.customer_type}
-                      </span>
-
-                      {customer.abn && (
-                        <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600">
-                          ABN: {customer.abn}
-                        </span>
+                      {financialErrors.accountHoldReason && (
+                        <p className="text-xs text-red-600">{financialErrors.accountHoldReason}</p>
                       )}
+                    </div>
+                  )}
+                </div>
+              </CustomerFormSection>
 
-                      <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600">
+              <CustomerFormSection
+                number="04"
+                title="Delivery Methods"
+                description="How invoices and statements are delivered to this customer."
+              >
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Invoice Delivery</Label>
+                    <Select
+                      value={financialForm.invoiceDeliveryMethod}
+                      onValueChange={(value) =>
+                        setFinancialForm({
+                          ...financialForm,
+                          invoiceDeliveryMethod: value,
+                        })
+                      }
+                    >
+                      <SelectTrigger className={customerInputClassName}>
+                        <SelectValue placeholder="Select delivery method" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from(DELIVERY_METHOD_OPTIONS).map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Statement Delivery</Label>
+                    <Select
+                      value={financialForm.statementDeliveryMethod}
+                      onValueChange={(value) =>
+                        setFinancialForm({
+                          ...financialForm,
+                          statementDeliveryMethod: value,
+                        })
+                      }
+                    >
+                      <SelectTrigger className={customerInputClassName}>
+                        <SelectValue placeholder="Select delivery method" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from(DELIVERY_METHOD_OPTIONS).map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CustomerFormSection>
+
+              <CustomerFormSection
+                number="05"
+                title="Xero Integration"
+                description="Xero synchronization and contact mapping settings."
+              >
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Xero Status</Label>
+                    <Select
+                      value={financialForm.xeroStatus}
+                      onValueChange={(value) =>
+                        setFinancialForm({
+                          ...financialForm,
+                          xeroStatus: value,
+                        })
+                      }
+                    >
+                      <SelectTrigger className={customerInputClassName}>
+                        <SelectValue placeholder="Select Xero status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {XERO_STATUS_OPTIONS.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Xero Contact ID</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={financialForm.xeroContactId}
+                      onChange={(e) =>
+                        setFinancialForm({
+                          ...financialForm,
+                          xeroContactId: e.target.value,
+                        })
+                      }
+                      placeholder="Xero contact UUID"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Xero Contact Name</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={financialForm.xeroContactName}
+                      onChange={(e) =>
+                        setFinancialForm({
+                          ...financialForm,
+                          xeroContactName: e.target.value,
+                        })
+                      }
+                      placeholder="Synced from Xero"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Xero Contact Number</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={financialForm.xeroContactNumber}
+                      onChange={(e) =>
+                        setFinancialForm({
+                          ...financialForm,
+                          xeroContactNumber: e.target.value,
+                        })
+                      }
+                      placeholder="Xero contact reference"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Xero Branding Theme ID</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={financialForm.xeroBrandingThemeId}
+                      onChange={(e) =>
+                        setFinancialForm({
+                          ...financialForm,
+                          xeroBrandingThemeId: e.target.value,
+                        })
+                      }
+                      placeholder="Xero branding theme UUID"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Xero Branding Theme Name</Label>
+                    <Input
+                      className={customerInputClassName}
+                      value={financialForm.xeroBrandingThemeName}
+                      onChange={(e) =>
+                        setFinancialForm({
+                          ...financialForm,
+                          xeroBrandingThemeName: e.target.value,
+                        })
+                      }
+                      placeholder="Synced from Xero"
+                    />
+                  </div>
+
+                  {financialForm.xeroLastSyncedAt && (
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Last Synced</Label>
+                      <p className="text-sm text-slate-600">
+                        {formatShortDate(financialForm.xeroLastSyncedAt)}
+                      </p>
+                    </div>
+                  )}
+
+                  {financialForm.xeroSyncError && (
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Sync Error</Label>
+                      <p className="text-sm text-red-600">{financialForm.xeroSyncError}</p>
+                    </div>
+                  )}
+                </div>
+              </CustomerFormSection>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-200 bg-white px-5 py-4 sm:px-6 flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCancelFinancialSettings}
+              className="flex-1 h-11 rounded-xl text-sm font-bold"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSaveFinancialSettings}
+              disabled={financialFormSaving}
+              className="flex-1 h-11 rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700"
+            >
+              {financialFormSaving ? "Saving..." : "Save Financial Settings"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {!viewingCustomer && (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                All Customers
+              </p>
+              <p className="mt-2 text-2xl font-black text-slate-900">
+                {customerSummary.allCount}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Total customer records
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                Commercial
+              </p>
+              <p className="mt-2 text-2xl font-black text-slate-900">
+                {customerSummary.commercialCount}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Business / builder customers
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                Residential
+              </p>
+              <p className="mt-2 text-2xl font-black text-slate-900">
+                {customerSummary.residentialCount}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Home owner customers
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                Inactive
+              </p>
+              <p className="mt-2 text-2xl font-black text-slate-900">
+                {customerSummary.inactiveCount}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Hidden from new work
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 shadow-sm">
+              <p className="text-xs font-bold uppercase tracking-wide text-amber-700">
+                Missing Price Book
+              </p>
+              <p className="mt-2 text-2xl font-black text-amber-900">
+                {customerSummary.missingPriceBookCount}
+              </p>
+              <p className="mt-1 text-xs text-amber-700">
+                Needs sales default
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_180px_180px_auto] xl:items-center">
+              <div className="relative min-w-0">
+                <Search
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  size={20}
+                />
+
+                <input
+                  type="text"
+                  placeholder="Search by code, name, contact, address, phone, email, ABN, or price book..."
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm outline-none transition-all focus:ring-2 focus:ring-red-500"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                  <Filter className="mr-2 h-4 w-4 text-slate-400" />
+                  <SelectValue placeholder="Customer type" />
+                </SelectTrigger>
+
+                <SelectContent>
+                  <SelectItem value="All">All Types</SelectItem>
+                  <SelectItem value="Residential">Residential</SelectItem>
+                  <SelectItem value="Commercial">Commercial</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                  <Filter className="mr-2 h-4 w-4 text-slate-400" />
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+
+                <SelectContent>
+                  <SelectItem value="All">All Status</SelectItem>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:flex xl:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handlePrintCustomers}
+                  className="h-10 gap-2 rounded-xl text-xs font-bold"
+                >
+                  <Printer className="h-4 w-4" />
+                  Print
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handlePrintCustomers}
+                  className="h-10 gap-2 rounded-xl text-xs font-bold"
+                >
+                  <FileText className="h-4 w-4" />
+                  PDF
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleExportCsv}
+                  className="h-10 gap-2 rounded-xl text-xs font-bold"
+                >
+                  <Download className="h-4 w-4" />
+                  CSV
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleExportExcel}
+                  className="h-10 gap-2 rounded-xl text-xs font-bold"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Excel
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            {isLoading ? (
+              <div className="p-8 text-center text-slate-500">
+                Loading customers...
+              </div>
+
+            ) : error ? (
+              <div className="p-8 text-center text-red-600">
+                <div className="font-bold">Failed to load customers.</div>
+                <div className="mt-2 text-xs text-red-500">
+                  Please refresh the page or contact an administrator if the problem continues.
+                </div>
+              </div>
+
+            ) : filteredCustomers.length === 0 ? (
+              <div className="p-8 text-center text-slate-500">
+                No customers found.
+              </div>
+            ) : (
+              <>
+                {/* Mobile cards */}
+                <div className="space-y-3 p-3 md:hidden">
+                  {filteredCustomers.map((customer) => (
+                    <div
+                      key={customer.customer_id}
+                      className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-base font-bold text-slate-900 break-words">
+                            {customer.customer_name}
+                          </p>
+                          <p className="mt-1 text-xs font-mono text-slate-400">
+                            {customer.customer_code}
+                          </p>
+                        </div>
+
+                        <ActiveStatusBadge
+                          isActive={customer.is_active}
+                          className="shrink-0"
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
+                          {customer.customer_type}
+                        </span>
+
+                        {customer.abn && (
+                          <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600">
+                            ABN: {customer.abn}
+                          </span>
+                        )}
+
                         <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600">
                           Price Book: {getCustomerPriceBookCode(customer)}
                         </span>
-                      </span>
 
+                      </div>
+
+                      <div className="space-y-2 text-sm text-slate-600">
+                        <div className="font-semibold text-slate-800">
+                          {getPrimaryContact(customer)?.contact_name || "No primary contact"}
+                        </div>
+
+                        <div className="text-xs text-slate-500">
+                          {getPrimaryContact(customer)?.position || "Contact"}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Phone size={14} className="shrink-0 text-slate-400" />
+                          <span className="break-all">
+                            {getPrimaryContact(customer)?.phone || customer.phone || "-"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Mail size={14} className="shrink-0 text-slate-400" />
+                          <span className="break-all">
+                            {getPrimaryContact(customer)?.email || customer.email || "-"}
+                          </span>
+                        </div>
+
+                        <div className="text-xs leading-relaxed text-slate-500">
+                          Address: {formatAddress(getPrimaryAddress(customer))}
+                        </div>
+
+                        <div className="border-t border-slate-200 pt-3">
+                          <StandardActions
+                            isActive={customer.is_active}
+                            onView={() => openViewCustomer(customer)}
+                            onEdit={() => openEditCustomer(customer)}
+                            onToggleActive={() =>
+                              handleToggleCustomerActive(customer)
+                            }
+                            onDelete={() => handleDeleteCustomer(customer)}
+                            size="mobile"
+                            align="end"
+                          />
+                        </div>
+
+                      </div>
                     </div>
+                  ))}
+                </div>
 
-                    <div className="space-y-2 text-sm text-slate-600">
-                      <div className="font-semibold text-slate-800">
-                        {getPrimaryContact(customer)?.contact_name || "No primary contact"}
-                      </div>
+                {/* Desktop table */}
+                <div className="hidden overflow-x-auto md:block">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                    <thead className="bg-slate-900 text-white">
+                      <tr>
+                        <th className="px-6 py-4 font-bold uppercase tracking-wider">
+                          Customer
+                        </th>
+                        <th className="px-6 py-4 font-bold uppercase tracking-wider">
+                          Type
+                        </th>
+                        <th className="px-6 py-4 font-bold uppercase tracking-wider">
+                          Contact
+                        </th>
+                        <th className="px-6 py-4 font-bold uppercase tracking-wider">
+                          Address
+                        </th>
+                        <th className="px-6 py-4 font-bold uppercase tracking-wider">
+                          ABN
+                        </th>
+                        <th className="w-[210px] px-6 py-4 text-right font-bold uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
 
-                      <div className="text-xs text-slate-500">
-                        {getPrimaryContact(customer)?.position || "Contact"}
-                      </div>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredCustomers.map((customer) => {
+                        const primaryContact = getPrimaryContact(customer);
+                        const primaryAddress = getPrimaryAddress(customer);
 
-                      <div className="flex items-center gap-2">
-                        <Phone size={14} className="shrink-0 text-slate-400" />
-                        <span className="break-all">
-                          {getPrimaryContact(customer)?.phone || customer.phone || "-"}
-                        </span>
-                      </div>
+                        return (
+                          <tr
+                            key={customer.customer_id}
+                            className="hover:bg-slate-50 transition-colors"
+                          >
+                            <td className="px-6 py-4">
+                              <div className="flex flex-col">
+                                <span className="font-bold text-slate-900 text-base">
+                                  {customer.customer_name}
+                                </span>
+                                <span className="text-slate-400 text-xs font-mono mt-1">
+                                  {customer.customer_code}
+                                </span>
+                              </div>
+                            </td>
 
-                      <div className="flex items-center gap-2">
-                        <Mail size={14} className="shrink-0 text-slate-400" />
-                        <span className="break-all">
-                          {getPrimaryContact(customer)?.email || customer.email || "-"}
-                        </span>
-                      </div>
-
-                      <div className="text-xs leading-relaxed text-slate-500">
-                        Address: {formatAddress(getPrimaryAddress(customer))}
-                      </div>
-
-                      <div className="border-t border-slate-200 pt-3">
-                        <StandardActions
-                          isActive={customer.is_active}
-                          onView={() => openViewCustomer(customer)}
-                          onEdit={() => openEditCustomer(customer)}
-                          onToggleActive={() =>
-                            handleToggleCustomerActive(customer)
-                          }
-                          onDelete={() => handleDeleteCustomer(customer)}
-                          size="mobile"
-                          align="end"
-                        />
-                      </div>
-
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Desktop table */}
-              < div className="hidden overflow-x-auto md:block" >
-                <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead className="bg-slate-900 text-white">
-                    <tr>
-                      <th className="px-6 py-4 font-bold uppercase tracking-wider">
-                        Customer
-                      </th>
-                      <th className="px-6 py-4 font-bold uppercase tracking-wider">
-                        Type
-                      </th>
-                      <th className="px-6 py-4 font-bold uppercase tracking-wider">
-                        Contact
-                      </th>
-                      <th className="px-6 py-4 font-bold uppercase tracking-wider">
-                        Address
-                      </th>
-                      <th className="px-6 py-4 font-bold uppercase tracking-wider">
-                        ABN
-                      </th>
-                      <th className="w-[210px] px-6 py-4 text-right font-bold uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredCustomers.map((customer) => {
-                      const primaryContact = getPrimaryContact(customer);
-                      const primaryAddress = getPrimaryAddress(customer);
-
-                      return (
-                        <tr
-                          key={customer.customer_id}
-                          className="hover:bg-slate-50 transition-colors"
-                        >
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col">
-                              <span className="font-bold text-slate-900 text-base">
-                                {customer.customer_name}
+                            <td className="px-6 py-4">
+                              <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold border bg-slate-100 text-slate-700 border-slate-200">
+                                {customer.customer_type}
                               </span>
-                              <span className="text-slate-400 text-xs font-mono mt-1">
-                                {customer.customer_code}
-                              </span>
-                            </div>
-                          </td>
+                            </td>
 
-                          <td className="px-6 py-4">
-                            <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold border bg-slate-100 text-slate-700 border-slate-200">
-                              {customer.customer_type}
-                            </span>
-                          </td>
+                            <td className="px-6 py-4">
+                              <div className="flex flex-col gap-1.5 text-slate-600 text-xs">
+                                <div className="font-bold text-slate-800">
+                                  {primaryContact?.contact_name || "-"}
+                                </div>
 
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col gap-1.5 text-slate-600 text-xs">
-                              <div className="font-bold text-slate-800">
-                                {primaryContact?.contact_name || "-"}
+                                <div className="text-slate-500">
+                                  {primaryContact?.position || "Contact"}
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <Phone size={14} className="text-slate-400" />
+                                  {primaryContact?.phone || customer.phone || "-"}
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <Mail size={14} className="text-slate-400" />
+                                  {primaryContact?.email || customer.email || "-"}
+                                </div>
                               </div>
+                            </td>
 
-                              <div className="text-slate-500">
-                                {primaryContact?.position || "Contact"}
+                            <td className="max-w-xs px-6 py-4 text-slate-600">
+                              <div className="whitespace-normal text-xs leading-relaxed">
+                                {formatAddress(primaryAddress)}
                               </div>
+                            </td>
 
-                              <div className="flex items-center gap-2">
-                                <Phone size={14} className="text-slate-400" />
-                                {primaryContact?.phone || customer.phone || "-"}
-                              </div>
+                            <td className="px-6 py-4 text-slate-600">
+                              {customer.abn || "-"}
+                            </td>
 
-                              <div className="flex items-center gap-2">
-                                <Mail size={14} className="text-slate-400" />
-                                {primaryContact?.email || customer.email || "-"}
-                              </div>
-                            </div>
-                          </td>
+                            <td className="w-[210px] px-6 py-4">
+                              <StandardActions
+                                isActive={customer.is_active}
+                                onView={() => openViewCustomer(customer)}
+                                onEdit={() => openEditCustomer(customer)}
+                                onToggleActive={() =>
+                                  handleToggleCustomerActive(customer)
+                                }
+                                onDelete={() =>
+                                  handleDeleteCustomer(customer)
+                                }
+                                size="desktop"
+                                align="end"
+                              />
+                            </td>
 
-                          <td className="max-w-xs px-6 py-4 text-slate-600">
-                            <div className="whitespace-normal text-xs leading-relaxed">
-                              {formatAddress(primaryAddress)}
-                            </div>
-                          </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </div>
 
-                          <td className="px-6 py-4 text-slate-600">
-                            {customer.abn || "-"}
-                          </td>
-
-                          <td className="w-[210px] px-6 py-4">
-                            <StandardActions
-                              isActive={customer.is_active}
-                              onView={() => openViewCustomer(customer)}
-                              onEdit={() => openEditCustomer(customer)}
-                              onToggleActive={() =>
-                                handleToggleCustomerActive(customer)
-                              }
-                              onDelete={() =>
-                                handleDeleteCustomer(customer)
-                              }
-                              size="desktop"
-                              align="end"
-                            />
-                          </td>
-
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div >
   );
 }
 
