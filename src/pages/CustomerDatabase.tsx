@@ -1,15 +1,21 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Building2,
   Download,
   FileSpreadsheet,
   FileText,
   Filter,
+  ChevronDown,
+  CreditCard,
+  FolderKanban,
   Mail,
+  MapPin,
+  MoreHorizontal,
   Phone,
   Plus,
   Printer,
   Search,
+  UserRound,
 } from "lucide-react";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -32,6 +38,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { ActiveStatusBadge } from "@/components/common/ActiveStatusBadge";
 import { StandardActions } from "@/components/common/StandardActions";
 
@@ -59,6 +75,7 @@ type CustomerAddress = {
 type PriceBook = {
   price_book_id: string;
   price_book_code: string;
+  price_book_name?: string | null;
 };
 
 type Customer = {
@@ -75,6 +92,63 @@ type Customer = {
   created_at: string;
   customer_contacts?: CustomerContact[] | null;
   customer_addresses?: CustomerAddress[] | null;
+};
+
+type CustomerProject = {
+  project_id: string;
+  project_no: string;
+  project_name: string;
+  project_status: string;
+  contract_value: number | null;
+  created_at: string;
+  start_date: string | null;
+  estimated_completion_date: string | null;
+};
+
+type CustomerSite = {
+  site_id: string;
+  site_code: string;
+  site_name: string;
+  site_status: string;
+  project_id: string;
+  contract_value: number;
+};
+
+type CustomerInvoice = {
+  customer_invoice_id: string;
+  invoice_no: string;
+  invoice_status: string;
+  invoice_date: string;
+  due_date: string;
+  total_amount: number;
+  paid_amount: number;
+  balance_amount: number;
+  project_id: string | null;
+};
+
+type CustomerPayment = {
+  customer_payment_id: string;
+  payment_no: string;
+  payment_date: string;
+  payment_method: string;
+  amount: number;
+  reference_no: string | null;
+};
+
+type CustomerPaymentAllocation = {
+  customer_payment_id: string;
+  customer_invoice_id: string;
+  allocated_amount: number;
+};
+
+type CustomerQuotation = {
+  quotation_id: string;
+  quotation_no: string;
+  quotation_status: string;
+  total_amount: number;
+  issue_date: string | null;
+  accepted_at: string | null;
+  project_site_id: string | null;
 };
 
 export default function CustomerDatabase() {
@@ -94,6 +168,9 @@ export default function CustomerDatabase() {
 
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
+  const [customerDetailTab, setCustomerDetailTab] = useState("overview");
+  const [detailProjectSearch, setDetailProjectSearch] = useState("");
+  const [detailProjectStatus, setDetailProjectStatus] = useState("All");
 
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -111,7 +188,7 @@ export default function CustomerDatabase() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("price_books")
-        .select("price_book_id, price_book_code")
+        .select("price_book_id, price_book_code, price_book_name")
         .eq("is_deleted", false)
         .eq("is_active", true)
         .order("price_book_code", { ascending: true });
@@ -173,6 +250,95 @@ export default function CustomerDatabase() {
 
       if (error) throw error;
       return data as Customer[];
+    },
+  });
+
+  const selectedCustomerId = viewingCustomer?.customer_id ?? "";
+
+  const {
+    data: customerDetail,
+    isLoading: customerDetailLoading,
+    error: customerDetailError,
+  } = useQuery({
+    queryKey: ["customer-detail-foundation", selectedCustomerId],
+    enabled: showViewDialog && Boolean(selectedCustomerId),
+    queryFn: async () => {
+      const [projectsResult, invoicesResult, paymentsResult, quotationsResult] =
+        await Promise.all([
+          supabase
+            .from("projects")
+            .select(
+              "project_id, project_no, project_name, project_status, contract_value, created_at, start_date, estimated_completion_date"
+            )
+            .eq("customer_id", selectedCustomerId)
+            .eq("is_deleted", false)
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("customer_invoices")
+            .select(
+              "customer_invoice_id, invoice_no, invoice_status, invoice_date, due_date, total_amount, paid_amount, balance_amount, project_id"
+            )
+            .eq("customer_id", selectedCustomerId)
+            .eq("is_deleted", false)
+            .order("invoice_date", { ascending: false }),
+          supabase
+            .from("customer_payments")
+            .select(
+              "customer_payment_id, payment_no, payment_date, payment_method, amount, reference_no"
+            )
+            .eq("customer_id", selectedCustomerId)
+            .eq("is_deleted", false)
+            .order("payment_date", { ascending: false }),
+          supabase
+            .from("quotations")
+            .select(
+              "quotation_id, quotation_no, quotation_status, total_amount, issue_date, accepted_at, project_site_id"
+            )
+            .eq("customer_id", selectedCustomerId)
+            .eq("is_deleted", false)
+            .order("created_at", { ascending: false }),
+        ]);
+
+      if (projectsResult.error) throw projectsResult.error;
+      if (invoicesResult.error) throw invoicesResult.error;
+      if (paymentsResult.error) throw paymentsResult.error;
+      if (quotationsResult.error) throw quotationsResult.error;
+
+      const projects = (projectsResult.data ?? []) as CustomerProject[];
+      const invoices = (invoicesResult.data ?? []) as CustomerInvoice[];
+      const payments = (paymentsResult.data ?? []) as CustomerPayment[];
+      const quotations = (quotationsResult.data ?? []) as CustomerQuotation[];
+      const projectIds = projects.map((project) => project.project_id);
+      const paymentIds = payments.map((payment) => payment.customer_payment_id);
+
+      const [sitesResult, allocationsResult] = await Promise.all([
+        projectIds.length
+          ? supabase
+            .from("project_sites")
+            .select("site_id, site_code, site_name, site_status, project_id, contract_value")
+            .in("project_id", projectIds)
+            .eq("is_deleted", false)
+            .order("site_code", { ascending: true })
+          : Promise.resolve({ data: [] as CustomerSite[], error: null }),
+        paymentIds.length
+          ? supabase
+            .from("customer_payment_allocations")
+            .select("customer_payment_id, customer_invoice_id, allocated_amount")
+            .in("customer_payment_id", paymentIds)
+          : Promise.resolve({ data: [] as CustomerPaymentAllocation[], error: null }),
+      ]);
+
+      if (sitesResult.error) throw sitesResult.error;
+      if (allocationsResult.error) throw allocationsResult.error;
+
+      return {
+        projects,
+        sites: (sitesResult.data ?? []) as CustomerSite[],
+        invoices,
+        payments,
+        allocations: (allocationsResult.data ?? []) as CustomerPaymentAllocation[],
+        quotations,
+      };
     },
   });
 
@@ -291,6 +457,20 @@ export default function CustomerDatabase() {
     );
   };
 
+  const getPreferredAddress = (customer: Customer) => {
+    const addresses = customer.customer_addresses ?? [];
+
+    return (
+      addresses.find(
+        (addressItem) =>
+          addressItem.address_type === "Billing" && addressItem.is_primary
+      ) ||
+      addresses.find((addressItem) => addressItem.is_primary) ||
+      addresses[0] ||
+      null
+    );
+  };
+
   const getPrimaryAddress = (customer: Customer) => {
     return (
       customer.customer_addresses?.find((addressItem) => addressItem.is_primary) ||
@@ -308,9 +488,48 @@ export default function CustomerDatabase() {
       addressItem.suburb,
       addressItem.state,
       addressItem.postcode,
+      addressItem.country,
     ]
       .filter(Boolean)
       .join(", ");
+  };
+
+  const formatDetailAddress = (addressItem: CustomerAddress | null) => {
+    const formattedAddress = formatAddress(addressItem);
+    return formattedAddress === "-" ? "No address recorded" : formattedAddress;
+  };
+
+  const formatMoney = (value: number | null | undefined) =>
+    new Intl.NumberFormat("en-AU", {
+      style: "currency",
+      currency: "AUD",
+      maximumFractionDigits: 2,
+    }).format(Number(value ?? 0));
+
+  const formatShortDate = (value: string | null | undefined) => {
+    if (!value) return "-";
+    return new Date(value).toLocaleDateString("en-AU");
+  };
+
+  const getCustomerInitials = (customerName: string) => {
+    const words = customerName.trim().split(/\s+/).filter(Boolean);
+    const initials = words.slice(0, 2).map((word) => word[0]?.toUpperCase()).join("");
+    return initials || "C";
+  };
+
+  const getContactSummary = (customer: Customer) => {
+    const contact = getPrimaryContact(customer);
+    const name = contact?.contact_name || "";
+    const phoneValue = contact?.phone || customer.phone || "";
+    const emailValue = contact?.email || customer.email || "";
+
+    return {
+      contact,
+      name: name || (phoneValue || emailValue ? "Primary contact" : "No primary contact recorded"),
+      position: contact?.position || "",
+      phone: phoneValue,
+      email: emailValue,
+    };
   };
 
   const getCustomerPriceBookCode = (customer: Customer) => {
@@ -323,8 +542,23 @@ export default function CustomerDatabase() {
     );
   };
 
+  const getCustomerPriceBookLabel = (customer: Customer) => {
+    if (!customer.price_book_id) return "Not set";
+    const priceBook = priceBooks.find(
+      (item) => item.price_book_id === customer.price_book_id
+    );
+
+    if (!priceBook) return "Not set";
+    return priceBook.price_book_name
+      ? `${priceBook.price_book_code} · ${priceBook.price_book_name}`
+      : priceBook.price_book_code;
+  };
+
   const openViewCustomer = (customer: Customer) => {
     setViewingCustomer(customer);
+    setCustomerDetailTab("overview");
+    setDetailProjectSearch("");
+    setDetailProjectStatus("All");
     setShowViewDialog(true);
   };
 
@@ -603,6 +837,139 @@ export default function CustomerDatabase() {
       );
     });
   }, [customers, priceBooks, searchTerm, typeFilter, statusFilter]);
+
+  const selectedCustomerContext = useMemo(() => {
+    if (!viewingCustomer) return null;
+
+    const contactSummary = getContactSummary(viewingCustomer);
+    const preferredAddress = getPreferredAddress(viewingCustomer);
+    const projects = customerDetail?.projects ?? [];
+    const sites = customerDetail?.sites ?? [];
+    const invoices = customerDetail?.invoices ?? [];
+    const payments = customerDetail?.payments ?? [];
+    const allocations = customerDetail?.allocations ?? [];
+    const quotations = customerDetail?.quotations ?? [];
+    const today = new Date();
+
+    const overdueInvoices = invoices.filter(
+      (invoice) =>
+        Number(invoice.balance_amount) > 0 &&
+        invoice.due_date &&
+        new Date(`${invoice.due_date}T00:00:00`) < today
+    );
+
+    const allocatedPaymentTotal = allocations.reduce(
+      (sum, allocation) => sum + Number(allocation.allocated_amount || 0),
+      0
+    );
+    const paymentTotal = payments.reduce(
+      (sum, payment) => sum + Number(payment.amount || 0),
+      0
+    );
+
+    const warnings = [
+      overdueInvoices.length
+        ? `${overdueInvoices.length} overdue invoice${overdueInvoices.length === 1 ? "" : "s"}`
+        : "",
+      !viewingCustomer.price_book_id ? "Missing price book" : "",
+      !contactSummary.contact ? "Missing primary contact" : "",
+      !preferredAddress || preferredAddress.address_type !== "Billing"
+        ? "Missing billing address"
+        : "",
+      !viewingCustomer.is_active ? "Inactive customer" : "",
+    ].filter(Boolean);
+
+    const recentActivity = [
+      ...projects.map((project) => ({
+        id: `project-${project.project_id}`,
+        label: `Project ${project.project_no}`,
+        description: project.project_name,
+        date: project.start_date || project.estimated_completion_date,
+      })),
+      ...quotations.map((quotation) => ({
+        id: `quotation-${quotation.quotation_id}`,
+        label: `Quotation ${quotation.quotation_no}`,
+        description: quotation.quotation_status,
+        date: quotation.accepted_at || quotation.issue_date,
+      })),
+      ...invoices.map((invoice) => ({
+        id: `invoice-${invoice.customer_invoice_id}`,
+        label: `Invoice ${invoice.invoice_no}`,
+        description: `${formatMoney(invoice.balance_amount)} balance`,
+        date: invoice.invoice_date,
+      })),
+      ...payments.map((payment) => ({
+        id: `payment-${payment.customer_payment_id}`,
+        label: `Payment ${payment.payment_no}`,
+        description: formatMoney(payment.amount),
+        date: payment.payment_date,
+      })),
+    ]
+      .filter((item) => Boolean(item.date))
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+      .slice(0, 6);
+
+    return {
+      contactSummary,
+      preferredAddress,
+      projects,
+      sites,
+      invoices,
+      payments,
+      quotations,
+      warnings,
+      recentActivity,
+      outstanding: invoices.reduce(
+        (sum, invoice) => sum + Number(invoice.balance_amount || 0),
+        0
+      ),
+      overdue: overdueInvoices.reduce(
+        (sum, invoice) => sum + Number(invoice.balance_amount || 0),
+        0
+      ),
+      unallocatedPayments: Math.max(paymentTotal - allocatedPaymentTotal, 0),
+      invoiceValue: invoices.reduce(
+        (sum, invoice) => sum + Number(invoice.total_amount || 0),
+        0
+      ),
+      activeProjects: projects.filter(
+        (project) => project.project_status === "In Progress"
+      ).length,
+      quotedProjects: projects.filter(
+        (project) => project.project_status === "Quoted"
+      ).length,
+      completedProjects: projects.filter(
+        (project) => project.project_status === "Completed"
+      ).length,
+      acceptedQuotations: quotations.filter(
+        (quotation) => quotation.quotation_status === "Accepted"
+      ).length,
+    };
+  }, [customerDetail, viewingCustomer, priceBooks]);
+
+  const detailProjectStatuses = useMemo(() => {
+    const statuses = new Set(
+      (selectedCustomerContext?.projects ?? []).map((project) => project.project_status)
+    );
+    return ["All", ...Array.from(statuses).sort()];
+  }, [selectedCustomerContext?.projects]);
+
+  const filteredDetailProjects = useMemo(() => {
+    const projects = selectedCustomerContext?.projects ?? [];
+    const keyword = detailProjectSearch.trim().toLowerCase();
+
+    return projects.filter((project) => {
+      const matchesStatus =
+        detailProjectStatus === "All" || project.project_status === detailProjectStatus;
+      const matchesSearch =
+        !keyword ||
+        project.project_no.toLowerCase().includes(keyword) ||
+        project.project_name.toLowerCase().includes(keyword) ||
+        project.project_status.toLowerCase().includes(keyword);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [detailProjectSearch, detailProjectStatus, selectedCustomerContext?.projects]);
 
   const getExportRows = () => {
     return filteredCustomers.map((customer) => {
@@ -982,139 +1349,490 @@ export default function CustomerDatabase() {
             }
           }}
         >
-          <DialogContent className="max-h-[90vh] w-[calc(100vw-24px)] max-w-2xl overflow-y-auto rounded-2xl p-4 sm:p-6">
-            <DialogHeader>
-              <DialogTitle className="text-lg font-bold text-slate-900">
-                Customer Details
-              </DialogTitle>
+          <DialogContent className="h-[100dvh] w-screen max-w-none overflow-hidden rounded-none border-0 bg-slate-100 p-0 sm:h-[96vh] sm:w-[96vw] sm:rounded-2xl sm:border">
+            <DialogHeader className="sr-only">
+              <DialogTitle>Customer Detail</DialogTitle>
             </DialogHeader>
 
-            {viewingCustomer ? (
-              <div className="space-y-5">
-                <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Customer
-                      </p>
+            {viewingCustomer && selectedCustomerContext ? (
+              <div className="flex h-full min-h-0 flex-col">
+                <header className="shrink-0 border-b border-slate-200 bg-white">
+                  <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-start lg:justify-between lg:p-6">
+                    <div className="flex min-w-0 flex-col gap-4 sm:flex-row">
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[#9E4B4B] text-xl font-black text-white">
+                        {getCustomerInitials(viewingCustomer.customer_name)}
+                      </div>
 
-                      <h2 className="mt-1 break-words text-xl font-bold text-slate-900">
-                        {viewingCustomer.customer_name || "-"}
-                      </h2>
+                      <div className="min-w-0 space-y-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h2 className="break-words text-2xl font-black leading-tight text-slate-950 md:text-3xl">
+                            {viewingCustomer.customer_name}
+                          </h2>
+                          <ActiveStatusBadge isActive={viewingCustomer.is_active} />
+                        </div>
 
-                      <p className="mt-1 font-mono text-xs text-slate-500">
-                        {viewingCustomer.customer_code || "-"}
-                      </p>
+                        <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                          <span className="font-mono font-semibold text-slate-700">
+                            {viewingCustomer.customer_code}
+                          </span>
+                          <span>·</span>
+                          <span>{viewingCustomer.customer_type}</span>
+                          <span>·</span>
+                          <span>{getCustomerPriceBookLabel(viewingCustomer)}</span>
+                        </div>
+
+                        <div className="grid gap-2 text-sm text-slate-700 lg:grid-cols-2">
+                          <div className="flex min-w-0 items-start gap-2">
+                            <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                            <div className="min-w-0">
+                              <div className="font-semibold text-slate-900">
+                                {selectedCustomerContext.contactSummary.name}
+                              </div>
+                              {selectedCustomerContext.contactSummary.position ? (
+                                <div className="text-slate-500">
+                                  {selectedCustomerContext.contactSummary.position}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-2">
+                            {selectedCustomerContext.contactSummary.phone ? (
+                              <a
+                                className="inline-flex min-w-0 items-center gap-2 text-[#9E4B4B] hover:underline"
+                                href={`tel:${selectedCustomerContext.contactSummary.phone}`}
+                              >
+                                <Phone className="h-4 w-4 shrink-0" />
+                                <span className="break-all">
+                                  {selectedCustomerContext.contactSummary.phone}
+                                </span>
+                              </a>
+                            ) : (
+                              <span className="inline-flex items-center gap-2 text-slate-500">
+                                <Phone className="h-4 w-4" />
+                                No phone recorded
+                              </span>
+                            )}
+
+                            {selectedCustomerContext.contactSummary.email ? (
+                              <a
+                                className="inline-flex min-w-0 items-center gap-2 text-[#9E4B4B] hover:underline"
+                                href={`mailto:${selectedCustomerContext.contactSummary.email}`}
+                              >
+                                <Mail className="h-4 w-4 shrink-0" />
+                                <span className="break-all">
+                                  {selectedCustomerContext.contactSummary.email}
+                                </span>
+                              </a>
+                            ) : (
+                              <span className="inline-flex items-center gap-2 text-slate-500">
+                                <Mail className="h-4 w-4" />
+                                No email recorded
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-2 text-sm text-slate-700">
+                          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                          <span>{formatDetailAddress(selectedCustomerContext.preferredAddress)}</span>
+                        </div>
+                      </div>
                     </div>
 
-                    <ActiveStatusBadge
-                      isActive={viewingCustomer.is_active}
-                      className="shrink-0"
-                    />
+                    <div className="flex flex-wrap gap-2 lg:justify-end">
+                      <Button
+                        type="button"
+                        className="rounded-xl bg-[#9E4B4B] hover:bg-[#873f3f]"
+                        onClick={() => {
+                          setShowViewDialog(false);
+                          openEditCustomer(viewingCustomer);
+                        }}
+                      >
+                        Edit Customer
+                      </Button>
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button type="button" variant="outline" className="rounded-xl">
+                            New <ChevronDown className="ml-2 h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                          <DropdownMenuLabel>Customer actions</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem disabled title="Available after module integration">
+                            New Project
+                          </DropdownMenuItem>
+                          <DropdownMenuItem disabled title="Available after module integration">
+                            New Quotation
+                          </DropdownMenuItem>
+                          <DropdownMenuItem disabled title="Available after module integration">
+                            New Variation
+                          </DropdownMenuItem>
+                          <DropdownMenuItem disabled title="Available after module integration">
+                            New Invoice
+                          </DropdownMenuItem>
+                          <DropdownMenuItem disabled title="Available after module integration">
+                            Record Payment
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="rounded-xl"
+                            aria-label="More customer actions"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem disabled title="Available after module integration">
+                            More actions unavailable
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                </header>
+
+                <Tabs
+                  value={customerDetailTab}
+                  onValueChange={setCustomerDetailTab}
+                  className="flex min-h-0 flex-1 flex-col"
+                >
+                  <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-2 lg:px-6">
+                    <TabsList className="max-w-full justify-start overflow-x-auto bg-slate-100">
+                      <TabsTrigger value="overview">Overview</TabsTrigger>
+                      <TabsTrigger value="projects">Projects</TabsTrigger>
+                      <TabsTrigger value="financial">Financial</TabsTrigger>
+                      <TabsTrigger value="contact">Contact Details</TabsTrigger>
+                      <TabsTrigger value="files">Files</TabsTrigger>
+                    </TabsList>
                   </div>
 
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-700">
-                      {viewingCustomer.customer_type || "-"}
-                    </span>
+                  <ScrollArea className="min-h-0 flex-1">
+                    <div className="space-y-4 p-4 lg:p-6">
+                      {customerDetailLoading ? (
+                        <DetailEmptyState title="Loading customer detail..." />
+                      ) : customerDetailError ? (
+                        <DetailEmptyState
+                          title="Customer detail could not be loaded."
+                          description={(customerDetailError as Error).message}
+                        />
+                      ) : (
+                        <>
+                          <TabsContent value="overview" className="mt-0 space-y-4">
+                            <div className="grid gap-4 xl:grid-cols-4">
+                              <DetailCard title="Accounts Receivable" icon={<CreditCard className="h-5 w-5" />}>
+                                <MetricGrid
+                                  metrics={[
+                                    ["Outstanding", formatMoney(selectedCustomerContext.outstanding)],
+                                    ["Overdue", formatMoney(selectedCustomerContext.overdue)],
+                                    ["Unallocated Payments", formatMoney(selectedCustomerContext.unallocatedPayments)],
+                                    ["Average Days to Pay", "Not available"],
+                                  ]}
+                                />
+                              </DetailCard>
 
-                    <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600">
-                      Price Book: {getCustomerPriceBookCode(viewingCustomer)}
-                    </span>
-                  </div>
-                </section>
+                              <DetailCard title="Project Summary" icon={<FolderKanban className="h-5 w-5" />}>
+                                <MetricGrid
+                                  metrics={[
+                                    ["Active Projects", String(selectedCustomerContext.activeProjects)],
+                                    ["Quoted Projects", String(selectedCustomerContext.quotedProjects)],
+                                    ["Completed Projects", String(selectedCustomerContext.completedProjects)],
+                                    ["Total Sites", String(selectedCustomerContext.sites.length)],
+                                  ]}
+                                />
+                              </DetailCard>
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <section className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Primary Contact
-                    </p>
+                              <DetailCard title="Commercial Summary" icon={<FileText className="h-5 w-5" />}>
+                                <MetricGrid
+                                  metrics={[
+                                    ["Accepted Quotations", String(selectedCustomerContext.acceptedQuotations)],
+                                    ["Accepted Variations", "Not available"],
+                                    ["Uninvoiced Value", "Not available"],
+                                    ["Invoice Value", formatMoney(selectedCustomerContext.invoiceValue)],
+                                  ]}
+                                />
+                              </DetailCard>
 
-                    <p className="mt-2 font-bold text-slate-900">
-                      {getPrimaryContact(viewingCustomer)?.contact_name || "-"}
-                    </p>
+                              <DetailCard title="Attention" icon={<Filter className="h-5 w-5" />}>
+                                {selectedCustomerContext.warnings.length ? (
+                                  <div className="space-y-2">
+                                    {selectedCustomerContext.warnings.map((warning) => (
+                                      <div
+                                        key={warning}
+                                        className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900"
+                                      >
+                                        {warning}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <DetailEmptyState title="No customer warnings." compact />
+                                )}
+                              </DetailCard>
+                            </div>
 
-                    <p className="mt-1 text-sm text-slate-500">
-                      {getPrimaryContact(viewingCustomer)?.position || "Contact"}
-                    </p>
+                            <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
+                              <DetailCard title="Recent Activity">
+                                {selectedCustomerContext.recentActivity.length ? (
+                                  <div className="divide-y divide-slate-100">
+                                    {selectedCustomerContext.recentActivity.map((item) => (
+                                      <div key={item.id} className="py-3 first:pt-0 last:pb-0">
+                                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                          <div>
+                                            <div className="font-semibold text-slate-900">
+                                              {item.label}
+                                            </div>
+                                            <div className="text-sm text-slate-500">
+                                              {item.description}
+                                            </div>
+                                          </div>
+                                          <div className="text-sm text-slate-500">
+                                            {formatShortDate(item.date)}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <DetailEmptyState title="No recent customer activity." compact />
+                                )}
+                              </DetailCard>
 
-                    <div className="mt-4 space-y-3 text-sm text-slate-700">
-                      <div className="flex items-start gap-2">
-                        <Phone className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                        <span className="break-all">
-                          {getPrimaryContact(viewingCustomer)?.phone ||
-                            viewingCustomer.phone ||
-                            "-"}
-                        </span>
-                      </div>
+                              <DetailCard title="Quick Actions">
+                                <div className="grid gap-2">
+                                  {["New Project", "New Quotation", "New Variation", "New Invoice", "Record Payment"].map((label) => (
+                                    <Button
+                                      key={label}
+                                      type="button"
+                                      variant="outline"
+                                      disabled
+                                      title="Available after module integration"
+                                      className="justify-start rounded-xl"
+                                    >
+                                      {label}
+                                    </Button>
+                                  ))}
+                                </div>
+                              </DetailCard>
+                            </div>
+                          </TabsContent>
 
-                      <div className="flex items-start gap-2">
-                        <Mail className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                        <span className="break-all">
-                          {getPrimaryContact(viewingCustomer)?.email ||
-                            viewingCustomer.email ||
-                            "-"}
-                        </span>
-                      </div>
+                          <TabsContent value="projects" className="mt-0 space-y-4">
+                            <DetailCard title="Projects">
+                              <div className="mb-4 grid gap-3 md:grid-cols-[1fr_220px]">
+                                <Input
+                                  value={detailProjectSearch}
+                                  onChange={(event) => setDetailProjectSearch(event.target.value)}
+                                  placeholder="Search projects..."
+                                  className="h-11 rounded-xl bg-[#F7F9FB]"
+                                />
+                                <Select value={detailProjectStatus} onValueChange={setDetailProjectStatus}>
+                                  <SelectTrigger className="h-11 rounded-xl bg-[#F7F9FB]">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {detailProjectStatuses.map((projectStatus) => (
+                                      <SelectItem key={projectStatus} value={projectStatus}>
+                                        {projectStatus === "All" ? "All statuses" : projectStatus}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              {filteredDetailProjects.length ? (
+                                <DetailTable
+                                  headers={["Project No.", "Project Name", "Status", "Sites", "Created", "Action"]}
+                                  rows={filteredDetailProjects.map((project) => [
+                                    project.project_no,
+                                    project.project_name,
+                                    project.project_status,
+                                    String(selectedCustomerContext.sites.filter((site) => site.project_id === project.project_id).length),
+                                    formatShortDate(project.created_at),
+                                    "View in Projects",
+                                  ])}
+                                />
+                              ) : (
+                                <DetailEmptyState title="No projects found." />
+                              )}
+                            </DetailCard>
+                          </TabsContent>
+
+                          <TabsContent value="financial" className="mt-0 space-y-4">
+                            <DetailCard title="Invoices">
+                              {selectedCustomerContext.invoices.length ? (
+                                <DetailTable
+                                  headers={["Invoice No.", "Project", "Issue Date", "Due Date", "Total", "Paid", "Balance", "Status"]}
+                                  rows={selectedCustomerContext.invoices.map((invoice) => [
+                                    invoice.invoice_no,
+                                    selectedCustomerContext.projects.find((project) => project.project_id === invoice.project_id)?.project_no || "-",
+                                    formatShortDate(invoice.invoice_date),
+                                    formatShortDate(invoice.due_date),
+                                    formatMoney(invoice.total_amount),
+                                    formatMoney(invoice.paid_amount),
+                                    formatMoney(invoice.balance_amount),
+                                    invoice.invoice_status,
+                                  ])}
+                                />
+                              ) : (
+                                <DetailEmptyState title="No invoices found." />
+                              )}
+                            </DetailCard>
+
+                            <DetailCard title="Payments">
+                              {selectedCustomerContext.payments.length ? (
+                                <DetailTable
+                                  headers={["Payment No.", "Date", "Invoice", "Method", "Reference", "Amount"]}
+                                  rows={selectedCustomerContext.payments.map((payment) => {
+                                    const allocation = customerDetail?.allocations.find(
+                                      (item) => item.customer_payment_id === payment.customer_payment_id
+                                    );
+                                    const invoice = selectedCustomerContext.invoices.find(
+                                      (item) => item.customer_invoice_id === allocation?.customer_invoice_id
+                                    );
+                                    return [
+                                      payment.payment_no,
+                                      formatShortDate(payment.payment_date),
+                                      invoice?.invoice_no || "-",
+                                      payment.payment_method,
+                                      payment.reference_no || "-",
+                                      formatMoney(payment.amount),
+                                    ];
+                                  })}
+                                />
+                              ) : (
+                                <DetailEmptyState title="No payments found." />
+                              )}
+                            </DetailCard>
+
+                            <DetailCard title="Quotations">
+                              {selectedCustomerContext.quotations.length ? (
+                                <DetailTable
+                                  headers={["Quotation No.", "Project/Site", "Issue Date", "Total", "Status"]}
+                                  rows={selectedCustomerContext.quotations.map((quotation) => {
+                                    const site = selectedCustomerContext.sites.find(
+                                      (item) => item.site_id === quotation.project_site_id
+                                    );
+                                    const project = selectedCustomerContext.projects.find(
+                                      (item) => item.project_id === site?.project_id
+                                    );
+                                    return [
+                                      quotation.quotation_no,
+                                      site ? `${project?.project_no || "-"} / ${site.site_code}` : "-",
+                                      formatShortDate(quotation.issue_date),
+                                      formatMoney(quotation.total_amount),
+                                      quotation.quotation_status,
+                                    ];
+                                  })}
+                                />
+                              ) : (
+                                <DetailEmptyState title="No quotations found." />
+                              )}
+                            </DetailCard>
+
+                            <DetailCard title="Variations">
+                              <DetailEmptyState
+                                title="Not available"
+                                description="Variation records are not available in the generated Supabase types for this task."
+                              />
+                            </DetailCard>
+                          </TabsContent>
+
+                          <TabsContent value="contact" className="mt-0 space-y-4">
+                            <DetailCard title="Customer / Company Information">
+                              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                                <DetailField label="Customer Code" value={viewingCustomer.customer_code} />
+                                <DetailField label="Customer Name" value={viewingCustomer.customer_name} />
+                                <DetailField label="Customer Type" value={viewingCustomer.customer_type} />
+                                <DetailField label="Phone" value={viewingCustomer.phone || "-"} />
+                                <DetailField label="Email" value={viewingCustomer.email || "-"} />
+                                <DetailField label="ABN" value={viewingCustomer.abn || "-"} />
+                                <DetailField label="Price Book" value={getCustomerPriceBookLabel(viewingCustomer)} />
+                                <DetailField label="Status" value={viewingCustomer.is_active ? "Active" : "Inactive"} />
+                                <div className="md:col-span-2 xl:col-span-4">
+                                  <DetailField label="Notes" value={viewingCustomer.notes || "No notes."} />
+                                </div>
+                              </div>
+                            </DetailCard>
+
+                            <DetailCard title="Contacts">
+                              {viewingCustomer.customer_contacts?.length ? (
+                                <DetailTable
+                                  headers={["Contact Name", "Position", "Phone", "Email", "Primary"]}
+                                  rows={viewingCustomer.customer_contacts.map((contact) => [
+                                    contact.contact_name,
+                                    contact.position || "-",
+                                    contact.phone || "-",
+                                    contact.email || "-",
+                                    contact.is_primary ? "Primary" : "-",
+                                  ])}
+                                />
+                              ) : (
+                                <DetailEmptyState title="No contacts found." />
+                              )}
+                            </DetailCard>
+
+                            <DetailCard title="Addresses">
+                              {viewingCustomer.customer_addresses?.length ? (
+                                <DetailTable
+                                  headers={["Type", "Address Line 1", "Address Line 2", "Suburb", "State", "Postcode", "Country", "Primary"]}
+                                  rows={viewingCustomer.customer_addresses.map((addressItem) => [
+                                    addressItem.address_type,
+                                    addressItem.address_line1,
+                                    addressItem.address_line2 || "-",
+                                    addressItem.suburb || "-",
+                                    addressItem.state || "-",
+                                    addressItem.postcode || "-",
+                                    addressItem.country || "-",
+                                    addressItem.is_primary ? "Primary" : "-",
+                                  ])}
+                                />
+                              ) : (
+                                <DetailEmptyState title="No addresses found." />
+                              )}
+                            </DetailCard>
+                          </TabsContent>
+
+                          <TabsContent value="files" className="mt-0">
+                            <DetailCard title="Files">
+                              <DetailEmptyState
+                                title="Customer file storage is not configured yet."
+                                description="Future document categories are shown for planning only."
+                              />
+                              <div className="mt-4 flex flex-wrap gap-2">
+                                {[
+                                  "Customer Agreement",
+                                  "Credit Application",
+                                  "Purchase Order",
+                                  "Contract",
+                                  "ABN Document",
+                                  "Correspondence",
+                                  "Other",
+                                ].map((label) => (
+                                  <span
+                                    key={label}
+                                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700"
+                                  >
+                                    {label}
+                                  </span>
+                                ))}
+                              </div>
+                            </DetailCard>
+                          </TabsContent>
+                        </>
+                      )}
                     </div>
-                  </section>
-
-                  <section className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Customer Information
-                    </p>
-
-                    <div className="mt-3 space-y-3 text-sm">
-                      <div>
-                        <p className="text-xs text-slate-500">ABN</p>
-                        <p className="mt-1 font-medium text-slate-800">
-                          {viewingCustomer.abn || "-"}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-xs text-slate-500">Price Book</p>
-                        <p className="mt-1 font-medium text-slate-800">
-                          {getCustomerPriceBookCode(viewingCustomer)}
-                        </p>
-                      </div>
-                    </div>
-                  </section>
-                </div>
-
-                <section className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Primary Address
-                  </p>
-
-                  <p className="mt-2 whitespace-normal text-sm leading-relaxed text-slate-700">
-                    {formatAddress(getPrimaryAddress(viewingCustomer))}
-                  </p>
-                </section>
-
-                <section className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Notes
-                  </p>
-
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
-                    {viewingCustomer.notes || "No notes."}
-                  </p>
-                </section>
-
-                <div className="flex justify-end border-t border-slate-200 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setShowViewDialog(false);
-                      setViewingCustomer(null);
-                    }}
-                    className="h-10 rounded-xl"
-                  >
-                    Close
-                  </Button>
-                </div>
+                  </ScrollArea>
+                </Tabs>
               </div>
             ) : null}
           </DialogContent>
@@ -1888,5 +2606,134 @@ export default function CustomerDatabase() {
         </div>
       </div>
     </div >
+  );
+}
+
+function DetailCard({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-4 flex items-center gap-2">
+        {icon ? <span className="text-[#9E4B4B]">{icon}</span> : null}
+        <h3 className="text-sm font-black uppercase tracking-wide text-slate-800">
+          {title}
+        </h3>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function MetricGrid({ metrics }: { metrics: [string, string][] }) {
+  return (
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+      {metrics.map(([label, value]) => (
+        <div key={label} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            {label}
+          </div>
+          <div className="mt-1 break-words text-base font-black text-slate-900">
+            {value}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DetailField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {label}
+      </div>
+      <div className="mt-1 whitespace-pre-wrap break-words text-sm font-semibold text-slate-900">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function DetailTable({
+  headers,
+  rows,
+}: {
+  headers: string[];
+  rows: string[][];
+}) {
+  return (
+    <div>
+      <div className="hidden overflow-x-auto rounded-xl border border-slate-200 md:block">
+        <table className="w-full min-w-[760px] text-sm">
+          <thead className="bg-slate-900 text-left text-xs uppercase tracking-wide text-white">
+            <tr>
+              {headers.map((header) => (
+                <th key={header} className="px-4 py-3 font-bold">
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((row, rowIndex) => (
+              <tr key={`${row[0]}-${rowIndex}`} className="bg-white hover:bg-slate-50">
+                {row.map((cell, cellIndex) => (
+                  <td
+                    key={`${headers[cellIndex]}-${cellIndex}`}
+                    className="px-4 py-3 align-top text-slate-700"
+                  >
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="space-y-3 md:hidden">
+        {rows.map((row, rowIndex) => (
+          <div key={`${row[0]}-mobile-${rowIndex}`} className="rounded-xl border border-slate-200 bg-white p-4">
+            {row.map((cell, cellIndex) => (
+              <div key={`${headers[cellIndex]}-${cellIndex}`} className="grid grid-cols-[120px_1fr] gap-3 py-1 text-sm">
+                <span className="font-semibold text-slate-500">{headers[cellIndex]}</span>
+                <span className="min-w-0 break-words font-medium text-slate-900">{cell}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DetailEmptyState({
+  title,
+  description,
+  compact = false,
+}: {
+  title: string;
+  description?: string;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={[
+        "rounded-xl border border-dashed border-slate-200 bg-slate-50 text-center",
+        compact ? "p-4" : "p-8",
+      ].join(" ")}
+    >
+      <div className="font-bold text-slate-800">{title}</div>
+      {description ? (
+        <div className="mt-1 text-sm text-slate-500">{description}</div>
+      ) : null}
+    </div>
   );
 }
