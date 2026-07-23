@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -242,6 +242,72 @@ export type Database = {
             referencedColumns: ["role_id"]
           },
         ]
+      }
+      app_users: {
+        Row: {
+          account_status: string
+          admin_notes: string | null
+          app_user_id: string
+          approved_at: string | null
+          approved_by: string | null
+          auth_user_id: string
+          created_at: string
+          created_by: string | null
+          display_name: string | null
+          email: string
+          phone: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
+          suspended_at: string | null
+          suspended_by: string | null
+          suspension_reason: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          account_status?: string
+          admin_notes?: string | null
+          app_user_id?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          auth_user_id: string
+          created_at?: string
+          created_by?: string | null
+          display_name?: string | null
+          email: string
+          phone?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
+          suspended_at?: string | null
+          suspended_by?: string | null
+          suspension_reason?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          account_status?: string
+          admin_notes?: string | null
+          app_user_id?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          auth_user_id?: string
+          created_at?: string
+          created_by?: string | null
+          display_name?: string | null
+          email?: string
+          phone?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
+          suspended_at?: string | null
+          suspended_by?: string | null
+          suspension_reason?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       customer_addresses: {
         Row: {
@@ -8167,6 +8233,43 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_list_app_users: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+          p_status?: string
+        }
+        Returns: {
+          account_status: string
+          admin_notes: string
+          app_user_id: string
+          approved_at: string
+          approved_by: string
+          auth_user_id: string
+          created_at: string
+          display_name: string
+          email: string
+          phone: string
+          rejected_at: string
+          rejection_reason: string
+          role_code: string
+          role_id: string
+          role_name: string
+          suspended_at: string
+          suspension_reason: string
+          total_count: number
+          updated_at: string
+        }[]
+      }
+      approve_app_user_atomic: {
+        Args: {
+          p_admin_notes?: string
+          p_auth_user_id: string
+          p_role_code: string
+        }
+        Returns: string
+      }
       approve_stock_request_item: {
         Args: {
           p_approved_quantity: number
@@ -8302,6 +8405,7 @@ export type Database = {
         Returns: string
       }
       current_app_role: { Args: never; Returns: string }
+      current_app_user_status: { Args: never; Returns: string }
       current_employee_id: { Args: never; Returns: string }
       end_work_assignment: {
         Args: { p_work_assignment_id: string }
@@ -8435,6 +8539,24 @@ export type Database = {
           section_name: string
         }[]
       }
+      get_my_app_user: {
+        Args: never
+        Returns: {
+          account_status: string
+          app_user_id: string
+          approved_at: string
+          auth_user_id: string
+          created_at: string
+          display_name: string
+          email: string
+          phone: string
+          rejected_at: string
+          rejection_reason: string
+          suspended_at: string
+          suspension_reason: string
+          updated_at: string
+        }[]
+      }
       get_next_available_product_variant_number: {
         Args: {
           p_colour_code: string
@@ -8476,6 +8598,7 @@ export type Database = {
         }[]
       }
       get_quotation_detail: { Args: { p_quotation_id: string }; Returns: Json }
+      has_active_app_access: { Args: never; Returns: boolean }
       has_permission: { Args: { p_permission_code: string }; Returns: boolean }
       is_active_company_employee: { Args: never; Returns: boolean }
       is_admin_role: { Args: never; Returns: boolean }
@@ -8559,6 +8682,14 @@ export type Database = {
           warning_text: string
         }[]
       }
+      reactivate_app_user_atomic: {
+        Args: {
+          p_admin_notes?: string
+          p_auth_user_id: string
+          p_role_code: string
+        }
+        Returns: string
+      }
       receive_supplier_delivery_item_to_stock: {
         Args: {
           p_expiry_date?: string
@@ -8592,6 +8723,10 @@ export type Database = {
           p_stock_request_item_id?: string
           p_supplier_delivery_item_id?: string
         }
+        Returns: string
+      }
+      reject_app_user_atomic: {
+        Args: { p_auth_user_id: string; p_reason: string }
         Returns: string
       }
       reject_quotation_atomic: {
@@ -8683,6 +8818,10 @@ export type Database = {
           p_waste_percent: number
         }
         Returns: Json
+      }
+      suspend_app_user_atomic: {
+        Args: { p_auth_user_id: string; p_reason: string }
+        Returns: string
       }
       transition_material_requirement_status: {
         Args: {

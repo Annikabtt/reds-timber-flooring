@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { CalendarDays, Plus, Search } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -23,7 +23,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { MobileFormSection } from "@/components/mobile/MobileFormSection";
 import { MobileWorkerCard } from "@/components/mobile/MobileWorkerCard";
 import { MobileProgressSummary } from "@/components/mobile/MobileProgressSummary";
 import { MobileSiteNotes } from "@/components/mobile/MobileSiteNotes";
@@ -209,6 +208,47 @@ const calculateLabourTime = (record: LabourRecord): LabourRecord => {
     overtime_hours: (overtimeMinutes / 60).toFixed(2),
   };
 };
+
+
+const dailyReportInputClassName =
+  "h-11 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] text-base text-slate-900 hover:border-[#9E4B4B] focus-visible:border-[#9E4B4B] focus-visible:ring-[#9E4B4B]/30 md:text-sm";
+
+const dailyReportTextareaClassName =
+  "min-h-28 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] text-base text-slate-900 hover:border-[#9E4B4B] focus-visible:border-[#9E4B4B] focus-visible:ring-[#9E4B4B]/30 md:text-sm";
+
+const dailyReportSelectTriggerClassName =
+  "h-11 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] text-base hover:border-[#9E4B4B] focus:ring-[#9E4B4B]/30 md:text-sm";
+
+function DailyReportFormSection({
+  number,
+  title,
+  description,
+  children,
+}: {
+  number: string;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="mb-5 flex gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#9E4B4B] text-xs font-black text-white">
+          {number}
+        </span>
+
+        <div>
+          <h3 className="text-sm font-black uppercase tracking-wide text-slate-900">
+            {title}
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        </div>
+      </div>
+
+      {children}
+    </section>
+  );
+}
 
 const DailyReports = () => {
   const navigate = useNavigate();
@@ -2153,7 +2193,7 @@ const DailyReports = () => {
               setFilterAreaId("all");
             }}
           >
-            <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+            <SelectTrigger className={dailyReportSelectTriggerClassName}>
               <SelectValue placeholder="Project" />
             </SelectTrigger>
             <SelectContent>
@@ -2173,7 +2213,7 @@ const DailyReports = () => {
               setFilterAreaId("all");
             }}
           >
-            <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+            <SelectTrigger className={dailyReportSelectTriggerClassName}>
               <SelectValue placeholder="Site" />
             </SelectTrigger>
             <SelectContent>
@@ -2187,7 +2227,7 @@ const DailyReports = () => {
           </Select>
 
           <Select value={filterAreaId} onValueChange={setFilterAreaId}>
-            <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+            <SelectTrigger className={dailyReportSelectTriggerClassName}>
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -2201,7 +2241,7 @@ const DailyReports = () => {
           </Select>
 
           <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+            <SelectTrigger className={dailyReportSelectTriggerClassName}>
               <SelectValue placeholder="Area" />
             </SelectTrigger>
             <SelectContent>
@@ -2714,15 +2754,25 @@ const DailyReports = () => {
 
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
 
-        <DialogContent className="max-h-[92vh] w-[calc(100vw-24px)] max-w-4xl overflow-y-auto rounded-2xl p-4 sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-slate-900">
-              {formMode === "edit" ? "Edit Daily Report" : "Add Daily Report"}
-            </DialogTitle>
-          </DialogHeader>
+        <DialogContent className="max-h-[94dvh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-x-hidden overflow-y-auto rounded-2xl bg-slate-50 p-0 sm:max-w-5xl">
+          <div className="border-b bg-white px-5 py-5 sm:px-6">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-black text-slate-900">
+                {formMode === "edit" ? "Edit Daily Report" : "Add Daily Report"}
+              </DialogTitle>
+            </DialogHeader>
 
-          <div className="space-y-4">
-            <MobileFormSection title="Work Order Summary">
+            <p className="mt-1 text-sm text-slate-500">
+              Record the work order, date, worker activity, site notes and supporting photos.
+            </p>
+          </div>
+
+          <div className="space-y-5 p-4 sm:p-6">
+            <DailyReportFormSection
+              number="01"
+              title="Work Order Summary"
+              description="Select the issued work order and confirm the project, site and area context."
+            >
 
               {!workOrderIdFromUrl && (
                 <div className="space-y-2">
@@ -2765,7 +2815,7 @@ const DailyReports = () => {
                       }
                     }}
                   >
-                    <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                    <SelectTrigger className={dailyReportSelectTriggerClassName}>
                       <SelectValue placeholder="Select work order" />
                     </SelectTrigger>
 
@@ -2897,15 +2947,19 @@ const DailyReports = () => {
                   </div>
                 )}
               </div>
-            </MobileFormSection>
+            </DailyReportFormSection>
           </div>
 
-          <MobileFormSection title="Report Date / Weather">
+          <DailyReportFormSection
+            number="02"
+            title="Report Date & Weather"
+            description="Set the reporting date, site weather and whether this is a manual backdated entry."
+          >
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Report Date *</Label>
                 <Input
-                  className="h-11 rounded-xl text-base md:text-sm"
+                  className={dailyReportInputClassName}
                   type="date"
                   value={reportDate}
                   onChange={(e) => setReportDate(e.target.value)}
@@ -2918,7 +2972,7 @@ const DailyReports = () => {
                   value={weatherCondition}
                   onValueChange={setWeatherCondition}
                 >
-                  <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                  <SelectTrigger className={dailyReportSelectTriggerClassName}>
                     <SelectValue placeholder="Select weather" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2956,9 +3010,13 @@ const DailyReports = () => {
                 </p>
               </div>
             </label>
-          </MobileFormSection>
+          </DailyReportFormSection>
 
-          <MobileFormSection title="Worker Cards">
+          <DailyReportFormSection
+            number="03"
+            title="Worker Activity & Time"
+            description="Review assigned workers, attendance, activity, time, output and overtime."
+          >
             <div className="space-y-3">
               {isManualBackdatedEntry && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
@@ -3190,7 +3248,7 @@ const DailyReports = () => {
                                   }
                                 }}
                               >
-                                <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                                <SelectTrigger className={dailyReportSelectTriggerClassName}>
                                   <SelectValue placeholder="Worker Source" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -3210,23 +3268,21 @@ const DailyReports = () => {
                                   updateLabourRecord(index, "attendance_status", value as AttendanceStatus)
                                 }
                               >
-                                <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                                <SelectTrigger className={dailyReportSelectTriggerClassName}>
                                   <SelectValue placeholder="Select attendance" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectContent>
-                                    <SelectItem value="Present">Present</SelectItem>
-                                    <SelectItem value="Late">Late</SelectItem>
-                                    <SelectItem value="Leave Early">Leave Early</SelectItem>
-                                    <SelectItem value="Not Attended">Not Attended</SelectItem>
-                                    <SelectItem value="Replaced">Replaced</SelectItem>
-                                    <SelectItem value="Sick">Sick</SelectItem>
-                                    <SelectItem value="Annual Leave">Annual Leave</SelectItem>
-                                    <SelectItem value="Public Holiday">Public Holiday</SelectItem>
-                                    <SelectItem value="Training">Training</SelectItem>
-                                    <SelectItem value="Travel">Travel</SelectItem>
-                                    <SelectItem value="Standby">Standby</SelectItem>
-                                  </SelectContent>
+                                  <SelectItem value="Present">Present</SelectItem>
+                                  <SelectItem value="Late">Late</SelectItem>
+                                  <SelectItem value="Leave Early">Leave Early</SelectItem>
+                                  <SelectItem value="Not Attended">Not Attended</SelectItem>
+                                  <SelectItem value="Replaced">Replaced</SelectItem>
+                                  <SelectItem value="Sick">Sick</SelectItem>
+                                  <SelectItem value="Annual Leave">Annual Leave</SelectItem>
+                                  <SelectItem value="Public Holiday">Public Holiday</SelectItem>
+                                  <SelectItem value="Training">Training</SelectItem>
+                                  <SelectItem value="Travel">Travel</SelectItem>
+                                  <SelectItem value="Standby">Standby</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -3241,7 +3297,7 @@ const DailyReports = () => {
                                     updateLabourRecord(index, "replaces_work_assignment_id", value)
                                   }
                                 >
-                                  <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                                  <SelectTrigger className={dailyReportSelectTriggerClassName}>
                                     <SelectValue placeholder="Select assigned worker being replaced" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -3293,7 +3349,7 @@ const DailyReports = () => {
                                   updateLabourRecord(index, "employee_id", value)
                                 }
                               >
-                                <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                                <SelectTrigger className={dailyReportSelectTriggerClassName}>
                                   <SelectValue placeholder="Select employee" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -3321,7 +3377,7 @@ const DailyReports = () => {
                                     updateLabourRecord(index, "activity_type_id", value)
                                   }
                                 >
-                                  <SelectTrigger className="h-11 rounded-xl text-base md:text-sm">
+                                  <SelectTrigger className={dailyReportSelectTriggerClassName}>
                                     <SelectValue placeholder="Select work activity" />
                                   </SelectTrigger>
 
@@ -3470,7 +3526,7 @@ const DailyReports = () => {
                                   updateLabourRecord(index, "break_minutes", e.target.value)
                                 }
                                 placeholder="60"
-                                className="h-11 rounded-xl text-base md:text-sm"
+                                className={dailyReportInputClassName}
                               />
                             </div>
                           </div>
@@ -3484,7 +3540,7 @@ const DailyReports = () => {
                                 updateLabourRecord(index, "notes", e.target.value)
                               }
                               placeholder="Worker notes..."
-                              className="min-h-24 w-full rounded-xl border border-slate-200 px-3 py-2 text-base outline-none focus:border-red-300 md:text-sm"
+                              className={dailyReportTextareaClassName}
                             />
                           </div>
 
@@ -3499,7 +3555,7 @@ const DailyReports = () => {
                                 updateLabourRecord(index, "completed_quantity", e.target.value)
                               }
                               placeholder="0"
-                              className="h-11 rounded-xl text-base md:text-sm"
+                              className={dailyReportInputClassName}
                             />
                           </div>
 
@@ -3628,7 +3684,7 @@ const DailyReports = () => {
                                       })
                                     }
                                     placeholder="0"
-                                    className="h-11 rounded-xl text-base md:text-sm"
+                                    className={dailyReportInputClassName}
                                   />
                                 </div>
 
@@ -3664,23 +3720,32 @@ const DailyReports = () => {
                   );
                 })}
             </div>
-          </MobileFormSection>
+          </DailyReportFormSection>
 
-          <MobileFormSection title="Site Notes">
+          <DailyReportFormSection
+            number="04"
+            title="Site Notes"
+            description="Record issues, progress notes and information that needs management attention."
+          >
             <MobileSiteNotes
               issuesFound={issuesFound}
               notes={notes}
               setIssuesFound={setIssuesFound}
               setNotes={setNotes}
             />
-          </MobileFormSection>
+          </DailyReportFormSection>
 
-          <MobilePhotoUpload
-
-            pendingPhotos={pendingPhotos}
-            setPendingPhotos={setPendingPhotos}
-          />
-          <div className="sticky bottom-0 -mx-4 mt-4 border-t bg-white px-4 py-3 sm:static sm:mx-0 sm:flex sm:justify-end sm:gap-2 sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0">
+          <DailyReportFormSection
+            number="05"
+            title="Photos"
+            description="Attach clear site photos that support the daily progress record."
+          >
+            <MobilePhotoUpload
+              pendingPhotos={pendingPhotos}
+              setPendingPhotos={setPendingPhotos}
+            />
+          </DailyReportFormSection>
+          <div className="sticky bottom-0 -mx-4 mt-4 border-t bg-slate-50/95 px-4 py-4 backdrop-blur sm:mx-0 sm:flex sm:justify-end sm:gap-2 sm:px-0">
             <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-2">
               <Button
                 type="button"
@@ -3690,7 +3755,7 @@ const DailyReports = () => {
                   resetForm();
                 }}
                 disabled={createDailyReport.isPending}
-                className="h-11 w-full sm:w-auto"
+                className="h-11 w-full rounded-xl sm:w-auto"
               >
                 Cancel
               </Button>
@@ -3698,7 +3763,7 @@ const DailyReports = () => {
               <Button
                 onClick={() => createDailyReport.mutate()}
                 disabled={createDailyReport.isPending}
-                className="h-11 w-full bg-red-600 text-white hover:bg-red-700 sm:w-auto"
+                className="h-11 w-full rounded-xl bg-[#9E4B4B] px-5 font-bold text-white hover:bg-[#873f3f] sm:w-auto"
               >
                 {createDailyReport.isPending ? "Saving..." : "Save Report"}
               </Button>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
     Building2,
     Download,
@@ -9,6 +9,12 @@ import {
     Plus,
     Printer,
     Search,
+    MapPin,
+    Truck,
+    CreditCard,
+    PackageSearch,
+    Link2,
+    Filter,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,6 +36,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ActiveStatusBadge } from "@/components/common/ActiveStatusBadge";
 import { StandardActions } from "@/components/common/StandardActions";
 import { toast } from "sonner";
@@ -183,6 +190,45 @@ const supplierSelect = `
   )
 `;
 
+
+const supplierInputClassName =
+    "h-11 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] text-base text-slate-900 hover:border-[#9E4B4B] focus-visible:border-[#9E4B4B] focus-visible:ring-[#9E4B4B]/30 md:text-sm";
+
+const supplierTextareaClassName =
+    "min-h-24 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] text-base text-slate-900 hover:border-[#9E4B4B] focus-visible:border-[#9E4B4B] focus-visible:ring-[#9E4B4B]/30 md:text-sm";
+
+const supplierSelectTriggerClassName =
+    "h-11 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] hover:border-[#9E4B4B] focus:ring-[#9E4B4B]/30";
+
+function SupplierFormSection({
+    number,
+    title,
+    description,
+    children,
+}: {
+    number: string;
+    title: string;
+    description: string;
+    children: ReactNode;
+}) {
+    return (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            <div className="mb-5 flex gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#9E4B4B] text-xs font-black text-white">
+                    {number}
+                </span>
+                <div>
+                    <h3 className="text-sm font-black uppercase tracking-wide text-slate-900">
+                        {title}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-500">{description}</p>
+                </div>
+            </div>
+            {children}
+        </section>
+    );
+}
+
 const Suppliers = () => {
     const queryClient = useQueryClient();
 
@@ -228,7 +274,7 @@ const Suppliers = () => {
         SupplierAddressDraft[]
     >([createEmptyAddress(true)]);
 
-    const { data: suppliers = [], isLoading } = useQuery({
+    const { data: suppliers = [], isLoading, error: suppliersError } = useQuery({
         queryKey: ["suppliers"],
         queryFn: async () => {
             const { data, error } = await supabase
@@ -841,581 +887,1633 @@ const Suppliers = () => {
         null;
 
     return (
-        <div className="space-y-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="w-full space-y-5 px-4 py-4 sm:px-5 lg:px-6">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Suppliers</h1>
-                    <p className="mt-1 text-sm text-slate-500">
-                        Supplier master data, purchasing defaults and Xero mapping.
-                    </p>
+                    <div className="flex items-center gap-3">
+                        <div className="rounded-xl bg-[#9E4B4B]/10 p-2 text-[#9E4B4B]">
+                            <Building2 className="h-6 w-6" />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl font-black tracking-tight text-slate-900">
+                                Suppliers
+                            </h1>
+                            <p className="mt-1 text-sm text-slate-500">
+                                Supplier master data, contacts, purchasing defaults and Xero mapping.
+                            </p>
+                        </div>
+                    </div>
                 </div>
-                <Button onClick={openAddSupplier} className="h-11 gap-2 rounded-xl bg-red-600 font-bold text-white hover:bg-red-700">
-                    <Plus className="h-4 w-4" /> Add Supplier
+
+                <Button
+                    type="button"
+                    onClick={openAddSupplier}
+                    className="h-11 gap-2 rounded-xl bg-[#9E4B4B] px-5 font-bold text-white hover:bg-[#873f3f]"
+                >
+                    <Plus className="h-4 w-4" />
+                    Add Supplier
                 </Button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
                 {[
-                    ["Total Suppliers", summary.total],
-                    ["Active", summary.active],
-                    ["Inactive", summary.inactive],
-                    ["Xero Synced", summary.xeroSynced],
-                ].map(([label, value]) => (
-                    <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-                        <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
+                    {
+                        label: "Total Suppliers",
+                        value: summary.total,
+                        note: `${filteredSuppliers.length} in current results`,
+                        icon: Building2,
+                    },
+                    {
+                        label: "Active",
+                        value: summary.active,
+                        note: "Available for purchasing",
+                        icon: Truck,
+                    },
+                    {
+                        label: "Inactive",
+                        value: summary.inactive,
+                        note: "Retained for history",
+                        icon: Filter,
+                    },
+                    {
+                        label: "Xero Synced",
+                        value: summary.xeroSynced,
+                        note: "Connected supplier contacts",
+                        icon: Link2,
+                    },
+                ].map((card) => (
+                    <div
+                        key={card.label}
+                        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                    >
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                                    {card.label}
+                                </p>
+                                <p className="mt-2 text-2xl font-black text-slate-900">
+                                    {card.value}
+                                </p>
+                                <p className="mt-1 text-xs text-slate-500">{card.note}</p>
+                            </div>
+                            <div className="rounded-xl bg-slate-100 p-2 text-slate-600">
+                                <card.icon className="h-5 w-5" />
+                            </div>
+                        </div>
                     </div>
                 ))}
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="grid gap-3 lg:grid-cols-[minmax(240px,1fr)_190px_170px_180px_auto]">
+                <div className="grid gap-3 xl:grid-cols-[minmax(260px,1fr)_180px_170px_180px_auto]">
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                        <Input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search supplier, code, ABN, contact or Xero..." className="h-10 pl-9" />
+                        <Input
+                            value={searchTerm}
+                            onChange={(event) => setSearchTerm(event.target.value)}
+                            placeholder="Search supplier, code, ABN, contact or Xero..."
+                            className={`${supplierInputClassName} pl-9`}
+                        />
                     </div>
+
                     <Select value={typeFilter} onValueChange={setTypeFilter}>
-                        <SelectTrigger><SelectValue placeholder="Supplier type" /></SelectTrigger>
-                        <SelectContent><SelectItem value="all">All Types</SelectItem>{supplierTypes.map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}</SelectContent>
+                        <SelectTrigger className={supplierSelectTriggerClassName}>
+                            <SelectValue placeholder="Supplier type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Types</SelectItem>
+                            {supplierTypes.map((type) => (
+                                <SelectItem key={type} value={type}>
+                                    {type}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
                     </Select>
-                    <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
-                        <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
-                        <SelectContent><SelectItem value="all">All Status</SelectItem><SelectItem value="active">Active Only</SelectItem><SelectItem value="inactive">Inactive Only</SelectItem></SelectContent>
+
+                    <Select
+                        value={statusFilter}
+                        onValueChange={(value) =>
+                            setStatusFilter(value as StatusFilter)
+                        }
+                    >
+                        <SelectTrigger className={supplierSelectTriggerClassName}>
+                            <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Statuses</SelectItem>
+                            <SelectItem value="active">Active Only</SelectItem>
+                            <SelectItem value="inactive">Inactive Only</SelectItem>
+                        </SelectContent>
                     </Select>
-                    <Select value={xeroFilter} onValueChange={(value) => setXeroFilter(value as XeroFilter)}>
-                        <SelectTrigger><SelectValue placeholder="Xero status" /></SelectTrigger>
-                        <SelectContent><SelectItem value="all">All Xero Status</SelectItem><SelectItem value="synced">Synced</SelectItem><SelectItem value="not-synced">Not Synced</SelectItem><SelectItem value="error">Sync Error</SelectItem></SelectContent>
+
+                    <Select
+                        value={xeroFilter}
+                        onValueChange={(value) =>
+                            setXeroFilter(value as XeroFilter)
+                        }
+                    >
+                        <SelectTrigger className={supplierSelectTriggerClassName}>
+                            <SelectValue placeholder="Xero status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Xero Statuses</SelectItem>
+                            <SelectItem value="synced">Synced</SelectItem>
+                            <SelectItem value="not-synced">Not Synced</SelectItem>
+                            <SelectItem value="error">Sync Error</SelectItem>
+                        </SelectContent>
                     </Select>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex">
-                        <Button variant="outline" onClick={() => handlePrint("print")} className="gap-2"><Printer className="h-4 w-4" />Print</Button>
-                        <Button variant="outline" onClick={() => handlePrint("pdf")} className="gap-2"><FileText className="h-4 w-4" />PDF</Button>
-                        <Button variant="outline" onClick={handleExportCsv} className="gap-2"><Download className="h-4 w-4" />CSV</Button>
-                        <Button variant="outline" onClick={handleExportExcel} className="gap-2"><FileSpreadsheet className="h-4 w-4" />Excel</Button>
+
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:flex">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => handlePrint("print")}
+                            className="h-11 gap-2 rounded-xl"
+                        >
+                            <Printer className="h-4 w-4" />
+                            Print
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => handlePrint("pdf")}
+                            className="h-11 gap-2 rounded-xl"
+                        >
+                            <FileText className="h-4 w-4" />
+                            PDF
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleExportCsv}
+                            className="h-11 gap-2 rounded-xl"
+                        >
+                            <Download className="h-4 w-4" />
+                            CSV
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleExportExcel}
+                            className="h-11 gap-2 rounded-xl"
+                        >
+                            <FileSpreadsheet className="h-4 w-4" />
+                            Excel
+                        </Button>
                     </div>
                 </div>
             </div>
+
+            {suppliersError ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+                    Supplier data could not be loaded:{" "}
+                    {suppliersError instanceof Error
+                        ? suppliersError.message
+                        : "Unknown error"}
+                </div>
+            ) : null}
 
             <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:block">
                 <div className="grid grid-cols-12 border-b bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
-                    <div className="col-span-3">Supplier</div><div className="col-span-2">Contact</div><div className="col-span-2">Purchasing</div><div className="col-span-2">Xero</div><div className="col-span-1">Status</div><div className="col-span-2 text-right">Actions</div>
+                    <div className="col-span-3">Supplier</div>
+                    <div className="col-span-2">Primary Contact</div>
+                    <div className="col-span-2">Purchasing</div>
+                    <div className="col-span-2">Xero</div>
+                    <div className="col-span-1">Status</div>
+                    <div className="col-span-2 text-right">Actions</div>
                 </div>
-                {isLoading ? <div className="p-8 text-center text-slate-500">Loading suppliers...</div> : filteredSuppliers.length === 0 ? <div className="p-8 text-center text-slate-500">No suppliers found.</div> : filteredSuppliers.map((supplier) => {
-                    const contact = getPrimaryContact(supplier);
-                    return <div key={supplier.supplier_id} className="grid grid-cols-12 border-b px-4 py-4 last:border-0 hover:bg-slate-50">
-                        <div className="col-span-3"><div className="flex items-start gap-3"><div className="rounded-xl bg-red-50 p-2 text-red-600"><Building2 className="h-5 w-5" /></div><div><p className="font-bold text-slate-900">{supplier.supplier_name}</p><p className="text-xs text-slate-500">{supplier.supplier_code} · {supplier.supplier_type}</p><p className="mt-1 text-xs text-slate-500">ABN: {supplier.abn || "-"}</p></div></div></div>
-                        <div className="col-span-2 text-sm"><p className="font-medium">{contact?.contact_name || "-"}</p><p className="mt-1 flex items-center gap-1 text-xs text-slate-500"><Phone className="h-3 w-3" />{contact?.phone || supplier.phone || "-"}</p><p className="mt-1 flex items-center gap-1 text-xs text-slate-500"><Mail className="h-3 w-3" />{contact?.email || supplier.email || "-"}</p></div>
-                        <div className="col-span-2 text-sm"><p>{supplier.payment_terms_days} {supplier.payment_terms_type}</p><p className="text-xs text-slate-500">{supplier.default_currency} · Lead {supplier.delivery_lead_days ?? 0} days</p><p className="text-xs text-slate-500">Min. order {supplier.minimum_order_value === null ? "-" : supplier.minimum_order_value.toLocaleString("en-AU", { style: "currency", currency: supplier.default_currency })}</p></div>
-                        <div className="col-span-2 text-sm"><p className="font-medium">{supplier.xero_status}</p><p className="text-xs text-slate-500">{supplier.xero_contact_name || "Not mapped"}</p><p className="text-xs text-slate-500">{supplier.xero_last_synced_at ? new Date(supplier.xero_last_synced_at).toLocaleString("en-AU") : "Never synced"}</p></div>
-                        <div className="col-span-1"><ActiveStatusBadge isActive={supplier.is_active} /></div>
-                        <div className="col-span-2"><StandardActions isActive={supplier.is_active} onView={() => { setViewingSupplier(supplier); setShowViewDialog(true); }} onEdit={() => openEditSupplier(supplier)} onToggleActive={() => toggleSupplierActive.mutate({ supplierId: supplier.supplier_id, nextActive: !supplier.is_active })} onDelete={() => { if (window.confirm(`Delete supplier: ${supplier.supplier_name}?`)) deleteSupplier.mutate(supplier.supplier_id); }} isStatusPending={toggleSupplierActive.isPending} isDeletePending={deleteSupplier.isPending} size="desktop" align="end" /></div>
-                    </div>;
-                })}
+
+                {isLoading ? (
+                    <div className="p-12 text-center text-slate-500">
+                        Loading suppliers...
+                    </div>
+                ) : filteredSuppliers.length === 0 ? (
+                    <div className="p-12 text-center">
+                        <Building2 className="mx-auto h-10 w-10 text-slate-300" />
+                        <p className="mt-3 font-semibold text-slate-700">
+                            No suppliers found
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                            Adjust the filters or create a new supplier.
+                        </p>
+                    </div>
+                ) : (
+                    filteredSuppliers.map((supplier) => {
+                        const contact = getPrimaryContact(supplier);
+
+                        return (
+                            <div
+                                key={supplier.supplier_id}
+                                className="grid grid-cols-12 border-b px-4 py-4 last:border-0 hover:bg-slate-50"
+                            >
+                                <div className="col-span-3">
+                                    <div className="flex items-start gap-3">
+                                        <div className="rounded-xl bg-[#9E4B4B]/10 p-2 text-[#9E4B4B]">
+                                            <Building2 className="h-5 w-5" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setViewingSupplier(supplier);
+                                                    setShowViewDialog(true);
+                                                }}
+                                                className="block truncate text-left font-bold text-slate-900 hover:text-[#9E4B4B]"
+                                            >
+                                                {supplier.supplier_name}
+                                            </button>
+                                            <p className="text-xs text-slate-500">
+                                                {supplier.supplier_code} · {supplier.supplier_type}
+                                            </p>
+                                            <p className="mt-1 text-xs text-slate-500">
+                                                ABN: {supplier.abn || "—"}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="col-span-2 min-w-0 text-sm">
+                                    <p className="truncate font-medium text-slate-800">
+                                        {contact?.contact_name || "Not configured"}
+                                    </p>
+                                    <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                                        <Phone className="h-3 w-3 shrink-0" />
+                                        <span className="truncate">
+                                            {contact?.phone ||
+                                                contact?.mobile ||
+                                                supplier.phone ||
+                                                "—"}
+                                        </span>
+                                    </p>
+                                    <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                                        <Mail className="h-3 w-3 shrink-0" />
+                                        <span className="truncate">
+                                            {contact?.email || supplier.email || "—"}
+                                        </span>
+                                    </p>
+                                </div>
+
+                                <div className="col-span-2 text-sm">
+                                    <p className="font-medium text-slate-800">
+                                        {supplier.payment_terms_days}{" "}
+                                        {supplier.payment_terms_type}
+                                    </p>
+                                    <p className="text-xs text-slate-500">
+                                        {supplier.default_currency} · Lead{" "}
+                                        {supplier.delivery_lead_days ?? "—"} days
+                                    </p>
+                                    <p className="text-xs text-slate-500">
+                                        Min. order{" "}
+                                        {supplier.minimum_order_value === null
+                                            ? "—"
+                                            : supplier.minimum_order_value.toLocaleString(
+                                                  "en-AU",
+                                                  {
+                                                      style: "currency",
+                                                      currency:
+                                                          supplier.default_currency,
+                                                  }
+                                              )}
+                                    </p>
+                                </div>
+
+                                <div className="col-span-2 min-w-0 text-sm">
+                                    <p className="font-medium text-slate-800">
+                                        {supplier.xero_status}
+                                    </p>
+                                    <p className="truncate text-xs text-slate-500">
+                                        {supplier.xero_contact_name || "Not mapped"}
+                                    </p>
+                                    <p className="text-xs text-slate-500">
+                                        {supplier.xero_last_synced_at
+                                            ? new Date(
+                                                  supplier.xero_last_synced_at
+                                              ).toLocaleString("en-AU")
+                                            : "Never synced"}
+                                    </p>
+                                </div>
+
+                                <div className="col-span-1">
+                                    <ActiveStatusBadge isActive={supplier.is_active} />
+                                </div>
+
+                                <div className="col-span-2">
+                                    <StandardActions
+                                        isActive={supplier.is_active}
+                                        onView={() => {
+                                            setViewingSupplier(supplier);
+                                            setShowViewDialog(true);
+                                        }}
+                                        onEdit={() => openEditSupplier(supplier)}
+                                        onToggleActive={() =>
+                                            toggleSupplierActive.mutate({
+                                                supplierId: supplier.supplier_id,
+                                                nextActive: !supplier.is_active,
+                                            })
+                                        }
+                                        onDelete={() => {
+                                            if (
+                                                window.confirm(
+                                                    `Delete supplier: ${supplier.supplier_name}?`
+                                                )
+                                            ) {
+                                                deleteSupplier.mutate(
+                                                    supplier.supplier_id
+                                                );
+                                            }
+                                        }}
+                                        isStatusPending={
+                                            toggleSupplierActive.isPending
+                                        }
+                                        isDeletePending={deleteSupplier.isPending}
+                                        size="desktop"
+                                        align="end"
+                                    />
+                                </div>
+                            </div>
+                        );
+                    })
+                )}
             </div>
 
             <div className="space-y-3 lg:hidden">
-                {filteredSuppliers.map((supplier) => {
-                    const contact = getPrimaryContact(supplier);
-                    return <div key={supplier.supplier_id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                        <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-red-600">{supplier.supplier_code}</p><h2 className="mt-1 text-base font-bold text-slate-900">{supplier.supplier_name}</h2><p className="text-xs text-slate-500">{supplier.supplier_type}</p></div><ActiveStatusBadge isActive={supplier.is_active} /></div>
-                        <div className="mt-4 grid grid-cols-2 gap-3 text-sm"><div><p className="text-xs text-slate-500">Primary Contact</p><p className="font-medium">{contact?.contact_name || "-"}</p></div><div><p className="text-xs text-slate-500">Xero</p><p className="font-medium">{supplier.xero_status}</p></div><div><p className="text-xs text-slate-500">Phone</p><p>{contact?.phone || supplier.phone || "-"}</p></div><div><p className="text-xs text-slate-500">Payment Terms</p><p>{supplier.payment_terms_days} days</p></div></div>
-                        <div className="mt-4 border-t pt-4"><StandardActions isActive={supplier.is_active} onView={() => { setViewingSupplier(supplier); setShowViewDialog(true); }} onEdit={() => openEditSupplier(supplier)} onToggleActive={() => toggleSupplierActive.mutate({ supplierId: supplier.supplier_id, nextActive: !supplier.is_active })} onDelete={() => { if (window.confirm(`Delete supplier: ${supplier.supplier_name}?`)) deleteSupplier.mutate(supplier.supplier_id); }} isStatusPending={toggleSupplierActive.isPending} isDeletePending={deleteSupplier.isPending} size="mobile" /></div>
-                    </div>;
-                })}
+                {isLoading ? (
+                    <div className="rounded-2xl border bg-white p-8 text-center text-slate-500">
+                        Loading suppliers...
+                    </div>
+                ) : filteredSuppliers.length === 0 ? (
+                    <div className="rounded-2xl border bg-white p-8 text-center text-slate-500">
+                        No suppliers found.
+                    </div>
+                ) : (
+                    filteredSuppliers.map((supplier) => {
+                        const contact = getPrimaryContact(supplier);
+                        const primaryAddress =
+                            supplier.supplier_addresses?.find(
+                                (address) => address.is_primary
+                            ) || supplier.supplier_addresses?.[0];
+
+                        return (
+                            <div
+                                key={supplier.supplier_id}
+                                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                            >
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-bold text-[#9E4B4B]">
+                                            {supplier.supplier_code}
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setViewingSupplier(supplier);
+                                                setShowViewDialog(true);
+                                            }}
+                                            className="mt-1 block truncate text-left text-base font-bold text-slate-900"
+                                        >
+                                            {supplier.supplier_name}
+                                        </button>
+                                        <p className="text-xs text-slate-500">
+                                            {supplier.supplier_type}
+                                        </p>
+                                    </div>
+                                    <ActiveStatusBadge isActive={supplier.is_active} />
+                                </div>
+
+                                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                                    <div>
+                                        <p className="text-xs text-slate-500">
+                                            Primary Contact
+                                        </p>
+                                        <p className="font-medium">
+                                            {contact?.contact_name || "—"}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-slate-500">Xero</p>
+                                        <p className="font-medium">
+                                            {supplier.xero_status}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-slate-500">Phone</p>
+                                        <p>
+                                            {contact?.phone ||
+                                                contact?.mobile ||
+                                                supplier.phone ||
+                                                "—"}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-slate-500">
+                                            Payment Terms
+                                        </p>
+                                        <p>{supplier.payment_terms_days} days</p>
+                                    </div>
+                                </div>
+
+                                {primaryAddress && (
+                                    <p className="mt-3 flex items-start gap-2 text-xs text-slate-500">
+                                        <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                        <span>
+                                            {[
+                                                primaryAddress.address_line1,
+                                                primaryAddress.suburb,
+                                                primaryAddress.state,
+                                                primaryAddress.postcode,
+                                            ]
+                                                .filter(Boolean)
+                                                .join(", ")}
+                                        </span>
+                                    </p>
+                                )}
+
+                                <div className="mt-4 border-t pt-4">
+                                    <StandardActions
+                                        isActive={supplier.is_active}
+                                        onView={() => {
+                                            setViewingSupplier(supplier);
+                                            setShowViewDialog(true);
+                                        }}
+                                        onEdit={() => openEditSupplier(supplier)}
+                                        onToggleActive={() =>
+                                            toggleSupplierActive.mutate({
+                                                supplierId: supplier.supplier_id,
+                                                nextActive: !supplier.is_active,
+                                            })
+                                        }
+                                        onDelete={() => {
+                                            if (
+                                                window.confirm(
+                                                    `Delete supplier: ${supplier.supplier_name}?`
+                                                )
+                                            ) {
+                                                deleteSupplier.mutate(
+                                                    supplier.supplier_id
+                                                );
+                                            }
+                                        }}
+                                        isStatusPending={
+                                            toggleSupplierActive.isPending
+                                        }
+                                        isDeletePending={deleteSupplier.isPending}
+                                        size="mobile"
+                                    />
+                                </div>
+                            </div>
+                        );
+                    })
+                )}
             </div>
 
             <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
-                <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto"><DialogHeader><DialogTitle>Supplier Details</DialogTitle></DialogHeader>{viewingSupplier && <div className="space-y-5">
-                    <div className="rounded-2xl border bg-slate-50 p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-red-600">{viewingSupplier.supplier_code}</p><h2 className="text-xl font-bold">{viewingSupplier.supplier_name}</h2><p className="text-sm text-slate-500">{viewingSupplier.legal_name || "No separate legal name"}</p></div><ActiveStatusBadge isActive={viewingSupplier.is_active} /></div></div>
+                <DialogContent className="max-h-[94dvh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-x-hidden overflow-y-auto rounded-2xl p-0 sm:w-auto sm:max-w-6xl">
+                    {viewingSupplier && (
+                        <div>
+                            <div className="min-w-0 border-b bg-slate-50 px-4 py-4 sm:px-6 sm:py-5">
+                                <DialogHeader>
+                                    <DialogTitle className="sr-only">
+                                        Supplier Details
+                                    </DialogTitle>
+                                </DialogHeader>
 
-                    <div className="grid gap-4 md:grid-cols-2"><section className="rounded-2xl border p-4">
-                        <h3 className="font-bold">Supplier Information</h3>
-                        <div className="mt-3 space-y-2 text-sm">
-                            <p><span className="text-slate-500">Type:</span> {viewingSupplier.supplier_type}</p>
-                            <p><span className="text-slate-500">ABN:</span> {viewingSupplier.abn || "-"}</p>
-                            <p><span className="text-slate-500">Phone:</span> {viewingSupplier.phone || "-"}</p>
-                            <p><span className="text-slate-500">Email:</span> {viewingSupplier.email || "-"}</p>
-                            <p><span className="text-slate-500">Website:</span> {viewingSupplier.website || "-"}</p>
+                                <div className="min-w-0 space-y-3 sm:flex sm:items-start sm:justify-between sm:gap-4 sm:space-y-0">
+                                    <div className="flex min-w-0 items-start gap-3 pr-7 sm:pr-0">
+                                        <div className="rounded-2xl bg-[#9E4B4B]/10 p-3 text-[#9E4B4B]">
+                                            <Building2 className="h-7 w-7" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-black uppercase tracking-wide text-[#9E4B4B]">
+                                                {viewingSupplier.supplier_code}
+                                            </p>
+                                            <h2 className="mt-1 break-words text-xl font-black leading-tight text-slate-900 sm:text-2xl">
+                                                {viewingSupplier.supplier_name}
+                                            </h2>
+                                            <p className="mt-1 text-sm text-slate-500">
+                                                {viewingSupplier.legal_name ||
+                                                    viewingSupplier.supplier_type}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <ActiveStatusBadge
+                                        isActive={viewingSupplier.is_active}
+                                    />
+                                </div>
+                            </div>
+
+                            <Tabs defaultValue="overview" className="min-w-0 p-3 sm:p-6">
+                                <TabsList className="grid h-auto w-full min-w-0 grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 sm:grid-cols-4">
+                                    <TabsTrigger
+                                        value="overview"
+                                        className="min-h-11 whitespace-normal px-2 text-center text-xs leading-tight sm:text-sm"
+                                    >
+                                        Overview
+                                    </TabsTrigger>
+                                    <TabsTrigger
+                                        value="contacts"
+                                        className="min-h-11 whitespace-normal px-2 text-center text-xs leading-tight sm:text-sm"
+                                    >
+                                        Contacts & Addresses
+                                    </TabsTrigger>
+                                    <TabsTrigger
+                                        value="purchasing"
+                                        className="min-h-11 whitespace-normal px-2 text-center text-xs leading-tight sm:text-sm"
+                                    >
+                                        Purchasing
+                                    </TabsTrigger>
+                                    <TabsTrigger
+                                        value="xero"
+                                        className="min-h-11 whitespace-normal px-2 text-center text-xs leading-tight sm:text-sm"
+                                    >
+                                        Xero
+                                    </TabsTrigger>
+                                </TabsList>
+
+                                <TabsContent value="overview" className="mt-4 min-w-0 space-y-4 sm:mt-5 sm:space-y-5">
+                                    <div className="grid gap-4 lg:grid-cols-3">
+                                        <div className="rounded-2xl border bg-white p-4">
+                                            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                                                Supplier Type
+                                            </p>
+                                            <p className="mt-2 font-semibold text-slate-900">
+                                                {viewingSupplier.supplier_type}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-2xl border bg-white p-4">
+                                            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                                                ABN
+                                            </p>
+                                            <p className="mt-2 font-semibold text-slate-900">
+                                                {viewingSupplier.abn || "Not configured"}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-2xl border bg-white p-4">
+                                            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                                                Website
+                                            </p>
+                                            <p className="mt-2 break-all font-semibold text-slate-900">
+                                                {viewingSupplier.website ||
+                                                    "Not configured"}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid gap-4 lg:grid-cols-2">
+                                        <section className="rounded-2xl border bg-white p-5">
+                                            <h3 className="font-black text-slate-900">
+                                                Company Contact
+                                            </h3>
+                                            <div className="mt-4 space-y-3 text-sm">
+                                                <p className="flex items-center gap-2">
+                                                    <Phone className="h-4 w-4 text-slate-400" />
+                                                    {viewingSupplier.phone || "—"}
+                                                </p>
+                                                <p className="flex items-center gap-2">
+                                                    <Mail className="h-4 w-4 text-slate-400" />
+                                                    {viewingSupplier.email || "—"}
+                                                </p>
+                                            </div>
+                                        </section>
+
+                                        <section className="rounded-2xl border bg-white p-5">
+                                            <h3 className="font-black text-slate-900">
+                                                Notes
+                                            </h3>
+                                            <p className="mt-4 break-words whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                                                {viewingSupplier.notes ||
+                                                    "No supplier notes recorded."}
+                                            </p>
+                                        </section>
+                                    </div>
+                                </TabsContent>
+
+                                <TabsContent value="contacts" className="mt-4 min-w-0 space-y-4 sm:mt-5 sm:space-y-5">
+                                    <section className="rounded-2xl border bg-white p-5">
+                                        <div className="flex items-center gap-2">
+                                            <Phone className="h-5 w-5 text-[#9E4B4B]" />
+                                            <h3 className="font-black text-slate-900">
+                                                Contact People
+                                            </h3>
+                                        </div>
+                                        <div className="mt-4 grid gap-3 md:grid-cols-2">
+                                            {(viewingSupplier.supplier_contacts || [])
+                                                .filter((contact) => !contact.is_deleted)
+                                                .map((contact) => (
+                                                    <div
+                                                        key={contact.contact_id}
+                                                        className="rounded-xl border bg-slate-50 p-4"
+                                                    >
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div>
+                                                                <p className="font-bold text-slate-900">
+                                                                    {contact.contact_name}
+                                                                </p>
+                                                                <p className="text-xs text-slate-500">
+                                                                    {contact.position ||
+                                                                        contact.contact_type}
+                                                                </p>
+                                                            </div>
+                                                            {contact.is_primary && (
+                                                                <span className="rounded-full bg-[#9E4B4B]/10 px-2 py-1 text-xs font-bold text-[#9E4B4B]">
+                                                                    Primary
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="mt-3 space-y-1 text-sm text-slate-600">
+                                                            <p>
+                                                                {contact.phone ||
+                                                                    contact.mobile ||
+                                                                    "No phone"}
+                                                            </p>
+                                                            <p>
+                                                                {contact.email ||
+                                                                    "No email"}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    </section>
+
+                                    <section className="rounded-2xl border bg-white p-5">
+                                        <div className="flex items-center gap-2">
+                                            <MapPin className="h-5 w-5 text-[#9E4B4B]" />
+                                            <h3 className="font-black text-slate-900">
+                                                Addresses
+                                            </h3>
+                                        </div>
+                                        <div className="mt-4 grid gap-3 md:grid-cols-2">
+                                            {(viewingSupplier.supplier_addresses || [])
+                                                .filter((address) => !address.is_deleted)
+                                                .map((address) => (
+                                                    <div
+                                                        key={address.address_id}
+                                                        className="rounded-xl border bg-slate-50 p-4"
+                                                    >
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <p className="font-bold text-slate-900">
+                                                                {address.address_type}
+                                                            </p>
+                                                            {address.is_primary && (
+                                                                <span className="rounded-full bg-[#9E4B4B]/10 px-2 py-1 text-xs font-bold text-[#9E4B4B]">
+                                                                    Primary
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <p className="mt-3 text-sm leading-6 text-slate-600">
+                                                            {[
+                                                                address.address_line1,
+                                                                address.address_line2,
+                                                                address.suburb,
+                                                                address.state,
+                                                                address.postcode,
+                                                                address.country,
+                                                            ]
+                                                                .filter(Boolean)
+                                                                .join(", ")}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    </section>
+                                </TabsContent>
+
+                                <TabsContent value="purchasing" className="mt-4 min-w-0 space-y-4 sm:mt-5 sm:space-y-5">
+                                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                                        <div className="rounded-2xl border bg-white p-4">
+                                            <CreditCard className="h-5 w-5 text-[#9E4B4B]" />
+                                            <p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                                                Payment Terms
+                                            </p>
+                                            <p className="mt-1 font-bold text-slate-900">
+                                                {viewingSupplier.payment_terms_days}{" "}
+                                                {viewingSupplier.payment_terms_type}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-2xl border bg-white p-4">
+                                            <Truck className="h-5 w-5 text-[#9E4B4B]" />
+                                            <p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                                                Lead Time
+                                            </p>
+                                            <p className="mt-1 font-bold text-slate-900">
+                                                {viewingSupplier.delivery_lead_days ??
+                                                    "—"}{" "}
+                                                days
+                                            </p>
+                                        </div>
+                                        <div className="rounded-2xl border bg-white p-4">
+                                            <PackageSearch className="h-5 w-5 text-[#9E4B4B]" />
+                                            <p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                                                Minimum Order
+                                            </p>
+                                            <p className="mt-1 font-bold text-slate-900">
+                                                {viewingSupplier.minimum_order_value ===
+                                                null
+                                                    ? "—"
+                                                    : viewingSupplier.minimum_order_value.toLocaleString(
+                                                          "en-AU",
+                                                          {
+                                                              style: "currency",
+                                                              currency:
+                                                                  viewingSupplier.default_currency,
+                                                          }
+                                                      )}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-2xl border bg-white p-4">
+                                            <CreditCard className="h-5 w-5 text-[#9E4B4B]" />
+                                            <p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                                                Currency
+                                            </p>
+                                            <p className="mt-1 font-bold text-slate-900">
+                                                {viewingSupplier.default_currency}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <section className="rounded-2xl border bg-white p-5">
+                                        <h3 className="font-black text-slate-900">
+                                            Accounting Defaults
+                                        </h3>
+                                        <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+                                            <div>
+                                                <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                                                    Default Tax Type
+                                                </dt>
+                                                <dd className="mt-1 text-sm text-slate-800">
+                                                    {viewingSupplier.default_tax_type ||
+                                                        "Not configured"}
+                                                </dd>
+                                            </div>
+                                            <div>
+                                                <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                                                    Expense Account Code
+                                                </dt>
+                                                <dd className="mt-1 text-sm text-slate-800">
+                                                    {viewingSupplier.default_expense_account_code ||
+                                                        "Not configured"}
+                                                </dd>
+                                            </div>
+                                        </dl>
+                                    </section>
+
+                                    <section className="rounded-2xl border bg-white p-5">
+                                        <h3 className="font-black text-slate-900">
+                                            Freight Notes
+                                        </h3>
+                                        <p className="mt-3 break-words whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                                            {viewingSupplier.freight_notes ||
+                                                "No freight notes recorded."}
+                                        </p>
+                                    </section>
+                                </TabsContent>
+
+                                <TabsContent value="xero" className="mt-4 min-w-0 space-y-4 sm:mt-5 sm:space-y-5">
+                                    <section className="rounded-2xl border bg-white p-5">
+                                        <div className="flex items-center gap-2">
+                                            <Link2 className="h-5 w-5 text-[#9E4B4B]" />
+                                            <h3 className="font-black text-slate-900">
+                                                Xero Mapping
+                                            </h3>
+                                        </div>
+                                        <dl className="mt-5 grid gap-4 sm:grid-cols-2">
+                                            <div>
+                                                <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                                                    Status
+                                                </dt>
+                                                <dd className="mt-1 text-sm text-slate-800">
+                                                    {viewingSupplier.xero_status}
+                                                </dd>
+                                            </div>
+                                            <div>
+                                                <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                                                    Last Synced
+                                                </dt>
+                                                <dd className="mt-1 text-sm text-slate-800">
+                                                    {viewingSupplier.xero_last_synced_at
+                                                        ? new Date(
+                                                              viewingSupplier.xero_last_synced_at
+                                                          ).toLocaleString("en-AU")
+                                                        : "Never"}
+                                                </dd>
+                                            </div>
+                                            <div>
+                                                <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                                                    Contact ID
+                                                </dt>
+                                                <dd className="mt-1 break-all text-sm text-slate-800">
+                                                    {viewingSupplier.xero_contact_id ||
+                                                        "Not mapped"}
+                                                </dd>
+                                            </div>
+                                            <div>
+                                                <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                                                    Contact Number
+                                                </dt>
+                                                <dd className="mt-1 text-sm text-slate-800">
+                                                    {viewingSupplier.xero_contact_number ||
+                                                        "Not mapped"}
+                                                </dd>
+                                            </div>
+                                        </dl>
+
+                                        {viewingSupplier.xero_sync_error && (
+                                            <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                                                {viewingSupplier.xero_sync_error}
+                                            </div>
+                                        )}
+                                    </section>
+                                </TabsContent>
+                            </Tabs>
                         </div>
-                    </section>
-
-                        <section className="rounded-2xl border p-4">
-                            <h3 className="font-bold">Purchasing Defaults</h3>
-                            <div className="mt-3 space-y-2 text-sm">
-                                <p>Terms: {viewingSupplier.payment_terms_days} {viewingSupplier.payment_terms_type}</p>
-                                <p>Currency: {viewingSupplier.default_currency}</p>
-                                <p>Tax: {viewingSupplier.default_tax_type || "-"}</p>
-                                <p>Expense Account: {viewingSupplier.default_expense_account_code || "-"}</p>
-                                <p>Lead Time: {viewingSupplier.delivery_lead_days ?? 0} days</p>
-                            </div>
-                        </section>
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-2">
-                        <section className="rounded-2xl border p-4">
-                            <h3 className="font-bold">Contacts ({viewingSupplier.supplier_contacts?.length || 0})</h3>
-                            <div className="mt-3 space-y-3">
-                                {viewingSupplier.supplier_contacts?.length ? viewingSupplier.supplier_contacts.map((contact) =>
-                                    <div key={contact.contact_id} className="rounded-xl bg-slate-50 p-3 text-sm">
-                                        <p className="font-bold">{contact.contact_name}{contact.is_primary ? " · Primary" : ""}</p>
-                                        <p className="text-slate-500">{contact.position || contact.contact_type}</p>
-                                        <p>{contact.phone || contact.mobile || "-"}</p>
-                                        <p>{contact.email || "-"}</p>
-                                    </div>) : <p className="text-sm text-slate-500">
-                                    No contacts recorded.</p>}
-                            </div>
-                        </section>
-                        <section className="rounded-2xl border p-4">
-                            <h3 className="font-bold">Addresses ({viewingSupplier.supplier_addresses?.length || 0})</h3>
-                            <div className="mt-3 space-y-3">
-                                {viewingSupplier.supplier_addresses?.length ? viewingSupplier.supplier_addresses.map((address) =>
-                                    <div key={address.address_id} className="rounded-xl bg-slate-50 p-3 text-sm">
-                                        <p className="font-bold">{address.address_type}{address.is_primary ? " · Primary" : ""}</p>
-                                        <p>{[address.address_line1, address.address_line2, address.suburb, address.state, address.postcode, address.country].filter(Boolean).join(", ")}</p></div>) : <p className="text-sm text-slate-500">No addresses recorded.</p>}</div></section></div>
-                    <section className="rounded-2xl border p-4"><h3 className="font-bold">Xero Mapping</h3><div className="mt-3 grid gap-2 text-sm md:grid-cols-2"><p>Status: {viewingSupplier.xero_status}</p><p>Contact ID: {viewingSupplier.xero_contact_id || "-"}</p><p>Contact Name: {viewingSupplier.xero_contact_name || "-"}</p><p>Contact Number: {viewingSupplier.xero_contact_number || "-"}</p></div>{viewingSupplier.xero_sync_error && <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">{viewingSupplier.xero_sync_error}</p>}</section>
-                </div>}</DialogContent>
+                    )}
+                </DialogContent>
             </Dialog>
 
             <Dialog open={showFormDialog} onOpenChange={setShowFormDialog}>
-                <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto"><DialogHeader><DialogTitle>{formMode === "add" ? "Add Supplier" : "Edit Supplier"}</DialogTitle></DialogHeader><div className="space-y-6">
-                    <section className="rounded-2xl border p-4"><h3 className="font-bold">Supplier Details</h3><div className="mt-4 grid gap-4 md:grid-cols-2"><div><Label>Supplier Name *</Label><Input value={supplierName} onChange={(e) => setSupplierName(e.target.value)} /></div><div><Label>Legal Name</Label><Input value={legalName} onChange={(e) => setLegalName(e.target.value)} /></div><div><Label>Supplier Type</Label><Input value={supplierType} onChange={(e) => setSupplierType(e.target.value)} /></div><div><Label>ABN</Label><Input value={abn} onChange={(e) => setAbn(e.target.value)} /></div><div><Label>Phone</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} /></div><div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div><div className="md:col-span-2"><Label>Website</Label><Input value={website} onChange={(e) => setWebsite(e.target.value)} /></div></div></section>
-                    <section className="rounded-2xl border p-4">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <h3 className="font-bold">Supplier Contacts</h3>
-                                <p className="mt-1 text-sm text-slate-500">
-                                    Add purchasing, accounts and delivery contacts for this supplier.
-                                </p>
+                <DialogContent className="max-h-[94vh] max-w-6xl overflow-y-auto bg-slate-50 p-0">
+                    <div className="border-b bg-white px-5 py-5 sm:px-6">
+                        <DialogHeader>
+                            <DialogTitle className="text-xl font-black text-slate-900">
+                                {formMode === "add"
+                                    ? "Add Supplier"
+                                    : "Edit Supplier"}
+                            </DialogTitle>
+                        </DialogHeader>
+                        <p className="mt-1 text-sm text-slate-500">
+                            Complete supplier identity, contacts, addresses and purchasing defaults.
+                        </p>
+                    </div>
+
+                    <div className="space-y-5 p-4 sm:p-6">
+                        <SupplierFormSection
+                            number="01"
+                            title="Supplier Details"
+                            description="Core company identity and general contact information."
+                        >
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <Label>Supplier Name *</Label>
+                                    <Input
+                                        value={supplierName}
+                                        onChange={(event) =>
+                                            setSupplierName(event.target.value)
+                                        }
+                                        className={supplierInputClassName}
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Legal Name</Label>
+                                    <Input
+                                        value={legalName}
+                                        onChange={(event) =>
+                                            setLegalName(event.target.value)
+                                        }
+                                        className={supplierInputClassName}
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Supplier Type</Label>
+                                    <Input
+                                        value={supplierType}
+                                        onChange={(event) =>
+                                            setSupplierType(event.target.value)
+                                        }
+                                        className={supplierInputClassName}
+                                    />
+                                </div>
+                                <div>
+                                    <Label>ABN</Label>
+                                    <Input
+                                        value={abn}
+                                        onChange={(event) =>
+                                            setAbn(event.target.value)
+                                        }
+                                        className={supplierInputClassName}
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Phone</Label>
+                                    <Input
+                                        value={phone}
+                                        onChange={(event) =>
+                                            setPhone(event.target.value)
+                                        }
+                                        className={supplierInputClassName}
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Email</Label>
+                                    <Input
+                                        type="email"
+                                        value={email}
+                                        onChange={(event) =>
+                                            setEmail(event.target.value)
+                                        }
+                                        className={supplierInputClassName}
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <Label>Website</Label>
+                                    <Input
+                                        value={website}
+                                        onChange={(event) =>
+                                            setWebsite(event.target.value)
+                                        }
+                                        className={supplierInputClassName}
+                                    />
+                                </div>
+                            </div>
+                        </SupplierFormSection>
+
+                        <SupplierFormSection
+                            number="02"
+                            title="Contact People"
+                            description="Purchasing, accounts, delivery and management contacts."
+                        >
+                            <div className="flex justify-end">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={addSupplierContact}
+                                    className="h-10 gap-2 rounded-xl"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    Add Contact
+                                </Button>
                             </div>
 
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={addSupplierContact}
-                                className="h-10 gap-2"
-                            >
-                                <Plus className="h-4 w-4" />
-                                Add Contact
-                            </Button>
-                        </div>
-
-                        <div className="mt-4 space-y-4">
-                            {supplierContacts.map((contact, index) => (
-                                <div
-                                    key={contact.contact_id ?? `new-contact-${index}`}
-                                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                                >
-                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                        <div>
-                                            <p className="font-bold text-slate-900">
-                                                Contact {index + 1}
-                                            </p>
-
-                                            {contact.is_primary && (
-                                                <p className="mt-1 text-xs font-semibold text-red-600">
-                                                    Primary Contact
+                            <div className="mt-4 space-y-4">
+                                {supplierContacts.map((contact, index) => (
+                                    <div
+                                        key={
+                                            contact.contact_id ??
+                                            `new-contact-${index}`
+                                        }
+                                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                                    >
+                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                            <div>
+                                                <p className="font-bold text-slate-900">
+                                                    Contact {index + 1}
                                                 </p>
-                                            )}
-                                        </div>
+                                                {contact.is_primary && (
+                                                    <p className="mt-1 text-xs font-bold text-[#9E4B4B]">
+                                                        Primary Contact
+                                                    </p>
+                                                )}
+                                            </div>
 
-                                        <div className="flex flex-wrap gap-2">
-                                            {!contact.is_primary && (
+                                            <div className="flex flex-wrap gap-2">
+                                                {!contact.is_primary && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            setPrimarySupplierContact(
+                                                                index
+                                                            )
+                                                        }
+                                                    >
+                                                        Set as Primary
+                                                    </Button>
+                                                )}
                                                 <Button
                                                     type="button"
                                                     variant="outline"
                                                     size="sm"
-                                                    onClick={() => setPrimarySupplierContact(index)}
+                                                    onClick={() =>
+                                                        removeSupplierContact(index)
+                                                    }
+                                                    className="text-[#9E4B4B]"
                                                 >
-                                                    Set as Primary
+                                                    Remove
                                                 </Button>
-                                            )}
+                                            </div>
+                                        </div>
 
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => removeSupplierContact(index)}
-                                                className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                                            >
-                                                Remove
-                                            </Button>
+                                        <div className="mt-4 grid gap-4 md:grid-cols-2">
+                                            <div>
+                                                <Label>Contact Name *</Label>
+                                                <Input
+                                                    value={contact.contact_name}
+                                                    onChange={(event) =>
+                                                        updateSupplierContact(
+                                                            index,
+                                                            "contact_name",
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    className={
+                                                        supplierInputClassName
+                                                    }
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label>Contact Type</Label>
+                                                <Select
+                                                    value={contact.contact_type}
+                                                    onValueChange={(value) =>
+                                                        updateSupplierContact(
+                                                            index,
+                                                            "contact_type",
+                                                            value
+                                                        )
+                                                    }
+                                                >
+                                                    <SelectTrigger
+                                                        className={
+                                                            supplierSelectTriggerClassName
+                                                        }
+                                                    >
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {[
+                                                            "General",
+                                                            "Purchasing",
+                                                            "Accounts",
+                                                            "Delivery",
+                                                            "Sales",
+                                                            "Management",
+                                                        ].map((value) => (
+                                                            <SelectItem
+                                                                key={value}
+                                                                value={value}
+                                                            >
+                                                                {value}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div>
+                                                <Label>Position</Label>
+                                                <Input
+                                                    value={contact.position}
+                                                    onChange={(event) =>
+                                                        updateSupplierContact(
+                                                            index,
+                                                            "position",
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    className={
+                                                        supplierInputClassName
+                                                    }
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label>Email</Label>
+                                                <Input
+                                                    type="email"
+                                                    value={contact.email}
+                                                    onChange={(event) =>
+                                                        updateSupplierContact(
+                                                            index,
+                                                            "email",
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    className={
+                                                        supplierInputClassName
+                                                    }
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label>Phone</Label>
+                                                <Input
+                                                    value={contact.phone}
+                                                    onChange={(event) =>
+                                                        updateSupplierContact(
+                                                            index,
+                                                            "phone",
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    className={
+                                                        supplierInputClassName
+                                                    }
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label>Mobile</Label>
+                                                <Input
+                                                    value={contact.mobile}
+                                                    onChange={(event) =>
+                                                        updateSupplierContact(
+                                                            index,
+                                                            "mobile",
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    className={
+                                                        supplierInputClassName
+                                                    }
+                                                />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <Label>Contact Notes</Label>
+                                                <Textarea
+                                                    value={contact.notes}
+                                                    onChange={(event) =>
+                                                        updateSupplierContact(
+                                                            index,
+                                                            "notes",
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    className={
+                                                        supplierTextareaClassName
+                                                    }
+                                                />
+                                            </div>
                                         </div>
                                     </div>
+                                ))}
+                            </div>
+                        </SupplierFormSection>
 
-                                    <div className="mt-4 grid gap-4 md:grid-cols-2">
-                                        <div>
-                                            <Label>Contact Name *</Label>
-                                            <Input
-                                                value={contact.contact_name}
-                                                onChange={(event) =>
-                                                    updateSupplierContact(
-                                                        index,
-                                                        "contact_name",
-                                                        event.target.value
-                                                    )
-                                                }
-                                                placeholder="Full name"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <Label>Contact Type</Label>
-                                            <Select
-                                                value={contact.contact_type}
-                                                onValueChange={(value) =>
-                                                    updateSupplierContact(index, "contact_type", value)
-                                                }
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue />
-                                                </SelectTrigger>
-
-                                                <SelectContent>
-                                                    <SelectItem value="General">General</SelectItem>
-                                                    <SelectItem value="Purchasing">Purchasing</SelectItem>
-                                                    <SelectItem value="Accounts">Accounts</SelectItem>
-                                                    <SelectItem value="Delivery">Delivery</SelectItem>
-                                                    <SelectItem value="Sales">Sales</SelectItem>
-                                                    <SelectItem value="Management">Management</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-
-                                        <div>
-                                            <Label>Position</Label>
-                                            <Input
-                                                value={contact.position}
-                                                onChange={(event) =>
-                                                    updateSupplierContact(
-                                                        index,
-                                                        "position",
-                                                        event.target.value
-                                                    )
-                                                }
-                                                placeholder="Position or job title"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <Label>Email</Label>
-                                            <Input
-                                                type="email"
-                                                value={contact.email}
-                                                onChange={(event) =>
-                                                    updateSupplierContact(
-                                                        index,
-                                                        "email",
-                                                        event.target.value
-                                                    )
-                                                }
-                                                placeholder="name@example.com"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <Label>Phone</Label>
-                                            <Input
-                                                value={contact.phone}
-                                                onChange={(event) =>
-                                                    updateSupplierContact(
-                                                        index,
-                                                        "phone",
-                                                        event.target.value
-                                                    )
-                                                }
-                                                placeholder="Office phone"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <Label>Mobile</Label>
-                                            <Input
-                                                value={contact.mobile}
-                                                onChange={(event) =>
-                                                    updateSupplierContact(
-                                                        index,
-                                                        "mobile",
-                                                        event.target.value
-                                                    )
-                                                }
-                                                placeholder="Mobile number"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <Label>Status</Label>
-                                            <Select
-                                                value={contact.is_active ? "active" : "inactive"}
-                                                onValueChange={(value) =>
-                                                    updateSupplierContact(
-                                                        index,
-                                                        "is_active",
-                                                        value === "active"
-                                                    )
-                                                }
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue />
-                                                </SelectTrigger>
-
-                                                <SelectContent>
-                                                    <SelectItem value="active">Active</SelectItem>
-                                                    <SelectItem value="inactive">Inactive</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-
-                                        <div className="md:col-span-2">
-                                            <Label>Contact Notes</Label>
-                                            <Textarea
-                                                value={contact.notes}
-                                                onChange={(event) =>
-                                                    updateSupplierContact(
-                                                        index,
-                                                        "notes",
-                                                        event.target.value
-                                                    )
-                                                }
-                                                rows={2}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </section>
-
-                    <section className="rounded-2xl border p-4">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <h3 className="font-bold">Supplier Addresses</h3>
-                                <p className="mt-1 text-sm text-slate-500">
-                                    Add business, billing, warehouse or delivery addresses.
-                                </p>
+                        <SupplierFormSection
+                            number="03"
+                            title="Addresses"
+                            description="Business, billing, warehouse and delivery addresses."
+                        >
+                            <div className="flex justify-end">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={addSupplierAddress}
+                                    className="h-10 gap-2 rounded-xl"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    Add Address
+                                </Button>
                             </div>
 
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={addSupplierAddress}
-                                className="h-10 gap-2"
-                            >
-                                <Plus className="h-4 w-4" />
-                                Add Address
-                            </Button>
-                        </div>
-
-                        <div className="mt-4 space-y-4">
-                            {supplierAddresses.map((address, index) => (
-                                <div
-                                    key={address.address_id ?? `new-address-${index}`}
-                                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                                >
-                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                        <div>
-                                            <p className="font-bold text-slate-900">
-                                                Address {index + 1}
-                                            </p>
-
-                                            {address.is_primary && (
-                                                <p className="mt-1 text-xs font-semibold text-red-600">
-                                                    Primary Address
+                            <div className="mt-4 space-y-4">
+                                {supplierAddresses.map((address, index) => (
+                                    <div
+                                        key={
+                                            address.address_id ??
+                                            `new-address-${index}`
+                                        }
+                                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                                    >
+                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                            <div>
+                                                <p className="font-bold text-slate-900">
+                                                    Address {index + 1}
                                                 </p>
-                                            )}
-                                        </div>
-
-                                        <div className="flex flex-wrap gap-2">
-                                            {!address.is_primary && (
+                                                {address.is_primary && (
+                                                    <p className="mt-1 text-xs font-bold text-[#9E4B4B]">
+                                                        Primary Address
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {!address.is_primary && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            setPrimarySupplierAddress(
+                                                                index
+                                                            )
+                                                        }
+                                                    >
+                                                        Set as Primary
+                                                    </Button>
+                                                )}
                                                 <Button
                                                     type="button"
                                                     variant="outline"
                                                     size="sm"
-                                                    onClick={() => setPrimarySupplierAddress(index)}
+                                                    onClick={() =>
+                                                        removeSupplierAddress(index)
+                                                    }
+                                                    className="text-[#9E4B4B]"
                                                 >
-                                                    Set as Primary
+                                                    Remove
                                                 </Button>
-                                            )}
+                                            </div>
+                                        </div>
 
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => removeSupplierAddress(index)}
-                                                className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                                            >
-                                                Remove
-                                            </Button>
+                                        <div className="mt-4 grid gap-4 md:grid-cols-2">
+                                            <div>
+                                                <Label>Address Type</Label>
+                                                <Select
+                                                    value={address.address_type}
+                                                    onValueChange={(value) =>
+                                                        updateSupplierAddress(
+                                                            index,
+                                                            "address_type",
+                                                            value
+                                                        )
+                                                    }
+                                                >
+                                                    <SelectTrigger
+                                                        className={
+                                                            supplierSelectTriggerClassName
+                                                        }
+                                                    >
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {[
+                                                            "Business",
+                                                            "Billing",
+                                                            "Warehouse",
+                                                            "Delivery",
+                                                        ].map((value) => (
+                                                            <SelectItem
+                                                                key={value}
+                                                                value={value}
+                                                            >
+                                                                {value}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div>
+                                                <Label>Address Line 1</Label>
+                                                <Input
+                                                    value={address.address_line1}
+                                                    onChange={(event) =>
+                                                        updateSupplierAddress(
+                                                            index,
+                                                            "address_line1",
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    className={
+                                                        supplierInputClassName
+                                                    }
+                                                />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <Label>Address Line 2</Label>
+                                                <Input
+                                                    value={address.address_line2}
+                                                    onChange={(event) =>
+                                                        updateSupplierAddress(
+                                                            index,
+                                                            "address_line2",
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    className={
+                                                        supplierInputClassName
+                                                    }
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label>Suburb</Label>
+                                                <Input
+                                                    value={address.suburb}
+                                                    onChange={(event) =>
+                                                        updateSupplierAddress(
+                                                            index,
+                                                            "suburb",
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    className={
+                                                        supplierInputClassName
+                                                    }
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label>State</Label>
+                                                <Select
+                                                    value={
+                                                        address.state || "not-set"
+                                                    }
+                                                    onValueChange={(value) =>
+                                                        updateSupplierAddress(
+                                                            index,
+                                                            "state",
+                                                            value === "not-set"
+                                                                ? ""
+                                                                : value
+                                                        )
+                                                    }
+                                                >
+                                                    <SelectTrigger
+                                                        className={
+                                                            supplierSelectTriggerClassName
+                                                        }
+                                                    >
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="not-set">
+                                                            Not set
+                                                        </SelectItem>
+                                                        {[
+                                                            "NSW",
+                                                            "VIC",
+                                                            "QLD",
+                                                            "WA",
+                                                            "SA",
+                                                            "TAS",
+                                                            "ACT",
+                                                            "NT",
+                                                        ].map((value) => (
+                                                            <SelectItem
+                                                                key={value}
+                                                                value={value}
+                                                            >
+                                                                {value}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div>
+                                                <Label>Postcode</Label>
+                                                <Input
+                                                    value={address.postcode}
+                                                    onChange={(event) =>
+                                                        updateSupplierAddress(
+                                                            index,
+                                                            "postcode",
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    className={
+                                                        supplierInputClassName
+                                                    }
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label>Country</Label>
+                                                <Input
+                                                    value={address.country}
+                                                    onChange={(event) =>
+                                                        updateSupplierAddress(
+                                                            index,
+                                                            "country",
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    className={
+                                                        supplierInputClassName
+                                                    }
+                                                />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <Label>Address Notes</Label>
+                                                <Textarea
+                                                    value={address.notes}
+                                                    onChange={(event) =>
+                                                        updateSupplierAddress(
+                                                            index,
+                                                            "notes",
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    className={
+                                                        supplierTextareaClassName
+                                                    }
+                                                />
+                                            </div>
                                         </div>
                                     </div>
+                                ))}
+                            </div>
+                        </SupplierFormSection>
 
-                                    <div className="mt-4 grid gap-4 md:grid-cols-2">
-                                        <div>
-                                            <Label>Address Type</Label>
-                                            <Select
-                                                value={address.address_type}
-                                                onValueChange={(value) =>
-                                                    updateSupplierAddress(index, "address_type", value)
-                                                }
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue />
-                                                </SelectTrigger>
-
-                                                <SelectContent>
-                                                    <SelectItem value="Business">Business</SelectItem>
-                                                    <SelectItem value="Billing">Billing</SelectItem>
-                                                    <SelectItem value="Warehouse">Warehouse</SelectItem>
-                                                    <SelectItem value="Delivery">Delivery</SelectItem>
-                                                    <SelectItem value="Postal">Postal</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-
-                                        <div>
-                                            <Label>Status</Label>
-                                            <Select
-                                                value={address.is_active ? "active" : "inactive"}
-                                                onValueChange={(value) =>
-                                                    updateSupplierAddress(
-                                                        index,
-                                                        "is_active",
-                                                        value === "active"
-                                                    )
-                                                }
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue />
-                                                </SelectTrigger>
-
-                                                <SelectContent>
-                                                    <SelectItem value="active">Active</SelectItem>
-                                                    <SelectItem value="inactive">Inactive</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-
-                                        <div className="md:col-span-2">
-                                            <Label>Address Line 1 *</Label>
-                                            <Input
-                                                value={address.address_line1}
-                                                onChange={(event) =>
-                                                    updateSupplierAddress(
-                                                        index,
-                                                        "address_line1",
-                                                        event.target.value
-                                                    )
-                                                }
-                                            />
-                                        </div>
-
-                                        <div className="md:col-span-2">
-                                            <Label>Address Line 2</Label>
-                                            <Input
-                                                value={address.address_line2}
-                                                onChange={(event) =>
-                                                    updateSupplierAddress(
-                                                        index,
-                                                        "address_line2",
-                                                        event.target.value
-                                                    )
-                                                }
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <Label>Suburb</Label>
-                                            <Input
-                                                value={address.suburb}
-                                                onChange={(event) =>
-                                                    updateSupplierAddress(
-                                                        index,
-                                                        "suburb",
-                                                        event.target.value
-                                                    )
-                                                }
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <Label>State</Label>
-                                            <Select
-                                                value={address.state || "not-set"}
-                                                onValueChange={(value) =>
-                                                    updateSupplierAddress(
-                                                        index,
-                                                        "state",
-                                                        value === "not-set" ? "" : value
-                                                    )
-                                                }
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Select state" />
-                                                </SelectTrigger>
-
-                                                <SelectContent>
-                                                    <SelectItem value="not-set">Not set</SelectItem>
-                                                    <SelectItem value="NSW">NSW</SelectItem>
-                                                    <SelectItem value="VIC">VIC</SelectItem>
-                                                    <SelectItem value="QLD">QLD</SelectItem>
-                                                    <SelectItem value="WA">WA</SelectItem>
-                                                    <SelectItem value="SA">SA</SelectItem>
-                                                    <SelectItem value="TAS">TAS</SelectItem>
-                                                    <SelectItem value="ACT">ACT</SelectItem>
-                                                    <SelectItem value="NT">NT</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-
-                                        <div>
-                                            <Label>Postcode</Label>
-                                            <Input
-                                                value={address.postcode}
-                                                onChange={(event) =>
-                                                    updateSupplierAddress(
-                                                        index,
-                                                        "postcode",
-                                                        event.target.value
-                                                    )
-                                                }
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <Label>Country</Label>
-                                            <Input
-                                                value={address.country}
-                                                onChange={(event) =>
-                                                    updateSupplierAddress(
-                                                        index,
-                                                        "country",
-                                                        event.target.value
-                                                    )
-                                                }
-                                            />
-                                        </div>
-
-                                        <div className="md:col-span-2">
-                                            <Label>Address Notes</Label>
-                                            <Textarea
-                                                value={address.notes}
-                                                onChange={(event) =>
-                                                    updateSupplierAddress(
-                                                        index,
-                                                        "notes",
-                                                        event.target.value
-                                                    )
-                                                }
-                                                rows={2}
-                                            />
-                                        </div>
-                                    </div>
+                        <SupplierFormSection
+                            number="04"
+                            title="Purchasing Defaults"
+                            description="Terms, currency, tax, lead time and minimum ordering settings."
+                        >
+                            <div className="grid gap-4 md:grid-cols-3">
+                                <div>
+                                    <Label>Payment Terms Days</Label>
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        value={paymentTermsDays}
+                                        onChange={(event) =>
+                                            setPaymentTermsDays(
+                                                event.target.value
+                                            )
+                                        }
+                                        className={supplierInputClassName}
+                                    />
                                 </div>
-                            ))}
+                                <div>
+                                    <Label>Payment Terms Type</Label>
+                                    <Input
+                                        value={paymentTermsType}
+                                        onChange={(event) =>
+                                            setPaymentTermsType(
+                                                event.target.value
+                                            )
+                                        }
+                                        className={supplierInputClassName}
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Currency</Label>
+                                    <Input
+                                        value={defaultCurrency}
+                                        onChange={(event) =>
+                                            setDefaultCurrency(
+                                                event.target.value.toUpperCase()
+                                            )
+                                        }
+                                        className={supplierInputClassName}
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Default Tax Type</Label>
+                                    <Input
+                                        value={defaultTaxType}
+                                        onChange={(event) =>
+                                            setDefaultTaxType(event.target.value)
+                                        }
+                                        className={supplierInputClassName}
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Expense Account Code</Label>
+                                    <Input
+                                        value={defaultExpenseAccountCode}
+                                        onChange={(event) =>
+                                            setDefaultExpenseAccountCode(
+                                                event.target.value
+                                            )
+                                        }
+                                        className={supplierInputClassName}
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Delivery Lead Days</Label>
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        value={deliveryLeadDays}
+                                        onChange={(event) =>
+                                            setDeliveryLeadDays(
+                                                event.target.value
+                                            )
+                                        }
+                                        className={supplierInputClassName}
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Minimum Order Value</Label>
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={minimumOrderValue}
+                                        onChange={(event) =>
+                                            setMinimumOrderValue(
+                                                event.target.value
+                                            )
+                                        }
+                                        className={supplierInputClassName}
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <Label>Freight Notes</Label>
+                                    <Input
+                                        value={freightNotes}
+                                        onChange={(event) =>
+                                            setFreightNotes(event.target.value)
+                                        }
+                                        className={supplierInputClassName}
+                                    />
+                                </div>
+                            </div>
+                        </SupplierFormSection>
+
+                        <SupplierFormSection
+                            number="05"
+                            title="Xero Mapping"
+                            description="Supplier contact mapping for accounting export and future synchronisation."
+                        >
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <Label>Xero Contact ID</Label>
+                                    <Input
+                                        value={xeroContactId}
+                                        onChange={(event) =>
+                                            setXeroContactId(event.target.value)
+                                        }
+                                        className={supplierInputClassName}
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Xero Contact Name</Label>
+                                    <Input
+                                        value={xeroContactName}
+                                        onChange={(event) =>
+                                            setXeroContactName(event.target.value)
+                                        }
+                                        className={supplierInputClassName}
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Xero Contact Number</Label>
+                                    <Input
+                                        value={xeroContactNumber}
+                                        onChange={(event) =>
+                                            setXeroContactNumber(
+                                                event.target.value
+                                            )
+                                        }
+                                        className={supplierInputClassName}
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Xero Status</Label>
+                                    <Input
+                                        value={xeroStatus}
+                                        onChange={(event) =>
+                                            setXeroStatus(event.target.value)
+                                        }
+                                        className={supplierInputClassName}
+                                    />
+                                </div>
+                            </div>
+                        </SupplierFormSection>
+
+                        <SupplierFormSection
+                            number="06"
+                            title="Status & Notes"
+                            description="Operational availability and internal supplier notes."
+                        >
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <Label>Status</Label>
+                                    <Select
+                                        value={isActive ? "active" : "inactive"}
+                                        onValueChange={(value) =>
+                                            setIsActive(value === "active")
+                                        }
+                                    >
+                                        <SelectTrigger
+                                            className={
+                                                supplierSelectTriggerClassName
+                                            }
+                                        >
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="active">
+                                                Active
+                                            </SelectItem>
+                                            <SelectItem value="inactive">
+                                                Inactive
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label>Notes</Label>
+                                    <Textarea
+                                        value={notes}
+                                        onChange={(event) =>
+                                            setNotes(event.target.value)
+                                        }
+                                        className={supplierTextareaClassName}
+                                    />
+                                </div>
+                            </div>
+                        </SupplierFormSection>
+
+                        <div className="sticky bottom-0 flex justify-end gap-2 border-t bg-slate-50/95 py-4 backdrop-blur">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setShowFormDialog(false)}
+                                className="h-11 rounded-xl"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                type="button"
+                                onClick={() => saveSupplier.mutate()}
+                                disabled={saveSupplier.isPending}
+                                className="h-11 rounded-xl bg-[#9E4B4B] px-5 font-bold text-white hover:bg-[#873f3f]"
+                            >
+                                {saveSupplier.isPending
+                                    ? "Saving..."
+                                    : formMode === "add"
+                                      ? "Create Supplier"
+                                      : "Save Changes"}
+                            </Button>
                         </div>
-                    </section>
-                    <section className="rounded-2xl border p-4"><h3 className="font-bold">Purchasing Defaults</h3><div className="mt-4 grid gap-4 md:grid-cols-3"><div><Label>Payment Terms Days</Label><Input type="number" min="0" value={paymentTermsDays} onChange={(e) => setPaymentTermsDays(e.target.value)} /></div><div><Label>Payment Terms Type</Label><Input value={paymentTermsType} onChange={(e) => setPaymentTermsType(e.target.value)} /></div><div><Label>Currency</Label><Input value={defaultCurrency} onChange={(e) => setDefaultCurrency(e.target.value.toUpperCase())} /></div><div><Label>Default Tax Type</Label><Input value={defaultTaxType} onChange={(e) => setDefaultTaxType(e.target.value)} /></div><div><Label>Expense Account Code</Label><Input value={defaultExpenseAccountCode} onChange={(e) => setDefaultExpenseAccountCode(e.target.value)} /></div><div><Label>Delivery Lead Days</Label><Input type="number" min="0" value={deliveryLeadDays} onChange={(e) => setDeliveryLeadDays(e.target.value)} /></div><div><Label>Minimum Order Value</Label><Input type="number" min="0" step="0.01" value={minimumOrderValue} onChange={(e) => setMinimumOrderValue(e.target.value)} /></div><div className="md:col-span-2"><Label>Freight Notes</Label><Input value={freightNotes} onChange={(e) => setFreightNotes(e.target.value)} /></div></div></section>
-                    <section className="rounded-2xl border p-4"><h3 className="font-bold">Xero Mapping</h3><div className="mt-4 grid gap-4 md:grid-cols-2"><div><Label>Xero Contact ID</Label><Input value={xeroContactId} onChange={(e) => setXeroContactId(e.target.value)} /></div><div><Label>Xero Contact Name</Label><Input value={xeroContactName} onChange={(e) => setXeroContactName(e.target.value)} /></div><div><Label>Xero Contact Number</Label><Input value={xeroContactNumber} onChange={(e) => setXeroContactNumber(e.target.value)} /></div><div><Label>Xero Status</Label><Input value={xeroStatus} onChange={(e) => setXeroStatus(e.target.value)} /></div></div></section>
-                    <section className="rounded-2xl border p-4"><div className="grid gap-4 md:grid-cols-2"><div><Label>Status</Label><Select value={isActive ? "active" : "inactive"} onValueChange={(value) => setIsActive(value === "active")}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent></Select></div><div><Label>Notes</Label><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} /></div></div></section>
-                    <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setShowFormDialog(false)}>Cancel</Button><Button onClick={() => saveSupplier.mutate()} disabled={saveSupplier.isPending} className="bg-red-600 font-bold text-white hover:bg-red-700">{saveSupplier.isPending ? "Saving..." : formMode === "add" ? "Create Supplier" : "Save Changes"}</Button></div>
-                </div></DialogContent>
+                    </div>
+                </DialogContent>
             </Dialog>
         </div>
     );

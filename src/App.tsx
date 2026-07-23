@@ -1,5 +1,18 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/contexts/AuthContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import PermissionRoute from "@/components/PermissionRoute";
+
+import LandingPage from "./pages/LandingPage";
+import Auth from "./pages/Auth";
+import AccountAccessPage from "./pages/AccountAccessPage";
+import NotFound from "./pages/NotFound";
+
 import JobManager from "./pages/JobManager";
-import { AppLayout } from "@/components/AppLayout";
 import CustomerUpdate from "./pages/CustomerUpdate";
 import CustomerTracking from "./pages/CustomerTracking";
 import SystemWorkflow from "./pages/SystemWorkflow";
@@ -14,16 +27,6 @@ import QuotationBuilder from "./pages/QuotationBuilder";
 import PortalDashboard from "./pages/PortalDashboard";
 import CustomerDatabase from "./pages/CustomerDatabase";
 import InstallerDatabase from "./pages/InstallerDatabase";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/contexts/AuthContext";
-import LandingPage from "./pages/LandingPage";
-import Auth from "./pages/Auth";
-import NotFound from "./pages/NotFound";
-import ProtectedRoute from "./components/ProtectedRoute";
 import Tasks from "./pages/Tasks";
 import Projects from "./pages/Projects";
 import ProjectSites from "./pages/ProjectSites";
@@ -58,8 +61,23 @@ import ProductAttributes from "./pages/ProductAttributes";
 import ProductCodeManagement from "./pages/ProductCodeManagement";
 import Products from "./pages/Products";
 import StockRequests from "./pages/StockRequests";
+import AdminUserManagement from "./pages/AdminUserManagement";
+import TelegramNotifications from "./pages/TelegramNotifications";
 
 const queryClient = new QueryClient();
+
+const protectedPage = (page: React.ReactNode) => (
+  <ProtectedRoute>{page}</ProtectedRoute>
+);
+
+const permissionPage = (
+  page: React.ReactNode,
+  permissions: string[]
+) => (
+  <ProtectedRoute>
+    <PermissionRoute anyOf={permissions}>{page}</PermissionRoute>
+  </ProtectedRoute>
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -67,147 +85,146 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth" element={<Auth />} />
-            <Route
-              path="/portal"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <PortalDashboard />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/account-access" element={<AccountAccessPage />} />
 
-            <Route
-              path="/portal"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <PortalDashboard />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/portal" element={protectedPage(<PortalDashboard />)} />
+            <Route path="/dashboard" element={protectedPage(<PortalDashboard />)} />
 
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <PortalDashboard />
-                </ProtectedRoute>
-              }
-            />
-
-            <Route
-              path="/project-sites"
-              element={
-                <ProtectedRoute>
-                  <ProjectSites />
-                </ProtectedRoute>
-              }
-            />
-
+            <Route path="/customers" element={protectedPage(<CustomerDatabase />)} />
+            <Route path="/projects" element={protectedPage(<Projects />)} />
+            <Route path="/project-sites" element={protectedPage(<ProjectSites />)} />
             <Route
               path="/project-sites/:siteId"
-              element={
-                <ProtectedRoute>
-                  <ProjectSiteDashboard />
-                </ProtectedRoute>
-              }
+              element={protectedPage(<ProjectSiteDashboard />)}
+            />
+            <Route path="/project-areas" element={protectedPage(<ProjectAreas />)} />
+
+            <Route path="/work-orders" element={protectedPage(<WorkOrders />)} />
+            <Route
+              path="/work-orders/:workOrderId"
+              element={protectedPage(<WorkOrderDashboard />)}
+            />
+            <Route path="/daily-reports" element={protectedPage(<DailyReports />)} />
+            <Route
+              path="/daily-reports/:reportId"
+              element={protectedPage(<DailyReportDashboard />)}
+            />
+            <Route path="/my-work" element={protectedPage(<MyWork />)} />
+            <Route
+              path="/my-work/:workOrderId"
+              element={protectedPage(<MyWorkDailyReport />)}
+            />
+            <Route
+              path="/work-time-logs"
+              element={protectedPage(<WorkTimeLogs />)}
             />
 
-            <Route path="/work-orders" element={<ProtectedRoute><WorkOrders /></ProtectedRoute>} />
-            <Route path="/work-orders/:workOrderId" element={<ProtectedRoute><WorkOrderDashboard /></ProtectedRoute>} />
-            <Route path="/daily-reports" element={<ProtectedRoute><DailyReports /></ProtectedRoute>} />
-            <Route path="/my-work" element={<ProtectedRoute><MyWork /></ProtectedRoute>} />
-            <Route path="/my-work/:workOrderId" element={<ProtectedRoute><MyWorkDailyReport /></ProtectedRoute>} />
-            <Route path="/daily-reports/:reportId" element={<ProtectedRoute><DailyReportDashboard /></ProtectedRoute>} />
-            <Route path="/work-time-logs" element={<ProtectedRoute><WorkTimeLogs /></ProtectedRoute>} />
-            <Route path="/project-areas" element={<ProtectedRoute><ProjectAreas /></ProtectedRoute>} />
-            <Route path="/workflow" element={<SystemWorkflow />} />
-            <Route path="/job-manager" element={<JobManager />} />
-            <Route path="/customer-update" element={<CustomerUpdate />} />
-            <Route path="/customer-tracking" element={<CustomerTracking />} />
-            <Route path="/pricing" element={<PricingSettings />} />
-            <Route path="/quotation-builder" element={<QuotationBuilder />} />
-            <Route path="/materials" element={<MaterialCatalog />} />
-            <Route path="/quotations" element={<ProtectedRoute><Quotations /></ProtectedRoute>} />
-            <Route path="/variations" element={<ProtectedRoute><Variations /></ProtectedRoute>}/>
-
-            <Route path="/material-requirements" element={<ProtectedRoute><MaterialRequest /></ProtectedRoute>}/>
-            <Route path="/material-requirements" element={<ProtectedRoute><MaterialRequest /></ProtectedRoute>} />
-            <Route path="/showroom" element={<CustomerShowroom />} />
-            <Route path="/proposal" element={<CustomerProposal />} />
-            <Route path="/job-card" element={<JobCard />} />
-            <Route path="/installers" element={<InstallerDatabase />} />
-            <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
-            <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
-            <Route path="/contacts" element={<ProtectedRoute><Contacts /></ProtectedRoute>} />
-            <Route path="/team" element={<ProtectedRoute><Team /></ProtectedRoute>} />
-            <Route path="/photos" element={<ProtectedRoute><PhotoApproval /></ProtectedRoute>} />
-            <Route path="/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
-            <Route path="/payroll-periods/:payrollPeriodId" element={<ProtectedRoute><PayrollPeriodDashboard /></ProtectedRoute>} />
-            <Route path="/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
-            <Route path="/suppliers" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
+            <Route path="/quotations" element={protectedPage(<Quotations />)} />
+            <Route path="/variations" element={protectedPage(<Variations />)} />
+            <Route
+              path="/material-requirements"
+              element={protectedPage(<MaterialRequest />)}
+            />
             <Route
               path="/stock-requests"
-              element={
-                <ProtectedRoute>
-                  <StockRequests />
-                </ProtectedRoute>
-              }
+              element={protectedPage(<StockRequests />)}
             />
-            <Route path="/payroll-periods" element={<ProtectedRoute><PayrollPeriods /></ProtectedRoute>} />
-            <Route path="/payroll-entries" element={<ProtectedRoute><PayrollEntries /></ProtectedRoute>} />
-            <Route path="/project-timeline" element={<ProtectedRoute><ProjectTimeline /></ProtectedRoute>} />
-            <Route path="/master-data" element={<ProtectedRoute><MasterData /></ProtectedRoute>} />
+
+            <Route path="/employees" element={protectedPage(<Employees />)} />
+            <Route path="/suppliers" element={protectedPage(<Suppliers />)} />
             <Route
-              path="/products"
-              element={
-                <ProtectedRoute>
-                  <Products />
-                </ProtectedRoute>
-              }
+              path="/payroll-periods"
+              element={protectedPage(<PayrollPeriods />)}
             />
+            <Route
+              path="/payroll-periods/:payrollPeriodId"
+              element={protectedPage(<PayrollPeriodDashboard />)}
+            />
+            <Route
+              path="/payroll-entries"
+              element={protectedPage(<PayrollEntries />)}
+            />
+            <Route path="/payroll" element={protectedPage(<Payroll />)} />
+
+            <Route path="/products" element={protectedPage(<Products />)} />
             <Route
               path="/product-attributes"
-              element={
-                <ProtectedRoute>
-                  <ProductAttributes />
-                </ProtectedRoute>
-              }
+              element={protectedPage(<ProductAttributes />)}
             />
             <Route
               path="/product-code-management"
-              element={
-                <ProtectedRoute>
-                  <ProductCodeManagement />
-                </ProtectedRoute>
-              }
+              element={protectedPage(<ProductCodeManagement />)}
             />
-            <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-            <Route path="/tech" element={<ProtectedRoute><TechHome /></ProtectedRoute>} />
-            <Route path="/tech/materials" element={<ProtectedRoute><TechMaterials /></ProtectedRoute>} />
-            <Route path="/tech/report" element={<ProtectedRoute><TechReport /></ProtectedRoute>} />
-            <Route path="/tech/leave" element={<ProtectedRoute><TechLeave /></ProtectedRoute>} />
+            <Route path="/master-data" element={protectedPage(<MasterData />)} />
 
+            <Route path="/contacts" element={protectedPage(<Contacts />)} />
+            <Route path="/team" element={protectedPage(<Team />)} />
+            <Route path="/photos" element={protectedPage(<PhotoApproval />)} />
+            <Route path="/tasks" element={protectedPage(<Tasks />)} />
             <Route
-              path="/customers"
-              element={
-                <ProtectedRoute>
-                  <CustomerDatabase />
-                </ProtectedRoute>
-              }
+              path="/project-timeline"
+              element={protectedPage(<ProjectTimeline />)}
+            />
+            <Route
+              path="/admin/users"
+              element={permissionPage(<AdminUserManagement />, [
+                "users.view",
+                "users.manage_accounts",
+              ])}
+            />
+            <Route
+              path="/admin/telegram-notifications"
+              element={permissionPage(<TelegramNotifications />, [
+                "telegram_notifications.view",
+                "telegram_notifications.manage",
+              ])}
             />
 
-            {/* หน้าลูกค้า (Customer) */}
-            <Route path="/customer-check" element={<CustomerCheck />} />
+            <Route path="/settings" element={protectedPage(<SettingsPage />)} />
 
-            {/* หน้า 404 ต้องอยู่ล่างสุดเสมอ */}
+            <Route path="/tech" element={protectedPage(<TechHome />)} />
+            <Route
+              path="/tech/materials"
+              element={protectedPage(<TechMaterials />)}
+            />
+            <Route path="/tech/report" element={protectedPage(<TechReport />)} />
+            <Route path="/tech/leave" element={protectedPage(<TechLeave />)} />
+
+            {/* Legacy/internal pages are also gated to prevent Pending accounts
+                from bypassing application access through a direct URL. */}
+            <Route path="/workflow" element={protectedPage(<SystemWorkflow />)} />
+            <Route path="/job-manager" element={protectedPage(<JobManager />)} />
+            <Route
+              path="/customer-update"
+              element={protectedPage(<CustomerUpdate />)}
+            />
+            <Route
+              path="/customer-tracking"
+              element={protectedPage(<CustomerTracking />)}
+            />
+            <Route path="/pricing" element={protectedPage(<PricingSettings />)} />
+            <Route
+              path="/quotation-builder"
+              element={protectedPage(<QuotationBuilder />)}
+            />
+            <Route path="/materials" element={protectedPage(<MaterialCatalog />)} />
+            <Route path="/showroom" element={protectedPage(<CustomerShowroom />)} />
+            <Route path="/proposal" element={protectedPage(<CustomerProposal />)} />
+            <Route path="/job-card" element={protectedPage(<JobCard />)} />
+            <Route
+              path="/installers"
+              element={protectedPage(<InstallerDatabase />)}
+            />
+            <Route
+              path="/customer-check"
+              element={protectedPage(<CustomerCheck />)}
+            />
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

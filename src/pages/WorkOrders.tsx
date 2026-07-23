@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { ClipboardList, Eye, Pencil, Plus, Search } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12,6 +12,45 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select";
 import { toast } from "sonner";
 import MobileWorkOrderCard from "@/components/mobile/MobileWorkOrderCard";
+
+
+const workOrderInputClassName =
+  "h-11 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] text-base text-slate-900 hover:border-[#9E4B4B] focus-visible:border-[#9E4B4B] focus-visible:ring-[#9E4B4B]/30 md:text-sm";
+
+const workOrderTextareaClassName =
+  "min-h-28 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] text-base text-slate-900 hover:border-[#9E4B4B] focus-visible:border-[#9E4B4B] focus-visible:ring-[#9E4B4B]/30 md:text-sm";
+
+const workOrderSelectTriggerClassName =
+  "h-11 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] hover:border-[#9E4B4B] focus:ring-[#9E4B4B]/30";
+
+function WorkOrderFormSection({
+  number,
+  title,
+  description,
+  children,
+}: {
+  number: string;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="mb-5 flex gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#9E4B4B] text-xs font-black text-white">
+          {number}
+        </span>
+        <div>
+          <h3 className="text-sm font-black uppercase tracking-wide text-slate-900">
+            {title}
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
 
 const WorkOrders = () => {
   const getStatusBadgeClass = (status: string | null) => {
@@ -724,457 +763,457 @@ work_assignments (
           }
         }}
       >
-        <DialogContent className="max-h-[92vh] w-[calc(100vw-1rem)] max-w-3xl overflow-y-auto p-4 sm:p-6">
-          <DialogHeader>
-            <DialogTitle>Add Work Order</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-6">
-            <div className="space-y-3">
-              <div className="border-b pb-2">
-                <h3 className="text-sm font-bold text-slate-900">
-                  Work Order Details
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Select the project location and basic work information.
-                </p>
-              </div>
-
-            </div>
-            <div className="md:col-span-2 space-y-2">
-              <Label>Project *</Label>
-              <Select
-                value={projectId}
-                onValueChange={(value) => {
-                  setProjectId(value);
-                  setSiteId("");
-                  setAreaId("");
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select project" />
-                </SelectTrigger>
-
-                <SelectContent>
-                  {projects.map((project) => (
-                    <SelectItem
-                      key={project.project_id}
-                      value={project.project_id}
-                    >
-                      {project.project_no || "-"} - {project.project_name || "-"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Project Site *</Label>
-              <Select
-                value={siteId}
-                onValueChange={(value) => {
-                  setSiteId(value);
-                  setAreaId("");
-                }}
-                disabled={!projectId}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      projectId ? "Select project site" : "Select project first"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredSites.map((site) => (
-                    <SelectItem key={site.site_id} value={site.site_id}>
-                      {site.site_code || "-"} - {site.site_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Project Area *</Label>
-              <Select
-                value={areaId}
-                onValueChange={setAreaId}
-                disabled={!siteId}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      siteId ? "Select project area" : "Select site first"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredAreas.map((area) => (
-                    <SelectItem key={area.area_id} value={area.area_id}>
-                      {area.area_code || "-"} - {area.area_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3">
-              <p className="text-sm font-medium text-slate-700">Work Order No</p>
-              <p className="mt-1 text-sm text-slate-500">
-                Auto generated when saved. Example: WO2607-00001
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Work Order Type *</Label>
-
-                <Select
-                  value={workOrderTypeId}
-                  onValueChange={(value) => {
-                    setWorkOrderTypeId(value);
-                    setWorkOrderScopeId("");
-                    setTitle("");
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select work order type" />
-                  </SelectTrigger>
-
-                  <SelectContent>
-                    {workOrderTypes.map((workOrderType) => (
-                      <SelectItem
-                        key={workOrderType.work_order_type_id}
-                        value={workOrderType.work_order_type_id}
-                      >
-                        {workOrderType.work_order_type_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Work Scope *</Label>
-
-                <Select
-                  value={workOrderScopeId}
-                  onValueChange={(value) => {
-                    setWorkOrderScopeId(value);
-
-                    const selectedScope = workOrderScopes.find(
-                      (scope) => scope.work_order_scope_id === value
-                    );
-
-                    setTitle(selectedScope?.work_order_scope_name || "");
-                  }}
-                  disabled={!workOrderTypeId}
-                >
-                  <SelectTrigger>
-                    <SelectValue
-                      placeholder={
-                        workOrderTypeId
-                          ? "Select work scope"
-                          : "Select work order type first"
-                      }
-                    />
-                  </SelectTrigger>
-
-                  <SelectContent>
-                    {filteredWorkOrderScopes.map((scope) => (
-                      <SelectItem
-                        key={scope.work_order_scope_id}
-                        value={scope.work_order_scope_id}
-                      >
-                        {scope.work_order_scope_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label>Selected Work Scope</Label>
-
-                <Input
-                  value={title}
-                  readOnly
-                  className="bg-slate-100 text-slate-600"
-                  placeholder="Generated from selected work scope"
-                />
-
-                <p className="text-xs text-slate-500">
-                  This value is saved as the work order title snapshot.
-                </p>
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label>Description</Label>
-
-                <Textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                  placeholder="Describe the specific work requirements for this work order."
-                />
-
-                <p className="text-xs text-slate-500">
-                  Add details that are specific to this location, area, quantity, installation method, or site requirement.
-                </p>
-              </div>
-
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Priority</Label>
-                <Select value={priority} onValueChange={setPriority}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select priority" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Low">Low</SelectItem>
-                    <SelectItem value="Standard ">Standard </SelectItem>
-                    <SelectItem value="High">High</SelectItem>
-                    <SelectItem value="Urgent">Urgent</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Open">Open</SelectItem>
-                    <SelectItem value="Assigned">Assigned</SelectItem>
-                    <SelectItem value="In Progress">In Progress</SelectItem>
-                    <SelectItem value="Ready for Inspection">
-                      Ready for Inspection
-                    </SelectItem>
-                    <SelectItem value="Inspection">Inspection</SelectItem>
-                    <SelectItem value="Approved Completion">
-                      Approved Completion
-                    </SelectItem>
-                    <SelectItem value="Completed">Completed</SelectItem>
-                    <SelectItem value="Cancelled">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Planned Start Date</Label>
-                <Input
-                  type="date"
-                  value={plannedStartDate}
-                  onChange={(e) => setPlannedStartDate(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Planned End Date</Label>
-                <Input
-                  type="date"
-                  value={plannedEndDate}
-                  onChange={(e) => setPlannedEndDate(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Actual Start Date</Label>
-                <Input
-                  type="date"
-                  value={actualStartDate}
-                  readOnly
-                  className="bg-slate-50 text-slate-500"
-                />
-                <p className="text-xs text-slate-500">
-                  Actual start date is recorded from real work activity.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Actual End Date</Label>
-                <Input
-                  type="date"
-                  value={actualEndDate}
-                  readOnly
-                  className="bg-slate-50 text-slate-500"
-                />
-                <p className="text-xs text-slate-500">
-                  Actual end date is recorded when the work order is completed.
-                </p>
-              </div>
-            </div>
+        <DialogContent className="max-h-[94dvh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-x-hidden overflow-y-auto bg-slate-50 p-0 sm:max-w-5xl">
+          <div className="border-b bg-white px-5 py-5 sm:px-6">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-black text-slate-900">
+                Add Work Order
+              </DialogTitle>
+            </DialogHeader>
+            <p className="mt-1 text-sm text-slate-500">
+              Create the work order location, scope, schedule and worker assignments.
+            </p>
           </div>
 
-          <div className="space-y-3">
-            <div className="border-b pb-2">
-              <h3 className="text-sm font-bold text-slate-900">
-                Worker Assignment
-              </h3>
-              <p className="text-xs text-slate-500">
-                Search and select workers who will be assigned after this work order is saved.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Search Workers</Label>
-              <Input
-                value={workerSearchTerm}
-                onChange={(e) => setWorkerSearchTerm(e.target.value)}
-                placeholder="Type at least 2 characters to search workers..."
-              />
-            </div>
-
-            {workerSearchTerm.trim().length >= 2 && (
-              <div className="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2">
-                {filteredWorkers.length === 0 ? (
-                  <p className="px-2 py-3 text-sm text-slate-500">
-                    No matching workers found.
-                  </p>
-                ) : (
-                  filteredWorkers.map((employee) => {
-                    const employeeName =
-                      employee.display_name ||
-                      `${employee.first_name || ""} ${employee.last_name || ""}`.trim() ||
-                      employee.employee_code ||
-                      "-";
-
-                    return (
-                      <button
-                        key={employee.employee_id}
-                        type="button"
-                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left transition hover:bg-slate-100"
-                        onClick={() => {
-                          setSelectedEmployeeIds((current) => [
-                            ...current,
-                            employee.employee_id,
-                          ]);
-                          setWorkerSearchTerm("");
-                        }}
-                      >
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">
-                            {employee.employee_code || "-"} - {employeeName}
-                          </p>
-                          <p className="text-xs text-slate-500">Tap to assign</p>
-                        </div>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            )}
-
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
-              <p className="text-sm font-semibold text-slate-900">
-                Selected Workers
-              </p>
-
-              {selectedEmployeeIds.length === 0 ? (
-                <p className="text-sm text-slate-500">
-                  No workers selected.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {selectedEmployeeIds.map((employeeId) => {
-                    const employee = employees.find(
-                      (item) => item.employee_id === employeeId
-                    );
-
-                    const employeeName =
-                      employee?.display_name ||
-                      `${employee?.first_name || ""} ${employee?.last_name || ""}`.trim() ||
-                      employee?.employee_code ||
-                      "-";
-
-                    return (
-                      <div
-                        key={employeeId}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2"
-                      >
-                        <div>
-                          <p className="text-sm font-medium text-slate-900">
-                            {employee?.employee_code || "-"} - {employeeName}
-                          </p>
-                          <p className="text-xs text-green-700">
-                            Pending assignment
-                          </p>
-                        </div>
-
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="text-orange-600 hover:text-orange-700"
-                          onClick={() =>
-                            setSelectedEmployeeIds((current) =>
-                              current.filter((item) => item !== employeeId)
-                            )
-                          }
+          <div className="space-y-5 p-4 sm:p-6">
+            <WorkOrderFormSection
+              number="01"
+              title="Project Location"
+              description="Select the project, site and area where this work will be performed."
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Project *</Label>
+                  <Select
+                    value={projectId}
+                    onValueChange={(value) => {
+                      setProjectId(value);
+                      setSiteId("");
+                      setAreaId("");
+                    }}
+                  >
+                    <SelectTrigger className={workOrderSelectTriggerClassName}>
+                      <SelectValue placeholder="Select project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projects.map((project) => (
+                        <SelectItem
+                          key={project.project_id}
+                          value={project.project_id}
                         >
-                          Remove
-                        </Button>
-                      </div>
-                    );
-                  })}
+                          {project.project_no || "-"} - {project.project_name || "-"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              )}
-            </div>
-          </div>
 
-          <div className="space-y-3">
-            <div className="border-b pb-2">
-              <h3 className="text-sm font-bold text-slate-900">
-                Work Instructions
-              </h3>
-              <p className="text-xs text-slate-500">
-                Add internal notes, access instructions, safety information, or special site conditions.
-              </p>
-            </div>
+                <div className="space-y-2">
+                  <Label>Project Site *</Label>
+                  <Select
+                    value={siteId}
+                    onValueChange={(value) => {
+                      setSiteId(value);
+                      setAreaId("");
+                    }}
+                    disabled={!projectId}
+                  >
+                    <SelectTrigger className={workOrderSelectTriggerClassName}>
+                      <SelectValue
+                        placeholder={
+                          projectId ? "Select project site" : "Select project first"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredSites.map((site) => (
+                        <SelectItem key={site.site_id} value={site.site_id}>
+                          {site.site_code || "-"} - {site.site_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="space-y-2">
-              <Label>Notes</Label>
-              <Textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={3}
-                placeholder="Add internal notes, access instructions, safety notes, or special conditions."
-              />
-              <p className="text-xs text-slate-500">
-                Use notes for information that supports the team but is not the main work scope.
-              </p>
-            </div>
-          </div>
+                <div className="space-y-2">
+                  <Label>Project Area *</Label>
+                  <Select
+                    value={areaId}
+                    onValueChange={setAreaId}
+                    disabled={!siteId}
+                  >
+                    <SelectTrigger className={workOrderSelectTriggerClassName}>
+                      <SelectValue
+                        placeholder={
+                          siteId ? "Select project area" : "Select site first"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredAreas.map((area) => (
+                        <SelectItem key={area.area_id} value={area.area_id}>
+                          {area.area_code || "-"} - {area.area_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-          <div className="flex flex-col-reverse gap-3 pt-4 sm:flex-row sm:justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setShowAddDialog(false);
-                resetForm();
-              }}
-              className="w-full sm:w-auto"
+                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 md:col-span-2">
+                  <p className="text-sm font-bold text-slate-800">Work Order No</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Auto generated when saved. Example: WO2607-00001
+                  </p>
+                </div>
+              </div>
+            </WorkOrderFormSection>
+
+            <WorkOrderFormSection
+              number="02"
+              title="Work Scope"
+              description="Define the work order type, exact scope and location-specific requirements."
             >
-              Cancel
-            </Button>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Work Order Type *</Label>
+                  <Select
+                    value={workOrderTypeId}
+                    onValueChange={(value) => {
+                      setWorkOrderTypeId(value);
+                      setWorkOrderScopeId("");
+                      setTitle("");
+                    }}
+                  >
+                    <SelectTrigger className={workOrderSelectTriggerClassName}>
+                      <SelectValue placeholder="Select work order type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {workOrderTypes.map((workOrderType) => (
+                        <SelectItem
+                          key={workOrderType.work_order_type_id}
+                          value={workOrderType.work_order_type_id}
+                        >
+                          {workOrderType.work_order_type_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <Button
-              onClick={() => createWorkOrder.mutate()}
-              disabled={createWorkOrder.isPending}
-              className="w-full bg-red-600 text-white hover:bg-red-700 sm:w-auto"
+                <div className="space-y-2">
+                  <Label>Work Scope *</Label>
+                  <Select
+                    value={workOrderScopeId}
+                    onValueChange={(value) => {
+                      setWorkOrderScopeId(value);
+
+                      const selectedScope = workOrderScopes.find(
+                        (scope) => scope.work_order_scope_id === value
+                      );
+
+                      setTitle(selectedScope?.work_order_scope_name || "");
+                    }}
+                    disabled={!workOrderTypeId}
+                  >
+                    <SelectTrigger className={workOrderSelectTriggerClassName}>
+                      <SelectValue
+                        placeholder={
+                          workOrderTypeId
+                            ? "Select work scope"
+                            : "Select work order type first"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredWorkOrderScopes.map((scope) => (
+                        <SelectItem
+                          key={scope.work_order_scope_id}
+                          value={scope.work_order_scope_id}
+                        >
+                          {scope.work_order_scope_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Selected Work Scope</Label>
+                  <Input
+                    value={title}
+                    readOnly
+                    className={`${workOrderInputClassName} bg-slate-100 text-slate-600`}
+                    placeholder="Generated from selected work scope"
+                  />
+                  <p className="text-xs text-slate-500">
+                    This value is saved as the work order title snapshot.
+                  </p>
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Description</Label>
+                  <Textarea
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    rows={4}
+                    placeholder="Describe the specific work requirements for this work order."
+                    className={workOrderTextareaClassName}
+                  />
+                  <p className="text-xs text-slate-500">
+                    Include area, quantity, installation method, access or site-specific requirements.
+                  </p>
+                </div>
+              </div>
+            </WorkOrderFormSection>
+
+            <WorkOrderFormSection
+              number="03"
+              title="Priority & Schedule"
+              description="Set the operational priority, initial status and planned dates."
             >
-              {createWorkOrder.isPending ? "Saving..." : "Save Work Order"}
-            </Button>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Priority</Label>
+                  <Select value={priority} onValueChange={setPriority}>
+                    <SelectTrigger className={workOrderSelectTriggerClassName}>
+                      <SelectValue placeholder="Select priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Low">Low</SelectItem>
+                      <SelectItem value="Normal">Normal</SelectItem>
+                      <SelectItem value="High">High</SelectItem>
+                      <SelectItem value="Urgent">Urgent</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={status} onValueChange={setStatus}>
+                    <SelectTrigger className={workOrderSelectTriggerClassName}>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Open">Open</SelectItem>
+                      <SelectItem value="Assigned">Assigned</SelectItem>
+                      <SelectItem value="In Progress">In Progress</SelectItem>
+                      <SelectItem value="Ready for Inspection">
+                        Ready for Inspection
+                      </SelectItem>
+                      <SelectItem value="Inspection">Inspection</SelectItem>
+                      <SelectItem value="Approved Completion">
+                        Approved Completion
+                      </SelectItem>
+                      <SelectItem value="Completed">Completed</SelectItem>
+                      <SelectItem value="Cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Planned Start Date</Label>
+                  <Input
+                    type="date"
+                    value={plannedStartDate}
+                    onChange={(event) => setPlannedStartDate(event.target.value)}
+                    className={workOrderInputClassName}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Planned End Date</Label>
+                  <Input
+                    type="date"
+                    value={plannedEndDate}
+                    onChange={(event) => setPlannedEndDate(event.target.value)}
+                    className={workOrderInputClassName}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Actual Start Date</Label>
+                  <Input
+                    type="date"
+                    value={actualStartDate}
+                    readOnly
+                    className={`${workOrderInputClassName} bg-slate-100 text-slate-500`}
+                  />
+                  <p className="text-xs text-slate-500">
+                    Recorded from real work activity.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Actual End Date</Label>
+                  <Input
+                    type="date"
+                    value={actualEndDate}
+                    readOnly
+                    className={`${workOrderInputClassName} bg-slate-100 text-slate-500`}
+                  />
+                  <p className="text-xs text-slate-500">
+                    Recorded when the work order is completed.
+                  </p>
+                </div>
+              </div>
+            </WorkOrderFormSection>
+
+            <WorkOrderFormSection
+              number="04"
+              title="Worker Assignment"
+              description="Search and select one or more active workers to assign after saving."
+            >
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Search Workers</Label>
+                  <Input
+                    value={workerSearchTerm}
+                    onChange={(event) => setWorkerSearchTerm(event.target.value)}
+                    placeholder="Type at least 2 characters to search workers..."
+                    className={workOrderInputClassName}
+                  />
+                </div>
+
+                {workerSearchTerm.trim().length >= 2 && (
+                  <div className="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
+                    {filteredWorkers.length === 0 ? (
+                      <p className="px-2 py-3 text-sm text-slate-500">
+                        No matching workers found.
+                      </p>
+                    ) : (
+                      filteredWorkers.map((employee) => {
+                        const employeeName =
+                          employee.display_name ||
+                          `${employee.first_name || ""} ${employee.last_name || ""}`.trim() ||
+                          employee.employee_code ||
+                          "-";
+
+                        return (
+                          <button
+                            key={employee.employee_id}
+                            type="button"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-[#9E4B4B] hover:bg-slate-50"
+                            onClick={() => {
+                              setSelectedEmployeeIds((current) => [
+                                ...current,
+                                employee.employee_id,
+                              ]);
+                              setWorkerSearchTerm("");
+                            }}
+                          >
+                            <p className="text-sm font-semibold text-slate-900">
+                              {employee.employee_code || "-"} - {employeeName}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              Select to assign
+                            </p>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-bold text-slate-900">
+                    Selected Workers
+                  </p>
+
+                  {selectedEmployeeIds.length === 0 ? (
+                    <p className="mt-2 text-sm text-slate-500">
+                      No workers selected.
+                    </p>
+                  ) : (
+                    <div className="mt-3 space-y-2">
+                      {selectedEmployeeIds.map((employeeId) => {
+                        const employee = employees.find(
+                          (item) => item.employee_id === employeeId
+                        );
+
+                        const employeeName =
+                          employee?.display_name ||
+                          `${employee?.first_name || ""} ${employee?.last_name || ""}`.trim() ||
+                          employee?.employee_code ||
+                          "-";
+
+                        return (
+                          <div
+                            key={employeeId}
+                            className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+                          >
+                            <div>
+                              <p className="text-sm font-medium text-slate-900">
+                                {employee?.employee_code || "-"} - {employeeName}
+                              </p>
+                              <p className="text-xs text-green-700">
+                                Pending assignment
+                              </p>
+                            </div>
+
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="text-[#9E4B4B] hover:text-[#873f3f]"
+                              onClick={() =>
+                                setSelectedEmployeeIds((current) =>
+                                  current.filter((item) => item !== employeeId)
+                                )
+                              }
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </WorkOrderFormSection>
+
+            <WorkOrderFormSection
+              number="05"
+              title="Work Instructions"
+              description="Record internal notes, access instructions, safety details and special site conditions."
+            >
+              <div className="space-y-2">
+                <Label>Notes</Label>
+                <Textarea
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
+                  rows={4}
+                  placeholder="Add internal notes, access instructions, safety notes, or special conditions."
+                  className={workOrderTextareaClassName}
+                />
+                <p className="text-xs text-slate-500">
+                  Use notes for information that supports the team but is not the main work scope.
+                </p>
+              </div>
+            </WorkOrderFormSection>
+
+            <div className="sticky bottom-0 flex flex-col-reverse gap-3 border-t bg-slate-50/95 py-4 backdrop-blur sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowAddDialog(false);
+                  resetForm();
+                }}
+                className="h-11 w-full rounded-xl sm:w-auto"
+              >
+                Cancel
+              </Button>
+
+              <Button
+                type="button"
+                onClick={() => createWorkOrder.mutate()}
+                disabled={createWorkOrder.isPending}
+                className="h-11 w-full rounded-xl bg-[#9E4B4B] px-5 font-bold text-white hover:bg-[#873f3f] sm:w-auto"
+              >
+                {createWorkOrder.isPending ? "Saving..." : "Save Work Order"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -9,11 +9,15 @@ import {
   ClipboardList,
   Truck,
   Database,
+  Package,
   PackagePlus,
+  Barcode,
   FileText,
   ClipboardCheck,
   GitBranchPlus,
   SlidersHorizontal,
+  UserCog,
+  BellRing,
 } from "lucide-react";
 
 import { NavLink } from "@/components/NavLink";
@@ -31,8 +35,17 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import redsLogo from "@/assets/reds-logo.png";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
 
-const desktopNavItems = [
+type NavItem = {
+  title: string;
+  url: string;
+  icon: typeof LayoutDashboard;
+  permission?: string;
+};
+
+const desktopNavItems: NavItem[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Customers", url: "/customers", icon: Users },
   { title: "Projects", url: "/projects", icon: FolderKanban },
@@ -56,12 +69,25 @@ const desktopNavItems = [
 
   { title: "Photo Approval", url: "/photos", icon: Camera },
 
-  { title: "Master Data", url: "/master-data", icon: Database },
+  { title: "Products", url: "/products", icon: Package },
   { title: "Product Attributes", url: "/product-attributes", icon: SlidersHorizontal },
+  {
+    title: "Product Code Management",
+    url: "/product-code-management",
+    icon: Barcode,
+  },
+  { title: "Master Data", url: "/master-data", icon: Database },
+  { title: "User Management", url: "/admin/users", icon: UserCog, permission: "users.view" },
+  {
+    title: "Telegram Notifications",
+    url: "/admin/telegram-notifications",
+    icon: BellRing,
+    permission: "telegram_notifications.view",
+  },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
-const workerNavItems = [
+const workerNavItems: NavItem[] = [
   { title: "My Work", url: "/my-work", icon: ClipboardList },
 ];
 
@@ -70,8 +96,72 @@ export function AppSidebar() {
   const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const { user, signOut } = useAuth();
+  const [canViewUsers, setCanViewUsers] = useState(false);
+  const [canViewTelegramNotifications, setCanViewTelegramNotifications] =
+    useState(false);
   const appRole = user?.app_metadata?.app_role;
-  const navItems = appRole === "worker" ? workerNavItems : desktopNavItems;
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadPermission = async () => {
+      if (!user) {
+        if (mounted) {
+          setCanViewUsers(false);
+          setCanViewTelegramNotifications(false);
+        }
+        return;
+      }
+
+      const [
+        { data: canView },
+        { data: canManage },
+        { data: canViewTelegram },
+        { data: canManageTelegram },
+      ] = await Promise.all([
+        supabase.rpc("has_permission", {
+          p_permission_code: "users.view",
+        }),
+        supabase.rpc("has_permission", {
+          p_permission_code: "users.manage_accounts",
+        }),
+        supabase.rpc("has_permission", {
+          p_permission_code: "telegram_notifications.view",
+        }),
+        supabase.rpc("has_permission", {
+          p_permission_code: "telegram_notifications.manage",
+        }),
+      ]);
+
+      if (mounted) {
+        setCanViewUsers(Boolean(canView || canManage));
+        setCanViewTelegramNotifications(
+          Boolean(canViewTelegram || canManageTelegram)
+        );
+      }
+    };
+
+    void loadPermission();
+
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
+
+  const baseNavItems =
+    appRole === "worker" ? workerNavItems : desktopNavItems;
+
+  const navItems = baseNavItems.filter((item) => {
+    if (item.url === "/admin/users") {
+      return canViewUsers;
+    }
+
+    if (item.url === "/admin/telegram-notifications") {
+      return canViewTelegramNotifications;
+    }
+
+    return true;
+  });
 
   const initials = user?.user_metadata?.display_name
     ? user.user_metadata.display_name.slice(0, 2).toUpperCase()

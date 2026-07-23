@@ -6,7 +6,6 @@ import {
   FileSpreadsheet,
   FileText,
   Filter,
-  ChevronDown,
   CreditCard,
   FolderKanban,
   Mail,
@@ -46,8 +45,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -897,7 +894,7 @@ export default function CustomerDatabase() {
 
     if (!priceBook) return "Not set";
     return priceBook.price_book_name
-      ? `${priceBook.price_book_code} Â· ${priceBook.price_book_name}`
+      ? `${priceBook.price_book_code} · ${priceBook.price_book_name}`
       : priceBook.price_book_code;
   };
 
@@ -1856,7 +1853,7 @@ export default function CustomerDatabase() {
   };
 
   return (
-    <div className="w-full space-y-5">
+    <div className="w-full space-y-5 px-4 sm:px-5 lg:px-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
@@ -1918,9 +1915,9 @@ export default function CustomerDatabase() {
                       <span className="font-mono font-semibold text-slate-700">
                         {viewingCustomer.customer_code}
                       </span>
-                      <span>Â·</span>
+                      <span>·</span>
                       <span>{viewingCustomer.customer_type}</span>
-                      <span>Â·</span>
+                      <span>·</span>
                       <span>{getCustomerPriceBookLabel(viewingCustomer)}</span>
                     </div>
 
@@ -1994,33 +1991,6 @@ export default function CustomerDatabase() {
                   >
                     Edit Customer
                   </Button>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button type="button" variant="outline" className="rounded-xl">
-                        New <ChevronDown className="ml-2 h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
-                      <DropdownMenuLabel>Customer actions</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem disabled title="Available after module integration">
-                        New Project
-                      </DropdownMenuItem>
-                      <DropdownMenuItem disabled title="Available after module integration">
-                        New Quotation
-                      </DropdownMenuItem>
-                      <DropdownMenuItem disabled title="Available after module integration">
-                        New Variation
-                      </DropdownMenuItem>
-                      <DropdownMenuItem disabled title="Available after module integration">
-                        New Invoice
-                      </DropdownMenuItem>
-                      <DropdownMenuItem disabled title="Available after module integration">
-                        Record Payment
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
 
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -3042,7 +3012,7 @@ export default function CustomerDatabase() {
               Financial Settings
             </DialogTitle>
             <p className="text-sm text-slate-500">
-              {viewingCustomer?.customer_code || "Customer"} Â· Configure payment terms, Xero integration, and account settings
+              {viewingCustomer?.customer_code || "Customer"} · Configure payment terms, Xero integration, and account settings
             </p>
           </DialogHeader>
 

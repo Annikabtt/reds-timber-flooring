@@ -58,15 +58,15 @@ function MetricCard({
   note?: string;
 }) {
   return (
-    <Card className="rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-slate-500">
+    <Card className="h-full min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+      <CardHeader className="flex min-w-0 flex-row items-start justify-between gap-3 pb-2">
+        <CardTitle className="min-w-0 text-sm font-medium leading-5 text-slate-500">
           {title}
         </CardTitle>
         <Icon className="h-5 w-5 text-slate-400" />
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold text-slate-900">{value}</div>
+        <div className="break-words text-xl font-bold text-slate-900 sm:text-2xl">{value}</div>
         {note && <p className="text-xs text-slate-500 mt-1">{note}</p>}
       </CardContent>
     </Card>
@@ -382,11 +382,15 @@ export default function PortalDashboard() {
   }, [data]);
   const canViewFinancialSensitiveData = Boolean(data?.isExecutive);
   if (isLoading) {
-    return <div className="p-6 text-slate-500">Loading dashboard...</div>;
+    return (
+      <div className="mx-auto w-full max-w-[1500px] px-4 py-5 text-slate-500 sm:px-5 lg:px-6">
+        Loading dashboard...
+      </div>
+    );
   }
 
   return (
-    <div className="w-full max-w-none space-y-6">
+    <div className="mx-auto w-full max-w-[1500px] space-y-5 px-4 py-5 sm:space-y-6 sm:px-5 lg:px-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
         <p className="text-slate-500 mt-1">
@@ -394,7 +398,7 @@ export default function PortalDashboard() {
         </p>
       </div>
 
-      <section>
+      <section className="space-y-5 sm:space-y-6">
         <DashboardSection
           title="General KPI"
           description="Core business numbers at a glance."
