@@ -1,0 +1,2212 @@
+function_signature,function_arguments,function_result,function_definition
+"create_quotation_atomic(jsonb,jsonb)","p_quotation jsonb, p_lines jsonb",jsonb,"CREATE OR REPLACE FUNCTION public.create_quotation_atomic(p_quotation jsonb, p_lines jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+declare
+    v_user_id uuid;
+
+    v_quotation_id uuid;
+    v_quotation_no text;
+
+    v_customer_id uuid;
+    v_project_site_id uuid;
+    v_project_id uuid;
+    v_project_customer_id uuid;
+    v_price_book_id uuid;
+
+    v_quotation_segment text;
+    v_quotation_source text;
+    v_issue_date date;
+    v_valid_until date;
+    v_notes text;
+    v_internal_notes text;
+
+    v_site_status text;
+
+    v_line jsonb;
+    v_line_no integer := 0;
+    v_line_count integer := 0;
+
+    v_product_id uuid;
+    v_project_area_id uuid;
+    v_description text;
+
+    v_sales_uom_code text;
+    v_base_uom_code text;
+    v_conversion_factor numeric(18,6);
+    v_allow_fractional boolean;
+
+    v_quantity numeric(12,2);
+    v_base_quantity numeric(18,6);
+    v_unit_price numeric(12,2);
+    v_discount_percent numeric(5,2);
+    v_discount_amount numeric(12,2);
+    v_tax_rate numeric(5,2);
+    v_tax_amount numeric(12,2);
+    v_line_subtotal numeric(14,2);
+    v_line_total numeric(14,2);
+
+    v_cost_price numeric(12,2);
+    v_margin_amount numeric(12,2);
+    v_margin_percent numeric(5,2);
+
+    v_line_notes text;
+    v_is_optional boolean;
+
+    v_subtotal_amount numeric(14,2) := 0;
+    v_total_discount_amount numeric(14,2) := 0;
+    v_total_tax_amount numeric(14,2) := 0;
+    v_total_amount numeric(14,2) := 0;
+begin
+    -- =====================================================
+    -- 1. AUTHENTICATION AND PERMISSION
+    -- =====================================================
+
+    v_user_id := auth.uid();
+
+    if v_user_id is null then
+        raise exception
+            'Authentication is required.';
+    end if;
+
+    if not public.has_permission(
+        'quotations.create'
+    ) then
+        raise exception
+            'Permission denied: quotations.create is required.';
+    end if;
+
+
+    -- =====================================================
+    -- 2. INPUT STRUCTURE
+    -- =====================================================
+
+    if p_quotation is null
+       or jsonb_typeof(p_quotation) <> 'object' then
+        raise exception
+            'Quotation header must be a JSON object.';
+    end if;
+
+    if p_lines is null
+       or jsonb_typeof(p_lines) <> 'array' then
+        raise exception
+            'Quotation lines must be a JSON array.';
+    end if;
+
+    v_line_count := jsonb_array_length(p_lines);
+
+    if v_line_count = 0 then
+        raise exception
+            'At least one quotation line is required.';
+    end if;
+
+
+    -- =====================================================
+    -- 3. HEADER VALUES
+    -- =====================================================
+
+    begin
+        v_customer_id :=
+            nullif(
+                btrim(p_quotation ->> 'customer_id'),
+                ''
+            )::uuid;
+    exception
+        when invalid_text_representation then
+            raise exception
+                'Invalid customer_id.';
+    end;
+
+    begin
+        v_project_site_id :=
+            nullif(
+                btrim(
+                    p_quotation ->> 'project_site_id'
+                ),
+                ''
+            )::uuid;
+    exception
+        when invalid_text_representation then
+            raise exception
+                'Invalid project_site_id.';
+    end;
+
+    begin
+        v_price_book_id :=
+            nullif(
+                btrim(
+                    p_quotation ->> 'price_book_id'
+                ),
+                ''
+            )::uuid;
+    exception
+        when invalid_text_representation then
+            raise exception
+                'Invalid price_book_id.';
+    end;
+
+    v_quotation_segment :=
+        nullif(
+            btrim(
+                p_quotation ->> 'quotation_segment'
+            ),
+            ''
+        );
+
+    v_quotation_source :=
+        nullif(
+            btrim(
+                p_quotation ->> 'quotation_source'
+            ),
+            ''
+        );
+
+    begin
+        v_issue_date :=
+            nullif(
+                btrim(p_quotation ->> 'issue_date'),
+                ''
+            )::date;
+    exception
+        when others then
+            raise exception
+                'Invalid issue_date.';
+    end;
+
+    begin
+        v_valid_until :=
+            nullif(
+                btrim(
+                    p_quotation ->> 'valid_until'
+                ),
+                ''
+            )::date;
+    exception
+        when others then
+            raise exception
+                'Invalid valid_until.';
+    end;
+
+    v_notes :=
+        nullif(
+            btrim(p_quotation ->> 'notes'),
+            ''
+        );
+
+    v_internal_notes :=
+        nullif(
+            btrim(
+                p_quotation ->> 'internal_notes'
+            ),
+            ''
+        );
+
+
+    -- =====================================================
+    -- 4. HEADER VALIDATION
+    -- =====================================================
+
+    if v_customer_id is null then
+        raise exception
+            'Customer is required.';
+    end if;
+
+    if v_project_site_id is null then
+        raise exception
+            'Project Site is required for an official quotation.';
+    end if;
+
+    if v_quotation_segment is null then
+        raise exception
+            'Quotation Segment is required.';
+    end if;
+
+    if v_quotation_segment not in (
+        'Retail',
+        'Builder',
+        'Commercial',
+        'VIP',
+        'Promotion'
+    ) then
+        raise exception
+            'Invalid Quotation Segment: %.',
+            v_quotation_segment;
+    end if;
+
+    if v_issue_date is not null
+       and v_valid_until is not null
+       and v_valid_until < v_issue_date then
+        raise exception
+            'Valid Until cannot be earlier than Issue Date.';
+    end if;
+
+
+    -- =====================================================
+    -- 5. LOCK AND VALIDATE SITE/PROJECT HIERARCHY
+    -- =====================================================
+
+    select
+        ps.project_id,
+        ps.site_status,
+        p.customer_id
+    into
+        v_project_id,
+        v_site_status,
+        v_project_customer_id
+    from public.project_sites ps
+    join public.projects p
+      on p.project_id = ps.project_id
+    where ps.site_id = v_project_site_id
+      and ps.is_deleted = false
+      and ps.is_active = true
+      and p.is_deleted = false
+      and p.is_active = true
+    for update of ps, p;
+
+    if not found then
+        raise exception
+            'Project Site or its Project does not exist, is inactive, or is deleted.';
+    end if;
+
+    if v_project_customer_id <>
+       v_customer_id then
+        raise exception
+            'Quotation Customer must match the Project Customer.';
+    end if;
+
+    if v_site_status <> 'Quotation' then
+        raise exception
+            'A new base quotation can only be created for a Site with Quotation status. Current status: %.',
+            v_site_status;
+    end if;
+
+    if exists (
+        select 1
+        from public.quotations q
+        where q.project_site_id =
+              v_project_site_id
+          and q.quotation_status =
+              'Accepted'
+          and q.is_deleted = false
+    ) then
+        raise exception
+            'This Project Site already has an accepted base quotation. Use a Variation for contract changes.';
+    end if;
+
+
+    -- =====================================================
+    -- 6. OPTIONAL PRICE BOOK VALIDATION
+    -- =====================================================
+
+    if v_price_book_id is not null
+       and not exists (
+            select 1
+            from public.price_books pb
+            where pb.price_book_id =
+                  v_price_book_id
+       ) then
+        raise exception
+            'Selected Price Book does not exist.';
+    end if;
+
+
+    -- =====================================================
+    -- 7. CREATE QUOTATION HEADER
+    --
+    -- quotation_no is generated by trg_set_quotation_no.
+    -- Totals are initially zero and updated after all lines.
+    -- =====================================================
+
+    insert into public.quotations (
+        quotation_no,
+        customer_id,
+        project_site_id,
+        price_book_id,
+        quotation_segment,
+        quotation_source,
+        quotation_status,
+        revision_no,
+        issue_date,
+        valid_until,
+        subtotal_amount,
+        discount_amount,
+        tax_amount,
+        total_amount,
+        notes,
+        internal_notes,
+        is_active,
+        is_deleted,
+        created_by,
+        updated_by
+    )
+    values (
+        null,
+        v_customer_id,
+        v_project_site_id,
+        v_price_book_id,
+        v_quotation_segment,
+        v_quotation_source,
+        'Draft',
+        0,
+        v_issue_date,
+        v_valid_until,
+        0,
+        0,
+        0,
+        0,
+        v_notes,
+        v_internal_notes,
+        true,
+        false,
+        v_user_id,
+        v_user_id
+    )
+    returning
+        quotation_id,
+        quotation_no
+    into
+        v_quotation_id,
+        v_quotation_no;
+
+
+    -- =====================================================
+    -- 8. CREATE AND CALCULATE QUOTATION LINES
+    -- =====================================================
+
+    for v_line in
+        select value
+        from jsonb_array_elements(p_lines)
+    loop
+        v_line_no := v_line_no + 1;
+
+        if jsonb_typeof(v_line) <> 'object' then
+            raise exception
+                'Quotation line % must be a JSON object.',
+                v_line_no;
+        end if;
+
+        -- -----------------------------------------------
+        -- IDs
+        -- -----------------------------------------------
+
+        begin
+            v_product_id :=
+                nullif(
+                    btrim(v_line ->> 'product_id'),
+                    ''
+                )::uuid;
+        exception
+            when invalid_text_representation then
+                raise exception
+                    'Line % has an invalid product_id.',
+                    v_line_no;
+        end;
+
+        begin
+            v_project_area_id :=
+                nullif(
+                    btrim(
+                        v_line ->> 'project_area_id'
+                    ),
+                    ''
+                )::uuid;
+        exception
+            when invalid_text_representation then
+                raise exception
+                    'Line % has an invalid project_area_id.',
+                    v_line_no;
+        end;
+
+
+        -- -----------------------------------------------
+        -- Description
+        -- -----------------------------------------------
+
+        v_description :=
+            nullif(
+                btrim(v_line ->> 'description'),
+                ''
+            );
+
+        if v_description is null then
+            raise exception
+                'Description is required for line %.',
+                v_line_no;
+        end if;
+
+
+        -- -----------------------------------------------
+        -- UOM snapshot
+        -- -----------------------------------------------
+
+        v_sales_uom_code :=
+            nullif(
+                btrim(
+                    v_line ->> 'sales_uom_code'
+                ),
+                ''
+            );
+
+        v_base_uom_code :=
+            nullif(
+                btrim(
+                    v_line ->> 'base_uom_code'
+                ),
+                ''
+            );
+
+        if v_sales_uom_code is null then
+            raise exception
+                'Sales UOM is required for line %.',
+                v_line_no;
+        end if;
+
+        if v_base_uom_code is null then
+            raise exception
+                'Base UOM is required for line %.',
+                v_line_no;
+        end if;
+
+        if not exists (
+            select 1
+            from public.units_of_measure u
+            where u.uom_code =
+                  v_sales_uom_code
+        ) then
+            raise exception
+                'Sales UOM % on line % does not exist.',
+                v_sales_uom_code,
+                v_line_no;
+        end if;
+
+        if not exists (
+            select 1
+            from public.units_of_measure u
+            where u.uom_code =
+                  v_base_uom_code
+        ) then
+            raise exception
+                'Base UOM % on line % does not exist.',
+                v_base_uom_code,
+                v_line_no;
+        end if;
+
+
+        -- -----------------------------------------------
+        -- Numeric input
+        -- -----------------------------------------------
+
+        begin
+            v_quantity :=
+                coalesce(
+                    nullif(
+                        btrim(
+                            v_line ->> 'quantity'
+                        ),
+                        ''
+                    )::numeric,
+                    0
+                );
+
+            v_conversion_factor :=
+                coalesce(
+                    nullif(
+                        btrim(
+                            v_line
+                            ->> 'conversion_factor'
+                        ),
+                        ''
+                    )::numeric,
+                    1
+                );
+
+            v_unit_price :=
+                coalesce(
+                    nullif(
+                        btrim(
+                            v_line ->> 'unit_price'
+                        ),
+                        ''
+                    )::numeric,
+                    0
+                );
+
+            v_discount_percent :=
+                coalesce(
+                    nullif(
+                        btrim(
+                            v_line
+                            ->> 'discount_percent'
+                        ),
+                        ''
+                    )::numeric,
+                    0
+                );
+
+            v_tax_rate :=
+                coalesce(
+                    nullif(
+                        btrim(
+                            v_line ->> 'tax_rate'
+                        ),
+                        ''
+                    )::numeric,
+                    0
+                );
+
+            v_cost_price :=
+                nullif(
+                    btrim(
+                        v_line ->> 'cost_price'
+                    ),
+                    ''
+                )::numeric;
+        exception
+            when invalid_text_representation
+              or numeric_value_out_of_range then
+                raise exception
+                    'Line % contains an invalid numeric value.',
+                    v_line_no;
+        end;
+
+
+        -- -----------------------------------------------
+        -- Boolean input
+        -- -----------------------------------------------
+
+        begin
+            v_allow_fractional :=
+                coalesce(
+                    nullif(
+                        btrim(
+                            v_line
+                            ->> 'allow_fractional_quantity'
+                        ),
+                        ''
+                    )::boolean,
+                    true
+                );
+
+            v_is_optional :=
+                coalesce(
+                    nullif(
+                        btrim(
+                            v_line ->> 'is_optional'
+                        ),
+                        ''
+                    )::boolean,
+                    false
+                );
+        exception
+            when invalid_text_representation then
+                raise exception
+                    'Line % contains an invalid boolean value.',
+                    v_line_no;
+        end;
+
+
+        -- -----------------------------------------------
+        -- Numeric validation
+        -- -----------------------------------------------
+
+        if v_quantity <= 0 then
+            raise exception
+                'Quantity must be greater than zero on line %.',
+                v_line_no;
+        end if;
+
+        if not v_allow_fractional
+           and v_quantity <> trunc(v_quantity) then
+            raise exception
+                'Line % does not allow fractional quantity.',
+                v_line_no;
+        end if;
+
+        if v_conversion_factor <= 0 then
+            raise exception
+                'Conversion Factor must be greater than zero on line %.',
+                v_line_no;
+        end if;
+
+        if v_unit_price < 0 then
+            raise exception
+                'Unit Price cannot be negative on line %.',
+                v_line_no;
+        end if;
+
+        if v_discount_percent < 0
+           or v_discount_percent > 100 then
+            raise exception
+                'Discount Percent must be between 0 and 100 on line %.',
+                v_line_no;
+        end if;
+
+        if v_tax_rate < 0 then
+            raise exception
+                'Tax Rate cannot be negative on line %.',
+                v_line_no;
+        end if;
+
+        if v_cost_price is not null
+           and v_cost_price < 0 then
+            raise exception
+                'Cost Price cannot be negative on line %.',
+                v_line_no;
+        end if;
+
+
+        -- -----------------------------------------------
+        -- Product validation
+        -- -----------------------------------------------
+
+        if v_product_id is not null
+           and not exists (
+                select 1
+                from public.products pr
+                where pr.product_id =
+                      v_product_id
+                  and pr.is_deleted = false
+                  and pr.is_active = true
+           ) then
+            raise exception
+                'Product on line % does not exist or is inactive.',
+                v_line_no;
+        end if;
+
+
+        -- -----------------------------------------------
+        -- Project Area relationship validation
+        -- -----------------------------------------------
+
+        if v_project_area_id is not null
+           and not exists (
+                select 1
+                from public.project_areas pa
+                where pa.area_id =
+                      v_project_area_id
+                  and pa.site_id =
+                      v_project_site_id
+                  and pa.project_id =
+                      v_project_id
+                  and pa.is_deleted = false
+                  and pa.is_active = true
+                  and pa.area_status =
+                      'Quotation'
+           ) then
+            raise exception
+                'Project Area on line % does not belong to the selected Project Site or is not available for quotation.',
+                v_line_no;
+        end if;
+
+
+        -- -----------------------------------------------
+        -- Server-side calculations
+        -- -----------------------------------------------
+
+        v_base_quantity :=
+            round(
+                v_quantity *
+                v_conversion_factor,
+                6
+            );
+
+        v_line_subtotal :=
+            round(
+                v_quantity *
+                v_unit_price,
+                2
+            );
+
+        v_discount_amount :=
+            round(
+                v_line_subtotal *
+                v_discount_percent /
+                100,
+                2
+            );
+
+        v_tax_amount :=
+            round(
+                (
+                    v_line_subtotal -
+                    v_discount_amount
+                ) *
+                v_tax_rate /
+                100,
+                2
+            );
+
+        v_line_total :=
+            round(
+                v_line_subtotal -
+                v_discount_amount +
+                v_tax_amount,
+                2
+            );
+
+        if v_cost_price is null then
+            v_margin_amount := null;
+            v_margin_percent := null;
+        else
+            v_margin_amount :=
+                round(
+                    (
+                        v_unit_price -
+                        v_cost_price
+                    ) *
+                    v_quantity -
+                    v_discount_amount,
+                    2
+                );
+
+            if (
+                v_line_subtotal -
+                v_discount_amount
+            ) > 0 then
+                v_margin_percent :=
+                    round(
+                        v_margin_amount /
+                        (
+                            v_line_subtotal -
+                            v_discount_amount
+                        ) *
+                        100,
+                        2
+                    );
+            else
+                v_margin_percent := null;
+            end if;
+        end if;
+
+        v_line_notes :=
+            nullif(
+                btrim(v_line ->> 'notes'),
+                ''
+            );
+
+
+        -- -----------------------------------------------
+        -- Insert line
+        -- -----------------------------------------------
+
+        insert into public.quotation_lines (
+            quotation_id,
+            product_id,
+            project_area_id,
+            line_no,
+            description,
+            unit_of_measure,
+            quantity,
+            unit_price,
+            discount_percent,
+            discount_amount,
+            tax_rate,
+            tax_amount,
+            line_total,
+            cost_price,
+            margin_amount,
+            margin_percent,
+            notes,
+            is_optional,
+            is_deleted,
+            created_by,
+            updated_by,
+            sales_uom_code,
+            base_uom_code,
+            conversion_factor,
+            base_quantity,
+            allow_fractional_quantity
+        )
+        values (
+            v_quotation_id,
+            v_product_id,
+            v_project_area_id,
+            v_line_no,
+            v_description,
+            v_sales_uom_code,
+            v_quantity,
+            v_unit_price,
+            v_discount_percent,
+            v_discount_amount,
+            v_tax_rate,
+            v_tax_amount,
+            v_line_total,
+            v_cost_price,
+            v_margin_amount,
+            v_margin_percent,
+            v_line_notes,
+            v_is_optional,
+            false,
+            v_user_id,
+            v_user_id,
+            v_sales_uom_code,
+            v_base_uom_code,
+            v_conversion_factor,
+            v_base_quantity,
+            v_allow_fractional
+        );
+
+
+        -- -----------------------------------------------
+        -- Accumulate header totals
+        -- Optional lines are displayed but excluded from
+        -- the base quotation total until selected later.
+        -- -----------------------------------------------
+
+        if not v_is_optional then
+            v_subtotal_amount :=
+                v_subtotal_amount +
+                v_line_subtotal;
+
+            v_total_discount_amount :=
+                v_total_discount_amount +
+                v_discount_amount;
+
+            v_total_tax_amount :=
+                v_total_tax_amount +
+                v_tax_amount;
+
+            v_total_amount :=
+                v_total_amount +
+                v_line_total;
+        end if;
+    end loop;
+
+
+    -- =====================================================
+    -- 9. UPDATE HEADER TOTALS
+    -- =====================================================
+
+    update public.quotations
+    set
+        subtotal_amount =
+            round(v_subtotal_amount, 2),
+        discount_amount =
+            round(
+                v_total_discount_amount,
+                2
+            ),
+        tax_amount =
+            round(v_total_tax_amount, 2),
+        total_amount =
+            round(v_total_amount, 2),
+        updated_by =
+            v_user_id
+    where quotation_id =
+          v_quotation_id;
+
+
+    -- =====================================================
+    -- 10. UPDATE PROJECT LIFECYCLE
+    -- =====================================================
+
+    update public.projects
+    set
+        project_status = case
+            when project_status = 'Draft'
+                then 'Quoted'
+            else project_status
+        end,
+        price_book_id =
+            coalesce(
+                v_price_book_id,
+                price_book_id
+            ),
+        updated_by =
+            v_user_id
+    where project_id =
+          v_project_id
+      and is_deleted = false;
+
+
+    -- =====================================================
+    -- 11. RETURN RESULT
+    -- =====================================================
+
+    return jsonb_build_object(
+        'quotation_id',
+        v_quotation_id,
+        'quotation_no',
+        v_quotation_no,
+        'quotation_status',
+        'Draft',
+        'line_count',
+        v_line_count,
+        'subtotal_amount',
+        round(v_subtotal_amount, 2),
+        'discount_amount',
+        round(
+            v_total_discount_amount,
+            2
+        ),
+        'tax_amount',
+        round(v_total_tax_amount, 2),
+        'total_amount',
+        round(v_total_amount, 2)
+    );
+end;
+$function$
+"
+"update_draft_quotation_atomic(uuid,jsonb,jsonb)","p_quotation_id uuid, p_quotation jsonb, p_lines jsonb",jsonb,"CREATE OR REPLACE FUNCTION public.update_draft_quotation_atomic(p_quotation_id uuid, p_quotation jsonb, p_lines jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+declare
+    -- --------------------------------------------------------
+    -- Authentication
+    -- --------------------------------------------------------
+
+    v_user_id uuid;
+
+
+    -- --------------------------------------------------------
+    -- Existing quotation identity and status
+    -- --------------------------------------------------------
+
+    v_quotation_no text;
+    v_existing_customer_id uuid;
+    v_existing_project_site_id uuid;
+    v_existing_price_book_id uuid;
+    v_existing_status text;
+
+    v_existing_segment text;
+    v_existing_source text;
+    v_existing_issue_date date;
+    v_existing_valid_until date;
+    v_existing_notes text;
+    v_existing_internal_notes text;
+
+
+    -- --------------------------------------------------------
+    -- Updated header values
+    -- --------------------------------------------------------
+
+    v_requested_customer_id uuid;
+    v_requested_project_site_id uuid;
+
+    v_price_book_id uuid;
+    v_quotation_segment text;
+    v_quotation_source text;
+    v_issue_date date;
+    v_valid_until date;
+    v_notes text;
+    v_internal_notes text;
+
+
+    -- --------------------------------------------------------
+    -- Project hierarchy
+    -- --------------------------------------------------------
+
+    v_project_id uuid;
+    v_project_customer_id uuid;
+    v_project_status text;
+    v_site_status text;
+
+
+    -- --------------------------------------------------------
+    -- Lines
+    -- --------------------------------------------------------
+
+    v_line jsonb;
+    v_line_no integer := 0;
+    v_line_count integer := 0;
+    v_replaced_line_count integer := 0;
+
+    v_product_id uuid;
+    v_project_area_id uuid;
+    v_description text;
+
+    v_sales_uom_code text;
+    v_base_uom_code text;
+    v_conversion_factor numeric(18,6);
+    v_allow_fractional boolean;
+
+    v_quantity numeric(12,2);
+    v_base_quantity numeric(18,6);
+
+    v_unit_price numeric(12,2);
+    v_discount_percent numeric(5,2);
+    v_discount_amount numeric(12,2);
+
+    v_tax_rate numeric(5,2);
+    v_tax_amount numeric(12,2);
+
+    v_line_subtotal numeric(14,2);
+    v_line_total numeric(14,2);
+
+    v_cost_price numeric(12,2);
+    v_margin_amount numeric(12,2);
+    v_margin_percent numeric(5,2);
+
+    v_line_notes text;
+    v_is_optional boolean;
+
+
+    -- --------------------------------------------------------
+    -- Header totals
+    -- --------------------------------------------------------
+
+    v_subtotal_amount numeric(14,2) := 0;
+    v_total_discount_amount numeric(14,2) := 0;
+    v_total_tax_amount numeric(14,2) := 0;
+    v_total_amount numeric(14,2) := 0;
+begin
+    -- ========================================================
+    -- 1. AUTHENTICATION AND PERMISSION
+    -- ========================================================
+
+    v_user_id := auth.uid();
+
+    if v_user_id is null then
+        raise exception
+            'Authentication is required.';
+    end if;
+
+    if not public.has_permission(
+        'quotations.update_draft'
+    ) then
+        raise exception
+            'Permission denied: quotations.update_draft is required.';
+    end if;
+
+
+    -- ========================================================
+    -- 2. INPUT STRUCTURE
+    -- ========================================================
+
+    if p_quotation_id is null then
+        raise exception
+            'Quotation ID is required.';
+    end if;
+
+    if p_quotation is null
+       or jsonb_typeof(p_quotation) <> 'object' then
+        raise exception
+            'Quotation header must be a JSON object.';
+    end if;
+
+    if p_lines is null
+       or jsonb_typeof(p_lines) <> 'array' then
+        raise exception
+            'Quotation lines must be a JSON array.';
+    end if;
+
+    v_line_count := jsonb_array_length(p_lines);
+
+    if v_line_count = 0 then
+        raise exception
+            'At least one quotation line is required.';
+    end if;
+
+
+    -- ========================================================
+    -- 3. LOCK EXISTING QUOTATION HEADER
+    -- ========================================================
+
+    select
+        q.quotation_no,
+        q.customer_id,
+        q.project_site_id,
+        q.price_book_id,
+        q.quotation_status,
+        q.quotation_segment,
+        q.quotation_source,
+        q.issue_date,
+        q.valid_until,
+        q.notes,
+        q.internal_notes
+    into
+        v_quotation_no,
+        v_existing_customer_id,
+        v_existing_project_site_id,
+        v_existing_price_book_id,
+        v_existing_status,
+        v_existing_segment,
+        v_existing_source,
+        v_existing_issue_date,
+        v_existing_valid_until,
+        v_existing_notes,
+        v_existing_internal_notes
+    from public.quotations q
+    where q.quotation_id = p_quotation_id
+      and q.is_active = true
+      and q.is_deleted = false
+    for update;
+
+    if not found then
+        raise exception
+            'Quotation does not exist, is inactive, or is deleted.';
+    end if;
+
+    if v_existing_status <> 'Draft' then
+        raise exception
+            'Only a Draft quotation can be updated. Current status: %.',
+            v_existing_status;
+    end if;
+
+    if v_existing_project_site_id is null then
+        raise exception
+            'The Draft quotation does not have a Project Site.';
+    end if;
+
+
+    -- ========================================================
+    -- 4. LOCK EXISTING QUOTATION LINES
+    --
+    -- PERFORM is valid even when the quotation currently has
+    -- no active lines.
+    -- ========================================================
+
+    perform 1
+    from public.quotation_lines ql
+    where ql.quotation_id = p_quotation_id
+    for update;
+
+
+    -- ========================================================
+    -- 5. VALIDATE IMMUTABLE CUSTOMER AND SITE IDENTITY
+    --
+    -- The client may omit customer_id/project_site_id.
+    -- If supplied, they must match the existing quotation.
+    -- ========================================================
+
+    if p_quotation ? 'customer_id' then
+        begin
+            v_requested_customer_id :=
+                nullif(
+                    btrim(
+                        p_quotation ->> 'customer_id'
+                    ),
+                    ''
+                )::uuid;
+        exception
+            when invalid_text_representation then
+                raise exception
+                    'Invalid customer_id.';
+        end;
+
+        if v_requested_customer_id is null then
+            raise exception
+                'Customer cannot be removed from the quotation.';
+        end if;
+
+        if v_requested_customer_id is distinct from
+           v_existing_customer_id then
+            raise exception
+                'Quotation Customer cannot be changed after the quotation is created.';
+        end if;
+    end if;
+
+    if p_quotation ? 'project_site_id' then
+        begin
+            v_requested_project_site_id :=
+                nullif(
+                    btrim(
+                        p_quotation ->> 'project_site_id'
+                    ),
+                    ''
+                )::uuid;
+        exception
+            when invalid_text_representation then
+                raise exception
+                    'Invalid project_site_id.';
+        end;
+
+        if v_requested_project_site_id is null then
+            raise exception
+                'Project Site cannot be removed from the quotation.';
+        end if;
+
+        if v_requested_project_site_id is distinct from
+           v_existing_project_site_id then
+            raise exception
+                'Project Site cannot be changed after the quotation is created.';
+        end if;
+    end if;
+
+
+    -- ========================================================
+    -- 6. LOCK AND VALIDATE PROJECT/SITE HIERARCHY
+    -- ========================================================
+
+    select
+        ps.project_id,
+        ps.site_status,
+        p.customer_id,
+        p.project_status
+    into
+        v_project_id,
+        v_site_status,
+        v_project_customer_id,
+        v_project_status
+    from public.project_sites ps
+    join public.projects p
+      on p.project_id = ps.project_id
+    where ps.site_id = v_existing_project_site_id
+      and ps.is_active = true
+      and ps.is_deleted = false
+      and p.is_active = true
+      and p.is_deleted = false
+    for update of ps, p;
+
+    if not found then
+        raise exception
+            'Project Site or its Project does not exist, is inactive, or is deleted.';
+    end if;
+
+    if v_project_customer_id is distinct from
+       v_existing_customer_id then
+        raise exception
+            'Quotation Customer does not match the Project Customer.';
+    end if;
+
+    if v_site_status <> 'Quotation' then
+        raise exception
+            'A Draft quotation can only be updated while the Site has Quotation status. Current status: %.',
+            v_site_status;
+    end if;
+
+    if v_project_status not in (
+        'Draft',
+        'Quoted'
+    ) then
+        raise exception
+            'A Draft quotation cannot be updated for a Project with status %. Expected Draft or Quoted.',
+            v_project_status;
+    end if;
+
+
+    -- ========================================================
+    -- 7. READ UPDATED HEADER VALUES
+    --
+    -- Rules:
+    --   Key omitted       = preserve existing value
+    --   Key supplied null = clear nullable value
+    -- ========================================================
+
+
+    -- --------------------------------------------------------
+    -- Price Book
+    -- --------------------------------------------------------
+
+    if p_quotation ? 'price_book_id' then
+        begin
+            v_price_book_id :=
+                nullif(
+                    btrim(
+                        p_quotation ->> 'price_book_id'
+                    ),
+                    ''
+                )::uuid;
+        exception
+            when invalid_text_representation then
+                raise exception
+                    'Invalid price_book_id.';
+        end;
+    else
+        v_price_book_id := v_existing_price_book_id;
+    end if;
+
+
+    -- --------------------------------------------------------
+    -- Quotation Segment
+    -- --------------------------------------------------------
+
+    if p_quotation ? 'quotation_segment' then
+        v_quotation_segment :=
+            nullif(
+                btrim(
+                    p_quotation ->> 'quotation_segment'
+                ),
+                ''
+            );
+    else
+        v_quotation_segment := v_existing_segment;
+    end if;
+
+
+    -- --------------------------------------------------------
+    -- Source
+    -- --------------------------------------------------------
+
+    if p_quotation ? 'quotation_source' then
+        v_quotation_source :=
+            nullif(
+                btrim(
+                    p_quotation ->> 'quotation_source'
+                ),
+                ''
+            );
+    else
+        v_quotation_source := v_existing_source;
+    end if;
+
+
+    -- --------------------------------------------------------
+    -- Issue Date
+    -- --------------------------------------------------------
+
+    if p_quotation ? 'issue_date' then
+        begin
+            v_issue_date :=
+                nullif(
+                    btrim(
+                        p_quotation ->> 'issue_date'
+                    ),
+                    ''
+                )::date;
+        exception
+            when others then
+                raise exception
+                    'Invalid issue_date.';
+        end;
+    else
+        v_issue_date := v_existing_issue_date;
+    end if;
+
+
+    -- --------------------------------------------------------
+    -- Valid Until
+    -- --------------------------------------------------------
+
+    if p_quotation ? 'valid_until' then
+        begin
+            v_valid_until :=
+                nullif(
+                    btrim(
+                        p_quotation ->> 'valid_until'
+                    ),
+                    ''
+                )::date;
+        exception
+            when others then
+                raise exception
+                    'Invalid valid_until.';
+        end;
+    else
+        v_valid_until := v_existing_valid_until;
+    end if;
+
+
+    -- --------------------------------------------------------
+    -- Notes
+    -- --------------------------------------------------------
+
+    if p_quotation ? 'notes' then
+        v_notes :=
+            nullif(
+                btrim(
+                    p_quotation ->> 'notes'
+                ),
+                ''
+            );
+    else
+        v_notes := v_existing_notes;
+    end if;
+
+
+    -- --------------------------------------------------------
+    -- Internal Notes
+    -- --------------------------------------------------------
+
+    if p_quotation ? 'internal_notes' then
+        v_internal_notes :=
+            nullif(
+                btrim(
+                    p_quotation ->> 'internal_notes'
+                ),
+                ''
+            );
+    else
+        v_internal_notes :=
+            v_existing_internal_notes;
+    end if;
+
+
+    -- ========================================================
+    -- 8. VALIDATE UPDATED HEADER
+    -- ========================================================
+
+    if v_quotation_segment is null then
+        raise exception
+            'Quotation Segment is required.';
+    end if;
+
+    if v_quotation_segment not in (
+        'Retail',
+        'Builder',
+        'Commercial',
+        'VIP',
+        'Promotion'
+    ) then
+        raise exception
+            'Invalid Quotation Segment: %.',
+            v_quotation_segment;
+    end if;
+
+    if v_issue_date is not null
+       and v_valid_until is not null
+       and v_valid_until < v_issue_date then
+        raise exception
+            'Valid Until cannot be earlier than Issue Date.';
+    end if;
+
+    if v_price_book_id is not null
+       and not exists (
+            select 1
+            from public.price_books pb
+            where pb.price_book_id =
+                  v_price_book_id
+       ) then
+        raise exception
+            'Selected Price Book does not exist.';
+    end if;
+
+
+    -- ========================================================
+    -- 9. VALIDATE AND PREPARE REPLACEMENT LINES
+    --
+    -- Existing lines are not changed until all replacement
+    -- lines have passed validation and calculation.
+    --
+    -- Temporary table exists only inside this RPC call.
+    -- ========================================================
+
+    create temporary table if not exists
+        pg_temp.update_draft_quotation_lines_stage (
+            line_no integer not null,
+            product_id uuid,
+            project_area_id uuid,
+            description text not null,
+            unit_of_measure text not null,
+            quantity numeric(12,2) not null,
+            unit_price numeric(12,2) not null,
+            discount_percent numeric(5,2) not null,
+            discount_amount numeric(12,2) not null,
+            tax_rate numeric(5,2) not null,
+            tax_amount numeric(12,2) not null,
+            line_total numeric(14,2) not null,
+            cost_price numeric(12,2),
+            margin_amount numeric(12,2),
+            margin_percent numeric(5,2),
+            notes text,
+            is_optional boolean not null,
+            sales_uom_code text not null,
+            base_uom_code text not null,
+            conversion_factor numeric(18,6) not null,
+            base_quantity numeric(18,6) not null,
+            allow_fractional_quantity boolean not null
+        )
+        on commit drop;
+
+    truncate table
+        pg_temp.update_draft_quotation_lines_stage;
+
+
+    -- ========================================================
+    -- 10. VALIDATE AND CALCULATE EACH REPLACEMENT LINE
+    -- ========================================================
+
+    for v_line in
+        select value
+        from jsonb_array_elements(p_lines)
+    loop
+        v_line_no := v_line_no + 1;
+
+        if jsonb_typeof(v_line) <> 'object' then
+            raise exception
+                'Quotation line % must be a JSON object.',
+                v_line_no;
+        end if;
+
+
+        -- ----------------------------------------------------
+        -- IDs
+        -- ----------------------------------------------------
+
+        begin
+            v_product_id :=
+                nullif(
+                    btrim(
+                        v_line ->> 'product_id'
+                    ),
+                    ''
+                )::uuid;
+        exception
+            when invalid_text_representation then
+                raise exception
+                    'Line % has an invalid product_id.',
+                    v_line_no;
+        end;
+
+        begin
+            v_project_area_id :=
+                nullif(
+                    btrim(
+                        v_line ->> 'project_area_id'
+                    ),
+                    ''
+                )::uuid;
+        exception
+            when invalid_text_representation then
+                raise exception
+                    'Line % has an invalid project_area_id.',
+                    v_line_no;
+        end;
+
+
+        -- ----------------------------------------------------
+        -- Description
+        -- ----------------------------------------------------
+
+        v_description :=
+            nullif(
+                btrim(
+                    v_line ->> 'description'
+                ),
+                ''
+            );
+
+        if v_description is null then
+            raise exception
+                'Description is required for line %.',
+                v_line_no;
+        end if;
+
+
+        -- ----------------------------------------------------
+        -- UOM snapshot input
+        -- ----------------------------------------------------
+
+        v_sales_uom_code :=
+            nullif(
+                btrim(
+                    v_line ->> 'sales_uom_code'
+                ),
+                ''
+            );
+
+        v_base_uom_code :=
+            nullif(
+                btrim(
+                    v_line ->> 'base_uom_code'
+                ),
+                ''
+            );
+
+        if v_sales_uom_code is null then
+            raise exception
+                'Sales UOM is required for line %.',
+                v_line_no;
+        end if;
+
+        if v_base_uom_code is null then
+            raise exception
+                'Base UOM is required for line %.',
+                v_line_no;
+        end if;
+
+        if not exists (
+            select 1
+            from public.units_of_measure u
+            where u.uom_code = v_sales_uom_code
+        ) then
+            raise exception
+                'Sales UOM % on line % does not exist.',
+                v_sales_uom_code,
+                v_line_no;
+        end if;
+
+        if not exists (
+            select 1
+            from public.units_of_measure u
+            where u.uom_code = v_base_uom_code
+        ) then
+            raise exception
+                'Base UOM % on line % does not exist.',
+                v_base_uom_code,
+                v_line_no;
+        end if;
+
+
+        -- ----------------------------------------------------
+        -- Numeric input
+        -- ----------------------------------------------------
+
+        begin
+            v_quantity :=
+                coalesce(
+                    nullif(
+                        btrim(
+                            v_line ->> 'quantity'
+                        ),
+                        ''
+                    )::numeric,
+                    0
+                );
+
+            v_conversion_factor :=
+                coalesce(
+                    nullif(
+                        btrim(
+                            v_line
+                            ->> 'conversion_factor'
+                        ),
+                        ''
+                    )::numeric,
+                    1
+                );
+
+            v_unit_price :=
+                coalesce(
+                    nullif(
+                        btrim(
+                            v_line ->> 'unit_price'
+                        ),
+                        ''
+                    )::numeric,
+                    0
+                );
+
+            v_discount_percent :=
+                coalesce(
+                    nullif(
+                        btrim(
+                            v_line
+                            ->> 'discount_percent'
+                        ),
+                        ''
+                    )::numeric,
+                    0
+                );
+
+            v_tax_rate :=
+                coalesce(
+                    nullif(
+                        btrim(
+                            v_line ->> 'tax_rate'
+                        ),
+                        ''
+                    )::numeric,
+                    0
+                );
+
+            v_cost_price :=
+                nullif(
+                    btrim(
+                        v_line ->> 'cost_price'
+                    ),
+                    ''
+                )::numeric;
+        exception
+            when invalid_text_representation
+              or numeric_value_out_of_range then
+                raise exception
+                    'Line % contains an invalid numeric value.',
+                    v_line_no;
+        end;
+
+
+        -- ----------------------------------------------------
+        -- Boolean input
+        -- ----------------------------------------------------
+
+        begin
+            v_allow_fractional :=
+                coalesce(
+                    nullif(
+                        btrim(
+                            v_line
+                            ->> 'allow_fractional_quantity'
+                        ),
+                        ''
+                    )::boolean,
+                    true
+                );
+
+            v_is_optional :=
+                coalesce(
+                    nullif(
+                        btrim(
+                            v_line ->> 'is_optional'
+                        ),
+                        ''
+                    )::boolean,
+                    false
+                );
+        exception
+            when invalid_text_representation then
+                raise exception
+                    'Line % contains an invalid boolean value.',
+                    v_line_no;
+        end;
+
+
+        -- ----------------------------------------------------
+        -- Numeric validation
+        -- ----------------------------------------------------
+
+        if v_quantity <= 0 then
+            raise exception
+                'Quantity must be greater than zero on line %.',
+                v_line_no;
+        end if;
+
+        if not v_allow_fractional
+           and v_quantity <> trunc(v_quantity) then
+            raise exception
+                'Line % does not allow fractional quantity.',
+                v_line_no;
+        end if;
+
+        if v_conversion_factor <= 0 then
+            raise exception
+                'Conversion Factor must be greater than zero on line %.',
+                v_line_no;
+        end if;
+
+        if v_unit_price < 0 then
+            raise exception
+                'Unit Price cannot be negative on line %.',
+                v_line_no;
+        end if;
+
+        if v_discount_percent < 0
+           or v_discount_percent > 100 then
+            raise exception
+                'Discount Percent must be between 0 and 100 on line %.',
+                v_line_no;
+        end if;
+
+        if v_tax_rate < 0 then
+            raise exception
+                'Tax Rate cannot be negative on line %.',
+                v_line_no;
+        end if;
+
+        if v_cost_price is not null
+           and v_cost_price < 0 then
+            raise exception
+                'Cost Price cannot be negative on line %.',
+                v_line_no;
+        end if;
+
+
+        -- ----------------------------------------------------
+        -- Product validation
+        -- ----------------------------------------------------
+
+        if v_product_id is not null
+           and not exists (
+                select 1
+                from public.products pr
+                where pr.product_id =
+                      v_product_id
+                  and pr.is_active = true
+                  and pr.is_deleted = false
+           ) then
+            raise exception
+                'Product on line % does not exist or is inactive.',
+                v_line_no;
+        end if;
+
+
+        -- ----------------------------------------------------
+        -- Project Area relationship validation
+        -- ----------------------------------------------------
+
+        if v_project_area_id is not null
+           and not exists (
+                select 1
+                from public.project_areas pa
+                where pa.area_id =
+                      v_project_area_id
+                  and pa.site_id =
+                      v_existing_project_site_id
+                  and pa.project_id =
+                      v_project_id
+                  and pa.is_active = true
+                  and pa.is_deleted = false
+                  and pa.area_status =
+                      'Quotation'
+           ) then
+            raise exception
+                'Project Area on line % does not belong to the selected Project Site or is not available for quotation.',
+                v_line_no;
+        end if;
+
+
+        -- ----------------------------------------------------
+        -- Server calculations
+        -- ----------------------------------------------------
+
+        v_base_quantity :=
+            round(
+                v_quantity *
+                v_conversion_factor,
+                6
+            );
+
+        v_line_subtotal :=
+            round(
+                v_quantity *
+                v_unit_price,
+                2
+            );
+
+        v_discount_amount :=
+            round(
+                v_line_subtotal *
+                v_discount_percent /
+                100,
+                2
+            );
+
+        v_tax_amount :=
+            round(
+                (
+                    v_line_subtotal -
+                    v_discount_amount
+                ) *
+                v_tax_rate /
+                100,
+                2
+            );
+
+        v_line_total :=
+            round(
+                v_line_subtotal -
+                v_discount_amount +
+                v_tax_amount,
+                2
+            );
+
+        if v_cost_price is null then
+            v_margin_amount := null;
+            v_margin_percent := null;
+        else
+            v_margin_amount :=
+                round(
+                    (
+                        v_unit_price -
+                        v_cost_price
+                    ) *
+                    v_quantity -
+                    v_discount_amount,
+                    2
+                );
+
+            if (
+                v_line_subtotal -
+                v_discount_amount
+            ) > 0 then
+                v_margin_percent :=
+                    round(
+                        v_margin_amount /
+                        (
+                            v_line_subtotal -
+                            v_discount_amount
+                        ) *
+                        100,
+                        2
+                    );
+            else
+                v_margin_percent := null;
+            end if;
+        end if;
+
+        v_line_notes :=
+            nullif(
+                btrim(
+                    v_line ->> 'notes'
+                ),
+                ''
+            );
+
+
+        -- ----------------------------------------------------
+        -- Stage validated line
+        -- ----------------------------------------------------
+
+        insert into
+            pg_temp.update_draft_quotation_lines_stage (
+                line_no,
+                product_id,
+                project_area_id,
+                description,
+                unit_of_measure,
+                quantity,
+                unit_price,
+                discount_percent,
+                discount_amount,
+                tax_rate,
+                tax_amount,
+                line_total,
+                cost_price,
+                margin_amount,
+                margin_percent,
+                notes,
+                is_optional,
+                sales_uom_code,
+                base_uom_code,
+                conversion_factor,
+                base_quantity,
+                allow_fractional_quantity
+            )
+        values (
+            v_line_no,
+            v_product_id,
+            v_project_area_id,
+            v_description,
+            v_sales_uom_code,
+            v_quantity,
+            v_unit_price,
+            v_discount_percent,
+            v_discount_amount,
+            v_tax_rate,
+            v_tax_amount,
+            v_line_total,
+            v_cost_price,
+            v_margin_amount,
+            v_margin_percent,
+            v_line_notes,
+            v_is_optional,
+            v_sales_uom_code,
+            v_base_uom_code,
+            v_conversion_factor,
+            v_base_quantity,
+            v_allow_fractional
+        );
+
+
+        -- ----------------------------------------------------
+        -- Accumulate Header totals
+        -- ----------------------------------------------------
+
+        if not v_is_optional then
+            v_subtotal_amount :=
+                v_subtotal_amount +
+                v_line_subtotal;
+
+            v_total_discount_amount :=
+                v_total_discount_amount +
+                v_discount_amount;
+
+            v_total_tax_amount :=
+                v_total_tax_amount +
+                v_tax_amount;
+
+            v_total_amount :=
+                v_total_amount +
+                v_line_total;
+        end if;
+    end loop;
+
+
+    -- ========================================================
+    -- 11. SOFT-DELETE EXISTING LINES
+    -- ========================================================
+
+    update public.quotation_lines
+    set
+        is_deleted = true,
+        deleted_at = now(),
+        updated_at = now(),
+        updated_by = v_user_id
+    where quotation_id = p_quotation_id
+      and is_deleted = false;
+
+    get diagnostics
+        v_replaced_line_count = row_count;
+
+
+    -- ========================================================
+    -- 12. INSERT REPLACEMENT LINES
+    -- ========================================================
+
+    insert into public.quotation_lines (
+        quotation_id,
+        product_id,
+        project_area_id,
+        line_no,
+        description,
+        unit_of_measure,
+        quantity,
+        unit_price,
+        discount_percent,
+        discount_amount,
+        tax_rate,
+        tax_amount,
+        line_total,
+        cost_price,
+        margin_amount,
+        margin_percent,
+        notes,
+        is_optional,
+        is_deleted,
+        created_by,
+        updated_by,
+        sales_uom_code,
+        base_uom_code,
+        conversion_factor,
+        base_quantity,
+        allow_fractional_quantity
+    )
+    select
+        p_quotation_id,
+        s.product_id,
+        s.project_area_id,
+        s.line_no,
+        s.description,
+        s.unit_of_measure,
+        s.quantity,
+        s.unit_price,
+        s.discount_percent,
+        s.discount_amount,
+        s.tax_rate,
+        s.tax_amount,
+        s.line_total,
+        s.cost_price,
+        s.margin_amount,
+        s.margin_percent,
+        s.notes,
+        s.is_optional,
+        false,
+        v_user_id,
+        v_user_id,
+        s.sales_uom_code,
+        s.base_uom_code,
+        s.conversion_factor,
+        s.base_quantity,
+        s.allow_fractional_quantity
+    from
+        pg_temp.update_draft_quotation_lines_stage s
+    order by
+        s.line_no;
+
+
+    -- ========================================================
+    -- 13. UPDATE QUOTATION HEADER AND TOTALS
+    -- ========================================================
+
+    update public.quotations
+    set
+        price_book_id =
+            v_price_book_id,
+        quotation_segment =
+            v_quotation_segment,
+        quotation_source =
+            v_quotation_source,
+        issue_date =
+            v_issue_date,
+        valid_until =
+            v_valid_until,
+        subtotal_amount =
+            round(
+                v_subtotal_amount,
+                2
+            ),
+        discount_amount =
+            round(
+                v_total_discount_amount,
+                2
+            ),
+        tax_amount =
+            round(
+                v_total_tax_amount,
+                2
+            ),
+        total_amount =
+            round(
+                v_total_amount,
+                2
+            ),
+        notes =
+            v_notes,
+        internal_notes =
+            v_internal_notes,
+        updated_at =
+            now(),
+        updated_by =
+            v_user_id
+    where quotation_id =
+          p_quotation_id;
+
+
+    -- ========================================================
+    -- 14. KEEP PROJECT LIFECYCLE CONSISTENT
+    -- ========================================================
+
+    update public.projects
+    set
+        project_status = case
+            when project_status = 'Draft'
+                then 'Quoted'
+            else project_status
+        end,
+        price_book_id =
+            coalesce(
+                v_price_book_id,
+                price_book_id
+            ),
+        updated_at =
+            now(),
+        updated_by =
+            v_user_id
+    where project_id =
+          v_project_id
+      and is_deleted = false;
+
+
+    -- ========================================================
+    -- 15. RETURN RESULT
+    -- ========================================================
+
+    return jsonb_build_object(
+        'quotation_id',
+        p_quotation_id,
+
+        'quotation_no',
+        v_quotation_no,
+
+        'quotation_status',
+        'Draft',
+
+        'line_count',
+        v_line_count,
+
+        'replaced_line_count',
+        v_replaced_line_count,
+
+        'subtotal_amount',
+        round(
+            v_subtotal_amount,
+            2
+        ),
+
+        'discount_amount',
+        round(
+            v_total_discount_amount,
+            2
+        ),
+
+        'tax_amount',
+        round(
+            v_total_tax_amount,
+            2
+        ),
+
+        'total_amount',
+        round(
+            v_total_amount,
+            2
+        )
+    );
+end;
+$function$
+"
