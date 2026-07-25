@@ -63,6 +63,7 @@ import ProductAttributes from "./pages/ProductAttributes";
 import ProductCodeManagement from "./pages/ProductCodeManagement";
 import Products from "./pages/Products";
 import StockRequests from "./pages/StockRequests";
+import PurchaseOrders from "./pages/PurchaseOrders";
 import AdminUserManagement from "./pages/AdminUserManagement";
 import TelegramNotifications from "./pages/TelegramNotifications";
 
@@ -74,7 +75,7 @@ const protectedPage = (page: React.ReactNode) => (
 
 const permissionPage = (
   page: React.ReactNode,
-  permissions: string[]
+  permissions: string[],
 ) => (
   <ProtectedRoute>
     <PermissionRoute anyOf={permissions}>{page}</PermissionRoute>
@@ -94,24 +95,45 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/account-access" element={<AccountAccessPage />} />
 
-            <Route path="/portal" element={protectedPage(<PortalDashboard />)} />
-            <Route path="/dashboard" element={protectedPage(<PortalDashboard />)} />
+            <Route
+              path="/portal"
+              element={protectedPage(<PortalDashboard />)}
+            />
+            <Route
+              path="/dashboard"
+              element={protectedPage(<PortalDashboard />)}
+            />
 
-            <Route path="/customers" element={protectedPage(<CustomerDatabase />)} />
+            <Route
+              path="/customers"
+              element={protectedPage(<CustomerDatabase />)}
+            />
             <Route path="/projects" element={protectedPage(<Projects />)} />
-            <Route path="/project-sites" element={protectedPage(<ProjectSites />)} />
+            <Route
+              path="/project-sites"
+              element={protectedPage(<ProjectSites />)}
+            />
             <Route
               path="/project-sites/:siteId"
               element={protectedPage(<ProjectSiteDashboard />)}
             />
-            <Route path="/project-areas" element={protectedPage(<ProjectAreas />)} />
+            <Route
+              path="/project-areas"
+              element={protectedPage(<ProjectAreas />)}
+            />
 
-            <Route path="/work-orders" element={protectedPage(<WorkOrders />)} />
+            <Route
+              path="/work-orders"
+              element={protectedPage(<WorkOrders />)}
+            />
             <Route
               path="/work-orders/:workOrderId"
               element={protectedPage(<WorkOrderDashboard />)}
             />
-            <Route path="/daily-reports" element={protectedPage(<DailyReports />)} />
+            <Route
+              path="/daily-reports"
+              element={protectedPage(<DailyReports />)}
+            />
             <Route
               path="/daily-reports/:reportId"
               element={protectedPage(<DailyReportDashboard />)}
@@ -139,6 +161,11 @@ const App = () => (
             <Route
               path="/stock-requests"
               element={protectedPage(<StockRequests />)}
+            />
+
+            <Route
+              path="/purchase-orders"
+              element={protectedPage(<PurchaseOrders />)}
             />
 
             <Route path="/employees" element={protectedPage(<Employees />)} />
@@ -170,7 +197,10 @@ const App = () => (
               path="/product-code-management"
               element={protectedPage(<ProductCodeManagement />)}
             />
-            <Route path="/master-data" element={protectedPage(<MasterData />)} />
+            <Route
+              path="/master-data"
+              element={protectedPage(<MasterData />)}
+            />
 
             <Route path="/contacts" element={protectedPage(<Contacts />)} />
             <Route path="/team" element={protectedPage(<Team />)} />
@@ -202,13 +232,24 @@ const App = () => (
               path="/tech/materials"
               element={protectedPage(<TechMaterials />)}
             />
-            <Route path="/tech/report" element={protectedPage(<TechReport />)} />
+            <Route
+              path="/tech/report"
+              element={protectedPage(<TechReport />)}
+            />
             <Route path="/tech/leave" element={protectedPage(<TechLeave />)} />
 
-            {/* Legacy/internal pages are also gated to prevent Pending accounts
-                from bypassing application access through a direct URL. */}
-            <Route path="/workflow" element={protectedPage(<SystemWorkflow />)} />
-            <Route path="/job-manager" element={protectedPage(<JobManager />)} />
+            {
+              /* Legacy/internal pages are also gated to prevent Pending accounts
+                from bypassing application access through a direct URL. */
+            }
+            <Route
+              path="/workflow"
+              element={protectedPage(<SystemWorkflow />)}
+            />
+            <Route
+              path="/job-manager"
+              element={protectedPage(<JobManager />)}
+            />
             <Route
               path="/customer-update"
               element={protectedPage(<CustomerUpdate />)}
@@ -217,14 +258,26 @@ const App = () => (
               path="/customer-tracking"
               element={protectedPage(<CustomerTracking />)}
             />
-            <Route path="/pricing" element={protectedPage(<PricingSettings />)} />
+            <Route
+              path="/pricing"
+              element={protectedPage(<PricingSettings />)}
+            />
             <Route
               path="/quotation-builder"
               element={protectedPage(<QuotationBuilder />)}
             />
-            <Route path="/materials" element={protectedPage(<MaterialCatalog />)} />
-            <Route path="/showroom" element={protectedPage(<CustomerShowroom />)} />
-            <Route path="/proposal" element={protectedPage(<CustomerProposal />)} />
+            <Route
+              path="/materials"
+              element={protectedPage(<MaterialCatalog />)}
+            />
+            <Route
+              path="/showroom"
+              element={protectedPage(<CustomerShowroom />)}
+            />
+            <Route
+              path="/proposal"
+              element={protectedPage(<CustomerProposal />)}
+            />
             <Route path="/job-card" element={protectedPage(<JobCard />)} />
             <Route
               path="/installers"

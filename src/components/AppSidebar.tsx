@@ -25,6 +25,7 @@ import {
   FileBarChart,
   ShieldCheck,
   Images,
+  ShoppingCart,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
@@ -97,10 +98,15 @@ const desktopNavGroups: NavGroup[] = [
         url: "/material-requirements",
         icon: ClipboardCheck,
       },
-      {
+            {
         title: "Stock Requests",
         url: "/stock-requests",
         icon: PackagePlus,
+      },
+      {
+        title: "Purchase Orders",
+        url: "/purchase-orders",
+        icon: ShoppingCart,
       },
     ],
   },
