@@ -21,6 +21,7 @@ import CustomerShowroom from "./pages/CustomerShowroom";
 import MaterialRequest from "./pages/MaterialRequest";
 import Quotations from "./pages/Quotations";
 import Variations from "./pages/Variations";
+import VariationRecords from "./pages/VariationRecords";
 import MaterialCatalog from "./pages/MaterialCatalog";
 import PricingSettings from "./pages/PricingSettings";
 import QuotationBuilder from "./pages/QuotationBuilder";
@@ -56,6 +57,7 @@ import PayrollEntries from "./pages/PayrollEntries";
 import Employees from "./pages/Employees";
 import PayrollPeriods from "./pages/PayrollPeriods";
 import Suppliers from "./pages/Suppliers";
+import SupplierDeliveries from "./pages/SupplierDeliveries";
 import MasterData from "./pages/MasterData";
 import ProductAttributes from "./pages/ProductAttributes";
 import ProductCodeManagement from "./pages/ProductCodeManagement";
@@ -127,6 +129,10 @@ const App = () => (
             <Route path="/quotations" element={protectedPage(<Quotations />)} />
             <Route path="/variations" element={protectedPage(<Variations />)} />
             <Route
+              path="/variation-records"
+              element={protectedPage(<VariationRecords />)}
+            />
+            <Route
               path="/material-requirements"
               element={protectedPage(<MaterialRequest />)}
             />
@@ -137,6 +143,10 @@ const App = () => (
 
             <Route path="/employees" element={protectedPage(<Employees />)} />
             <Route path="/suppliers" element={protectedPage(<Suppliers />)} />
+            <Route
+              path="/supplier-deliveries"
+              element={protectedPage(<SupplierDeliveries />)}
+            />
             <Route
               path="/payroll-periods"
               element={protectedPage(<PayrollPeriods />)}

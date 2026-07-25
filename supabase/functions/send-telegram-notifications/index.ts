@@ -67,6 +67,19 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY, {
   },
 });
 
+
+function formatError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+
+  if (typeof error === "string") return error;
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -87,6 +100,36 @@ function escapeHtml(value: unknown): string {
 function display(value: unknown): string {
   if (value === null || value === undefined || value === "") return "—";
   return escapeHtml(value);
+}
+
+function displayDateTime(value: unknown): string {
+  if (typeof value !== "string" || value.trim() === "") return "—";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return display(value);
+
+  return escapeHtml(
+    new Intl.DateTimeFormat("en-AU", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "Australia/Sydney",
+    }).format(date),
+  );
+}
+
+function displayCodeAndName(code: unknown, name: unknown): string {
+  const codeText =
+    code === null || code === undefined || code === "" ? "" : String(code);
+  const nameText =
+    name === null || name === undefined || name === "" ? "" : String(name);
+
+  if (codeText && nameText) {
+    return `<code>${escapeHtml(codeText)}</code> — ${escapeHtml(nameText)}`;
+  }
+
+  if (codeText) return `<code>${escapeHtml(codeText)}</code>`;
+  if (nameText) return escapeHtml(nameText);
+  return "—";
 }
 
 function asUuidOrNull(value: unknown): string | null {
@@ -132,22 +175,34 @@ function buildReceivingMessage(event: NotificationEvent): string {
       ? "⚠️ <b>Site Goods Receiving Partial</b>"
       : "📦 <b>Site Goods Receiving Completed</b>";
 
+  const purchaseOrder = displayCodeAndName(
+    p.purchase_order_no,
+    p.purchase_order_status,
+  );
+
   return [
     heading,
     "",
-    `<b>Delivery status:</b> ${display(p.delivery_status)}`,
-    `<b>Receipt:</b> <code>${display(p.supplier_delivery_receipt_id)}</code>`,
-    `<b>Supplier delivery:</b> <code>${display(p.supplier_delivery_id)}</code>`,
-    `<b>Project:</b> <code>${display(p.project_id)}</code>`,
-    `<b>Site:</b> <code>${display(p.site_id)}</code>`,
-    `<b>Stock location:</b> <code>${display(p.stock_location_id)}</code>`,
-    `<b>Received by:</b> <code>${display(p.received_by_employee_id)}</code>`,
+    `<b>Delivery:</b> ${displayCodeAndName(p.delivery_no, p.delivery_status)}`,
+    `<b>Purchase order:</b> ${purchaseOrder}`,
+    `<b>Supplier:</b> ${displayCodeAndName(p.supplier_code, p.supplier_name)}`,
+    `<b>Project:</b> ${displayCodeAndName(p.project_no, p.project_name)}`,
+    `<b>Site:</b> ${displayCodeAndName(p.site_code, p.site_name)}`,
+    `<b>Stock location:</b> ${displayCodeAndName(
+      p.stock_location_code,
+      p.stock_location_name,
+    )}`,
+    `<b>Received by:</b> ${displayCodeAndName(
+      p.received_by_employee_code,
+      p.received_by_employee_name,
+    )}`,
+    `<b>Received at:</b> ${displayDateTime(p.received_at)}`,
+    "",
     `<b>Processed items:</b> ${display(p.processed_item_count)}`,
     `<b>Replacement items:</b> ${display(p.replacement_claim_item_count)}`,
     `<b>Payment hold:</b> ${
       p.payment_hold_required === true ? "Yes" : "No"
     }`,
-    `<b>Purchase order:</b> ${display(p.purchase_order_status)}`,
     `<b>Notes:</b> ${display(p.notes)}`,
   ].join("\n");
 }
@@ -279,7 +334,7 @@ async function updateEventAsSentWithoutRecipients(
       processing_started_at: null,
       sent_at: now,
       failed_at: null,
-      next_attempt_at: null,
+      next_attempt_at: now,
       last_error: null,
     })
     .eq("notification_event_id", event.notification_event_id);
@@ -325,7 +380,7 @@ async function processEvent(event: NotificationEvent) {
         processing_started_at: null,
         sent_at: now,
         failed_at: null,
-        next_attempt_at: null,
+        next_attempt_at: now,
         last_error: null,
       })
       .eq("notification_event_id", event.notification_event_id);
@@ -407,9 +462,7 @@ async function processEvent(event: NotificationEvent) {
 
       sent += 1;
     } catch (error) {
-      const errorMessage = error instanceof Error
-        ? error.message
-        : String(error);
+      const errorMessage = formatError(error);
 
       await supabase
         .from("notification_delivery_attempts")
@@ -441,7 +494,7 @@ async function processEvent(event: NotificationEvent) {
   if (finalStatus === "Sent") {
     eventUpdate.sent_at = now;
     eventUpdate.failed_at = null;
-    eventUpdate.next_attempt_at = null;
+    eventUpdate.next_attempt_at = now;
   } else {
     eventUpdate.failed_at = now;
     eventUpdate.next_attempt_at = new Date(
@@ -545,9 +598,7 @@ Deno.serve(async (request) => {
       try {
         results.push(await processEvent(event));
       } catch (error) {
-        const errorMessage = error instanceof Error
-          ? error.message
-          : String(error);
+        const errorMessage = formatError(error);
 
         await supabase
           .from("notification_events")
@@ -577,9 +628,7 @@ Deno.serve(async (request) => {
       results,
     });
   } catch (error) {
-    const errorMessage = error instanceof Error
-      ? error.message
-      : String(error);
+    const errorMessage = formatError(error);
 
     return jsonResponse({ error: errorMessage }, 500);
   }
