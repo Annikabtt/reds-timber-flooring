@@ -268,6 +268,7 @@ const SupplierDeliveries = () => {
         `)
         .eq("is_deleted", false)
         .neq("order_status", "Cancelled")
+        .neq("order_status", "Delivered")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -993,12 +994,18 @@ const SupplierDeliveries = () => {
                       <SelectValue placeholder="Select purchase order" />
                     </SelectTrigger>
                     <SelectContent>
-                      {purchaseOrders.map((po) => (
+                    {purchaseOrders.length === 0 ? (
+                        <div className="px-3 py-4 text-sm text-slate-500">
+                        No purchase orders with outstanding quantities.
+                        </div>
+                    ) : (
+                        purchaseOrders.map((po) => (
                         <SelectItem key={po.purchase_order_id} value={po.purchase_order_id}>
-                          {po.purchase_order_no ?? "-"} — {po.suppliers?.supplier_name ?? "-"} —{" "}
-                          {po.order_status ?? "-"}
+                            {po.purchase_order_no ?? "-"} — {po.suppliers?.supplier_name ?? "-"} —{" "}
+                            {po.order_status ?? "-"}
                         </SelectItem>
-                      ))}
+                        ))
+                    )}
                     </SelectContent>
                   </Select>
                 </div>
