@@ -499,7 +499,7 @@ const Employees = () => {
 
     downloadBlob({
       content: `\uFEFF${csvContent}`,
-      fileName: "employees.csv",
+      fileName: "TeamMembers.csv",
       mimeType: "text/csv;charset=utf-8;",
     });
   };
@@ -552,7 +552,7 @@ const Employees = () => {
 
     downloadBlob({
       content: excelContent,
-      fileName: "employees.xls",
+      fileName: "TeamMembers.xls",
       mimeType: "application/vnd.ms-excel;charset=utf-8;",
     });
   };
@@ -596,7 +596,7 @@ const Employees = () => {
     reportWindow.document.write(`
       <html>
         <head>
-          <title>${mode === "pdf" ? "Employees PDF" : "Employees Print"}</title>
+          <title>${mode === "pdf" ? "Team Members PDF" : "Team Members Print"}</title>
           <style>
             body {
               font-family: Arial, sans-serif;
@@ -636,7 +636,7 @@ const Employees = () => {
           </style>
         </head>
         <body>
-          <h1>Employees</h1>
+          <h1>Team Members</h1>
           <p>Generated: ${escapeHtmlValue(generatedAt)}</p>
           <p>Total exported rows: ${exportRows.length}</p>
 
@@ -663,7 +663,7 @@ const Employees = () => {
         <div>
           <div className="flex items-center gap-3">
             <Users className="h-8 w-8 text-red-600" />
-            <h1 className="text-3xl font-bold text-slate-900">Employees</h1>
+            <h1 className="text-3xl font-bold text-slate-900">Team Members</h1>
           </div>
           <p className="text-slate-500 mt-1">
             Manage workforce records for assignments, time logs, and payroll.
@@ -686,7 +686,7 @@ const Employees = () => {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-sm font-medium text-slate-500">Total Employees</p>
+          <p className="text-sm font-medium text-slate-500">Total Team Members</p>
           <p className="mt-2 text-3xl font-bold text-slate-900">
             {employeeSummary.total}
           </p>
@@ -797,7 +797,7 @@ const Employees = () => {
 
         {filteredEmployees.length === 0 ? (
           <div className="p-8 text-center text-slate-500">
-            No employees found.
+            No Team Members found.
           </div>
         ) : (
           filteredEmployees.map((employee) => (
@@ -892,7 +892,7 @@ const Employees = () => {
       <div className="space-y-3 lg:hidden">
         {filteredEmployees.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500 shadow-sm">
-            No employees found.
+            No Team Members found.
           </div>
         ) : (
           filteredEmployees.map((employee) => (

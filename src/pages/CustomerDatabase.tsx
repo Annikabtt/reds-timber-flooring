@@ -474,84 +474,91 @@ export default function CustomerDatabase() {
     isLoading: customerDetailLoading,
     error: customerDetailError,
   } = useQuery({
-    queryKey: ["customer-detail-foundation", selectedCustomerId],
+    queryKey: ["customer-financial-profile", selectedCustomerId],
     enabled: showViewDialog && Boolean(selectedCustomerId),
     queryFn: async () => {
-      const [projectsResult, invoicesResult, paymentsResult, quotationsResult] =
-        await Promise.all([
-          supabase
-            .from("projects")
-            .select(
-              "project_id, project_no, project_name, project_status, contract_value, created_at, start_date, estimated_completion_date"
-            )
-            .eq("customer_id", selectedCustomerId)
-            .eq("is_deleted", false)
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("customer_invoices")
-            .select(
-              "customer_invoice_id, invoice_no, invoice_status, invoice_date, due_date, total_amount, paid_amount, balance_amount, project_id"
-            )
-            .eq("customer_id", selectedCustomerId)
-            .eq("is_deleted", false)
-            .order("invoice_date", { ascending: false }),
-          supabase
-            .from("customer_payments")
-            .select(
-              "customer_payment_id, payment_no, payment_date, payment_method, amount, reference_no"
-            )
-            .eq("customer_id", selectedCustomerId)
-            .eq("is_deleted", false)
-            .order("payment_date", { ascending: false }),
-          supabase
-            .from("quotations")
-            .select(
-              "quotation_id, quotation_no, quotation_status, total_amount, issue_date, accepted_at, project_site_id"
-            )
-            .eq("customer_id", selectedCustomerId)
-            .eq("is_deleted", false)
-            .order("created_at", { ascending: false }),
-        ]);
+      const profileResult = await (supabase as any).rpc(
+        "get_customer_financial_profile",
+        { p_customer_id: selectedCustomerId }
+      );
 
-      if (projectsResult.error) throw projectsResult.error;
-      if (invoicesResult.error) throw invoicesResult.error;
-      if (paymentsResult.error) throw paymentsResult.error;
-      if (quotationsResult.error) throw quotationsResult.error;
+      if (profileResult.error) throw profileResult.error;
 
-      const projects = (projectsResult.data ?? []) as CustomerProject[];
-      const invoices = (invoicesResult.data ?? []) as CustomerInvoice[];
-      const payments = (paymentsResult.data ?? []) as CustomerPayment[];
-      const quotations = (quotationsResult.data ?? []) as CustomerQuotation[];
+      const profile = profileResult.data as any;
+      const projects = ((profile?.projects ?? []) as any[]).map((project) => ({
+        project_id: String(project.project_id),
+        project_no: String(project.project_no ?? ""),
+        project_name: String(project.project_name ?? ""),
+        project_status: String(project.project_status ?? "Draft"),
+        contract_value:
+          project.contract_value == null ? null : Number(project.contract_value),
+        created_at: "",
+        start_date: project.start_date ?? null,
+        estimated_completion_date: project.estimated_completion_date ?? null,
+      })) as CustomerProject[];
+
+      const invoices = ((profile?.recent_invoices ?? []) as any[]).map((invoice) => ({
+        customer_invoice_id: String(invoice.customer_invoice_id),
+        invoice_no: String(invoice.invoice_no ?? ""),
+        invoice_status: String(
+          invoice.document_status ?? invoice.payment_status ?? "Draft"
+        ),
+        invoice_date: String(invoice.invoice_date ?? ""),
+        due_date: String(invoice.due_date ?? ""),
+        total_amount: Number(invoice.total_amount ?? 0),
+        paid_amount: Number(invoice.paid_amount ?? 0),
+        balance_amount: Number(invoice.balance_amount ?? 0),
+        project_id: invoice.project_id ?? null,
+      })) as CustomerInvoice[];
+
+      const payments = ((profile?.recent_payments ?? []) as any[]).map((payment) => ({
+        customer_payment_id: String(payment.customer_payment_id),
+        payment_no: String(payment.payment_no ?? ""),
+        payment_date: String(payment.payment_date ?? ""),
+        payment_method: String(payment.payment_method ?? ""),
+        amount: Number(payment.amount ?? 0),
+        reference_no: payment.reference_no ?? null,
+        allocated_amount: Number(payment.allocated_amount ?? 0),
+        unallocated_amount: Number(payment.unallocated_amount ?? 0),
+      })) as Array<CustomerPayment & {
+        allocated_amount: number;
+        unallocated_amount: number;
+      }>;
+
       const projectIds = projects.map((project) => project.project_id);
-      const paymentIds = payments.map((payment) => payment.customer_payment_id);
 
-      const [sitesResult, allocationsResult] = await Promise.all([
+      const [sitesResult, quotationsResult] = await Promise.all([
         projectIds.length
           ? supabase
-            .from("project_sites")
-            .select("site_id, site_code, site_name, site_status, project_id, contract_value")
-            .in("project_id", projectIds)
-            .eq("is_deleted", false)
-            .order("site_code", { ascending: true })
+              .from("project_sites")
+              .select(
+                "site_id, site_code, site_name, site_status, project_id, contract_value"
+              )
+              .in("project_id", projectIds)
+              .eq("is_deleted", false)
+              .order("site_code", { ascending: true })
           : Promise.resolve({ data: [] as CustomerSite[], error: null }),
-        paymentIds.length
-          ? supabase
-            .from("customer_payment_allocations")
-            .select("customer_payment_id, customer_invoice_id, allocated_amount")
-            .in("customer_payment_id", paymentIds)
-          : Promise.resolve({ data: [] as CustomerPaymentAllocation[], error: null }),
+        supabase
+          .from("quotations")
+          .select(
+            "quotation_id, quotation_no, quotation_status, total_amount, issue_date, accepted_at, project_site_id"
+          )
+          .eq("customer_id", selectedCustomerId)
+          .eq("is_deleted", false)
+          .order("created_at", { ascending: false }),
       ]);
 
       if (sitesResult.error) throw sitesResult.error;
-      if (allocationsResult.error) throw allocationsResult.error;
+      if (quotationsResult.error) throw quotationsResult.error;
 
       return {
+        profile,
         projects,
         sites: (sitesResult.data ?? []) as CustomerSite[],
         invoices,
         payments,
-        allocations: (allocationsResult.data ?? []) as CustomerPaymentAllocation[],
-        quotations,
+        allocations: [] as CustomerPaymentAllocation[],
+        quotations: (quotationsResult.data ?? []) as CustomerQuotation[],
       };
     },
   });
@@ -1386,6 +1393,7 @@ export default function CustomerDatabase() {
 
     const contactSummary = getContactSummary(viewingCustomer);
     const preferredAddress = getPreferredAddress(viewingCustomer);
+    const profile = customerDetail?.profile as any;
     const projects = customerDetail?.projects ?? [];
     const sites = customerDetail?.sites ?? [];
     const invoices = customerDetail?.invoices ?? [];
@@ -1420,6 +1428,12 @@ export default function CustomerDatabase() {
         ? "Missing billing address"
         : "",
       !viewingCustomer.is_active ? "Inactive customer" : "",
+      profile?.xero?.readiness?.is_xero_accounting_ready === false
+        ? "Xero accounting setup incomplete"
+        : "",
+      profile?.financial_settings?.is_account_on_hold
+        ? `Account on hold${profile.financial_settings.account_hold_reason ? `: ${profile.financial_settings.account_hold_reason}` : ""}`
+        : "",
     ].filter(Boolean);
 
     const recentActivity = [
@@ -1462,22 +1476,26 @@ export default function CustomerDatabase() {
       quotations,
       warnings,
       recentActivity,
-      outstanding: invoices.reduce(
-        (sum, invoice) => sum + Number(invoice.balance_amount || 0),
-        0
+      outstanding: Number(
+        profile?.management_summary?.total_outstanding ??
+          invoices.reduce((sum, invoice) => sum + Number(invoice.balance_amount || 0), 0)
       ),
-      overdue: overdueInvoices.reduce(
-        (sum, invoice) => sum + Number(invoice.balance_amount || 0),
-        0
+      overdue: Number(
+        profile?.management_summary?.overdue_outstanding ??
+          overdueInvoices.reduce((sum, invoice) => sum + Number(invoice.balance_amount || 0), 0)
       ),
-      unallocatedPayments: Math.max(paymentTotal - allocatedPaymentTotal, 0),
-      invoiceValue: invoices.reduce(
-        (sum, invoice) => sum + Number(invoice.total_amount || 0),
-        0
+      unallocatedPayments: Number(
+        profile?.management_summary?.unallocated_credit ??
+          Math.max(paymentTotal - allocatedPaymentTotal, 0)
       ),
-      activeProjects: projects.filter(
-        (project) => project.project_status === "In Progress"
-      ).length,
+      invoiceValue: Number(
+        profile?.management_summary?.total_invoiced ??
+          invoices.reduce((sum, invoice) => sum + Number(invoice.total_amount || 0), 0)
+      ),
+      activeProjects: Number(
+        profile?.management_summary?.active_project_count ??
+          projects.filter((project) => project.project_status === "In Progress").length
+      ),
       quotedProjects: projects.filter(
         (project) => project.project_status === "Quoted"
       ).length,
