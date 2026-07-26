@@ -26,6 +26,8 @@ import {
   ShieldCheck,
   Images,
   ShoppingCart,
+  ReceiptText,
+  HandCoins,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
@@ -54,7 +56,7 @@ type NavItem = {
   title: string;
   url: string;
   icon: typeof LayoutDashboard;
-  permission?: "users" | "telegram";
+  permission?: "users" | "telegram" | "invoices" | "payments";
 };
 
 type NavGroup = {
@@ -117,6 +119,8 @@ const desktopNavGroups: NavGroup[] = [
     items: [
       { title: "Quotations", url: "/quotations", icon: FileText },
       { title: "Variations", url: "/variations", icon: GitBranchPlus },
+      { title: "Invoices", url: "/invoices", icon: ReceiptText, permission: "invoices" },
+      { title: "Payments", url: "/payments", icon: HandCoins, permission: "payments" },
     ],
   },
   {
@@ -220,6 +224,8 @@ export function AppSidebar() {
   const [canViewUsers, setCanViewUsers] = useState(false);
   const [canViewTelegramNotifications, setCanViewTelegramNotifications] =
     useState(false);
+  const [canViewInvoices, setCanViewInvoices] = useState(false);
+  const [canViewPayments, setCanViewPayments] = useState(false);
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
 
   const appRole = user?.app_metadata?.app_role;
@@ -233,6 +239,8 @@ export function AppSidebar() {
         if (mounted) {
           setCanViewUsers(false);
           setCanViewTelegramNotifications(false);
+          setCanViewInvoices(false);
+          setCanViewPayments(false);
         }
         return;
       }
@@ -242,6 +250,8 @@ export function AppSidebar() {
         { data: canManage },
         { data: canViewTelegram },
         { data: canManageTelegram },
+        { data: canInvoices },
+        { data: canPayments },
       ] = await Promise.all([
         supabase.rpc("has_permission", {
           p_permission_code: "users.view",
@@ -255,6 +265,8 @@ export function AppSidebar() {
         supabase.rpc("has_permission", {
           p_permission_code: "telegram_notifications.manage",
         }),
+        supabase.rpc("has_permission", { p_permission_code: "invoices.view" }),
+        supabase.rpc("has_permission", { p_permission_code: "payments.view" }),
       ]);
 
       if (mounted) {
@@ -262,6 +274,8 @@ export function AppSidebar() {
         setCanViewTelegramNotifications(
           Boolean(canViewTelegram || canManageTelegram)
         );
+        setCanViewInvoices(Boolean(canInvoices));
+        setCanViewPayments(Boolean(canPayments));
       }
     };
 
@@ -285,12 +299,14 @@ export function AppSidebar() {
             if (item.permission === "telegram") {
               return canViewTelegramNotifications;
             }
+            if (item.permission === "invoices") return canViewInvoices;
+            if (item.permission === "payments") return canViewPayments;
 
             return true;
           }),
         }))
         .filter((group) => group.items.length > 0),
-    [canViewTelegramNotifications, canViewUsers]
+    [canViewInvoices, canViewPayments, canViewTelegramNotifications, canViewUsers]
   );
 
   useEffect(() => {

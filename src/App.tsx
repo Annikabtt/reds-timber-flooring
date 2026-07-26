@@ -66,6 +66,8 @@ import StockRequests from "./pages/StockRequests";
 import PurchaseOrders from "./pages/PurchaseOrders";
 import AdminUserManagement from "./pages/AdminUserManagement";
 import TelegramNotifications from "./pages/TelegramNotifications";
+import Invoices from "./pages/Invoices";
+import Payments from "./pages/Payments";
 
 const queryClient = new QueryClient();
 
@@ -148,6 +150,8 @@ const App = () => (
               element={protectedPage(<WorkTimeLogs />)}
             />
 
+            <Route path="/invoices" element={permissionPage(<Invoices />, ["invoices.view"])} />
+            <Route path="/payments" element={permissionPage(<Payments />, ["payments.view"])} />
             <Route path="/quotations" element={protectedPage(<Quotations />)} />
             <Route path="/variations" element={protectedPage(<Variations />)} />
             <Route
