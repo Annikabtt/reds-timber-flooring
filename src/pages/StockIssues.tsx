@@ -498,7 +498,7 @@ const StockIssues = () => {
     queryKey: ["stock-issues"],
     enabled: permissions?.view !== false,
     queryFn: async () => {
-      const { data, error: queryError } = await db
+      const { data, error: queryError } = await supabase
         .from("stock_issues")
         .select(`
           stock_issue_id,
@@ -649,7 +649,7 @@ const StockIssues = () => {
     queryKey: ["approved-stock-requests-for-issues"],
     enabled: Boolean(permissions?.create || permissions?.updateDraft),
     queryFn: async () => {
-      const { data, error: queryError } = await db
+      const { data, error: queryError } = await supabase
         .from("stock_requests")
         .select(`
           stock_request_id,
@@ -715,7 +715,7 @@ const StockIssues = () => {
   const { data: stockLocations = [] } = useQuery<StockLocation[]>({
     queryKey: ["stock-locations-for-stock-issues"],
     queryFn: async () => {
-      const { data, error: queryError } = await db
+      const { data, error: queryError } = await supabase
         .from("stock_locations")
         .select("stock_location_id, location_code, location_name")
         .eq("is_deleted", false)
@@ -730,7 +730,7 @@ const StockIssues = () => {
   const { data: stockLots = [] } = useQuery<StockLot[]>({
     queryKey: ["stock-lots-for-stock-issue-editor"],
     queryFn: async () => {
-      const { data, error: queryError } = await db
+      const { data, error: queryError } = await supabase
         .from("stock_lots")
         .select(`
           stock_lot_id,
@@ -756,7 +756,7 @@ const StockIssues = () => {
   const { data: productOptions = [] } = useQuery<ProductOption[]>({
     queryKey: ["material-consumable-products-for-stock-issues"],
     queryFn: async () => {
-      const { data, error: queryError } = await db
+      const { data, error: queryError } = await supabase
         .from("products")
         .select(
           "product_id, product_code, product_name, product_type, base_uom_code",
@@ -897,7 +897,7 @@ const StockIssues = () => {
       Boolean(permissions?.viewPhotos && selectedIssueId) &&
       selectedReceiptIds.length > 0,
     queryFn: async () => {
-      const { data, error: queryError } = await db
+      const { data, error: queryError } = await supabase
         .from("inventory_transaction_photos")
         .select(`
           inventory_transaction_photo_id,
@@ -1499,7 +1499,7 @@ const StockIssues = () => {
           });
         if (uploadError) throw uploadError;
 
-        const { error: metadataError } = await db
+        const { error: metadataError } = await supabase
           .from("inventory_transaction_photos")
           .insert({
             source_type: "StockIssueReceipt",
@@ -1553,7 +1553,7 @@ const StockIssues = () => {
         .remove([photo.storage_path]);
       if (storageError) throw storageError;
 
-      const { error: metadataError } = await db
+      const { error: metadataError } = await supabase
         .from("inventory_transaction_photos")
         .update({
           is_active: false,
@@ -1666,7 +1666,7 @@ const StockIssues = () => {
           .from(photo.storage_bucket)
           .remove([photo.storage_path]);
         if (storageError) throw storageError;
-        const { error: photoError } = await db
+        const { error: photoError } = await supabase
           .from("inventory_transaction_photos")
           .update({
             is_active: false,
@@ -3498,5 +3498,6 @@ const ActionButton = ({
 );
 
 export default StockIssues;
+
 
 
