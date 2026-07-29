@@ -41,6 +41,15 @@ DECLARE
     v_cancelled_old_item_count integer;
     v_duplicate_blocked boolean := false;
     v_bad_allocation_blocked boolean := false;
+    v_return_id uuid;
+    v_issue_posting_id uuid;
+    v_return_posting_count integer;
+    v_return_movement_count integer;
+    v_over_return_blocked boolean := false;
+    v_duplicate_return_blocked boolean := false;
+    v_returned_quantity numeric;
+    v_damaged_quantity numeric;
+    v_lost_quantity numeric;
     v_customer_type text := 'Company';
     v_employment_type text := 'Employee';
     v_uom_category text := 'Quantity';
@@ -146,6 +155,7 @@ BEGIN
         'tool_loans.approve',
         'tool_loans.prepare',
         'tool_loans.issue',
+        'tool_loans.return',
         'tool_loans.cancel'
     ] LOOP
         SELECT permission_id
@@ -201,6 +211,7 @@ BEGIN
         AND public.has_permission('tool_loans.approve')
         AND public.has_permission('tool_loans.prepare')
         AND public.has_permission('tool_loans.issue')
+        AND public.has_permission('tool_loans.return')
         AND public.has_permission('tool_loans.cancel')
     ) THEN
         RAISE EXCEPTION 'Fixture permission setup failed.';
@@ -527,13 +538,13 @@ BEGIN
         1,
         'Local Test Tool',
         'ea_' || lower(v_suffix),
-        2,
-        2,
+        3,
+        3,
         'ea_' || lower(v_suffix),
         'ea_' || lower(v_suffix),
         1,
-        2,
-        2,
+        3,
+        3,
         false,
         'Tool',
         'Loan',
@@ -555,7 +566,7 @@ BEGIN
         jsonb_build_array(
             jsonb_build_object(
                 'stock_request_item_id', v_request_item_id,
-                'approved_quantity', 2,
+                'approved_quantity', 3,
                 'loan_uom_code', 'ea_' || lower(v_suffix),
                 'asset_reference', 'LOCAL-ASSET-001',
                 'serial_number', 'LOCAL-SERIAL-001',
@@ -591,7 +602,7 @@ BEGIN
         jsonb_build_array(
             jsonb_build_object(
                 'stock_request_item_id', v_request_item_id,
-                'approved_quantity', 2,
+                'approved_quantity', 3,
                 'loan_uom_code', 'ea_' || lower(v_suffix),
                 'asset_reference', 'LOCAL-ASSET-UPDATED',
                 'serial_number', 'LOCAL-SERIAL-UPDATED',
@@ -718,7 +729,7 @@ BEGIN
             jsonb_build_object(
                 'tool_loan_item_id', v_tool_loan_item_id,
                 'stock_lot_id', v_lot_id,
-                'issue_base_quantity', 2
+                'issue_base_quantity', 3
             )
         ),
         'Issued locally'
@@ -752,7 +763,7 @@ BEGIN
       AND reason = 'Tool Loan Issue'
       AND is_deleted = false;
 
-    IF v_after_remaining <> 8
+    IF v_after_remaining <> 7
        OR v_header_status <> 'Issued'
        OR v_item_status <> 'Issued'
        OR v_posting_count <> 1
@@ -776,7 +787,7 @@ BEGIN
                 jsonb_build_object(
                     'tool_loan_item_id', v_tool_loan_item_id,
                     'stock_lot_id', v_lot_id,
-                    'issue_base_quantity', 2
+                    'issue_base_quantity', 3
                 )
             ),
             'Intentional duplicate issue failure'
@@ -800,7 +811,7 @@ BEGIN
       AND is_deleted = false;
 
     IF NOT v_duplicate_blocked
-       OR v_before_remaining <> 8
+       OR v_before_remaining <> 7
        OR v_posting_count <> 1 THEN
         RAISE EXCEPTION
             'Duplicate issue protection failed: blocked %, remaining %, postings %.',
@@ -811,6 +822,345 @@ BEGIN
 
     INSERT INTO tool_loan_test_results
     VALUES (9, 'duplicate_issue_protection', 'PASS', 'Second issue rejected with no extra stock movement/posting');
+
+    SELECT tool_loan_issue_posting_id
+    INTO v_issue_posting_id
+    FROM public.tool_loan_issue_postings
+    WHERE tool_loan_id = v_tool_loan_id
+      AND tool_loan_item_id = v_tool_loan_item_id
+      AND is_deleted = false;
+
+    -- B2 atomicity: reject a return larger than the issued posting.
+    SELECT remaining_quantity INTO v_before_remaining
+    FROM public.stock_lots
+    WHERE stock_lot_id = v_lot_id;
+
+    BEGIN
+        PERFORM public.return_tool_loan_atomic(
+            v_tool_loan_id,
+            jsonb_build_array(
+                jsonb_build_object(
+                    'tool_loan_issue_posting_id', v_issue_posting_id,
+                    'returned_base_quantity', 4,
+                    'damaged_base_quantity', 0,
+                    'lost_base_quantity', 0,
+                    'notes', 'Intentional over-return failure'
+                )
+            ),
+            v_auth_user_id,
+            null,
+            null,
+            'Intentional over-return validation'
+        );
+    EXCEPTION WHEN OTHERS THEN
+        IF position('exceed the remaining issued quantity' IN SQLERRM) > 0 THEN
+            v_over_return_blocked := true;
+        ELSE
+            RAISE;
+        END IF;
+    END;
+
+    SELECT remaining_quantity INTO v_after_remaining
+    FROM public.stock_lots
+    WHERE stock_lot_id = v_lot_id;
+
+    SELECT count(*) INTO v_return_posting_count
+    FROM public.tool_loan_return_postings
+    WHERE tool_loan_id = v_tool_loan_id
+      AND is_deleted = false;
+
+    IF NOT v_over_return_blocked
+       OR v_after_remaining <> v_before_remaining
+       OR v_return_posting_count <> 0 THEN
+        RAISE EXCEPTION
+            'Over-return rollback failed: blocked %, before %, after %, postings %.',
+            v_over_return_blocked,
+            v_before_remaining,
+            v_after_remaining,
+            v_return_posting_count;
+    END IF;
+
+    INSERT INTO tool_loan_test_results
+    VALUES (10, 'return_validation_atomicity', 'PASS', 'Over-return rejected with no stock or posting mutation');
+
+    -- First return: one unit returned normally.
+    SELECT public.return_tool_loan_atomic(
+        v_tool_loan_id,
+        jsonb_build_array(
+            jsonb_build_object(
+                'tool_loan_issue_posting_id', v_issue_posting_id,
+                'returned_base_quantity', 1,
+                'damaged_base_quantity', 0,
+                'lost_base_quantity', 0,
+                'condition_notes', 'Returned in good condition',
+                'notes', 'First partial return'
+            )
+        ),
+        v_auth_user_id,
+        null,
+        null,
+        'First partial return'
+    ) INTO v_return_id;
+
+    SELECT remaining_quantity INTO v_after_remaining
+    FROM public.stock_lots
+    WHERE stock_lot_id = v_lot_id;
+
+    SELECT loan_status INTO v_header_status
+    FROM public.tool_loans
+    WHERE tool_loan_id = v_tool_loan_id;
+
+    SELECT
+        item_status,
+        returned_quantity,
+        damaged_quantity,
+        lost_quantity
+    INTO
+        v_item_status,
+        v_returned_quantity,
+        v_damaged_quantity,
+        v_lost_quantity
+    FROM public.tool_loan_items
+    WHERE tool_loan_item_id = v_tool_loan_item_id;
+
+    SELECT count(*) INTO v_return_posting_count
+    FROM public.tool_loan_return_postings
+    WHERE tool_loan_id = v_tool_loan_id
+      AND is_deleted = false;
+
+    SELECT count(*) INTO v_return_movement_count
+    FROM public.stock_movements
+    WHERE reference_no = (
+        SELECT tool_loan_no
+        FROM public.tool_loans
+        WHERE tool_loan_id = v_tool_loan_id
+    )
+      AND movement_type = 'Return'
+      AND reason = 'Tool Loan Return'
+      AND is_deleted = false;
+
+    IF v_after_remaining <> 8
+       OR v_header_status <> 'PartiallyReturned'
+       OR v_item_status <> 'PartiallyReturned'
+       OR v_returned_quantity <> 1
+       OR v_damaged_quantity <> 0
+       OR v_lost_quantity <> 0
+       OR v_return_posting_count <> 1
+       OR v_return_movement_count <> 1 THEN
+        RAISE EXCEPTION
+            'Partial return mismatch: remaining %, header %, item %, returned %, damaged %, lost %, postings %, movements %.',
+            v_after_remaining,
+            v_header_status,
+            v_item_status,
+            v_returned_quantity,
+            v_damaged_quantity,
+            v_lost_quantity,
+            v_return_posting_count,
+            v_return_movement_count;
+    END IF;
+
+    INSERT INTO tool_loan_test_results
+    VALUES (11, 'partial_return_tool_loan_atomic', 'PASS', 'Normal return restored Available stock and set partial statuses');
+
+    -- Second return: one damaged unit. Available stock must not increase.
+    SELECT public.return_tool_loan_atomic(
+        v_tool_loan_id,
+        jsonb_build_array(
+            jsonb_build_object(
+                'tool_loan_issue_posting_id', v_issue_posting_id,
+                'returned_base_quantity', 0,
+                'damaged_base_quantity', 1,
+                'lost_base_quantity', 0,
+                'damage_notes', 'Housing cracked during use',
+                'notes', 'Damaged return'
+            )
+        ),
+        v_auth_user_id,
+        null,
+        null,
+        'Damaged return'
+    ) INTO v_return_id;
+
+    SELECT remaining_quantity INTO v_after_remaining
+    FROM public.stock_lots
+    WHERE stock_lot_id = v_lot_id;
+
+    SELECT loan_status INTO v_header_status
+    FROM public.tool_loans
+    WHERE tool_loan_id = v_tool_loan_id;
+
+    SELECT
+        item_status,
+        returned_quantity,
+        damaged_quantity,
+        lost_quantity
+    INTO
+        v_item_status,
+        v_returned_quantity,
+        v_damaged_quantity,
+        v_lost_quantity
+    FROM public.tool_loan_items
+    WHERE tool_loan_item_id = v_tool_loan_item_id;
+
+    SELECT count(*) INTO v_return_movement_count
+    FROM public.stock_movements
+    WHERE reference_no = (
+        SELECT tool_loan_no
+        FROM public.tool_loans
+        WHERE tool_loan_id = v_tool_loan_id
+    )
+      AND movement_type = 'Return'
+      AND reason = 'Tool Loan Return'
+      AND is_deleted = false;
+
+    IF v_after_remaining <> 8
+       OR v_header_status <> 'PartiallyReturned'
+       OR v_item_status <> 'PartiallyReturned'
+       OR v_returned_quantity <> 1
+       OR v_damaged_quantity <> 1
+       OR v_lost_quantity <> 0
+       OR v_return_movement_count <> 1 THEN
+        RAISE EXCEPTION
+            'Damaged return mismatch: remaining %, header %, item %, returned %, damaged %, lost %, movements %.',
+            v_after_remaining,
+            v_header_status,
+            v_item_status,
+            v_returned_quantity,
+            v_damaged_quantity,
+            v_lost_quantity,
+            v_return_movement_count;
+    END IF;
+
+    INSERT INTO tool_loan_test_results
+    VALUES (12, 'damaged_return_no_stock_restore', 'PASS', 'Damaged quantity posted without increasing Available stock');
+
+    -- Final return: one lost unit. Loan closes operationally as Lost.
+    SELECT public.return_tool_loan_atomic(
+        v_tool_loan_id,
+        jsonb_build_array(
+            jsonb_build_object(
+                'tool_loan_issue_posting_id', v_issue_posting_id,
+                'returned_base_quantity', 0,
+                'damaged_base_quantity', 0,
+                'lost_base_quantity', 1,
+                'missing_notes', 'Unable to locate tool after site close',
+                'notes', 'Lost return'
+            )
+        ),
+        v_auth_user_id,
+        null,
+        null,
+        'Final lost allocation'
+    ) INTO v_return_id;
+
+    SELECT remaining_quantity INTO v_after_remaining
+    FROM public.stock_lots
+    WHERE stock_lot_id = v_lot_id;
+
+    SELECT loan_status INTO v_header_status
+    FROM public.tool_loans
+    WHERE tool_loan_id = v_tool_loan_id;
+
+    SELECT
+        item_status,
+        returned_quantity,
+        damaged_quantity,
+        lost_quantity
+    INTO
+        v_item_status,
+        v_returned_quantity,
+        v_damaged_quantity,
+        v_lost_quantity
+    FROM public.tool_loan_items
+    WHERE tool_loan_item_id = v_tool_loan_item_id;
+
+    SELECT count(*) INTO v_return_posting_count
+    FROM public.tool_loan_return_postings
+    WHERE tool_loan_id = v_tool_loan_id
+      AND is_deleted = false;
+
+    SELECT count(*) INTO v_return_movement_count
+    FROM public.stock_movements
+    WHERE reference_no = (
+        SELECT tool_loan_no
+        FROM public.tool_loans
+        WHERE tool_loan_id = v_tool_loan_id
+    )
+      AND movement_type = 'Return'
+      AND reason = 'Tool Loan Return'
+      AND is_deleted = false;
+
+    IF v_after_remaining <> 8
+       OR v_header_status <> 'Lost'
+       OR v_item_status <> 'Lost'
+       OR v_returned_quantity <> 1
+       OR v_damaged_quantity <> 1
+       OR v_lost_quantity <> 1
+       OR v_return_posting_count <> 3
+       OR v_return_movement_count <> 1 THEN
+        RAISE EXCEPTION
+            'Final lost return mismatch: remaining %, header %, item %, returned %, damaged %, lost %, postings %, movements %.',
+            v_after_remaining,
+            v_header_status,
+            v_item_status,
+            v_returned_quantity,
+            v_damaged_quantity,
+            v_lost_quantity,
+            v_return_posting_count,
+            v_return_movement_count;
+    END IF;
+
+    INSERT INTO tool_loan_test_results
+    VALUES (13, 'lost_return_final_status', 'PASS', 'Lost quantity did not restore stock and final statuses became Lost');
+
+    -- A fourth return against the fully processed posting must be rejected.
+    BEGIN
+        PERFORM public.return_tool_loan_atomic(
+            v_tool_loan_id,
+            jsonb_build_array(
+                jsonb_build_object(
+                    'tool_loan_issue_posting_id', v_issue_posting_id,
+                    'returned_base_quantity', 1,
+                    'damaged_base_quantity', 0,
+                    'lost_base_quantity', 0,
+                    'notes', 'Intentional duplicate return failure'
+                )
+            ),
+            v_auth_user_id,
+            null,
+            null,
+            'Intentional duplicate return'
+        );
+    EXCEPTION WHEN OTHERS THEN
+        IF position('Only issued or partially returned Tool Loans can be returned' IN SQLERRM) > 0
+           OR position('exceed the remaining issued quantity' IN SQLERRM) > 0 THEN
+            v_duplicate_return_blocked := true;
+        ELSE
+            RAISE;
+        END IF;
+    END;
+
+    SELECT remaining_quantity INTO v_after_remaining
+    FROM public.stock_lots
+    WHERE stock_lot_id = v_lot_id;
+
+    SELECT count(*) INTO v_return_posting_count
+    FROM public.tool_loan_return_postings
+    WHERE tool_loan_id = v_tool_loan_id
+      AND is_deleted = false;
+
+    IF NOT v_duplicate_return_blocked
+       OR v_after_remaining <> 8
+       OR v_return_posting_count <> 3 THEN
+        RAISE EXCEPTION
+            'Duplicate return protection failed: blocked %, remaining %, postings %.',
+            v_duplicate_return_blocked,
+            v_after_remaining,
+            v_return_posting_count;
+    END IF;
+
+    INSERT INTO tool_loan_test_results
+    VALUES (14, 'duplicate_return_protection', 'PASS', 'Fully processed issue posting cannot be returned again');
 END;
 $test$;
 
