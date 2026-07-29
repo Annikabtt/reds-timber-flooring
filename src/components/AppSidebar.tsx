@@ -56,7 +56,7 @@ type NavItem = {
   title: string;
   url: string;
   icon: typeof LayoutDashboard;
-  permission?: "users" | "telegram" | "invoices" | "payments";
+  permission?: "users" | "telegram" | "invoices" | "payments" | "stockIssues" | "toolLoans";
 };
 
 type NavGroup = {
@@ -104,6 +104,18 @@ const desktopNavGroups: NavGroup[] = [
         title: "Stock Requests",
         url: "/stock-requests",
         icon: PackagePlus,
+      },
+      {
+        title: "Stock Issues",
+        url: "/stock-issues",
+        icon: PackageCheck,
+        permission: "stockIssues",
+      },
+      {
+        title: "Tool Loans",
+        url: "/tool-loans",
+        icon: Wrench,
+        permission: "toolLoans",
       },
       {
         title: "Purchase Orders",
@@ -226,6 +238,8 @@ export function AppSidebar() {
     useState(false);
   const [canViewInvoices, setCanViewInvoices] = useState(false);
   const [canViewPayments, setCanViewPayments] = useState(false);
+  const [canViewStockIssues, setCanViewStockIssues] = useState(false);
+  const [canViewToolLoans, setCanViewToolLoans] = useState(false);
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
 
   const appRole = user?.app_metadata?.app_role;
@@ -241,6 +255,8 @@ export function AppSidebar() {
           setCanViewTelegramNotifications(false);
           setCanViewInvoices(false);
           setCanViewPayments(false);
+          setCanViewStockIssues(false);
+          setCanViewToolLoans(false);
         }
         return;
       }
@@ -252,6 +268,9 @@ export function AppSidebar() {
         { data: canManageTelegram },
         { data: canInvoices },
         { data: canPayments },
+        { data: canStockIssues },
+        { data: canToolLoans },
+        { data: canViewOwnToolLoans },
       ] = await Promise.all([
         supabase.rpc("has_permission", {
           p_permission_code: "users.view",
@@ -267,6 +286,9 @@ export function AppSidebar() {
         }),
         supabase.rpc("has_permission", { p_permission_code: "invoices.view" }),
         supabase.rpc("has_permission", { p_permission_code: "payments.view" }),
+        supabase.rpc("has_permission", { p_permission_code: "stock_issues.view" }),
+        supabase.rpc("has_permission", { p_permission_code: "tool_loans.view" }),
+        supabase.rpc("has_permission", { p_permission_code: "tool_loans.view_own" }),
       ]);
 
       if (mounted) {
@@ -276,6 +298,8 @@ export function AppSidebar() {
         );
         setCanViewInvoices(Boolean(canInvoices));
         setCanViewPayments(Boolean(canPayments));
+        setCanViewStockIssues(Boolean(canStockIssues));
+        setCanViewToolLoans(Boolean(canToolLoans || canViewOwnToolLoans));
       }
     };
 
@@ -301,12 +325,21 @@ export function AppSidebar() {
             }
             if (item.permission === "invoices") return canViewInvoices;
             if (item.permission === "payments") return canViewPayments;
+            if (item.permission === "stockIssues") return canViewStockIssues;
+            if (item.permission === "toolLoans") return canViewToolLoans;
 
             return true;
           }),
         }))
         .filter((group) => group.items.length > 0),
-    [canViewInvoices, canViewPayments, canViewTelegramNotifications, canViewUsers]
+    [
+      canViewInvoices,
+      canViewPayments,
+      canViewStockIssues,
+      canViewToolLoans,
+      canViewTelegramNotifications,
+      canViewUsers,
+    ]
   );
 
   useEffect(() => {
@@ -509,6 +542,7 @@ export function AppSidebar() {
             </button>
           )}
         </div>
+        
       </SidebarFooter>
     </Sidebar>
   );

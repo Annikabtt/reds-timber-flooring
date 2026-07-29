@@ -63,6 +63,8 @@ import ProductAttributes from "./pages/ProductAttributes";
 import ProductCodeManagement from "./pages/ProductCodeManagement";
 import Products from "./pages/Products";
 import StockRequests from "./pages/StockRequests";
+import StockIssues from "./pages/StockIssues";
+import ToolLoans from "./pages/ToolLoans";
 import PurchaseOrders from "./pages/PurchaseOrders";
 import AdminUserManagement from "./pages/AdminUserManagement";
 import TelegramNotifications from "./pages/TelegramNotifications";
@@ -165,6 +167,17 @@ const App = () => (
             <Route
               path="/stock-requests"
               element={protectedPage(<StockRequests />)}
+            />
+            <Route
+              path="/stock-issues"
+              element={permissionPage(<StockIssues />, ["stock_issues.view"])}
+            />
+            <Route
+              path="/tool-loans"
+              element={permissionPage(<ToolLoans />, [
+                "tool_loans.view",
+                "tool_loans.view_own",
+              ])}
             />
 
             <Route

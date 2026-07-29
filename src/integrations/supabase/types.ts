@@ -14,6 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      access_control_audit_log: {
+        Row: {
+          access_control_audit_id: string
+          change_type: string
+          changed_at: string
+          changed_by: string | null
+          new_value: Json | null
+          old_value: Json | null
+          permission_code: string | null
+          permission_id: string | null
+          reason: string | null
+          target_auth_user_id: string | null
+          target_role_id: string | null
+        }
+        Insert: {
+          access_control_audit_id?: string
+          change_type: string
+          changed_at?: string
+          changed_by?: string | null
+          new_value?: Json | null
+          old_value?: Json | null
+          permission_code?: string | null
+          permission_id?: string | null
+          reason?: string | null
+          target_auth_user_id?: string | null
+          target_role_id?: string | null
+        }
+        Update: {
+          access_control_audit_id?: string
+          change_type?: string
+          changed_at?: string
+          changed_by?: string | null
+          new_value?: Json | null
+          old_value?: Json | null
+          permission_code?: string | null
+          permission_id?: string | null
+          reason?: string | null
+          target_auth_user_id?: string | null
+          target_role_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "access_control_audit_log_permission_id_fkey"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "app_permissions"
+            referencedColumns: ["permission_id"]
+          },
+          {
+            foreignKeyName: "access_control_audit_log_target_role_id_fkey"
+            columns: ["target_role_id"]
+            isOneToOne: false
+            referencedRelation: "app_roles"
+            referencedColumns: ["role_id"]
+          },
+        ]
+      }
       app_permissions: {
         Row: {
           action_code: string
@@ -372,6 +429,27 @@ export type Database = {
             foreignKeyName: "customer_addresses_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
+            referencedRelation: "_customer_account_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_addresses_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_profile_base"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_addresses_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_xero_readiness"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_addresses_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
             referencedRelation: "customers"
             referencedColumns: ["customer_id"]
           },
@@ -427,6 +505,27 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "customer_contacts_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_account_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_contacts_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_profile_base"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_contacts_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_xero_readiness"
+            referencedColumns: ["customer_id"]
+          },
           {
             foreignKeyName: "customer_contacts_customer_id_fkey"
             columns: ["customer_id"]
@@ -526,6 +625,27 @@ export type Database = {
             foreignKeyName: "customer_financial_settings_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: true
+            referencedRelation: "_customer_account_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_financial_settings_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: true
+            referencedRelation: "_customer_profile_base"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_financial_settings_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: true
+            referencedRelation: "_customer_xero_readiness"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_financial_settings_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: true
             referencedRelation: "customers"
             referencedColumns: ["customer_id"]
           },
@@ -533,42 +653,125 @@ export type Database = {
       }
       customer_invoice_items: {
         Row: {
+          allow_fractional_quantity: boolean
+          base_quantity: number | null
+          base_uom_code: string | null
+          conversion_factor: number | null
           created_at: string
+          created_by: string | null
           customer_invoice_id: string
           customer_invoice_item_id: string
+          deleted_at: string | null
           description: string
+          discount_amount: number
+          discount_percent: number
+          is_deleted: boolean
           line_no: number
+          line_subtotal: number
           line_total: number
+          line_type: string
+          notes: string | null
+          original_unit_price: number | null
+          price_book_id: string | null
+          price_book_line_id: string | null
+          price_source: string
+          product_code_snapshot: string | null
+          product_id: string | null
+          product_name_snapshot: string | null
+          project_area_id: string | null
           quantity: number
+          sales_uom_code: string | null
           tax_amount: number | null
           tax_rate: number | null
           unit_price: number
+          updated_at: string
+          updated_by: string | null
         }
         Insert: {
+          allow_fractional_quantity?: boolean
+          base_quantity?: number | null
+          base_uom_code?: string | null
+          conversion_factor?: number | null
           created_at?: string
+          created_by?: string | null
           customer_invoice_id: string
           customer_invoice_item_id?: string
+          deleted_at?: string | null
           description: string
+          discount_amount?: number
+          discount_percent?: number
+          is_deleted?: boolean
           line_no: number
+          line_subtotal?: number
           line_total?: number
+          line_type?: string
+          notes?: string | null
+          original_unit_price?: number | null
+          price_book_id?: string | null
+          price_book_line_id?: string | null
+          price_source?: string
+          product_code_snapshot?: string | null
+          product_id?: string | null
+          product_name_snapshot?: string | null
+          project_area_id?: string | null
           quantity?: number
+          sales_uom_code?: string | null
           tax_amount?: number | null
           tax_rate?: number | null
           unit_price?: number
+          updated_at?: string
+          updated_by?: string | null
         }
         Update: {
+          allow_fractional_quantity?: boolean
+          base_quantity?: number | null
+          base_uom_code?: string | null
+          conversion_factor?: number | null
           created_at?: string
+          created_by?: string | null
           customer_invoice_id?: string
           customer_invoice_item_id?: string
+          deleted_at?: string | null
           description?: string
+          discount_amount?: number
+          discount_percent?: number
+          is_deleted?: boolean
           line_no?: number
+          line_subtotal?: number
           line_total?: number
+          line_type?: string
+          notes?: string | null
+          original_unit_price?: number | null
+          price_book_id?: string | null
+          price_book_line_id?: string | null
+          price_source?: string
+          product_code_snapshot?: string | null
+          product_id?: string | null
+          product_name_snapshot?: string | null
+          project_area_id?: string | null
           quantity?: number
+          sales_uom_code?: string | null
           tax_amount?: number | null
           tax_rate?: number | null
           unit_price?: number
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "customer_invoice_items_base_uom_code_fkey"
+            columns: ["base_uom_code"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["uom_code"]
+          },
+          {
+            foreignKeyName: "customer_invoice_items_customer_invoice_id_fkey"
+            columns: ["customer_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "_invoice_reporting_base"
+            referencedColumns: ["customer_invoice_id"]
+          },
           {
             foreignKeyName: "customer_invoice_items_customer_invoice_id_fkey"
             columns: ["customer_invoice_id"]
@@ -583,75 +786,192 @@ export type Database = {
             referencedRelation: "v_outstanding_invoices"
             referencedColumns: ["customer_invoice_id"]
           },
+          {
+            foreignKeyName: "customer_invoice_items_price_book_id_fkey"
+            columns: ["price_book_id"]
+            isOneToOne: false
+            referencedRelation: "price_books"
+            referencedColumns: ["price_book_id"]
+          },
+          {
+            foreignKeyName: "customer_invoice_items_price_book_line_id_fkey"
+            columns: ["price_book_line_id"]
+            isOneToOne: false
+            referencedRelation: "price_book_lines"
+            referencedColumns: ["price_book_line_id"]
+          },
+          {
+            foreignKeyName: "customer_invoice_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "customer_invoice_items_project_area_id_fkey"
+            columns: ["project_area_id"]
+            isOneToOne: false
+            referencedRelation: "project_area_progress_v"
+            referencedColumns: ["area_id"]
+          },
+          {
+            foreignKeyName: "customer_invoice_items_project_area_id_fkey"
+            columns: ["project_area_id"]
+            isOneToOne: false
+            referencedRelation: "project_areas"
+            referencedColumns: ["area_id"]
+          },
+          {
+            foreignKeyName: "customer_invoice_items_sales_uom_code_fkey"
+            columns: ["sales_uom_code"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["uom_code"]
+          },
         ]
       }
       customer_invoices: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           balance_amount: number
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           created_at: string
           created_by: string | null
+          credit_note_reason: string | null
+          currency_code: string
           customer_id: string
           customer_invoice_id: string
+          customer_reference: string | null
           deleted_at: string | null
+          discount_amount: number
+          document_status: string
           due_date: string
+          due_status: string
           invoice_date: string
           invoice_no: string
           invoice_status: string
+          invoice_type: string
           is_deleted: boolean
+          issued_at: string | null
+          issued_by: string | null
+          line_amount_type: string
           notes: string | null
+          original_invoice_id: string | null
           paid_amount: number
+          payment_status: string
+          payment_terms_days: number | null
+          payment_terms_type: string | null
+          price_book_id: string | null
           project_id: string | null
+          project_site_id: string | null
+          retention_release_amount: number
           subtotal_amount: number
           tax_amount: number
           total_amount: number
           updated_at: string
           updated_by: string | null
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
           xero_exported: boolean
           xero_exported_at: string | null
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           balance_amount?: number
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           created_at?: string
           created_by?: string | null
+          credit_note_reason?: string | null
+          currency_code?: string
           customer_id: string
           customer_invoice_id?: string
+          customer_reference?: string | null
           deleted_at?: string | null
+          discount_amount?: number
+          document_status?: string
           due_date: string
+          due_status?: string
           invoice_date?: string
           invoice_no: string
           invoice_status?: string
+          invoice_type?: string
           is_deleted?: boolean
+          issued_at?: string | null
+          issued_by?: string | null
+          line_amount_type?: string
           notes?: string | null
+          original_invoice_id?: string | null
           paid_amount?: number
+          payment_status?: string
+          payment_terms_days?: number | null
+          payment_terms_type?: string | null
+          price_book_id?: string | null
           project_id?: string | null
+          project_site_id?: string | null
+          retention_release_amount?: number
           subtotal_amount?: number
           tax_amount?: number
           total_amount?: number
           updated_at?: string
           updated_by?: string | null
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
           xero_exported?: boolean
           xero_exported_at?: string | null
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           balance_amount?: number
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           created_at?: string
           created_by?: string | null
+          credit_note_reason?: string | null
+          currency_code?: string
           customer_id?: string
           customer_invoice_id?: string
+          customer_reference?: string | null
           deleted_at?: string | null
+          discount_amount?: number
+          document_status?: string
           due_date?: string
+          due_status?: string
           invoice_date?: string
           invoice_no?: string
           invoice_status?: string
+          invoice_type?: string
           is_deleted?: boolean
+          issued_at?: string | null
+          issued_by?: string | null
+          line_amount_type?: string
           notes?: string | null
+          original_invoice_id?: string | null
           paid_amount?: number
+          payment_status?: string
+          payment_terms_days?: number | null
+          payment_terms_type?: string | null
+          price_book_id?: string | null
           project_id?: string | null
+          project_site_id?: string | null
+          retention_release_amount?: number
           subtotal_amount?: number
           tax_amount?: number
           total_amount?: number
           updated_at?: string
           updated_by?: string | null
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
           xero_exported?: boolean
           xero_exported_at?: string | null
         }
@@ -660,8 +980,71 @@ export type Database = {
             foreignKeyName: "customer_invoices_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
+            referencedRelation: "_customer_account_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_profile_base"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_xero_readiness"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
             referencedRelation: "customers"
             referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_original_invoice_id_fkey"
+            columns: ["original_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "_invoice_reporting_base"
+            referencedColumns: ["customer_invoice_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_original_invoice_id_fkey"
+            columns: ["original_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "customer_invoices"
+            referencedColumns: ["customer_invoice_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_original_invoice_id_fkey"
+            columns: ["original_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "v_outstanding_invoices"
+            referencedColumns: ["customer_invoice_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_price_book_id_fkey"
+            columns: ["price_book_id"]
+            isOneToOne: false
+            referencedRelation: "price_books"
+            referencedColumns: ["price_book_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
           },
           {
             foreignKeyName: "customer_invoices_project_id_fkey"
@@ -684,31 +1067,76 @@ export type Database = {
             referencedRelation: "v_project_progress"
             referencedColumns: ["project_id"]
           },
+          {
+            foreignKeyName: "customer_invoices_project_site_id_fkey"
+            columns: ["project_site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_project_site_id_fkey"
+            columns: ["project_site_id"]
+            isOneToOne: false
+            referencedRelation: "project_sites"
+            referencedColumns: ["site_id"]
+          },
         ]
       }
       customer_payment_allocations: {
         Row: {
           allocated_amount: number
           created_at: string
+          created_by: string | null
           customer_invoice_id: string
           customer_payment_allocation_id: string
           customer_payment_id: string
+          deleted_at: string | null
+          is_deleted: boolean
+          reversal_reason: string | null
+          reversed_at: string | null
+          reversed_by: string | null
+          updated_at: string
+          updated_by: string | null
         }
         Insert: {
           allocated_amount: number
           created_at?: string
+          created_by?: string | null
           customer_invoice_id: string
           customer_payment_allocation_id?: string
           customer_payment_id: string
+          deleted_at?: string | null
+          is_deleted?: boolean
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
+          updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           allocated_amount?: number
           created_at?: string
+          created_by?: string | null
           customer_invoice_id?: string
           customer_payment_allocation_id?: string
           customer_payment_id?: string
+          deleted_at?: string | null
+          is_deleted?: boolean
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "customer_payment_allocations_customer_invoice_id_fkey"
+            columns: ["customer_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "_invoice_reporting_base"
+            referencedColumns: ["customer_invoice_id"]
+          },
           {
             foreignKeyName: "customer_payment_allocations_customer_invoice_id_fkey"
             columns: ["customer_invoice_id"]
@@ -727,6 +1155,13 @@ export type Database = {
             foreignKeyName: "customer_payment_allocations_customer_payment_id_fkey"
             columns: ["customer_payment_id"]
             isOneToOne: false
+            referencedRelation: "_payment_reporting_base"
+            referencedColumns: ["customer_payment_id"]
+          },
+          {
+            foreignKeyName: "customer_payment_allocations_customer_payment_id_fkey"
+            columns: ["customer_payment_id"]
+            isOneToOne: false
             referencedRelation: "customer_payments"
             referencedColumns: ["customer_payment_id"]
           },
@@ -737,15 +1172,21 @@ export type Database = {
           amount: number
           created_at: string
           created_by: string | null
+          currency_code: string
           customer_id: string
           customer_payment_id: string
           deleted_at: string | null
           is_deleted: boolean
           notes: string | null
+          original_payment_id: string | null
           payment_date: string
           payment_method: string
           payment_no: string
+          payment_status: string
           reference_no: string | null
+          reversal_reason: string | null
+          reversed_at: string | null
+          reversed_by: string | null
           updated_at: string
           updated_by: string | null
           xero_exported: boolean
@@ -755,15 +1196,21 @@ export type Database = {
           amount: number
           created_at?: string
           created_by?: string | null
+          currency_code?: string
           customer_id: string
           customer_payment_id?: string
           deleted_at?: string | null
           is_deleted?: boolean
           notes?: string | null
+          original_payment_id?: string | null
           payment_date?: string
           payment_method?: string
           payment_no: string
+          payment_status?: string
           reference_no?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
           updated_at?: string
           updated_by?: string | null
           xero_exported?: boolean
@@ -773,15 +1220,21 @@ export type Database = {
           amount?: number
           created_at?: string
           created_by?: string | null
+          currency_code?: string
           customer_id?: string
           customer_payment_id?: string
           deleted_at?: string | null
           is_deleted?: boolean
           notes?: string | null
+          original_payment_id?: string | null
           payment_date?: string
           payment_method?: string
           payment_no?: string
+          payment_status?: string
           reference_no?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
           updated_at?: string
           updated_by?: string | null
           xero_exported?: boolean
@@ -792,8 +1245,43 @@ export type Database = {
             foreignKeyName: "customer_payments_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
+            referencedRelation: "_customer_account_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_payments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_profile_base"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_payments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_xero_readiness"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_payments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
             referencedRelation: "customers"
             referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_payments_original_payment_id_fkey"
+            columns: ["original_payment_id"]
+            isOneToOne: false
+            referencedRelation: "_payment_reporting_base"
+            referencedColumns: ["customer_payment_id"]
+          },
+          {
+            foreignKeyName: "customer_payments_original_payment_id_fkey"
+            columns: ["original_payment_id"]
+            isOneToOne: false
+            referencedRelation: "customer_payments"
+            referencedColumns: ["customer_payment_id"]
           },
         ]
       }
@@ -1174,6 +1662,20 @@ export type Database = {
             foreignKeyName: "daily_reports_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "daily_reports_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "daily_reports_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["project_id"]
           },
@@ -1190,6 +1692,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_project_progress"
             referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "daily_reports_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
           },
           {
             foreignKeyName: "daily_reports_site_id_fkey"
@@ -1371,29 +1880,51 @@ export type Database = {
       invoice_sources: {
         Row: {
           created_at: string
+          created_by: string | null
           customer_invoice_id: string
+          deleted_at: string | null
           invoice_source_id: string
+          is_deleted: boolean
           source_amount: number
           source_id: string
           source_type: string
+          updated_at: string
+          updated_by: string | null
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           customer_invoice_id: string
+          deleted_at?: string | null
           invoice_source_id?: string
+          is_deleted?: boolean
           source_amount?: number
           source_id: string
           source_type: string
+          updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           customer_invoice_id?: string
+          deleted_at?: string | null
           invoice_source_id?: string
+          is_deleted?: boolean
           source_amount?: number
           source_id?: string
           source_type?: string
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "invoice_sources_customer_invoice_id_fkey"
+            columns: ["customer_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "_invoice_reporting_base"
+            referencedColumns: ["customer_invoice_id"]
+          },
           {
             foreignKeyName: "invoice_sources_customer_invoice_id_fkey"
             columns: ["customer_invoice_id"]
@@ -1958,6 +2489,20 @@ export type Database = {
             foreignKeyName: "material_requirements_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "material_requirements_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "material_requirements_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["project_id"]
           },
@@ -1981,6 +2526,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "quotations"
             referencedColumns: ["quotation_id"]
+          },
+          {
+            foreignKeyName: "material_requirements_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
           },
           {
             foreignKeyName: "material_requirements_site_id_fkey"
@@ -2098,6 +2650,504 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "suppliers"
             referencedColumns: ["supplier_id"]
+          },
+        ]
+      }
+      notification_delivery_attempts: {
+        Row: {
+          attempt_no: number
+          attempted_at: string
+          delivery_status: string
+          error_message: string | null
+          notification_delivery_attempt_id: string
+          notification_destination_id: string
+          notification_event_id: string
+          request_payload: Json | null
+          response_payload: Json | null
+          sent_at: string | null
+          telegram_message_id: string | null
+        }
+        Insert: {
+          attempt_no: number
+          attempted_at?: string
+          delivery_status?: string
+          error_message?: string | null
+          notification_delivery_attempt_id?: string
+          notification_destination_id: string
+          notification_event_id: string
+          request_payload?: Json | null
+          response_payload?: Json | null
+          sent_at?: string | null
+          telegram_message_id?: string | null
+        }
+        Update: {
+          attempt_no?: number
+          attempted_at?: string
+          delivery_status?: string
+          error_message?: string | null
+          notification_delivery_attempt_id?: string
+          notification_destination_id?: string
+          notification_event_id?: string
+          request_payload?: Json | null
+          response_payload?: Json | null
+          sent_at?: string | null
+          telegram_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_delivery_attempts_notification_destination_id_fkey"
+            columns: ["notification_destination_id"]
+            isOneToOne: false
+            referencedRelation: "notification_destinations"
+            referencedColumns: ["notification_destination_id"]
+          },
+          {
+            foreignKeyName: "notification_delivery_attempts_notification_event_id_fkey"
+            columns: ["notification_event_id"]
+            isOneToOne: false
+            referencedRelation: "notification_events"
+            referencedColumns: ["notification_event_id"]
+          },
+        ]
+      }
+      notification_destinations: {
+        Row: {
+          channel_type: string
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          destination_name: string
+          destination_scope: string
+          is_active: boolean
+          is_deleted: boolean
+          metadata: Json
+          notification_destination_id: string
+          telegram_chat_id: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          channel_type?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          destination_name: string
+          destination_scope?: string
+          is_active?: boolean
+          is_deleted?: boolean
+          metadata?: Json
+          notification_destination_id?: string
+          telegram_chat_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          channel_type?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          destination_name?: string
+          destination_scope?: string
+          is_active?: boolean
+          is_deleted?: boolean
+          metadata?: Json
+          notification_destination_id?: string
+          telegram_chat_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      notification_event_types: {
+        Row: {
+          created_at: string
+          default_severity: string
+          event_code: string
+          event_description: string | null
+          event_name: string
+          is_active: boolean
+          phase_no: number
+          telegram_enabled: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_severity?: string
+          event_code: string
+          event_description?: string | null
+          event_name: string
+          is_active?: boolean
+          phase_no?: number
+          telegram_enabled?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_severity?: string
+          event_code?: string
+          event_description?: string | null
+          event_name?: string
+          is_active?: boolean
+          phase_no?: number
+          telegram_enabled?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      notification_events: {
+        Row: {
+          attempt_count: number
+          created_at: string
+          created_by: string | null
+          event_code: string
+          event_key: string
+          event_status: string
+          failed_at: string | null
+          last_error: string | null
+          next_attempt_at: string
+          notification_event_id: string
+          payload: Json
+          processing_started_at: string | null
+          sent_at: string | null
+          severity: string
+          source_id: string
+          source_table: string
+        }
+        Insert: {
+          attempt_count?: number
+          created_at?: string
+          created_by?: string | null
+          event_code: string
+          event_key: string
+          event_status?: string
+          failed_at?: string | null
+          last_error?: string | null
+          next_attempt_at?: string
+          notification_event_id?: string
+          payload?: Json
+          processing_started_at?: string | null
+          sent_at?: string | null
+          severity: string
+          source_id: string
+          source_table: string
+        }
+        Update: {
+          attempt_count?: number
+          created_at?: string
+          created_by?: string | null
+          event_code?: string
+          event_key?: string
+          event_status?: string
+          failed_at?: string | null
+          last_error?: string | null
+          next_attempt_at?: string
+          notification_event_id?: string
+          payload?: Json
+          processing_started_at?: string | null
+          sent_at?: string | null
+          severity?: string
+          source_id?: string
+          source_table?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_events_event_code_fkey"
+            columns: ["event_code"]
+            isOneToOne: false
+            referencedRelation: "notification_event_types"
+            referencedColumns: ["event_code"]
+          },
+        ]
+      }
+      notification_role_event_defaults: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          event_code: string
+          is_enabled: boolean
+          notification_role_event_default_id: string
+          role_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          event_code: string
+          is_enabled?: boolean
+          notification_role_event_default_id?: string
+          role_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          event_code?: string
+          is_enabled?: boolean
+          notification_role_event_default_id?: string
+          role_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_role_event_defaults_event_fkey"
+            columns: ["event_code"]
+            isOneToOne: false
+            referencedRelation: "notification_event_types"
+            referencedColumns: ["event_code"]
+          },
+          {
+            foreignKeyName: "notification_role_event_defaults_role_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "app_roles"
+            referencedColumns: ["role_id"]
+          },
+        ]
+      }
+      notification_routing_rules: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          event_code: string
+          is_active: boolean
+          is_deleted: boolean
+          notification_destination_id: string
+          notification_routing_rule_id: string
+          project_id: string | null
+          role_code: string | null
+          severity_filter: string | null
+          site_id: string | null
+          sort_order: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          event_code: string
+          is_active?: boolean
+          is_deleted?: boolean
+          notification_destination_id: string
+          notification_routing_rule_id?: string
+          project_id?: string | null
+          role_code?: string | null
+          severity_filter?: string | null
+          site_id?: string | null
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          event_code?: string
+          is_active?: boolean
+          is_deleted?: boolean
+          notification_destination_id?: string
+          notification_routing_rule_id?: string
+          project_id?: string | null
+          role_code?: string | null
+          severity_filter?: string | null
+          site_id?: string | null
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_routing_rules_event_code_fkey"
+            columns: ["event_code"]
+            isOneToOne: false
+            referencedRelation: "notification_event_types"
+            referencedColumns: ["event_code"]
+          },
+          {
+            foreignKeyName: "notification_routing_rules_notification_destination_id_fkey"
+            columns: ["notification_destination_id"]
+            isOneToOne: false
+            referencedRelation: "notification_destinations"
+            referencedColumns: ["notification_destination_id"]
+          },
+          {
+            foreignKeyName: "notification_routing_rules_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "notification_routing_rules_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "notification_routing_rules_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "notification_routing_rules_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_project_profitability"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "notification_routing_rules_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_project_progress"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "notification_routing_rules_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "notification_routing_rules_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "project_sites"
+            referencedColumns: ["site_id"]
+          },
+        ]
+      }
+      notification_user_channels: {
+        Row: {
+          auth_user_id: string
+          channel_type: string
+          connected_at: string | null
+          connected_by: string | null
+          connection_notes: string | null
+          connection_status: string
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          disconnected_at: string | null
+          disconnected_by: string | null
+          is_deleted: boolean
+          is_enabled: boolean
+          notification_destination_id: string
+          notification_user_channel_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          auth_user_id: string
+          channel_type?: string
+          connected_at?: string | null
+          connected_by?: string | null
+          connection_notes?: string | null
+          connection_status?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          disconnected_at?: string | null
+          disconnected_by?: string | null
+          is_deleted?: boolean
+          is_enabled?: boolean
+          notification_destination_id: string
+          notification_user_channel_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          auth_user_id?: string
+          channel_type?: string
+          connected_at?: string | null
+          connected_by?: string | null
+          connection_notes?: string | null
+          connection_status?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          disconnected_at?: string | null
+          disconnected_by?: string | null
+          is_deleted?: boolean
+          is_enabled?: boolean
+          notification_destination_id?: string
+          notification_user_channel_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_user_channels_auth_user_fkey"
+            columns: ["auth_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["auth_user_id"]
+          },
+          {
+            foreignKeyName: "notification_user_channels_destination_fkey"
+            columns: ["notification_destination_id"]
+            isOneToOne: false
+            referencedRelation: "notification_destinations"
+            referencedColumns: ["notification_destination_id"]
+          },
+        ]
+      }
+      notification_user_event_overrides: {
+        Row: {
+          auth_user_id: string
+          created_at: string
+          created_by: string | null
+          event_code: string
+          notification_user_event_override_id: string
+          override_reason: string | null
+          override_value: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          auth_user_id: string
+          created_at?: string
+          created_by?: string | null
+          event_code: string
+          notification_user_event_override_id?: string
+          override_reason?: string | null
+          override_value: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          auth_user_id?: string
+          created_at?: string
+          created_by?: string | null
+          event_code?: string
+          notification_user_event_override_id?: string
+          override_reason?: string | null
+          override_value?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_user_event_overrides_auth_user_fkey"
+            columns: ["auth_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["auth_user_id"]
+          },
+          {
+            foreignKeyName: "notification_user_event_overrides_event_fkey"
+            columns: ["event_code"]
+            isOneToOne: false
+            referencedRelation: "notification_event_types"
+            referencedColumns: ["event_code"]
           },
         ]
       }
@@ -4106,6 +5156,20 @@ export type Database = {
             foreignKeyName: "project_areas_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "project_areas_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "project_areas_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["project_id"]
           },
@@ -4122,6 +5186,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_project_progress"
             referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "project_areas_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
           },
           {
             foreignKeyName: "project_areas_site_id_fkey"
@@ -4206,6 +5277,20 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "project_sites_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "project_sites_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
           {
             foreignKeyName: "project_sites_project_id_fkey"
             columns: ["project_id"]
@@ -4301,6 +5386,27 @@ export type Database = {
             foreignKeyName: "projects_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
+            referencedRelation: "_customer_account_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "projects_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_profile_base"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "projects_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_xero_readiness"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "projects_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
             referencedRelation: "customers"
             referencedColumns: ["customer_id"]
           },
@@ -4316,9 +5422,14 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           description: string | null
+          discount_amount: number
+          discount_percent: number
           is_deleted: boolean
+          lead_time_days: number | null
           line_no: number
+          line_subtotal: number
           line_total: number
+          material_supplier_link_id: string | null
           notes: string | null
           ordered_base_quantity: number | null
           product_id: string
@@ -4327,10 +5438,16 @@ export type Database = {
           purchase_order_line_id: string
           purchase_uom_code: string | null
           quantity: number
+          required_by_date: string | null
           site_id: string | null
+          source_snapshot: Json | null
+          source_type: string
           stock_request_item_id: string | null
+          supplier_product_code: string | null
+          supplier_product_name: string | null
           tax_amount: number
           tax_rate: number
+          tax_type: string | null
           unit_cost: number
           unit_of_measure: string
           updated_at: string
@@ -4345,9 +5462,14 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           description?: string | null
+          discount_amount?: number
+          discount_percent?: number
           is_deleted?: boolean
+          lead_time_days?: number | null
           line_no: number
+          line_subtotal?: number
           line_total?: number
+          material_supplier_link_id?: string | null
           notes?: string | null
           ordered_base_quantity?: number | null
           product_id: string
@@ -4356,10 +5478,16 @@ export type Database = {
           purchase_order_line_id?: string
           purchase_uom_code?: string | null
           quantity?: number
+          required_by_date?: string | null
           site_id?: string | null
+          source_snapshot?: Json | null
+          source_type?: string
           stock_request_item_id?: string | null
+          supplier_product_code?: string | null
+          supplier_product_name?: string | null
           tax_amount?: number
           tax_rate?: number
+          tax_type?: string | null
           unit_cost?: number
           unit_of_measure?: string
           updated_at?: string
@@ -4374,9 +5502,14 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           description?: string | null
+          discount_amount?: number
+          discount_percent?: number
           is_deleted?: boolean
+          lead_time_days?: number | null
           line_no?: number
+          line_subtotal?: number
           line_total?: number
+          material_supplier_link_id?: string | null
           notes?: string | null
           ordered_base_quantity?: number | null
           product_id?: string
@@ -4385,10 +5518,16 @@ export type Database = {
           purchase_order_line_id?: string
           purchase_uom_code?: string | null
           quantity?: number
+          required_by_date?: string | null
           site_id?: string | null
+          source_snapshot?: Json | null
+          source_type?: string
           stock_request_item_id?: string | null
+          supplier_product_code?: string | null
+          supplier_product_name?: string | null
           tax_amount?: number
           tax_rate?: number
+          tax_type?: string | null
           unit_cost?: number
           unit_of_measure?: string
           updated_at?: string
@@ -4417,11 +5556,32 @@ export type Database = {
             referencedColumns: ["uom_code"]
           },
           {
+            foreignKeyName: "purchase_order_lines_material_supplier_link_id_fkey"
+            columns: ["material_supplier_link_id"]
+            isOneToOne: false
+            referencedRelation: "material_supplier_links"
+            referencedColumns: ["material_supplier_link_id"]
+          },
+          {
             foreignKeyName: "purchase_order_lines_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
             referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "purchase_order_lines_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "purchase_order_lines_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
           },
           {
             foreignKeyName: "purchase_order_lines_project_id_fkey"
@@ -4462,6 +5622,13 @@ export type Database = {
             foreignKeyName: "purchase_order_lines_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "purchase_order_lines_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
             referencedRelation: "project_sites"
             referencedColumns: ["site_id"]
           },
@@ -4476,66 +5643,158 @@ export type Database = {
       }
       purchase_orders: {
         Row: {
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
           created_at: string
           created_by: string | null
+          currency_code: string
+          default_tax_type: string | null
           deleted_at: string | null
+          delivery_address_snapshot: Json | null
+          delivery_contact_name: string | null
+          delivery_contact_phone: string | null
+          delivery_destination_type: string
+          delivery_instructions: string | null
+          delivery_method: string | null
           expected_delivery_date: string | null
+          internal_notes: string | null
           is_deleted: boolean
           notes: string | null
           order_date: string
           order_status: string
+          payment_terms_days: number | null
+          payment_terms_type: string | null
           project_id: string | null
           purchase_order_id: string
           purchase_order_no: string
           site_id: string | null
+          source_type: string
+          stock_location_id: string | null
+          submitted_at: string | null
+          submitted_by: string | null
           subtotal_amount: number
+          supplier_address_snapshot: Json | null
+          supplier_contact_snapshot: Json | null
           supplier_id: string
+          supplier_notes: string | null
+          supplier_quote_date: string | null
+          supplier_quote_no: string | null
+          supplier_reference: string | null
           tax_amount: number
           total_amount: number
           updated_at: string
           updated_by: string | null
         }
         Insert: {
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           created_at?: string
           created_by?: string | null
+          currency_code?: string
+          default_tax_type?: string | null
           deleted_at?: string | null
+          delivery_address_snapshot?: Json | null
+          delivery_contact_name?: string | null
+          delivery_contact_phone?: string | null
+          delivery_destination_type?: string
+          delivery_instructions?: string | null
+          delivery_method?: string | null
           expected_delivery_date?: string | null
+          internal_notes?: string | null
           is_deleted?: boolean
           notes?: string | null
           order_date?: string
           order_status?: string
+          payment_terms_days?: number | null
+          payment_terms_type?: string | null
           project_id?: string | null
           purchase_order_id?: string
           purchase_order_no: string
           site_id?: string | null
+          source_type?: string
+          stock_location_id?: string | null
+          submitted_at?: string | null
+          submitted_by?: string | null
           subtotal_amount?: number
+          supplier_address_snapshot?: Json | null
+          supplier_contact_snapshot?: Json | null
           supplier_id: string
+          supplier_notes?: string | null
+          supplier_quote_date?: string | null
+          supplier_quote_no?: string | null
+          supplier_reference?: string | null
           tax_amount?: number
           total_amount?: number
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           created_at?: string
           created_by?: string | null
+          currency_code?: string
+          default_tax_type?: string | null
           deleted_at?: string | null
+          delivery_address_snapshot?: Json | null
+          delivery_contact_name?: string | null
+          delivery_contact_phone?: string | null
+          delivery_destination_type?: string
+          delivery_instructions?: string | null
+          delivery_method?: string | null
           expected_delivery_date?: string | null
+          internal_notes?: string | null
           is_deleted?: boolean
           notes?: string | null
           order_date?: string
           order_status?: string
+          payment_terms_days?: number | null
+          payment_terms_type?: string | null
           project_id?: string | null
           purchase_order_id?: string
           purchase_order_no?: string
           site_id?: string | null
+          source_type?: string
+          stock_location_id?: string | null
+          submitted_at?: string | null
+          submitted_by?: string | null
           subtotal_amount?: number
+          supplier_address_snapshot?: Json | null
+          supplier_contact_snapshot?: Json | null
           supplier_id?: string
+          supplier_notes?: string | null
+          supplier_quote_date?: string | null
+          supplier_quote_no?: string | null
+          supplier_reference?: string | null
           tax_amount?: number
           total_amount?: number
           updated_at?: string
           updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "purchase_orders_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
           {
             foreignKeyName: "purchase_orders_project_id_fkey"
             columns: ["project_id"]
@@ -4561,8 +5820,22 @@ export type Database = {
             foreignKeyName: "purchase_orders_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
             referencedRelation: "project_sites"
             referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_stock_location_id_fkey"
+            columns: ["stock_location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["stock_location_id"]
           },
           {
             foreignKeyName: "purchase_orders_supplier_id_fkey"
@@ -4981,6 +6254,27 @@ export type Database = {
             foreignKeyName: "quotation_revisions_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
+            referencedRelation: "_customer_account_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "quotation_revisions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_profile_base"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "quotation_revisions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_xero_readiness"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "quotation_revisions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
             referencedRelation: "customers"
             referencedColumns: ["customer_id"]
           },
@@ -4990,6 +6284,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "price_books"
             referencedColumns: ["price_book_id"]
+          },
+          {
+            foreignKeyName: "quotation_revisions_project_site_id_fkey"
+            columns: ["project_site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
           },
           {
             foreignKeyName: "quotation_revisions_project_site_id_fkey"
@@ -5144,6 +6445,27 @@ export type Database = {
             foreignKeyName: "quotations_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
+            referencedRelation: "_customer_account_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "quotations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_profile_base"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "quotations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_xero_readiness"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "quotations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
             referencedRelation: "customers"
             referencedColumns: ["customer_id"]
           },
@@ -5158,6 +6480,181 @@ export type Database = {
             foreignKeyName: "quotations_project_site_id_fkey"
             columns: ["project_site_id"]
             isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "quotations_project_site_id_fkey"
+            columns: ["project_site_id"]
+            isOneToOne: false
+            referencedRelation: "project_sites"
+            referencedColumns: ["site_id"]
+          },
+        ]
+      }
+      retention_ledger: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          customer_invoice_id: string | null
+          description: string
+          entry_date: string
+          ledger_entry_type: string
+          reference_no: string | null
+          retention_ledger_id: string
+          site_id: string
+          source_invoice_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          customer_invoice_id?: string | null
+          description: string
+          entry_date?: string
+          ledger_entry_type: string
+          reference_no?: string | null
+          retention_ledger_id?: string
+          site_id: string
+          source_invoice_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          customer_invoice_id?: string | null
+          description?: string
+          entry_date?: string
+          ledger_entry_type?: string
+          reference_no?: string | null
+          retention_ledger_id?: string
+          site_id?: string
+          source_invoice_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retention_ledger_customer_invoice_id_fkey"
+            columns: ["customer_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "_invoice_reporting_base"
+            referencedColumns: ["customer_invoice_id"]
+          },
+          {
+            foreignKeyName: "retention_ledger_customer_invoice_id_fkey"
+            columns: ["customer_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "customer_invoices"
+            referencedColumns: ["customer_invoice_id"]
+          },
+          {
+            foreignKeyName: "retention_ledger_customer_invoice_id_fkey"
+            columns: ["customer_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "v_outstanding_invoices"
+            referencedColumns: ["customer_invoice_id"]
+          },
+          {
+            foreignKeyName: "retention_ledger_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "retention_ledger_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "project_sites"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "retention_ledger_source_invoice_id_fkey"
+            columns: ["source_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "_invoice_reporting_base"
+            referencedColumns: ["customer_invoice_id"]
+          },
+          {
+            foreignKeyName: "retention_ledger_source_invoice_id_fkey"
+            columns: ["source_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "customer_invoices"
+            referencedColumns: ["customer_invoice_id"]
+          },
+          {
+            foreignKeyName: "retention_ledger_source_invoice_id_fkey"
+            columns: ["source_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "v_outstanding_invoices"
+            referencedColumns: ["customer_invoice_id"]
+          },
+        ]
+      }
+      site_retention_settings: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          is_active: boolean
+          is_deleted: boolean
+          is_enabled: boolean
+          notes: string | null
+          retention_cap_amount: number | null
+          retention_fixed_amount: number | null
+          retention_method: string
+          retention_percent: number | null
+          site_id: string
+          site_retention_setting_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          is_enabled?: boolean
+          notes?: string | null
+          retention_cap_amount?: number | null
+          retention_fixed_amount?: number | null
+          retention_method?: string
+          retention_percent?: number | null
+          site_id: string
+          site_retention_setting_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          is_enabled?: boolean
+          notes?: string | null
+          retention_cap_amount?: number | null
+          retention_fixed_amount?: number | null
+          retention_method?: string
+          retention_percent?: number | null
+          site_id?: string
+          site_retention_setting_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_retention_settings_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: true
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "site_retention_settings_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: true
             referencedRelation: "project_sites"
             referencedColumns: ["site_id"]
           },
@@ -5217,6 +6714,20 @@ export type Database = {
             foreignKeyName: "stock_locations_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "stock_locations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "stock_locations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["project_id"]
           },
@@ -5233,6 +6744,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_project_progress"
             referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "stock_locations_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
           },
           {
             foreignKeyName: "stock_locations_site_id_fkey"
@@ -5657,6 +7175,20 @@ export type Database = {
             foreignKeyName: "stock_requests_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "stock_requests_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "stock_requests_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["project_id"]
           },
@@ -5673,6 +7205,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_project_progress"
             referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "stock_requests_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
           },
           {
             foreignKeyName: "stock_requests_site_id_fkey"
@@ -5891,6 +7430,20 @@ export type Database = {
             foreignKeyName: "supplier_deliveries_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "supplier_deliveries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "supplier_deliveries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["project_id"]
           },
@@ -5914,6 +7467,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "purchase_orders"
             referencedColumns: ["purchase_order_id"]
+          },
+          {
+            foreignKeyName: "supplier_deliveries_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
           },
           {
             foreignKeyName: "supplier_deliveries_site_id_fkey"
@@ -6046,6 +7606,20 @@ export type Database = {
             foreignKeyName: "supplier_delivery_items_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "supplier_delivery_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "supplier_delivery_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["project_id"]
           },
@@ -6076,6 +7650,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "units_of_measure"
             referencedColumns: ["uom_code"]
+          },
+          {
+            foreignKeyName: "supplier_delivery_items_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
           },
           {
             foreignKeyName: "supplier_delivery_items_site_id_fkey"
@@ -6400,6 +7981,20 @@ export type Database = {
             foreignKeyName: "supplier_delivery_receipts_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "supplier_delivery_receipts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "supplier_delivery_receipts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["project_id"]
           },
@@ -6423,6 +8018,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "employees"
             referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "supplier_delivery_receipts_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
           },
           {
             foreignKeyName: "supplier_delivery_receipts_site_id_fkey"
@@ -6647,6 +8249,13 @@ export type Database = {
             foreignKeyName: "supplier_replacement_claims_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "supplier_replacement_claims_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
             referencedRelation: "project_sites"
             referencedColumns: ["site_id"]
           },
@@ -6839,6 +8448,20 @@ export type Database = {
             foreignKeyName: "supplier_replacement_receipts_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "supplier_replacement_receipts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "supplier_replacement_receipts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["project_id"]
           },
@@ -6862,6 +8485,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "employees"
             referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "supplier_replacement_receipts_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
           },
           {
             foreignKeyName: "supplier_replacement_receipts_site_id_fkey"
@@ -7305,8 +8935,43 @@ export type Database = {
             foreignKeyName: "variations_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
+            referencedRelation: "_customer_account_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "variations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_profile_base"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "variations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_xero_readiness"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "variations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
             referencedRelation: "customers"
             referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "variations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "variations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
           },
           {
             foreignKeyName: "variations_project_id_fkey"
@@ -7328,6 +8993,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_project_progress"
             referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "variations_project_site_id_fkey"
+            columns: ["project_site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
           },
           {
             foreignKeyName: "variations_project_site_id_fkey"
@@ -7490,6 +9162,20 @@ export type Database = {
             foreignKeyName: "work_assignments_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "work_assignments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "work_assignments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["project_id"]
           },
@@ -7506,6 +9192,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_project_progress"
             referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "work_assignments_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
           },
           {
             foreignKeyName: "work_assignments_site_id_fkey"
@@ -7716,6 +9409,20 @@ export type Database = {
             foreignKeyName: "work_orders_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "work_orders_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "work_orders_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["project_id"]
           },
@@ -7732,6 +9439,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_project_progress"
             referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "work_orders_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
           },
           {
             foreignKeyName: "work_orders_site_id_fkey"
@@ -7926,6 +9640,20 @@ export type Database = {
             foreignKeyName: "work_time_logs_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "work_time_logs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "work_time_logs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["project_id"]
           },
@@ -7956,6 +9684,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "daily_reports"
             referencedColumns: ["report_id"]
+          },
+          {
+            foreignKeyName: "work_time_logs_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
           },
           {
             foreignKeyName: "work_time_logs_site_id_fkey"
@@ -8030,6 +9765,531 @@ export type Database = {
       }
     }
     Views: {
+      _customer_account_summary: {
+        Row: {
+          abn: string | null
+          account_hold_reason: string | null
+          available_credit: number | null
+          credit_limit: number | null
+          current_outstanding: number | null
+          customer_code: string | null
+          customer_id: string | null
+          customer_name: string | null
+          customer_type: string | null
+          default_currency: string | null
+          draft_invoice_count: number | null
+          email: string | null
+          is_account_on_hold: boolean | null
+          issued_invoice_count: number | null
+          overdue_invoice_count: number | null
+          overdue_outstanding: number | null
+          payment_terms_days: number | null
+          payment_terms_type: string | null
+          phone: string | null
+          recorded_payment_total: number | null
+          total_invoiced: number | null
+          total_outstanding: number | null
+          total_paid: number | null
+          unallocated_credit: number | null
+        }
+        Relationships: []
+      }
+      _customer_profile_base: {
+        Row: {
+          abn: string | null
+          account_hold_reason: string | null
+          active_project_count: number | null
+          address_count: number | null
+          addresses: Json | null
+          aging_1_30: number | null
+          aging_31_60: number | null
+          aging_61_90: number | null
+          aging_90_plus: number | null
+          aging_current: number | null
+          available_credit: number | null
+          completed_project_count: number | null
+          contact_count: number | null
+          contacts: Json | null
+          created_at: string | null
+          credit_limit: number | null
+          current_outstanding: number | null
+          customer_code: string | null
+          customer_financial_setting_id: string | null
+          customer_id: string | null
+          customer_name: string | null
+          customer_type: string | null
+          default_currency: string | null
+          default_sales_account_code: string | null
+          default_tax_type: string | null
+          discount_percent: number | null
+          draft_invoice_count: number | null
+          email: string | null
+          has_financial_settings: boolean | null
+          invoice_delivery_method: string | null
+          is_account_on_hold: boolean | null
+          is_active: boolean | null
+          issued_invoice_count: number | null
+          last_xero_export_at: string | null
+          last_xero_export_error: string | null
+          last_xero_export_status: string | null
+          line_amount_type: string | null
+          maximum_days_overdue: number | null
+          notes: string | null
+          oldest_due_date: string | null
+          overdue_invoice_count: number | null
+          overdue_outstanding: number | null
+          payment_terms_days: number | null
+          payment_terms_type: string | null
+          phone: string | null
+          price_book_id: string | null
+          primary_address_country: string | null
+          primary_address_id: string | null
+          primary_address_line1: string | null
+          primary_address_line2: string | null
+          primary_address_postcode: string | null
+          primary_address_state: string | null
+          primary_address_suburb: string | null
+          primary_address_type: string | null
+          primary_contact_email: string | null
+          primary_contact_id: string | null
+          primary_contact_name: string | null
+          primary_contact_phone: string | null
+          primary_contact_position: string | null
+          project_count: number | null
+          projects: Json | null
+          recorded_payment_total: number | null
+          statement_delivery_method: string | null
+          total_invoiced: number | null
+          total_outstanding: number | null
+          total_paid: number | null
+          unallocated_credit: number | null
+          updated_at: string | null
+          xero_branding_theme_id: string | null
+          xero_branding_theme_name: string | null
+          xero_contact_id: string | null
+          xero_contact_name: string | null
+          xero_contact_number: string | null
+          xero_export_count: number | null
+          xero_export_failed_count: number | null
+          xero_export_history: Json | null
+          xero_export_success_count: number | null
+          xero_last_synced_at: string | null
+          xero_status: string | null
+          xero_sync_error: string | null
+        }
+        Relationships: []
+      }
+      _customer_xero_readiness: {
+        Row: {
+          customer_code: string | null
+          customer_id: string | null
+          customer_name: string | null
+          has_address: boolean | null
+          has_contact_name: boolean | null
+          has_currency: boolean | null
+          has_email: boolean | null
+          has_financial_settings: boolean | null
+          has_payment_terms: boolean | null
+          has_phone: boolean | null
+          has_sales_account: boolean | null
+          has_tax_type: boolean | null
+          has_xero_contact_id: boolean | null
+          has_xero_contact_name: boolean | null
+          is_xero_accounting_ready: boolean | null
+          is_xero_minimum_ready: boolean | null
+          readiness_issues: Json | null
+        }
+        Relationships: []
+      }
+      _invoice_aging_summary: {
+        Row: {
+          currency_code: string | null
+          current_amount: number | null
+          customer_code: string | null
+          customer_id: string | null
+          customer_name: string | null
+          days_1_30: number | null
+          days_31_60: number | null
+          days_61_90: number | null
+          days_90_plus: number | null
+          maximum_days_overdue: number | null
+          oldest_due_date: string | null
+          open_invoice_count: number | null
+          total_outstanding: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_account_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_profile_base"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_xero_readiness"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["customer_id"]
+          },
+        ]
+      }
+      _invoice_reporting_base: {
+        Row: {
+          active_line_count: number | null
+          active_source_count: number | null
+          aging_bucket: string | null
+          approved_at: string | null
+          approved_by: string | null
+          balance_amount: number | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string | null
+          created_by: string | null
+          credit_note_reason: string | null
+          currency_code: string | null
+          customer_abn: string | null
+          customer_code: string | null
+          customer_email: string | null
+          customer_id: string | null
+          customer_invoice_id: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          customer_reference: string | null
+          customer_type: string | null
+          days_overdue: number | null
+          document_status: string | null
+          due_date: string | null
+          due_status: string | null
+          invoice_date: string | null
+          invoice_no: string | null
+          invoice_type: string | null
+          issued_at: string | null
+          issued_by: string | null
+          legacy_invoice_status: string | null
+          notes: string | null
+          original_invoice_id: string | null
+          original_invoice_no: string | null
+          paid_amount: number | null
+          payment_status: string | null
+          project_id: string | null
+          project_name: string | null
+          project_no: string | null
+          project_site_id: string | null
+          retention_release_amount: number | null
+          site_code: string | null
+          site_name: string | null
+          source_types: Json | null
+          subtotal_amount: number | null
+          tax_amount: number | null
+          total_amount: number | null
+          updated_at: string | null
+          updated_by: string | null
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
+          xero_exported: boolean | null
+          xero_exported_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_account_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_profile_base"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_xero_readiness"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_original_invoice_id_fkey"
+            columns: ["original_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "_invoice_reporting_base"
+            referencedColumns: ["customer_invoice_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_original_invoice_id_fkey"
+            columns: ["original_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "customer_invoices"
+            referencedColumns: ["customer_invoice_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_original_invoice_id_fkey"
+            columns: ["original_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "v_outstanding_invoices"
+            referencedColumns: ["customer_invoice_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_project_profitability"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_project_progress"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_project_site_id_fkey"
+            columns: ["project_site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "customer_invoices_project_site_id_fkey"
+            columns: ["project_site_id"]
+            isOneToOne: false
+            referencedRelation: "project_sites"
+            referencedColumns: ["site_id"]
+          },
+        ]
+      }
+      _payment_reporting_base: {
+        Row: {
+          active_allocation_count: number | null
+          allocated_amount: number | null
+          allocated_invoices: Json | null
+          amount: number | null
+          created_at: string | null
+          created_by: string | null
+          currency_code: string | null
+          customer_code: string | null
+          customer_id: string | null
+          customer_name: string | null
+          customer_payment_id: string | null
+          notes: string | null
+          original_payment_id: string | null
+          original_payment_no: string | null
+          payment_date: string | null
+          payment_method: string | null
+          payment_no: string | null
+          payment_status: string | null
+          reference_no: string | null
+          reversal_reason: string | null
+          reversed_at: string | null
+          reversed_by: string | null
+          unallocated_amount: number | null
+          updated_at: string | null
+          updated_by: string | null
+          xero_exported: boolean | null
+          xero_exported_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_payments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_account_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_payments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_profile_base"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_payments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_xero_readiness"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_payments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "customer_payments_original_payment_id_fkey"
+            columns: ["original_payment_id"]
+            isOneToOne: false
+            referencedRelation: "_payment_reporting_base"
+            referencedColumns: ["customer_payment_id"]
+          },
+          {
+            foreignKeyName: "customer_payments_original_payment_id_fkey"
+            columns: ["original_payment_id"]
+            isOneToOne: false
+            referencedRelation: "customer_payments"
+            referencedColumns: ["customer_payment_id"]
+          },
+        ]
+      }
+      _project_financial_summary: {
+        Row: {
+          approved_variations: number | null
+          available_retention: number | null
+          customer_code: string | null
+          customer_id: string | null
+          customer_name: string | null
+          invoice_count: number | null
+          open_invoice_count: number | null
+          original_contract_value: number | null
+          overdue_outstanding: number | null
+          project_id: string | null
+          project_name: string | null
+          project_no: string | null
+          project_status: string | null
+          revised_contract_value: number | null
+          total_invoiced: number | null
+          total_outstanding: number | null
+          total_paid: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_account_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "projects_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_profile_base"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "projects_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_xero_readiness"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "projects_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["customer_id"]
+          },
+        ]
+      }
+      _site_retention_summary: {
+        Row: {
+          adjustment_decrease_amount: number | null
+          adjustment_increase_amount: number | null
+          available_retention_balance: number | null
+          customer_code: string | null
+          customer_id: string | null
+          customer_name: string | null
+          is_enabled: boolean | null
+          last_entry_date: string | null
+          ledger_entry_count: number | null
+          project_id: string | null
+          project_name: string | null
+          project_no: string | null
+          released_amount: number | null
+          retained_amount: number | null
+          retention_cap_amount: number | null
+          retention_fixed_amount: number | null
+          retention_method: string | null
+          retention_notes: string | null
+          retention_percent: number | null
+          reversal_amount: number | null
+          site_code: string | null
+          site_id: string | null
+          site_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_account_summary"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "projects_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_profile_base"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "projects_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "_customer_xero_readiness"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "projects_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["customer_id"]
+          },
+        ]
+      }
       product_flooring_specs_v: {
         Row: {
           calculated_sqm_per_box: number | null
@@ -8096,6 +10356,20 @@ export type Database = {
             foreignKeyName: "project_areas_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "project_areas_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "project_areas_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["project_id"]
           },
@@ -8112,6 +10386,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_project_progress"
             referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "project_areas_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
           },
           {
             foreignKeyName: "project_areas_site_id_fkey"
@@ -8190,6 +10471,41 @@ export type Database = {
       }
     }
     Functions: {
+      _active_permission_admin_count: {
+        Args: { p_exclude_auth_user_id?: string }
+        Returns: number
+      }
+      _assert_access_control_manager: { Args: never; Returns: undefined }
+      _create_invoice_atomic_core: {
+        Args: { p_invoice: Json; p_lines: Json; p_sources?: Json }
+        Returns: string
+      }
+      _invoice_active_allocated_amount: {
+        Args: { p_invoice_id: string }
+        Returns: number
+      }
+      _payment_allocated_amount: {
+        Args: { p_payment_id: string }
+        Returns: number
+      }
+      _recalculate_invoice_payment_state: {
+        Args: { p_invoice_id: string }
+        Returns: undefined
+      }
+      _replace_purchase_order_lines_atomic: {
+        Args: {
+          p_header_project_id: string
+          p_header_site_id: string
+          p_lines: Json
+          p_purchase_order_id: string
+          p_supplier_id: string
+        }
+        Returns: Json
+      }
+      _validate_payment_invoice: {
+        Args: { p_invoice_id: string; p_payment_id: string }
+        Returns: undefined
+      }
       accept_quotation_atomic: {
         Args: {
           p_delivery_stock_location_id?: string
@@ -8262,12 +10578,20 @@ export type Database = {
           updated_at: string
         }[]
       }
+      allocate_customer_payment_atomic: {
+        Args: { p_allocations: Json; p_payment_id: string }
+        Returns: string
+      }
       approve_app_user_atomic: {
         Args: {
           p_admin_notes?: string
           p_auth_user_id: string
           p_role_code: string
         }
+        Returns: string
+      }
+      approve_invoice_atomic: {
+        Args: { p_invoice_id: string }
         Returns: string
       }
       approve_stock_request_item: {
@@ -8281,6 +10605,10 @@ export type Database = {
       archive_product_attributes_not_in_category: {
         Args: { p_new_category_id: string; p_product_id: string }
         Returns: number
+      }
+      assert_invoice_permission: {
+        Args: { p_permission_code: string }
+        Returns: undefined
       }
       assert_product_required_attributes_complete: {
         Args: { p_product_id: string }
@@ -8306,6 +10634,10 @@ export type Database = {
         }
         Returns: Json
       }
+      assign_user_role_atomic: {
+        Args: { p_auth_user_id: string; p_reason?: string; p_role_id: string }
+        Returns: string
+      }
       build_product_code_size_token: {
         Args: {
           p_first_value?: number
@@ -8316,6 +10648,14 @@ export type Database = {
       }
       can_manage_permissions: { Args: never; Returns: boolean }
       can_manage_products_strict: { Args: never; Returns: boolean }
+      cancel_invoice_atomic: {
+        Args: { p_invoice_id: string; p_reason: string }
+        Returns: string
+      }
+      cancel_purchase_order_atomic: {
+        Args: { p_purchase_order_id: string; p_reason: string }
+        Returns: Json
+      }
       cancel_quotation_atomic: {
         Args: { p_cancellation_reason: string; p_quotation_id: string }
         Returns: Json
@@ -8327,6 +10667,23 @@ export type Database = {
       cancel_variation_atomic: {
         Args: { p_cancellation_reason: string; p_variation_id: string }
         Returns: Json
+      }
+      confirm_purchase_order_atomic: {
+        Args: { p_purchase_order_id: string }
+        Returns: Json
+      }
+      create_credit_note_atomic: {
+        Args: {
+          p_lines: Json
+          p_notes?: string
+          p_original_invoice_id: string
+          p_reason: string
+        }
+        Returns: string
+      }
+      create_invoice_atomic: {
+        Args: { p_invoice: Json; p_lines: Json; p_sources?: Json }
+        Returns: string
       }
       create_product_atomic: {
         Args: {
@@ -8367,6 +10724,10 @@ export type Database = {
         }
         Returns: Json
       }
+      create_purchase_order_atomic: {
+        Args: { p_lines: Json; p_purchase_order: Json }
+        Returns: Json
+      }
       create_quotation_atomic: {
         Args: { p_lines: Json; p_quotation: Json }
         Returns: Json
@@ -8376,6 +10737,30 @@ export type Database = {
           p_quotation_id: string
           p_revision_notes?: string
           p_revision_reason?: string
+        }
+        Returns: Json
+      }
+      create_retention_release_invoice_atomic: {
+        Args: { p_notes?: string; p_release_amount: number; p_site_id: string }
+        Returns: string
+      }
+      create_site_goods_receiving_atomic: {
+        Args: {
+          p_items: Json
+          p_notes?: string
+          p_site_id: string
+          p_stock_location_id: string
+          p_supplier_delivery_id: string
+        }
+        Returns: Json
+      }
+      create_supplier_delivery_from_purchase_order_atomic: {
+        Args: {
+          p_delivery_date: string
+          p_items?: Json
+          p_notes?: string
+          p_purchase_order_id: string
+          p_supplier_delivery_note_no?: string
         }
         Returns: Json
       }
@@ -8407,9 +10792,24 @@ export type Database = {
       current_app_role: { Args: never; Returns: string }
       current_app_user_status: { Args: never; Returns: string }
       current_employee_id: { Args: never; Returns: string }
+      disconnect_user_telegram_channel: {
+        Args: { p_auth_user_id: string; p_reason?: string }
+        Returns: undefined
+      }
       end_work_assignment: {
         Args: { p_work_assignment_id: string }
         Returns: undefined
+      }
+      enqueue_notification_event: {
+        Args: {
+          p_created_by?: string
+          p_event_code: string
+          p_event_key: string
+          p_payload?: Json
+          p_source_id: string
+          p_source_table: string
+        }
+        Returns: string
       }
       exclude_material_requirement_line: {
         Args: {
@@ -8498,6 +10898,33 @@ export type Database = {
       generate_work_order_no: {
         Args: { p_created_at?: string }
         Returns: string
+      }
+      get_customer_financial_profile: {
+        Args: { p_customer_id: string }
+        Returns: Json
+      }
+      get_customer_invoice_detail: {
+        Args: { p_invoice_id: string }
+        Returns: Json
+      }
+      get_customer_payment_detail: {
+        Args: { p_payment_id: string }
+        Returns: Json
+      }
+      get_customer_xero_contact_payload: {
+        Args: { p_customer_id: string }
+        Returns: Json
+      }
+      get_effective_notification_permission: {
+        Args: { p_auth_user_id: string; p_event_code: string }
+        Returns: {
+          auth_user_id: string
+          effective_enabled: boolean
+          event_code: string
+          override_value: string
+          permission_source: string
+          role_default_enabled: boolean
+        }[]
       }
       get_effective_product_category_attributes: {
         Args: { p_category_id: string }
@@ -8598,13 +11025,64 @@ export type Database = {
         }[]
       }
       get_quotation_detail: { Args: { p_quotation_id: string }; Returns: Json }
+      get_role_permission_matrix: {
+        Args: { p_role_id: string }
+        Returns: {
+          action_code: string
+          description: string
+          is_allowed: boolean
+          is_system_permission: boolean
+          module_code: string
+          permission_code: string
+          permission_id: string
+          permission_is_active: boolean
+          permission_name: string
+          role_code: string
+          role_id: string
+          role_name: string
+          role_permission_id: string
+          sort_order: number
+        }[]
+      }
+      get_user_permission_matrix: {
+        Args: { p_auth_user_id: string }
+        Returns: {
+          account_status: string
+          action_code: string
+          auth_user_id: string
+          description: string
+          effective_is_allowed: boolean
+          module_code: string
+          override_is_active: boolean
+          override_is_allowed: boolean
+          override_reason: string
+          permission_code: string
+          permission_id: string
+          permission_name: string
+          permission_source: string
+          role_code: string
+          role_id: string
+          role_is_allowed: boolean
+          role_name: string
+          sort_order: number
+        }[]
+      }
+      get_user_telegram_notification_settings: {
+        Args: { p_auth_user_id: string }
+        Returns: Json
+      }
       has_active_app_access: { Args: never; Returns: boolean }
       has_permission: { Args: { p_permission_code: string }; Returns: boolean }
+      invoice_due_date_from_terms: {
+        Args: { p_customer_id: string; p_invoice_date: string }
+        Returns: string
+      }
       is_active_company_employee: { Args: never; Returns: boolean }
       is_admin_role: { Args: never; Returns: boolean }
       is_payroll_role: { Args: never; Returns: boolean }
       is_project_role: { Args: never; Returns: boolean }
       is_strict_admin_role: { Args: never; Returns: boolean }
+      issue_invoice_atomic: { Args: { p_invoice_id: string }; Returns: string }
       issue_stock_request_item: {
         Args: {
           p_movement_date?: string
@@ -8615,6 +11093,245 @@ export type Database = {
         }
         Returns: string
       }
+      list_access_control_audit: {
+        Args: {
+          p_change_type?: string
+          p_date_from?: string
+          p_date_to?: string
+          p_limit?: number
+          p_offset?: number
+          p_permission_code?: string
+          p_target_auth_user_id?: string
+          p_target_role_id?: string
+        }
+        Returns: {
+          access_control_audit_id: string
+          change_type: string
+          changed_at: string
+          changed_by: string
+          changed_by_email: string
+          changed_by_name: string
+          new_value: Json
+          old_value: Json
+          permission_code: string
+          permission_id: string
+          reason: string
+          target_auth_user_id: string
+          target_role_code: string
+          target_role_id: string
+          target_role_name: string
+          target_user_email: string
+          target_user_name: string
+          total_row_count: number
+        }[]
+      }
+      list_customer_account_summaries: {
+        Args: {
+          p_customer_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_only_overdue?: boolean
+          p_only_with_balance?: boolean
+          p_search?: string
+        }
+        Returns: {
+          account_hold_reason: string
+          available_credit: number
+          credit_limit: number
+          current_outstanding: number
+          customer_code: string
+          customer_id: string
+          customer_name: string
+          customer_type: string
+          default_currency: string
+          draft_invoice_count: number
+          is_account_on_hold: boolean
+          issued_invoice_count: number
+          overdue_invoice_count: number
+          overdue_outstanding: number
+          payment_terms_days: number
+          payment_terms_type: string
+          recorded_payment_total: number
+          total_invoiced: number
+          total_outstanding: number
+          total_paid: number
+          total_row_count: number
+          unallocated_credit: number
+        }[]
+      }
+      list_customer_financial_profiles: {
+        Args: {
+          p_customer_type?: string
+          p_limit?: number
+          p_offset?: number
+          p_only_attention?: boolean
+          p_only_overdue?: boolean
+          p_only_with_balance?: boolean
+          p_search?: string
+          p_xero_status?: string
+        }
+        Returns: {
+          active_project_count: number
+          available_credit: number
+          credit_limit: number
+          customer_code: string
+          customer_id: string
+          customer_name: string
+          customer_type: string
+          default_currency: string
+          has_financial_settings: boolean
+          is_account_on_hold: boolean
+          is_xero_accounting_ready: boolean
+          is_xero_minimum_ready: boolean
+          overdue_outstanding: number
+          payment_terms_days: number
+          payment_terms_type: string
+          primary_contact_email: string
+          primary_contact_name: string
+          primary_contact_phone: string
+          project_count: number
+          readiness_issue_count: number
+          total_invoiced: number
+          total_outstanding: number
+          total_paid: number
+          total_row_count: number
+          unallocated_credit: number
+          xero_status: string
+        }[]
+      }
+      list_customer_invoices: {
+        Args: {
+          p_customer_id?: string
+          p_date_from?: string
+          p_date_to?: string
+          p_document_status?: string
+          p_invoice_type?: string
+          p_limit?: number
+          p_offset?: number
+          p_payment_status?: string
+          p_project_id?: string
+          p_project_site_id?: string
+          p_search?: string
+        }
+        Returns: {
+          active_line_count: number
+          active_source_count: number
+          aging_bucket: string
+          balance_amount: number
+          currency_code: string
+          customer_code: string
+          customer_id: string
+          customer_invoice_id: string
+          customer_name: string
+          customer_reference: string
+          days_overdue: number
+          document_status: string
+          due_date: string
+          due_status: string
+          invoice_date: string
+          invoice_no: string
+          invoice_type: string
+          paid_amount: number
+          payment_status: string
+          project_id: string
+          project_name: string
+          project_no: string
+          project_site_id: string
+          site_code: string
+          site_name: string
+          source_types: Json
+          subtotal_amount: number
+          tax_amount: number
+          total_amount: number
+          total_row_count: number
+        }[]
+      }
+      list_customer_payments: {
+        Args: {
+          p_customer_id?: string
+          p_date_from?: string
+          p_date_to?: string
+          p_limit?: number
+          p_offset?: number
+          p_payment_method?: string
+          p_payment_status?: string
+          p_search?: string
+        }
+        Returns: {
+          active_allocation_count: number
+          allocated_amount: number
+          allocated_invoices: Json
+          amount: number
+          currency_code: string
+          customer_code: string
+          customer_id: string
+          customer_name: string
+          customer_payment_id: string
+          payment_date: string
+          payment_method: string
+          payment_no: string
+          payment_status: string
+          reference_no: string
+          reversal_reason: string
+          reversed_at: string
+          total_row_count: number
+          unallocated_amount: number
+        }[]
+      }
+      list_invoice_aging: {
+        Args: {
+          p_customer_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_only_overdue?: boolean
+        }
+        Returns: {
+          currency_code: string
+          current_amount: number
+          customer_code: string
+          customer_id: string
+          customer_name: string
+          days_1_30: number
+          days_31_60: number
+          days_61_90: number
+          days_90_plus: number
+          maximum_days_overdue: number
+          oldest_due_date: string
+          open_invoice_count: number
+          total_outstanding: number
+          total_row_count: number
+        }[]
+      }
+      list_project_financial_summaries: {
+        Args: {
+          p_customer_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_only_with_outstanding?: boolean
+          p_project_id?: string
+          p_search?: string
+        }
+        Returns: {
+          approved_variations: number
+          available_retention: number
+          customer_code: string
+          customer_id: string
+          customer_name: string
+          invoice_count: number
+          open_invoice_count: number
+          original_contract_value: number
+          overdue_outstanding: number
+          project_id: string
+          project_name: string
+          project_no: string
+          project_status: string
+          revised_contract_value: number
+          total_invoiced: number
+          total_outstanding: number
+          total_paid: number
+          total_row_count: number
+        }[]
+      }
       list_quotations: {
         Args: {
           p_limit?: number
@@ -8623,6 +11340,62 @@ export type Database = {
           p_status?: string
         }
         Returns: Json
+      }
+      list_site_retention_summaries: {
+        Args: {
+          p_customer_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_only_with_balance?: boolean
+          p_project_id?: string
+          p_site_id?: string
+        }
+        Returns: {
+          adjustment_decrease_amount: number
+          adjustment_increase_amount: number
+          available_retention_balance: number
+          customer_code: string
+          customer_id: string
+          customer_name: string
+          is_enabled: boolean
+          last_entry_date: string
+          ledger_entry_count: number
+          project_id: string
+          project_name: string
+          project_no: string
+          released_amount: number
+          retained_amount: number
+          retention_cap_amount: number
+          retention_fixed_amount: number
+          retention_method: string
+          retention_percent: number
+          reversal_amount: number
+          site_code: string
+          site_id: string
+          site_name: string
+          total_row_count: number
+        }[]
+      }
+      list_telegram_notification_users: {
+        Args: { p_connection_status?: string; p_search?: string }
+        Returns: {
+          account_status: string
+          auth_user_id: string
+          connected_at: string
+          daily_report_enabled: boolean
+          daily_report_source: string
+          display_name: string
+          email: string
+          employee_code: string
+          employee_id: string
+          goods_receiving_enabled: boolean
+          goods_receiving_source: string
+          notification_destination_id: string
+          role_codes: string[]
+          telegram_chat_id_masked: string
+          telegram_connected: boolean
+          telegram_enabled: boolean
+        }[]
       }
       preview_product_code: {
         Args: {
@@ -8688,6 +11461,10 @@ export type Database = {
           p_auth_user_id: string
           p_role_code: string
         }
+        Returns: string
+      }
+      receive_customer_payment_atomic: {
+        Args: { p_allocations?: Json; p_payment: Json }
         Returns: string
       }
       receive_supplier_delivery_item_to_stock: {
@@ -8759,12 +11536,41 @@ export type Database = {
         }
         Returns: string
       }
+      reset_user_notification_overrides: {
+        Args: { p_auth_user_id: string }
+        Returns: number
+      }
+      reset_user_permission_overrides_atomic: {
+        Args: { p_auth_user_id: string; p_reason?: string }
+        Returns: string
+      }
+      resolve_telegram_notification_recipients: {
+        Args: {
+          p_event_code: string
+          p_project_id?: string
+          p_site_id?: string
+        }
+        Returns: {
+          auth_user_id: string
+          destination_name: string
+          display_name: string
+          email: string
+          notification_destination_id: string
+          permission_source: string
+          role_codes: string[]
+          telegram_chat_id: string
+        }[]
+      }
       restore_material_requirement_line: {
         Args: {
           p_adjustment_reason: string
           p_material_requirement_line_id: string
         }
         Returns: Json
+      }
+      reverse_customer_payment_atomic: {
+        Args: { p_payment_id: string; p_reason: string }
+        Returns: string
       }
       save_product_flooring_spec: {
         Args: {
@@ -8790,12 +11596,37 @@ export type Database = {
         Returns: Json
       }
       send_variation_atomic: { Args: { p_variation_id: string }; Returns: Json }
+      set_user_notification_override: {
+        Args: {
+          p_auth_user_id: string
+          p_event_code: string
+          p_override_value: string
+          p_reason?: string
+        }
+        Returns: undefined
+      }
+      set_user_telegram_channel_enabled: {
+        Args: { p_auth_user_id: string; p_is_enabled: boolean }
+        Returns: undefined
+      }
+      soft_delete_customer_payment_atomic: {
+        Args: { p_payment_id: string }
+        Returns: string
+      }
+      soft_delete_invoice_atomic: {
+        Args: { p_invoice_id: string }
+        Returns: string
+      }
       soft_delete_quotation_atomic: {
         Args: { p_quotation_id: string }
         Returns: Json
       }
       soft_delete_quotation_revision_atomic: {
         Args: { p_revision_id: string }
+        Returns: Json
+      }
+      submit_purchase_order_atomic: {
+        Args: { p_purchase_order_id: string }
         Returns: Json
       }
       substitute_material_requirement_line_product: {
@@ -8831,6 +11662,23 @@ export type Database = {
         }
         Returns: Json
       }
+      update_draft_invoice_atomic: {
+        Args: {
+          p_invoice: Json
+          p_invoice_id: string
+          p_lines: Json
+          p_sources?: Json
+        }
+        Returns: string
+      }
+      update_draft_purchase_order_atomic: {
+        Args: {
+          p_lines: Json
+          p_purchase_order: Json
+          p_purchase_order_id: string
+        }
+        Returns: Json
+      }
       update_draft_quotation_atomic: {
         Args: { p_lines: Json; p_quotation: Json; p_quotation_id: string }
         Returns: Json
@@ -8863,6 +11711,10 @@ export type Database = {
         }
         Returns: Json
       }
+      update_notification_role_default: {
+        Args: { p_event_code: string; p_is_enabled: boolean; p_role_id: string }
+        Returns: undefined
+      }
       update_product_atomic: {
         Args: {
           p_attributes?: Json
@@ -8891,9 +11743,50 @@ export type Database = {
           product_name: string
         }[]
       }
+      update_role_permissions_atomic: {
+        Args: { p_changes: Json; p_reason?: string; p_role_id: string }
+        Returns: string
+      }
+      update_user_permission_overrides_atomic: {
+        Args: { p_auth_user_id: string; p_changes: Json; p_reason?: string }
+        Returns: string
+      }
+      update_user_telegram_channel: {
+        Args: {
+          p_auth_user_id: string
+          p_connection_notes?: string
+          p_destination_name?: string
+          p_is_enabled?: boolean
+          p_telegram_chat_id: string
+        }
+        Returns: string
+      }
       user_has_permission: {
         Args: { p_auth_user_id: string; p_permission_code: string }
         Returns: boolean
+      }
+      validate_invoice_context: {
+        Args: {
+          p_customer_id: string
+          p_project_id: string
+          p_project_site_id: string
+        }
+        Returns: undefined
+      }
+      validate_invoice_source_context: {
+        Args: {
+          p_customer_id: string
+          p_project_id: string
+          p_project_site_id: string
+          p_source_amount: number
+          p_source_id: string
+          p_source_type: string
+        }
+        Returns: undefined
+      }
+      void_invoice_atomic: {
+        Args: { p_invoice_id: string; p_reason: string }
+        Returns: string
       }
     }
     Enums: {
