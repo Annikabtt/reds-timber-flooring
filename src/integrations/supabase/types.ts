@@ -7,11 +7,6 @@
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
-  }
   public: {
     Tables: {
       access_control_audit_log: {
@@ -1874,6 +1869,93 @@ export type Database = {
           tax_file_number?: string | null
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      inventory_transaction_photos: {
+        Row: {
+          caption: string | null
+          condition_status: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          file_size_bytes: number | null
+          inventory_transaction_photo_id: string
+          is_active: boolean
+          is_deleted: boolean
+          is_primary: boolean
+          latitude: number | null
+          longitude: number | null
+          mime_type: string | null
+          original_file_name: string | null
+          photo_type: string
+          sort_order: number
+          source_id: string
+          source_method: string
+          source_type: string
+          storage_bucket: string
+          storage_path: string
+          taken_at: string | null
+          updated_at: string
+          updated_by: string | null
+          uploaded_at: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          caption?: string | null
+          condition_status?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          file_size_bytes?: number | null
+          inventory_transaction_photo_id?: string
+          is_active?: boolean
+          is_deleted?: boolean
+          is_primary?: boolean
+          latitude?: number | null
+          longitude?: number | null
+          mime_type?: string | null
+          original_file_name?: string | null
+          photo_type: string
+          sort_order?: number
+          source_id: string
+          source_method?: string
+          source_type: string
+          storage_bucket?: string
+          storage_path: string
+          taken_at?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          uploaded_at?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          caption?: string | null
+          condition_status?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          file_size_bytes?: number | null
+          inventory_transaction_photo_id?: string
+          is_active?: boolean
+          is_deleted?: boolean
+          is_primary?: boolean
+          latitude?: number | null
+          longitude?: number | null
+          mime_type?: string | null
+          original_file_name?: string | null
+          photo_type?: string
+          sort_order?: number
+          source_id?: string
+          source_method?: string
+          source_type?: string
+          storage_bucket?: string
+          storage_path?: string
+          taken_at?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          uploaded_at?: string
+          uploaded_by?: string | null
         }
         Relationships: []
       }
@@ -6660,6 +6742,803 @@ export type Database = {
           },
         ]
       }
+      stock_issue_allocations: {
+        Row: {
+          allocated_base_quantity: number
+          allocation_status: string
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          is_active: boolean
+          is_deleted: boolean
+          issued_base_quantity: number
+          notes: string | null
+          stock_issue_allocation_id: string
+          stock_issue_line_id: string
+          stock_lot_id: string
+          stock_movement_id: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          allocated_base_quantity: number
+          allocation_status?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          issued_base_quantity?: number
+          notes?: string | null
+          stock_issue_allocation_id?: string
+          stock_issue_line_id: string
+          stock_lot_id: string
+          stock_movement_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          allocated_base_quantity?: number
+          allocation_status?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          issued_base_quantity?: number
+          notes?: string | null
+          stock_issue_allocation_id?: string
+          stock_issue_line_id?: string
+          stock_lot_id?: string
+          stock_movement_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_issue_allocations_stock_issue_line_id_fkey"
+            columns: ["stock_issue_line_id"]
+            isOneToOne: false
+            referencedRelation: "stock_issue_lines"
+            referencedColumns: ["stock_issue_line_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_allocations_stock_lot_id_fkey"
+            columns: ["stock_lot_id"]
+            isOneToOne: false
+            referencedRelation: "stock_lots"
+            referencedColumns: ["stock_lot_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_allocations_stock_movement_id_fkey"
+            columns: ["stock_movement_id"]
+            isOneToOne: false
+            referencedRelation: "stock_movements"
+            referencedColumns: ["stock_movement_id"]
+          },
+        ]
+      }
+      stock_issue_audit_events: {
+        Row: {
+          actor_auth_user_id: string | null
+          area_id: string | null
+          created_at: string
+          created_by: string | null
+          event_at: string
+          event_code: string
+          event_key: string
+          event_name: string
+          event_severity: string
+          new_status: string | null
+          notes: string | null
+          notification_event_id: string | null
+          notification_queue_error: string | null
+          notification_queued: boolean
+          old_status: string | null
+          payload: Json
+          project_id: string | null
+          site_id: string | null
+          stock_issue_audit_event_id: string
+          stock_issue_id: string
+          stock_issue_receipt_id: string | null
+          stock_request_id: string | null
+          stock_transfer_receipt_posting_id: string | null
+          work_order_id: string | null
+        }
+        Insert: {
+          actor_auth_user_id?: string | null
+          area_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          event_at?: string
+          event_code: string
+          event_key: string
+          event_name: string
+          event_severity?: string
+          new_status?: string | null
+          notes?: string | null
+          notification_event_id?: string | null
+          notification_queue_error?: string | null
+          notification_queued?: boolean
+          old_status?: string | null
+          payload?: Json
+          project_id?: string | null
+          site_id?: string | null
+          stock_issue_audit_event_id?: string
+          stock_issue_id: string
+          stock_issue_receipt_id?: string | null
+          stock_request_id?: string | null
+          stock_transfer_receipt_posting_id?: string | null
+          work_order_id?: string | null
+        }
+        Update: {
+          actor_auth_user_id?: string | null
+          area_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          event_at?: string
+          event_code?: string
+          event_key?: string
+          event_name?: string
+          event_severity?: string
+          new_status?: string | null
+          notes?: string | null
+          notification_event_id?: string | null
+          notification_queue_error?: string | null
+          notification_queued?: boolean
+          old_status?: string | null
+          payload?: Json
+          project_id?: string | null
+          site_id?: string | null
+          stock_issue_audit_event_id?: string
+          stock_issue_id?: string
+          stock_issue_receipt_id?: string | null
+          stock_request_id?: string | null
+          stock_transfer_receipt_posting_id?: string | null
+          work_order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_issue_audit_events_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "project_area_progress_v"
+            referencedColumns: ["area_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_audit_events_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "project_areas"
+            referencedColumns: ["area_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_audit_events_notification_event_id_fkey"
+            columns: ["notification_event_id"]
+            isOneToOne: false
+            referencedRelation: "notification_events"
+            referencedColumns: ["notification_event_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_audit_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_audit_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_audit_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_audit_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_project_profitability"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_audit_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_project_progress"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_audit_events_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_audit_events_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "project_sites"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_audit_events_stock_issue_id_fkey"
+            columns: ["stock_issue_id"]
+            isOneToOne: false
+            referencedRelation: "stock_issues"
+            referencedColumns: ["stock_issue_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_audit_events_stock_issue_receipt_id_fkey"
+            columns: ["stock_issue_receipt_id"]
+            isOneToOne: false
+            referencedRelation: "stock_issue_receipts"
+            referencedColumns: ["stock_issue_receipt_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_audit_events_stock_request_id_fkey"
+            columns: ["stock_request_id"]
+            isOneToOne: false
+            referencedRelation: "stock_requests"
+            referencedColumns: ["stock_request_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_audit_events_stock_transfer_receipt_posting_id_fkey"
+            columns: ["stock_transfer_receipt_posting_id"]
+            isOneToOne: false
+            referencedRelation: "stock_transfer_receipt_postings"
+            referencedColumns: ["stock_transfer_receipt_posting_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_audit_events_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["work_order_id"]
+          },
+        ]
+      }
+      stock_issue_lines: {
+        Row: {
+          allow_fractional_quantity: boolean
+          approved_base_quantity: number
+          approved_quantity: number
+          base_uom_code: string
+          conversion_factor_to_base: number
+          created_at: string
+          created_by: string | null
+          damaged_base_quantity: number
+          deleted_at: string | null
+          description: string
+          is_active: boolean
+          is_deleted: boolean
+          issue_base_quantity: number
+          issue_notes: string | null
+          issue_quantity: number
+          issue_uom_code: string
+          issued_product_id: string
+          line_no: number
+          line_status: string
+          preparation_notes: string | null
+          receipt_notes: string | null
+          received_base_quantity: number
+          requested_product_id: string
+          short_base_quantity: number
+          stock_issue_id: string
+          stock_issue_line_id: string
+          stock_request_item_id: string
+          substitution_reason: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          allow_fractional_quantity?: boolean
+          approved_base_quantity?: number
+          approved_quantity?: number
+          base_uom_code: string
+          conversion_factor_to_base?: number
+          created_at?: string
+          created_by?: string | null
+          damaged_base_quantity?: number
+          deleted_at?: string | null
+          description: string
+          is_active?: boolean
+          is_deleted?: boolean
+          issue_base_quantity?: number
+          issue_notes?: string | null
+          issue_quantity?: number
+          issue_uom_code: string
+          issued_product_id: string
+          line_no: number
+          line_status?: string
+          preparation_notes?: string | null
+          receipt_notes?: string | null
+          received_base_quantity?: number
+          requested_product_id: string
+          short_base_quantity?: number
+          stock_issue_id: string
+          stock_issue_line_id?: string
+          stock_request_item_id: string
+          substitution_reason?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          allow_fractional_quantity?: boolean
+          approved_base_quantity?: number
+          approved_quantity?: number
+          base_uom_code?: string
+          conversion_factor_to_base?: number
+          created_at?: string
+          created_by?: string | null
+          damaged_base_quantity?: number
+          deleted_at?: string | null
+          description?: string
+          is_active?: boolean
+          is_deleted?: boolean
+          issue_base_quantity?: number
+          issue_notes?: string | null
+          issue_quantity?: number
+          issue_uom_code?: string
+          issued_product_id?: string
+          line_no?: number
+          line_status?: string
+          preparation_notes?: string | null
+          receipt_notes?: string | null
+          received_base_quantity?: number
+          requested_product_id?: string
+          short_base_quantity?: number
+          stock_issue_id?: string
+          stock_issue_line_id?: string
+          stock_request_item_id?: string
+          substitution_reason?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_issue_lines_base_uom_code_fkey"
+            columns: ["base_uom_code"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["uom_code"]
+          },
+          {
+            foreignKeyName: "stock_issue_lines_issue_uom_code_fkey"
+            columns: ["issue_uom_code"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["uom_code"]
+          },
+          {
+            foreignKeyName: "stock_issue_lines_issued_product_id_fkey"
+            columns: ["issued_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_lines_requested_product_id_fkey"
+            columns: ["requested_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_lines_stock_issue_id_fkey"
+            columns: ["stock_issue_id"]
+            isOneToOne: false
+            referencedRelation: "stock_issues"
+            referencedColumns: ["stock_issue_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_lines_stock_request_item_id_fkey"
+            columns: ["stock_request_item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_request_items"
+            referencedColumns: ["stock_request_item_id"]
+          },
+        ]
+      }
+      stock_issue_receipt_lines: {
+        Row: {
+          condition_status: string
+          created_at: string
+          created_by: string | null
+          damaged_base_quantity: number
+          deleted_at: string | null
+          is_active: boolean
+          is_deleted: boolean
+          line_no: number
+          notes: string | null
+          received_base_quantity: number
+          short_base_quantity: number
+          stock_issue_line_id: string
+          stock_issue_receipt_id: string
+          stock_issue_receipt_line_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          condition_status?: string
+          created_at?: string
+          created_by?: string | null
+          damaged_base_quantity?: number
+          deleted_at?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          line_no: number
+          notes?: string | null
+          received_base_quantity?: number
+          short_base_quantity?: number
+          stock_issue_line_id: string
+          stock_issue_receipt_id: string
+          stock_issue_receipt_line_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          condition_status?: string
+          created_at?: string
+          created_by?: string | null
+          damaged_base_quantity?: number
+          deleted_at?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          line_no?: number
+          notes?: string | null
+          received_base_quantity?: number
+          short_base_quantity?: number
+          stock_issue_line_id?: string
+          stock_issue_receipt_id?: string
+          stock_issue_receipt_line_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_issue_receipt_lines_stock_issue_line_id_fkey"
+            columns: ["stock_issue_line_id"]
+            isOneToOne: false
+            referencedRelation: "stock_issue_lines"
+            referencedColumns: ["stock_issue_line_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_receipt_lines_stock_issue_receipt_id_fkey"
+            columns: ["stock_issue_receipt_id"]
+            isOneToOne: false
+            referencedRelation: "stock_issue_receipts"
+            referencedColumns: ["stock_issue_receipt_id"]
+          },
+        ]
+      }
+      stock_issue_receipts: {
+        Row: {
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          is_active: boolean
+          is_deleted: boolean
+          receipt_no: number
+          receipt_notes: string | null
+          receipt_status: string
+          received_at: string | null
+          received_by_auth_user_id: string | null
+          received_by_employee_id: string | null
+          received_by_name: string | null
+          stock_issue_id: string
+          stock_issue_receipt_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          receipt_no: number
+          receipt_notes?: string | null
+          receipt_status?: string
+          received_at?: string | null
+          received_by_auth_user_id?: string | null
+          received_by_employee_id?: string | null
+          received_by_name?: string | null
+          stock_issue_id: string
+          stock_issue_receipt_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          receipt_no?: number
+          receipt_notes?: string | null
+          receipt_status?: string
+          received_at?: string | null
+          received_by_auth_user_id?: string | null
+          received_by_employee_id?: string | null
+          received_by_name?: string | null
+          stock_issue_id?: string
+          stock_issue_receipt_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_issue_receipts_received_by_auth_user_id_fkey"
+            columns: ["received_by_auth_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["auth_user_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_receipts_received_by_employee_id_fkey"
+            columns: ["received_by_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "stock_issue_receipts_stock_issue_id_fkey"
+            columns: ["stock_issue_id"]
+            isOneToOne: false
+            referencedRelation: "stock_issues"
+            referencedColumns: ["stock_issue_id"]
+          },
+        ]
+      }
+      stock_issues: {
+        Row: {
+          area_id: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          delivered_at: string | null
+          delivered_by: string | null
+          delivery_method: string
+          dispatch_reference: string | null
+          dispatched_at: string | null
+          dispatched_by: string | null
+          from_stock_location_id: string
+          is_active: boolean
+          is_deleted: boolean
+          issue_date: string
+          issue_status: string
+          issued_at: string | null
+          issued_by: string | null
+          notes: string | null
+          prepared_at: string | null
+          prepared_by: string | null
+          priority: string
+          project_id: string
+          received_at: string | null
+          received_by: string | null
+          recipient_auth_user_id: string | null
+          recipient_employee_id: string | null
+          recipient_name: string | null
+          required_date: string | null
+          site_id: string
+          stock_issue_id: string
+          stock_issue_no: string
+          stock_request_id: string
+          to_stock_location_id: string | null
+          updated_at: string
+          updated_by: string | null
+          vehicle_reference: string | null
+          work_order_id: string | null
+        }
+        Insert: {
+          area_id?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          delivered_at?: string | null
+          delivered_by?: string | null
+          delivery_method?: string
+          dispatch_reference?: string | null
+          dispatched_at?: string | null
+          dispatched_by?: string | null
+          from_stock_location_id: string
+          is_active?: boolean
+          is_deleted?: boolean
+          issue_date?: string
+          issue_status?: string
+          issued_at?: string | null
+          issued_by?: string | null
+          notes?: string | null
+          prepared_at?: string | null
+          prepared_by?: string | null
+          priority?: string
+          project_id: string
+          received_at?: string | null
+          received_by?: string | null
+          recipient_auth_user_id?: string | null
+          recipient_employee_id?: string | null
+          recipient_name?: string | null
+          required_date?: string | null
+          site_id: string
+          stock_issue_id?: string
+          stock_issue_no: string
+          stock_request_id: string
+          to_stock_location_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_reference?: string | null
+          work_order_id?: string | null
+        }
+        Update: {
+          area_id?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          delivered_at?: string | null
+          delivered_by?: string | null
+          delivery_method?: string
+          dispatch_reference?: string | null
+          dispatched_at?: string | null
+          dispatched_by?: string | null
+          from_stock_location_id?: string
+          is_active?: boolean
+          is_deleted?: boolean
+          issue_date?: string
+          issue_status?: string
+          issued_at?: string | null
+          issued_by?: string | null
+          notes?: string | null
+          prepared_at?: string | null
+          prepared_by?: string | null
+          priority?: string
+          project_id?: string
+          received_at?: string | null
+          received_by?: string | null
+          recipient_auth_user_id?: string | null
+          recipient_employee_id?: string | null
+          recipient_name?: string | null
+          required_date?: string | null
+          site_id?: string
+          stock_issue_id?: string
+          stock_issue_no?: string
+          stock_request_id?: string
+          to_stock_location_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          vehicle_reference?: string | null
+          work_order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_issues_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "project_area_progress_v"
+            referencedColumns: ["area_id"]
+          },
+          {
+            foreignKeyName: "stock_issues_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "project_areas"
+            referencedColumns: ["area_id"]
+          },
+          {
+            foreignKeyName: "stock_issues_from_stock_location_id_fkey"
+            columns: ["from_stock_location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["stock_location_id"]
+          },
+          {
+            foreignKeyName: "stock_issues_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "stock_issues_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "stock_issues_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "stock_issues_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_project_profitability"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "stock_issues_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_project_progress"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "stock_issues_recipient_auth_user_id_fkey"
+            columns: ["recipient_auth_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["auth_user_id"]
+          },
+          {
+            foreignKeyName: "stock_issues_recipient_employee_id_fkey"
+            columns: ["recipient_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "stock_issues_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "stock_issues_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "project_sites"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "stock_issues_stock_request_id_fkey"
+            columns: ["stock_request_id"]
+            isOneToOne: false
+            referencedRelation: "stock_requests"
+            referencedColumns: ["stock_request_id"]
+          },
+          {
+            foreignKeyName: "stock_issues_to_stock_location_id_fkey"
+            columns: ["to_stock_location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["stock_location_id"]
+          },
+          {
+            foreignKeyName: "stock_issues_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["work_order_id"]
+          },
+        ]
+      }
       stock_locations: {
         Row: {
           created_at: string
@@ -6890,6 +7769,10 @@ export type Database = {
           quantity: number
           reason: string | null
           reference_no: string | null
+          stock_issue_allocation_id: string | null
+          stock_issue_id: string | null
+          stock_issue_receipt_id: string | null
+          stock_issue_receipt_line_id: string | null
           stock_lot_id: string
           stock_movement_id: string
           stock_request_item_id: string | null
@@ -6914,6 +7797,10 @@ export type Database = {
           quantity: number
           reason?: string | null
           reference_no?: string | null
+          stock_issue_allocation_id?: string | null
+          stock_issue_id?: string | null
+          stock_issue_receipt_id?: string | null
+          stock_issue_receipt_line_id?: string | null
           stock_lot_id: string
           stock_movement_id?: string
           stock_request_item_id?: string | null
@@ -6938,6 +7825,10 @@ export type Database = {
           quantity?: number
           reason?: string | null
           reference_no?: string | null
+          stock_issue_allocation_id?: string | null
+          stock_issue_id?: string | null
+          stock_issue_receipt_id?: string | null
+          stock_issue_receipt_line_id?: string | null
           stock_lot_id?: string
           stock_movement_id?: string
           stock_request_item_id?: string | null
@@ -6969,6 +7860,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "products"
             referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "stock_movements_stock_issue_allocation_id_fkey"
+            columns: ["stock_issue_allocation_id"]
+            isOneToOne: false
+            referencedRelation: "stock_issue_allocations"
+            referencedColumns: ["stock_issue_allocation_id"]
+          },
+          {
+            foreignKeyName: "stock_movements_stock_issue_id_fkey"
+            columns: ["stock_issue_id"]
+            isOneToOne: false
+            referencedRelation: "stock_issues"
+            referencedColumns: ["stock_issue_id"]
+          },
+          {
+            foreignKeyName: "stock_movements_stock_issue_receipt_id_fkey"
+            columns: ["stock_issue_receipt_id"]
+            isOneToOne: false
+            referencedRelation: "stock_issue_receipts"
+            referencedColumns: ["stock_issue_receipt_id"]
+          },
+          {
+            foreignKeyName: "stock_movements_stock_issue_receipt_line_id_fkey"
+            columns: ["stock_issue_receipt_line_id"]
+            isOneToOne: false
+            referencedRelation: "stock_issue_receipt_lines"
+            referencedColumns: ["stock_issue_receipt_line_id"]
           },
           {
             foreignKeyName: "stock_movements_stock_lot_id_fkey"
@@ -7011,13 +7930,24 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           description: string | null
+          fulfilment_method: string | null
           is_deleted: boolean
+          is_over_requirement: boolean
           line_no: number
+          line_status: string
+          material_requirement_line_id: string | null
           notes: string | null
+          over_requirement_base_quantity: number
+          pending_request_base_quantity: number
+          planned_base_quantity: number | null
+          previously_issued_base_quantity: number
           product_id: string
+          request_line_type: string | null
           request_uom_code: string | null
           requested_base_quantity: number | null
           requested_quantity: number
+          requested_reason: string | null
+          review_notes: string | null
           stock_request_id: string
           stock_request_item_id: string
           unit_of_measure: string
@@ -7034,13 +7964,24 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           description?: string | null
+          fulfilment_method?: string | null
           is_deleted?: boolean
+          is_over_requirement?: boolean
           line_no: number
+          line_status?: string
+          material_requirement_line_id?: string | null
           notes?: string | null
+          over_requirement_base_quantity?: number
+          pending_request_base_quantity?: number
+          planned_base_quantity?: number | null
+          previously_issued_base_quantity?: number
           product_id: string
+          request_line_type?: string | null
           request_uom_code?: string | null
           requested_base_quantity?: number | null
           requested_quantity?: number
+          requested_reason?: string | null
+          review_notes?: string | null
           stock_request_id: string
           stock_request_item_id?: string
           unit_of_measure?: string
@@ -7057,13 +7998,24 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           description?: string | null
+          fulfilment_method?: string | null
           is_deleted?: boolean
+          is_over_requirement?: boolean
           line_no?: number
+          line_status?: string
+          material_requirement_line_id?: string | null
           notes?: string | null
+          over_requirement_base_quantity?: number
+          pending_request_base_quantity?: number
+          planned_base_quantity?: number | null
+          previously_issued_base_quantity?: number
           product_id?: string
+          request_line_type?: string | null
           request_uom_code?: string | null
           requested_base_quantity?: number | null
           requested_quantity?: number
+          requested_reason?: string | null
+          review_notes?: string | null
           stock_request_id?: string
           stock_request_item_id?: string
           unit_of_measure?: string
@@ -7077,6 +8029,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "units_of_measure"
             referencedColumns: ["uom_code"]
+          },
+          {
+            foreignKeyName: "stock_request_items_material_requirement_line_id_fkey"
+            columns: ["material_requirement_line_id"]
+            isOneToOne: false
+            referencedRelation: "material_requirement_lines"
+            referencedColumns: ["material_requirement_line_id"]
           },
           {
             foreignKeyName: "stock_request_items_product_id_fkey"
@@ -7103,58 +8062,118 @@ export type Database = {
       }
       stock_requests: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           area_id: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           created_at: string
           created_by: string | null
           deleted_at: string | null
+          fulfilled_at: string | null
+          fulfilled_by: string | null
           is_deleted: boolean
+          material_requirement_id: string | null
           notes: string | null
+          priority: string
           project_id: string
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
           request_date: string
           request_status: string
+          request_type: string
           requested_by: string | null
+          requester_auth_user_id: string | null
+          requester_employee_id: string | null
           required_date: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           site_id: string
           stock_request_id: string
           stock_request_no: string
+          submitted_at: string | null
+          submitted_by: string | null
           updated_at: string
           updated_by: string | null
+          work_order_id: string | null
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           area_id?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
+          fulfilled_at?: string | null
+          fulfilled_by?: string | null
           is_deleted?: boolean
+          material_requirement_id?: string | null
           notes?: string | null
+          priority?: string
           project_id: string
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
           request_date?: string
           request_status?: string
+          request_type?: string
           requested_by?: string | null
+          requester_auth_user_id?: string | null
+          requester_employee_id?: string | null
           required_date?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           site_id: string
           stock_request_id?: string
           stock_request_no: string
+          submitted_at?: string | null
+          submitted_by?: string | null
           updated_at?: string
           updated_by?: string | null
+          work_order_id?: string | null
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           area_id?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
+          fulfilled_at?: string | null
+          fulfilled_by?: string | null
           is_deleted?: boolean
+          material_requirement_id?: string | null
           notes?: string | null
+          priority?: string
           project_id?: string
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
           request_date?: string
           request_status?: string
+          request_type?: string
           requested_by?: string | null
+          requester_auth_user_id?: string | null
+          requester_employee_id?: string | null
           required_date?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           site_id?: string
           stock_request_id?: string
           stock_request_no?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
           updated_at?: string
           updated_by?: string | null
+          work_order_id?: string | null
         }
         Relationships: [
           {
@@ -7170,6 +8189,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "project_areas"
             referencedColumns: ["area_id"]
+          },
+          {
+            foreignKeyName: "stock_requests_material_requirement_id_fkey"
+            columns: ["material_requirement_id"]
+            isOneToOne: false
+            referencedRelation: "material_requirements"
+            referencedColumns: ["material_requirement_id"]
           },
           {
             foreignKeyName: "stock_requests_project_id_fkey"
@@ -7207,6 +8233,13 @@ export type Database = {
             referencedColumns: ["project_id"]
           },
           {
+            foreignKeyName: "stock_requests_requester_employee_id_fkey"
+            columns: ["requester_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["employee_id"]
+          },
+          {
             foreignKeyName: "stock_requests_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
@@ -7219,6 +8252,155 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "project_sites"
             referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "stock_requests_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["work_order_id"]
+          },
+        ]
+      }
+      stock_transfer_receipt_postings: {
+        Row: {
+          base_uom_code: string
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          destination_stock_lot_id: string
+          destination_stock_movement_id: string
+          is_active: boolean
+          is_deleted: boolean
+          notes: string | null
+          posted_at: string
+          posted_base_quantity: number
+          posted_by: string | null
+          source_stock_issue_allocation_id: string
+          source_stock_lot_id: string
+          stock_issue_id: string
+          stock_issue_line_id: string
+          stock_issue_receipt_id: string
+          stock_issue_receipt_line_id: string
+          stock_transfer_receipt_posting_id: string
+          total_cost: number | null
+          unit_cost: number | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          base_uom_code: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          destination_stock_lot_id: string
+          destination_stock_movement_id: string
+          is_active?: boolean
+          is_deleted?: boolean
+          notes?: string | null
+          posted_at?: string
+          posted_base_quantity: number
+          posted_by?: string | null
+          source_stock_issue_allocation_id: string
+          source_stock_lot_id: string
+          stock_issue_id: string
+          stock_issue_line_id: string
+          stock_issue_receipt_id: string
+          stock_issue_receipt_line_id: string
+          stock_transfer_receipt_posting_id?: string
+          total_cost?: number | null
+          unit_cost?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          base_uom_code?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          destination_stock_lot_id?: string
+          destination_stock_movement_id?: string
+          is_active?: boolean
+          is_deleted?: boolean
+          notes?: string | null
+          posted_at?: string
+          posted_base_quantity?: number
+          posted_by?: string | null
+          source_stock_issue_allocation_id?: string
+          source_stock_lot_id?: string
+          stock_issue_id?: string
+          stock_issue_line_id?: string
+          stock_issue_receipt_id?: string
+          stock_issue_receipt_line_id?: string
+          stock_transfer_receipt_posting_id?: string
+          total_cost?: number | null
+          unit_cost?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_transfer_receipt_postin_destination_stock_movement_i_fkey"
+            columns: ["destination_stock_movement_id"]
+            isOneToOne: false
+            referencedRelation: "stock_movements"
+            referencedColumns: ["stock_movement_id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_receipt_postin_source_stock_issue_allocatio_fkey"
+            columns: ["source_stock_issue_allocation_id"]
+            isOneToOne: false
+            referencedRelation: "stock_issue_allocations"
+            referencedColumns: ["stock_issue_allocation_id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_receipt_posting_stock_issue_receipt_line_id_fkey"
+            columns: ["stock_issue_receipt_line_id"]
+            isOneToOne: false
+            referencedRelation: "stock_issue_receipt_lines"
+            referencedColumns: ["stock_issue_receipt_line_id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_receipt_postings_base_uom_code_fkey"
+            columns: ["base_uom_code"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["uom_code"]
+          },
+          {
+            foreignKeyName: "stock_transfer_receipt_postings_destination_stock_lot_id_fkey"
+            columns: ["destination_stock_lot_id"]
+            isOneToOne: false
+            referencedRelation: "stock_lots"
+            referencedColumns: ["stock_lot_id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_receipt_postings_source_stock_lot_id_fkey"
+            columns: ["source_stock_lot_id"]
+            isOneToOne: false
+            referencedRelation: "stock_lots"
+            referencedColumns: ["stock_lot_id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_receipt_postings_stock_issue_id_fkey"
+            columns: ["stock_issue_id"]
+            isOneToOne: false
+            referencedRelation: "stock_issues"
+            referencedColumns: ["stock_issue_id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_receipt_postings_stock_issue_line_id_fkey"
+            columns: ["stock_issue_line_id"]
+            isOneToOne: false
+            referencedRelation: "stock_issue_lines"
+            referencedColumns: ["stock_issue_line_id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_receipt_postings_stock_issue_receipt_id_fkey"
+            columns: ["stock_issue_receipt_id"]
+            isOneToOne: false
+            referencedRelation: "stock_issue_receipts"
+            referencedColumns: ["stock_issue_receipt_id"]
           },
         ]
       }
@@ -8617,6 +9799,731 @@ export type Database = {
           xero_sync_error?: string | null
         }
         Relationships: []
+      }
+      tool_loan_issue_postings: {
+        Row: {
+          base_uom_code: string
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          is_active: boolean
+          is_deleted: boolean
+          issued_at: string
+          issued_base_quantity: number
+          issued_by: string | null
+          notes: string | null
+          stock_lot_id: string
+          stock_movement_id: string
+          tool_loan_id: string
+          tool_loan_issue_posting_id: string
+          tool_loan_item_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          base_uom_code: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          issued_at?: string
+          issued_base_quantity: number
+          issued_by?: string | null
+          notes?: string | null
+          stock_lot_id: string
+          stock_movement_id: string
+          tool_loan_id: string
+          tool_loan_issue_posting_id?: string
+          tool_loan_item_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          base_uom_code?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          issued_at?: string
+          issued_base_quantity?: number
+          issued_by?: string | null
+          notes?: string | null
+          stock_lot_id?: string
+          stock_movement_id?: string
+          tool_loan_id?: string
+          tool_loan_issue_posting_id?: string
+          tool_loan_item_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tool_loan_issue_postings_item_fkey"
+            columns: ["tool_loan_item_id"]
+            isOneToOne: false
+            referencedRelation: "tool_loan_items"
+            referencedColumns: ["tool_loan_item_id"]
+          },
+          {
+            foreignKeyName: "tool_loan_issue_postings_lot_fkey"
+            columns: ["stock_lot_id"]
+            isOneToOne: false
+            referencedRelation: "stock_lots"
+            referencedColumns: ["stock_lot_id"]
+          },
+          {
+            foreignKeyName: "tool_loan_issue_postings_movement_fkey"
+            columns: ["stock_movement_id"]
+            isOneToOne: false
+            referencedRelation: "stock_movements"
+            referencedColumns: ["stock_movement_id"]
+          },
+          {
+            foreignKeyName: "tool_loan_issue_postings_tool_loan_fkey"
+            columns: ["tool_loan_id"]
+            isOneToOne: false
+            referencedRelation: "tool_loans"
+            referencedColumns: ["tool_loan_id"]
+          },
+          {
+            foreignKeyName: "tool_loan_issue_postings_uom_fkey"
+            columns: ["base_uom_code"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["uom_code"]
+          },
+        ]
+      }
+      tool_loan_items: {
+        Row: {
+          allow_fractional_quantity: boolean
+          approved_base_quantity: number
+          approved_quantity: number
+          asset_reference: string | null
+          base_uom_code: string
+          condition_after: string | null
+          condition_before: string | null
+          condition_notes_after: string | null
+          condition_notes_before: string | null
+          conversion_factor_to_base: number
+          created_at: string
+          created_by: string | null
+          damaged_quantity: number
+          deleted_at: string | null
+          description: string
+          is_active: boolean
+          is_deleted: boolean
+          issued_base_quantity: number
+          issued_quantity: number
+          item_status: string
+          line_no: number
+          loan_uom_code: string
+          lost_quantity: number
+          notes: string | null
+          product_id: string
+          returned_base_quantity: number
+          returned_quantity: number
+          serial_number: string | null
+          stock_request_item_id: string | null
+          tool_loan_id: string
+          tool_loan_item_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          allow_fractional_quantity?: boolean
+          approved_base_quantity?: number
+          approved_quantity?: number
+          asset_reference?: string | null
+          base_uom_code: string
+          condition_after?: string | null
+          condition_before?: string | null
+          condition_notes_after?: string | null
+          condition_notes_before?: string | null
+          conversion_factor_to_base?: number
+          created_at?: string
+          created_by?: string | null
+          damaged_quantity?: number
+          deleted_at?: string | null
+          description: string
+          is_active?: boolean
+          is_deleted?: boolean
+          issued_base_quantity?: number
+          issued_quantity?: number
+          item_status?: string
+          line_no: number
+          loan_uom_code: string
+          lost_quantity?: number
+          notes?: string | null
+          product_id: string
+          returned_base_quantity?: number
+          returned_quantity?: number
+          serial_number?: string | null
+          stock_request_item_id?: string | null
+          tool_loan_id: string
+          tool_loan_item_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          allow_fractional_quantity?: boolean
+          approved_base_quantity?: number
+          approved_quantity?: number
+          asset_reference?: string | null
+          base_uom_code?: string
+          condition_after?: string | null
+          condition_before?: string | null
+          condition_notes_after?: string | null
+          condition_notes_before?: string | null
+          conversion_factor_to_base?: number
+          created_at?: string
+          created_by?: string | null
+          damaged_quantity?: number
+          deleted_at?: string | null
+          description?: string
+          is_active?: boolean
+          is_deleted?: boolean
+          issued_base_quantity?: number
+          issued_quantity?: number
+          item_status?: string
+          line_no?: number
+          loan_uom_code?: string
+          lost_quantity?: number
+          notes?: string | null
+          product_id?: string
+          returned_base_quantity?: number
+          returned_quantity?: number
+          serial_number?: string | null
+          stock_request_item_id?: string | null
+          tool_loan_id?: string
+          tool_loan_item_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tool_loan_items_base_uom_code_fkey"
+            columns: ["base_uom_code"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["uom_code"]
+          },
+          {
+            foreignKeyName: "tool_loan_items_loan_uom_code_fkey"
+            columns: ["loan_uom_code"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["uom_code"]
+          },
+          {
+            foreignKeyName: "tool_loan_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "tool_loan_items_stock_request_item_id_fkey"
+            columns: ["stock_request_item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_request_items"
+            referencedColumns: ["stock_request_item_id"]
+          },
+          {
+            foreignKeyName: "tool_loan_items_tool_loan_id_fkey"
+            columns: ["tool_loan_id"]
+            isOneToOne: false
+            referencedRelation: "tool_loans"
+            referencedColumns: ["tool_loan_id"]
+          },
+        ]
+      }
+      tool_loan_return_items: {
+        Row: {
+          condition_notes: string | null
+          condition_status: string
+          created_at: string
+          created_by: string | null
+          damage_notes: string | null
+          damaged_quantity: number
+          deleted_at: string | null
+          is_active: boolean
+          is_deleted: boolean
+          line_no: number
+          lost_quantity: number
+          missing_notes: string | null
+          notes: string | null
+          returned_base_quantity: number
+          returned_quantity: number
+          tool_loan_item_id: string
+          tool_loan_return_id: string
+          tool_loan_return_item_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          condition_notes?: string | null
+          condition_status?: string
+          created_at?: string
+          created_by?: string | null
+          damage_notes?: string | null
+          damaged_quantity?: number
+          deleted_at?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          line_no: number
+          lost_quantity?: number
+          missing_notes?: string | null
+          notes?: string | null
+          returned_base_quantity?: number
+          returned_quantity?: number
+          tool_loan_item_id: string
+          tool_loan_return_id: string
+          tool_loan_return_item_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          condition_notes?: string | null
+          condition_status?: string
+          created_at?: string
+          created_by?: string | null
+          damage_notes?: string | null
+          damaged_quantity?: number
+          deleted_at?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          line_no?: number
+          lost_quantity?: number
+          missing_notes?: string | null
+          notes?: string | null
+          returned_base_quantity?: number
+          returned_quantity?: number
+          tool_loan_item_id?: string
+          tool_loan_return_id?: string
+          tool_loan_return_item_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tool_loan_return_items_tool_loan_item_id_fkey"
+            columns: ["tool_loan_item_id"]
+            isOneToOne: false
+            referencedRelation: "tool_loan_items"
+            referencedColumns: ["tool_loan_item_id"]
+          },
+          {
+            foreignKeyName: "tool_loan_return_items_tool_loan_return_id_fkey"
+            columns: ["tool_loan_return_id"]
+            isOneToOne: false
+            referencedRelation: "tool_loan_returns"
+            referencedColumns: ["tool_loan_return_id"]
+          },
+        ]
+      }
+      tool_loan_return_postings: {
+        Row: {
+          base_uom_code: string
+          created_at: string
+          created_by: string | null
+          damaged_base_quantity: number
+          deleted_at: string | null
+          is_active: boolean
+          is_deleted: boolean
+          lost_base_quantity: number
+          notes: string | null
+          posted_at: string
+          posted_by: string | null
+          return_stock_movement_id: string | null
+          returned_base_quantity: number
+          stock_lot_id: string
+          tool_loan_id: string
+          tool_loan_issue_posting_id: string
+          tool_loan_item_id: string
+          tool_loan_return_id: string
+          tool_loan_return_item_id: string
+          tool_loan_return_posting_id: string
+        }
+        Insert: {
+          base_uom_code: string
+          created_at?: string
+          created_by?: string | null
+          damaged_base_quantity?: number
+          deleted_at?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          lost_base_quantity?: number
+          notes?: string | null
+          posted_at?: string
+          posted_by?: string | null
+          return_stock_movement_id?: string | null
+          returned_base_quantity?: number
+          stock_lot_id: string
+          tool_loan_id: string
+          tool_loan_issue_posting_id: string
+          tool_loan_item_id: string
+          tool_loan_return_id: string
+          tool_loan_return_item_id: string
+          tool_loan_return_posting_id?: string
+        }
+        Update: {
+          base_uom_code?: string
+          created_at?: string
+          created_by?: string | null
+          damaged_base_quantity?: number
+          deleted_at?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          lost_base_quantity?: number
+          notes?: string | null
+          posted_at?: string
+          posted_by?: string | null
+          return_stock_movement_id?: string | null
+          returned_base_quantity?: number
+          stock_lot_id?: string
+          tool_loan_id?: string
+          tool_loan_issue_posting_id?: string
+          tool_loan_item_id?: string
+          tool_loan_return_id?: string
+          tool_loan_return_item_id?: string
+          tool_loan_return_posting_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tool_loan_return_postings_issue_posting_fkey"
+            columns: ["tool_loan_issue_posting_id"]
+            isOneToOne: false
+            referencedRelation: "tool_loan_issue_postings"
+            referencedColumns: ["tool_loan_issue_posting_id"]
+          },
+          {
+            foreignKeyName: "tool_loan_return_postings_loan_fkey"
+            columns: ["tool_loan_id"]
+            isOneToOne: false
+            referencedRelation: "tool_loans"
+            referencedColumns: ["tool_loan_id"]
+          },
+          {
+            foreignKeyName: "tool_loan_return_postings_loan_item_fkey"
+            columns: ["tool_loan_item_id"]
+            isOneToOne: false
+            referencedRelation: "tool_loan_items"
+            referencedColumns: ["tool_loan_item_id"]
+          },
+          {
+            foreignKeyName: "tool_loan_return_postings_lot_fkey"
+            columns: ["stock_lot_id"]
+            isOneToOne: false
+            referencedRelation: "stock_lots"
+            referencedColumns: ["stock_lot_id"]
+          },
+          {
+            foreignKeyName: "tool_loan_return_postings_movement_fkey"
+            columns: ["return_stock_movement_id"]
+            isOneToOne: false
+            referencedRelation: "stock_movements"
+            referencedColumns: ["stock_movement_id"]
+          },
+          {
+            foreignKeyName: "tool_loan_return_postings_return_fkey"
+            columns: ["tool_loan_return_id"]
+            isOneToOne: false
+            referencedRelation: "tool_loan_returns"
+            referencedColumns: ["tool_loan_return_id"]
+          },
+          {
+            foreignKeyName: "tool_loan_return_postings_return_item_fkey"
+            columns: ["tool_loan_return_item_id"]
+            isOneToOne: false
+            referencedRelation: "tool_loan_return_items"
+            referencedColumns: ["tool_loan_return_item_id"]
+          },
+          {
+            foreignKeyName: "tool_loan_return_postings_uom_fkey"
+            columns: ["base_uom_code"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["uom_code"]
+          },
+        ]
+      }
+      tool_loan_returns: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          is_active: boolean
+          is_deleted: boolean
+          received_by_auth_user_id: string | null
+          received_by_employee_id: string | null
+          received_by_name: string | null
+          return_no: number
+          return_notes: string | null
+          return_status: string
+          returned_at: string | null
+          tool_loan_id: string
+          tool_loan_return_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          received_by_auth_user_id?: string | null
+          received_by_employee_id?: string | null
+          received_by_name?: string | null
+          return_no: number
+          return_notes?: string | null
+          return_status?: string
+          returned_at?: string | null
+          tool_loan_id: string
+          tool_loan_return_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          received_by_auth_user_id?: string | null
+          received_by_employee_id?: string | null
+          received_by_name?: string | null
+          return_no?: number
+          return_notes?: string | null
+          return_status?: string
+          returned_at?: string | null
+          tool_loan_id?: string
+          tool_loan_return_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tool_loan_returns_received_by_employee_id_fkey"
+            columns: ["received_by_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "tool_loan_returns_tool_loan_id_fkey"
+            columns: ["tool_loan_id"]
+            isOneToOne: false
+            referencedRelation: "tool_loans"
+            referencedColumns: ["tool_loan_id"]
+          },
+        ]
+      }
+      tool_loans: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          area_id: string | null
+          borrower_auth_user_id: string | null
+          borrower_employee_id: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          closed_at: string | null
+          closed_by: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          due_date: string | null
+          from_stock_location_id: string
+          is_active: boolean
+          is_deleted: boolean
+          issued_at: string | null
+          issued_by: string | null
+          loan_date: string
+          loan_status: string
+          notes: string | null
+          prepared_at: string | null
+          prepared_by: string | null
+          priority: string
+          project_id: string
+          returned_date: string | null
+          site_id: string
+          stock_request_id: string | null
+          tool_loan_id: string
+          tool_loan_no: string
+          updated_at: string
+          updated_by: string | null
+          work_order_id: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          area_id?: string | null
+          borrower_auth_user_id?: string | null
+          borrower_employee_id?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          due_date?: string | null
+          from_stock_location_id: string
+          is_active?: boolean
+          is_deleted?: boolean
+          issued_at?: string | null
+          issued_by?: string | null
+          loan_date?: string
+          loan_status?: string
+          notes?: string | null
+          prepared_at?: string | null
+          prepared_by?: string | null
+          priority?: string
+          project_id: string
+          returned_date?: string | null
+          site_id: string
+          stock_request_id?: string | null
+          tool_loan_id?: string
+          tool_loan_no: string
+          updated_at?: string
+          updated_by?: string | null
+          work_order_id?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          area_id?: string | null
+          borrower_auth_user_id?: string | null
+          borrower_employee_id?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          due_date?: string | null
+          from_stock_location_id?: string
+          is_active?: boolean
+          is_deleted?: boolean
+          issued_at?: string | null
+          issued_by?: string | null
+          loan_date?: string
+          loan_status?: string
+          notes?: string | null
+          prepared_at?: string | null
+          prepared_by?: string | null
+          priority?: string
+          project_id?: string
+          returned_date?: string | null
+          site_id?: string
+          stock_request_id?: string | null
+          tool_loan_id?: string
+          tool_loan_no?: string
+          updated_at?: string
+          updated_by?: string | null
+          work_order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tool_loans_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "project_area_progress_v"
+            referencedColumns: ["area_id"]
+          },
+          {
+            foreignKeyName: "tool_loans_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "project_areas"
+            referencedColumns: ["area_id"]
+          },
+          {
+            foreignKeyName: "tool_loans_borrower_employee_id_fkey"
+            columns: ["borrower_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "tool_loans_from_stock_location_id_fkey"
+            columns: ["from_stock_location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["stock_location_id"]
+          },
+          {
+            foreignKeyName: "tool_loans_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "tool_loans_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "tool_loans_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "tool_loans_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_project_profitability"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "tool_loans_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_project_progress"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "tool_loans_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "tool_loans_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "project_sites"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "tool_loans_stock_request_id_fkey"
+            columns: ["stock_request_id"]
+            isOneToOne: false
+            referencedRelation: "stock_requests"
+            referencedColumns: ["stock_request_id"]
+          },
+          {
+            foreignKeyName: "tool_loans_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["work_order_id"]
+          },
+        ]
       }
       units_of_measure: {
         Row: {
@@ -10602,6 +12509,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      approve_tool_loan_atomic: {
+        Args: { p_notes?: string; p_tool_loan_id: string }
+        Returns: string
+      }
       archive_product_attributes_not_in_category: {
         Args: { p_new_category_id: string; p_product_id: string }
         Returns: number
@@ -10646,8 +12557,20 @@ export type Database = {
         }
         Returns: string
       }
+      can_delete_inventory_transaction_photo: {
+        Args: { p_source_id: string; p_source_type: string }
+        Returns: boolean
+      }
       can_manage_permissions: { Args: never; Returns: boolean }
       can_manage_products_strict: { Args: never; Returns: boolean }
+      can_upload_inventory_transaction_photo: {
+        Args: { p_source_id: string; p_source_type: string }
+        Returns: boolean
+      }
+      can_view_inventory_transaction_photo: {
+        Args: { p_source_id: string; p_source_type: string }
+        Returns: boolean
+      }
       cancel_invoice_atomic: {
         Args: { p_invoice_id: string; p_reason: string }
         Returns: string
@@ -10664,12 +12587,33 @@ export type Database = {
         Args: { p_cancellation_reason: string; p_revision_id: string }
         Returns: Json
       }
+      cancel_stock_issue_atomic: {
+        Args: { p_reason: string; p_stock_issue_id: string }
+        Returns: string
+      }
+      cancel_stock_issue_receipt_draft: {
+        Args: { p_stock_issue_receipt_id: string }
+        Returns: string
+      }
+      cancel_tool_loan_atomic: {
+        Args: { p_reason: string; p_tool_loan_id: string }
+        Returns: string
+      }
       cancel_variation_atomic: {
         Args: { p_cancellation_reason: string; p_variation_id: string }
         Returns: Json
       }
       confirm_purchase_order_atomic: {
         Args: { p_purchase_order_id: string }
+        Returns: Json
+      }
+      confirm_stock_issue_receipt_atomic: {
+        Args: {
+          p_lines: Json
+          p_receipt_notes?: string
+          p_received_at?: string
+          p_stock_issue_receipt_id: string
+        }
         Returns: Json
       }
       create_credit_note_atomic: {
@@ -10754,6 +12698,20 @@ export type Database = {
         }
         Returns: Json
       }
+      create_stock_issue_atomic: {
+        Args: { p_header: Json; p_lines: Json }
+        Returns: string
+      }
+      create_stock_issue_receipt_draft: {
+        Args: {
+          p_receipt_notes?: string
+          p_received_by_auth_user_id?: string
+          p_received_by_employee_id?: string
+          p_received_by_name?: string
+          p_stock_issue_id: string
+        }
+        Returns: string
+      }
       create_supplier_delivery_from_purchase_order_atomic: {
         Args: {
           p_delivery_date: string
@@ -10774,6 +12732,10 @@ export type Database = {
         }
         Returns: Json
       }
+      create_tool_loan_atomic: {
+        Args: { p_header: Json; p_items: Json }
+        Returns: string
+      }
       create_variation_atomic: {
         Args: { p_lines: Json; p_variation: Json }
         Returns: Json
@@ -10792,9 +12754,26 @@ export type Database = {
       current_app_role: { Args: never; Returns: string }
       current_app_user_status: { Args: never; Returns: string }
       current_employee_id: { Args: never; Returns: string }
+      deliver_stock_issue_atomic: {
+        Args: {
+          p_delivered_at?: string
+          p_notes?: string
+          p_stock_issue_id: string
+        }
+        Returns: string
+      }
       disconnect_user_telegram_channel: {
         Args: { p_auth_user_id: string; p_reason?: string }
         Returns: undefined
+      }
+      dispatch_stock_issue_atomic: {
+        Args: {
+          p_dispatch_reference?: string
+          p_notes?: string
+          p_stock_issue_id: string
+          p_vehicle_reference?: string
+        }
+        Returns: string
       }
       end_work_assignment: {
         Args: { p_work_assignment_id: string }
@@ -11083,6 +13062,14 @@ export type Database = {
       is_project_role: { Args: never; Returns: boolean }
       is_strict_admin_role: { Args: never; Returns: boolean }
       issue_invoice_atomic: { Args: { p_invoice_id: string }; Returns: string }
+      issue_stock_issue_atomic: {
+        Args: {
+          p_movement_date?: string
+          p_notes?: string
+          p_stock_issue_id: string
+        }
+        Returns: Json
+      }
       issue_stock_request_item: {
         Args: {
           p_movement_date?: string
@@ -11091,6 +13078,10 @@ export type Database = {
           p_stock_lot_id: string
           p_stock_request_item_id: string
         }
+        Returns: string
+      }
+      issue_tool_loan_atomic: {
+        Args: { p_allocations: Json; p_notes?: string; p_tool_loan_id: string }
         Returns: string
       }
       list_access_control_audit: {
@@ -11397,6 +13388,18 @@ export type Database = {
           telegram_enabled: boolean
         }[]
       }
+      normalise_stock_request_item_approval_snapshot: {
+        Args: { p_stock_request_id: string }
+        Returns: number
+      }
+      prepare_stock_issue_atomic: {
+        Args: { p_notes?: string; p_stock_issue_id: string }
+        Returns: string
+      }
+      prepare_tool_loan_atomic: {
+        Args: { p_notes?: string; p_tool_loan_id: string }
+        Returns: string
+      }
       preview_product_code: {
         Args: {
           p_category_variant_id: string
@@ -11488,6 +13491,22 @@ export type Database = {
         }
         Returns: Json
       }
+      record_stock_issue_event: {
+        Args: {
+          p_event_code: string
+          p_event_key: string
+          p_event_name: string
+          p_event_severity: string
+          p_new_status?: string
+          p_notes?: string
+          p_old_status?: string
+          p_payload?: Json
+          p_stock_issue_id: string
+          p_stock_issue_receipt_id?: string
+          p_stock_transfer_receipt_posting_id?: string
+        }
+        Returns: string
+      }
       record_stock_movement: {
         Args: {
           p_movement_date?: string
@@ -11500,6 +13519,10 @@ export type Database = {
           p_stock_request_item_id?: string
           p_supplier_delivery_item_id?: string
         }
+        Returns: string
+      }
+      refresh_stock_request_issue_progress: {
+        Args: { p_stock_request_id: string }
         Returns: string
       }
       reject_app_user_atomic: {
@@ -11568,6 +13591,17 @@ export type Database = {
         }
         Returns: Json
       }
+      return_tool_loan_atomic: {
+        Args: {
+          p_allocations: Json
+          p_received_by_auth_user_id?: string
+          p_received_by_employee_id?: string
+          p_received_by_name?: string
+          p_return_notes?: string
+          p_tool_loan_id: string
+        }
+        Returns: string
+      }
       reverse_customer_payment_atomic: {
         Args: { p_payment_id: string; p_reason: string }
         Returns: string
@@ -11629,6 +13663,10 @@ export type Database = {
         Args: { p_purchase_order_id: string }
         Returns: Json
       }
+      submit_tool_loan_atomic: {
+        Args: { p_notes?: string; p_tool_loan_id: string }
+        Returns: string
+      }
       substitute_material_requirement_line_product: {
         Args: {
           p_adjustment_reason: string
@@ -11686,6 +13724,14 @@ export type Database = {
       update_draft_quotation_revision_atomic: {
         Args: { p_lines: Json; p_revision: Json; p_revision_id: string }
         Returns: Json
+      }
+      update_draft_stock_issue_atomic: {
+        Args: { p_header: Json; p_lines: Json; p_stock_issue_id: string }
+        Returns: string
+      }
+      update_draft_tool_loan_atomic: {
+        Args: { p_header: Json; p_items: Json; p_tool_loan_id: string }
+        Returns: string
       }
       update_draft_variation_atomic: {
         Args: { p_lines: Json; p_variation: Json; p_variation_id: string }
@@ -11920,3 +13966,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+
