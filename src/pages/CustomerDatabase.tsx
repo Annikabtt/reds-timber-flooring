@@ -15,6 +15,7 @@ import {
   Plus,
   Printer,
   Search,
+  Trash2,
   UserRound,
 } from "lucide-react";
 
@@ -60,6 +61,26 @@ type CustomerContact = {
   is_primary: boolean;
 };
 
+type CustomerContactDraft = {
+  draft_id: string;
+  contact_id: string | null;
+  contact_name: string;
+  position: string;
+  phone: string;
+  email: string;
+  is_primary: boolean;
+};
+
+const createEmptyCustomerContact = (isPrimary = false): CustomerContactDraft => ({
+  draft_id: `contact-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  contact_id: null,
+  contact_name: "",
+  position: "",
+  phone: "",
+  email: "",
+  is_primary: isPrimary,
+});
+
 type CustomerAddress = {
   address_id: string;
   address_type: string;
@@ -71,6 +92,32 @@ type CustomerAddress = {
   country: string;
   is_primary: boolean;
 };
+
+type CustomerAddressDraft = {
+  draft_id: string;
+  address_id: string | null;
+  address_type: string;
+  address_line1: string;
+  address_line2: string;
+  suburb: string;
+  state: string;
+  postcode: string;
+  country: string;
+  is_primary: boolean;
+};
+
+const createEmptyCustomerAddress = (isPrimary = false): CustomerAddressDraft => ({
+  draft_id: `address-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  address_id: null,
+  address_type: isPrimary ? "Billing" : "Delivery",
+  address_line1: "",
+  address_line2: "",
+  suburb: "",
+  state: "",
+  postcode: "",
+  country: "Australia",
+  is_primary: isPrimary,
+});
 
 type CustomerFinancialSettingRow =
   Database["public"]["Tables"]["customer_financial_settings"]["Row"];
@@ -88,6 +135,8 @@ type PaymentTermsType =
   | "Day of Following Month";
 
 type LineAmountType = "Exclusive" | "Inclusive";
+
+type CustomerFormMode = "add" | "edit";
 
 type CustomerFinancialSettingsForm = {
   defaultCurrency: string;
@@ -302,20 +351,18 @@ export default function CustomerDatabase() {
   const [typeFilter, setTypeFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [customerFormMode, setCustomerFormMode] = useState<CustomerFormMode>("add");
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [customerName, setCustomerName] = useState("");
   const [customerType, setCustomerType] = useState("Residential");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [contactName, setContactName] = useState("");
-  const [contactPosition, setContactPosition] = useState("Customer");
+  const [customerContacts, setCustomerContacts] = useState<CustomerContactDraft[]>([
+    { ...createEmptyCustomerContact(true), position: "Customer" },
+  ]);
   const [abn, setAbn] = useState("");
   const [priceBookId, setPriceBookId] = useState("");
-  const [addressLine1, setAddressLine1] = useState("");
-  const [addressLine2, setAddressLine2] = useState("");
-  const [suburb, setSuburb] = useState("");
-  const [stateName, setStateName] = useState("");
-  const [postcode, setPostcode] = useState("");
-  const [country, setCountry] = useState("Australia");
+  const [customerAddresses, setCustomerAddresses] = useState<CustomerAddressDraft[]>([
+    createEmptyCustomerAddress(true),
+  ]);
   const [notes, setNotes] = useState("");
   const [customerFormSaving, setCustomerFormSaving] = useState(false);
 
@@ -325,23 +372,6 @@ export default function CustomerDatabase() {
   const [detailProjectSearch, setDetailProjectSearch] = useState("");
   const [detailProjectStatus, setDetailProjectStatus] = useState("All");
 
-  const [showEditDialog, setShowEditDialog] = useState(false);
-  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
-  const [editCustomerName, setEditCustomerName] = useState("");
-  const [editCustomerType, setEditCustomerType] = useState("Residential");
-  const [editPhone, setEditPhone] = useState("");
-  const [editEmail, setEditEmail] = useState("");
-  const [editContactName, setEditContactName] = useState("");
-  const [editContactPosition, setEditContactPosition] = useState("");
-  const [editAbn, setEditAbn] = useState("");
-  const [editPriceBookId, setEditPriceBookId] = useState("");
-  const [editAddressLine1, setEditAddressLine1] = useState("");
-  const [editAddressLine2, setEditAddressLine2] = useState("");
-  const [editSuburb, setEditSuburb] = useState("");
-  const [editStateName, setEditStateName] = useState("");
-  const [editPostcode, setEditPostcode] = useState("");
-  const [editCountry, setEditCountry] = useState("Australia");
-  const [editNotes, setEditNotes] = useState("");
 
   // Admin role detection
   const [userRole, setUserRole] = useState<AppRole | null>(null);
@@ -667,20 +697,157 @@ export default function CustomerDatabase() {
     }
   }, [selectedCustomerId, isCurrentUserAdmin, customerFinancialSettings, financialSettingsLoading]);
 
+  const resetCustomerForm = () => {
+    setCustomerName("");
+    setCustomerType("Residential");
+    setCustomerContacts([
+      { ...createEmptyCustomerContact(true), position: "Customer" },
+    ]);
+    setAbn("");
+    setPriceBookId("");
+    setCustomerAddresses([createEmptyCustomerAddress(true)]);
+    setNotes("");
+    setEditingCustomer(null);
+    setCustomerFormMode("add");
+  };
+
+  const updateCustomerContact = (
+    draftId: string,
+    changes: Partial<CustomerContactDraft>
+  ) => {
+    setCustomerContacts((current) =>
+      current.map((contact) =>
+        contact.draft_id === draftId ? { ...contact, ...changes } : contact
+      )
+    );
+  };
+
+  const addCustomerContact = () => {
+    setCustomerContacts((current) => [
+      ...current,
+      createEmptyCustomerContact(current.length === 0),
+    ]);
+  };
+
+  const setPrimaryCustomerContact = (draftId: string) => {
+    setCustomerContacts((current) =>
+      current.map((contact) => ({
+        ...contact,
+        is_primary: contact.draft_id === draftId,
+      }))
+    );
+  };
+
+  const removeCustomerContact = (draftId: string) => {
+    const contact = customerContacts.find((item) => item.draft_id === draftId);
+    if (!contact) return;
+
+    const label = contact.contact_name.trim() || "this contact";
+    const confirmed = window.confirm(
+      `Remove ${label}?\n\nExisting contacts will be soft deleted when the customer is saved.`
+    );
+    if (!confirmed) return;
+
+    setCustomerContacts((current) => {
+      const remaining = current.filter((item) => item.draft_id !== draftId);
+      if (remaining.length === 0) {
+        return [createEmptyCustomerContact(true)];
+      }
+      if (contact.is_primary && !remaining.some((item) => item.is_primary)) {
+        return remaining.map((item, index) => ({
+          ...item,
+          is_primary: index === 0,
+        }));
+      }
+      return remaining;
+    });
+  };
+
+  const updateCustomerAddress = (
+    draftId: string,
+    changes: Partial<CustomerAddressDraft>
+  ) => {
+    setCustomerAddresses((current) =>
+      current.map((address) =>
+        address.draft_id === draftId ? { ...address, ...changes } : address
+      )
+    );
+  };
+
+  const addCustomerAddress = () => {
+    setCustomerAddresses((current) => [
+      ...current,
+      createEmptyCustomerAddress(current.length === 0),
+    ]);
+  };
+
+  const setPrimaryCustomerAddress = (draftId: string) => {
+    setCustomerAddresses((current) =>
+      current.map((address) => ({
+        ...address,
+        is_primary: address.draft_id === draftId,
+      }))
+    );
+  };
+
+  const removeCustomerAddress = (draftId: string) => {
+    const address = customerAddresses.find((item) => item.draft_id === draftId);
+    if (!address) return;
+
+    const label =
+      address.address_line1.trim() ||
+      `${address.address_type || "Customer"} address`;
+    const confirmed = window.confirm(
+      `Remove ${label}?\n\nExisting addresses will be soft deleted when the customer is saved.`
+    );
+    if (!confirmed) return;
+
+    setCustomerAddresses((current) => {
+      const remaining = current.filter((item) => item.draft_id !== draftId);
+      if (remaining.length === 0) {
+        return [createEmptyCustomerAddress(true)];
+      }
+      if (address.is_primary && !remaining.some((item) => item.is_primary)) {
+        return remaining.map((item, index) => ({
+          ...item,
+          is_primary: index === 0,
+        }));
+      }
+      return remaining;
+    });
+  };
+
+  const openAddCustomer = () => {
+    resetCustomerForm();
+    setShowAddDialog(true);
+  };
+
   const handleAddCustomer = async () => {
     const trimmedCustomerName = customerName.trim();
-    const trimmedPhone = phone.trim();
-    const trimmedEmail = email.trim();
-    const trimmedContactName = contactName.trim() || trimmedCustomerName;
-    const trimmedContactPosition =
-      contactPosition.trim() || (customerType === "Commercial" ? "Primary Contact" : "Customer");
+    const normalizedContacts = customerContacts.map((contact) => ({
+      ...contact,
+      contact_name: contact.contact_name.trim(),
+      position: contact.position.trim(),
+      phone: contact.phone.trim(),
+      email: contact.email.trim(),
+    }));
+    const primaryContact =
+      normalizedContacts.find((contact) => contact.is_primary) || normalizedContacts[0];
+    const trimmedPhone = primaryContact?.phone || "";
+    const trimmedEmail = primaryContact?.email || "";
     const trimmedAbn = abn.trim();
-    const trimmedAddressLine1 = addressLine1.trim();
-    const trimmedAddressLine2 = addressLine2.trim();
-    const trimmedSuburb = suburb.trim();
-    const trimmedState = stateName.trim();
-    const trimmedPostcode = postcode.trim();
-    const trimmedCountry = country.trim() || "Australia";
+    const normalizedAddresses = customerAddresses.map((address) => ({
+      ...address,
+      address_type: address.address_type.trim() || "Other",
+      address_line1: address.address_line1.trim(),
+      address_line2: address.address_line2.trim(),
+      suburb: address.suburb.trim(),
+      state: address.state.trim(),
+      postcode: address.postcode.trim(),
+      country: address.country.trim() || "Australia",
+    }));
+    const primaryAddress =
+      normalizedAddresses.find((address) => address.is_primary) || normalizedAddresses[0];
     const trimmedNotes = notes.trim();
 
     if (!trimmedCustomerName) {
@@ -688,13 +855,38 @@ export default function CustomerDatabase() {
       return;
     }
 
-    if (!trimmedPhone && !trimmedEmail) {
-      alert("Please enter at least phone or email.");
+    if (normalizedContacts.length === 0) {
+      alert("Please add at least one contact.");
       return;
     }
 
-    if (!trimmedAddressLine1) {
-      alert("Address Line 1 is required.");
+    if (normalizedContacts.some((contact) => !contact.contact_name)) {
+      alert("Contact Name is required for every contact.");
+      return;
+    }
+
+    if (!primaryContact) {
+      alert("Please select a primary contact.");
+      return;
+    }
+
+    if (!trimmedPhone && !trimmedEmail) {
+      alert("Please enter at least phone or email for the primary contact.");
+      return;
+    }
+
+    if (normalizedAddresses.length === 0) {
+      alert("Please add at least one address.");
+      return;
+    }
+
+    if (normalizedAddresses.some((address) => !address.address_line1)) {
+      alert("Address Line 1 is required for every address.");
+      return;
+    }
+
+    if (!primaryAddress) {
+      alert("Please select a primary address.");
       return;
     }
 
@@ -728,54 +920,43 @@ export default function CustomerDatabase() {
 
       const { error: contactError } = await supabase
         .from("customer_contacts")
-        .insert({
-          customer_id: createdCustomer.customer_id,
-          contact_name: trimmedContactName,
-          position: trimmedContactPosition || null,
-          phone: trimmedPhone || null,
-          email: trimmedEmail || null,
-          is_primary: true,
-          is_active: true,
-          is_deleted: false,
-        });
+        .insert(
+          normalizedContacts.map((contact) => ({
+            customer_id: createdCustomer.customer_id,
+            contact_name: contact.contact_name,
+            position: contact.position || null,
+            phone: contact.phone || null,
+            email: contact.email || null,
+            is_primary: contact.draft_id === primaryContact.draft_id,
+            is_active: true,
+            is_deleted: false,
+          }))
+        );
 
       if (contactError) throw contactError;
 
       const { error: addressError } = await supabase
         .from("customer_addresses")
-        .insert({
-          customer_id: createdCustomer.customer_id,
-          address_type: "Billing",
-          address_line1: trimmedAddressLine1,
-          address_line2: trimmedAddressLine2 || null,
-          suburb: trimmedSuburb || null,
-          state: trimmedState || null,
-          postcode: trimmedPostcode || null,
-          country: trimmedCountry,
-          is_primary: true,
-          is_active: true,
-          is_deleted: false,
-        });
+        .insert(
+          normalizedAddresses.map((address) => ({
+            customer_id: createdCustomer.customer_id,
+            address_type: address.address_type,
+            address_line1: address.address_line1,
+            address_line2: address.address_line2 || null,
+            suburb: address.suburb || null,
+            state: address.state || null,
+            postcode: address.postcode || null,
+            country: address.country,
+            is_primary: address.draft_id === primaryAddress.draft_id,
+            is_active: true,
+            is_deleted: false,
+          }))
+        );
 
       if (addressError) throw addressError;
 
-      setCustomerName("");
-      setCustomerType("Residential");
-      setPhone("");
-      setEmail("");
-      setContactName("");
-      setContactPosition("Customer");
-      setAbn("");
-      setPriceBookId("");
-      setAddressLine1("");
-      setAddressLine2("");
-      setSuburb("");
-      setStateName("");
-      setPostcode("");
-      setCountry("Australia");
-      setNotes("");
-
       setShowAddDialog(false);
+      resetCustomerForm();
 
       queryClient.invalidateQueries({
         queryKey: ["customers"],
@@ -922,28 +1103,56 @@ export default function CustomerDatabase() {
 
   const openEditCustomer = (customer: Customer) => {
     const primaryContact = getPrimaryContact(customer);
-    const billingAddress = getBillingAddress(customer);
+    const primaryAddress = getPrimaryAddress(customer);
 
     setEditingCustomer(customer);
-    setEditCustomerName(customer.customer_name || "");
-    setEditCustomerType(customer.customer_type || "Residential");
-    setEditContactName(primaryContact?.contact_name || customer.customer_name || "");
-    setEditContactPosition(
-      primaryContact?.position ||
-      (customer.customer_type === "Commercial" ? "Primary Contact" : "Customer")
+    setCustomerFormMode("edit");
+    setCustomerName(customer.customer_name || "");
+    setCustomerType(customer.customer_type || "Residential");
+    const existingContacts = customer.customer_contacts ?? [];
+    setCustomerContacts(
+      existingContacts.length > 0
+        ? existingContacts.map((contact) => ({
+            draft_id: contact.contact_id,
+            contact_id: contact.contact_id,
+            contact_name: contact.contact_name || "",
+            position: contact.position || "",
+            phone: contact.phone || "",
+            email: contact.email || "",
+            is_primary: contact.contact_id === primaryContact?.contact_id,
+          }))
+        : [
+            {
+              ...createEmptyCustomerContact(true),
+              contact_name: customer.customer_name || "",
+              position:
+                customer.customer_type === "Commercial" ? "Primary Contact" : "Customer",
+              phone: customer.phone || "",
+              email: customer.email || "",
+            },
+          ]
     );
-    setEditPhone(primaryContact?.phone || customer.phone || "");
-    setEditEmail(primaryContact?.email || customer.email || "");
-    setEditAbn(customer.abn || "");
-    setEditPriceBookId(customer.price_book_id || "");
-    setEditAddressLine1(billingAddress?.address_line1 || "");
-    setEditAddressLine2(billingAddress?.address_line2 || "");
-    setEditSuburb(billingAddress?.suburb || "");
-    setEditStateName(billingAddress?.state || "");
-    setEditPostcode(billingAddress?.postcode || "");
-    setEditCountry(billingAddress?.country || "Australia");
-    setEditNotes(customer.notes || "");
-    setShowEditDialog(true);
+    setAbn(customer.abn || "");
+    setPriceBookId(customer.price_book_id || "");
+    const existingAddresses = customer.customer_addresses ?? [];
+    setCustomerAddresses(
+      existingAddresses.length > 0
+        ? existingAddresses.map((address) => ({
+            draft_id: address.address_id,
+            address_id: address.address_id,
+            address_type: address.address_type || "Other",
+            address_line1: address.address_line1 || "",
+            address_line2: address.address_line2 || "",
+            suburb: address.suburb || "",
+            state: address.state || "",
+            postcode: address.postcode || "",
+            country: address.country || "Australia",
+            is_primary: address.address_id === primaryAddress?.address_id,
+          }))
+        : [createEmptyCustomerAddress(true)]
+    );
+    setNotes(customer.notes || "");
+    setShowAddDialog(true);
   };
 
   const handleSaveEditCustomer = async () => {
@@ -952,39 +1161,72 @@ export default function CustomerDatabase() {
       return;
     }
 
-    const trimmedCustomerName = editCustomerName.trim();
-    const trimmedPhone = editPhone.trim();
-    const trimmedEmail = editEmail.trim();
-    const trimmedContactName = editContactName.trim() || trimmedCustomerName;
-    const trimmedContactPosition =
-      editContactPosition.trim() ||
-      (editCustomerType === "Commercial" ? "Primary Contact" : "Customer");
-    const trimmedAbn = editAbn.trim();
-    const trimmedAddressLine1 = editAddressLine1.trim();
-    const trimmedAddressLine2 = editAddressLine2.trim();
-    const trimmedSuburb = editSuburb.trim();
-    const trimmedState = editStateName.trim();
-    const trimmedPostcode = editPostcode.trim();
-    const trimmedCountry = editCountry.trim() || "Australia";
-    const trimmedNotes = editNotes.trim();
+    const trimmedCustomerName = customerName.trim();
+    const normalizedContacts = customerContacts.map((contact) => ({
+      ...contact,
+      contact_name: contact.contact_name.trim(),
+      position: contact.position.trim(),
+      phone: contact.phone.trim(),
+      email: contact.email.trim(),
+    }));
+    const primaryContactDraft =
+      normalizedContacts.find((contact) => contact.is_primary) || normalizedContacts[0];
+    const trimmedPhone = primaryContactDraft?.phone || "";
+    const trimmedEmail = primaryContactDraft?.email || "";
+    const trimmedAbn = abn.trim();
+    const normalizedAddresses = customerAddresses.map((address) => ({
+      ...address,
+      address_type: address.address_type.trim() || "Other",
+      address_line1: address.address_line1.trim(),
+      address_line2: address.address_line2.trim(),
+      suburb: address.suburb.trim(),
+      state: address.state.trim(),
+      postcode: address.postcode.trim(),
+      country: address.country.trim() || "Australia",
+    }));
+    const primaryAddressDraft =
+      normalizedAddresses.find((address) => address.is_primary) || normalizedAddresses[0];
+    const trimmedNotes = notes.trim();
 
     if (!trimmedCustomerName) {
       alert("Customer Name is required");
       return;
     }
 
+    if (normalizedContacts.length === 0) {
+      alert("Please add at least one contact.");
+      return;
+    }
+
+    if (normalizedContacts.some((contact) => !contact.contact_name)) {
+      alert("Contact Name is required for every contact.");
+      return;
+    }
+
+    if (!primaryContactDraft) {
+      alert("Please select a primary contact.");
+      return;
+    }
+
     if (!trimmedPhone && !trimmedEmail) {
-      alert("Please enter at least phone or email.");
+      alert("Please enter at least phone or email for the primary contact.");
       return;
     }
 
-    if (!trimmedAddressLine1) {
-      alert("Address Line 1 is required.");
+    if (normalizedAddresses.length === 0) {
+      alert("Please add at least one address.");
       return;
     }
 
-    const primaryContact = getPrimaryContact(editingCustomer);
-    const billingAddress = getBillingAddress(editingCustomer);
+    if (normalizedAddresses.some((address) => !address.address_line1)) {
+      alert("Address Line 1 is required for every address.");
+      return;
+    }
+
+    if (!primaryAddressDraft) {
+      alert("Please select a primary address.");
+      return;
+    }
 
     setCustomerFormSaving(true);
 
@@ -993,89 +1235,140 @@ export default function CustomerDatabase() {
         .from("customers")
         .update({
           customer_name: trimmedCustomerName,
-          customer_type: editCustomerType,
-          price_book_id: editPriceBookId || null,
+          customer_type: customerType,
+          price_book_id: priceBookId || null,
           phone: trimmedPhone || null,
           email: trimmedEmail || null,
-          abn: editCustomerType === "Commercial" ? trimmedAbn || null : null,
+          abn: customerType === "Commercial" ? trimmedAbn || null : null,
           notes: trimmedNotes || null,
         })
         .eq("customer_id", editingCustomer.customer_id);
 
       if (customerError) throw customerError;
 
-      if (primaryContact?.contact_id) {
-        const { error: contactError } = await supabase
-          .from("customer_contacts")
-          .update({
-            contact_name: trimmedContactName,
-            position: trimmedContactPosition || null,
-            phone: trimmedPhone || null,
-            email: trimmedEmail || null,
-            is_primary: true,
-            is_active: true,
-          })
-          .eq("contact_id", primaryContact.contact_id)
-          .eq("customer_id", editingCustomer.customer_id);
+      const existingContactIds = new Set(
+        (editingCustomer.customer_contacts ?? []).map((contact) => contact.contact_id)
+      );
+      const retainedContactIds = new Set(
+        normalizedContacts
+          .map((contact) => contact.contact_id)
+          .filter((contactId): contactId is string => Boolean(contactId))
+      );
+      const removedContactIds = [...existingContactIds].filter(
+        (contactId) => !retainedContactIds.has(contactId)
+      );
 
-        if (contactError) throw contactError;
-      } else {
-        const { error: contactInsertError } = await supabase
-          .from("customer_contacts")
-          .insert({
-            customer_id: editingCustomer.customer_id,
-            contact_name: trimmedContactName,
-            position: trimmedContactPosition || null,
-            phone: trimmedPhone || null,
-            email: trimmedEmail || null,
-            is_primary: true,
-            is_active: true,
-            is_deleted: false,
-          });
+      for (const contact of normalizedContacts) {
+        const payload = {
+          contact_name: contact.contact_name,
+          position: contact.position || null,
+          phone: contact.phone || null,
+          email: contact.email || null,
+          is_primary: contact.draft_id === primaryContactDraft.draft_id,
+          is_active: true,
+          is_deleted: false,
+          deleted_at: null,
+        };
 
-        if (contactInsertError) throw contactInsertError;
+        if (contact.contact_id) {
+          const { error: contactUpdateError } = await supabase
+            .from("customer_contacts")
+            .update(payload)
+            .eq("contact_id", contact.contact_id)
+            .eq("customer_id", editingCustomer.customer_id);
+
+          if (contactUpdateError) throw contactUpdateError;
+        } else {
+          const { error: contactInsertError } = await supabase
+            .from("customer_contacts")
+            .insert({
+              customer_id: editingCustomer.customer_id,
+              ...payload,
+            });
+
+          if (contactInsertError) throw contactInsertError;
+        }
       }
 
-      if (billingAddress?.address_id) {
-        const { error: addressError } = await supabase
-          .from("customer_addresses")
+      if (removedContactIds.length > 0) {
+        const { error: contactDeleteError } = await supabase
+          .from("customer_contacts")
           .update({
-            address_type: "Billing",
-            address_line1: trimmedAddressLine1,
-            address_line2: trimmedAddressLine2 || null,
-            suburb: trimmedSuburb || null,
-            state: trimmedState || null,
-            postcode: trimmedPostcode || null,
-            country: trimmedCountry,
-            is_primary: true,
-            is_active: true,
+            is_primary: false,
+            is_active: false,
+            is_deleted: true,
+            deleted_at: new Date().toISOString(),
           })
-          .eq("address_id", billingAddress.address_id)
-          .eq("customer_id", editingCustomer.customer_id);
+          .eq("customer_id", editingCustomer.customer_id)
+          .in("contact_id", removedContactIds);
 
-        if (addressError) throw addressError;
-      } else {
-        const { error: addressInsertError } = await supabase
-          .from("customer_addresses")
-          .insert({
-            customer_id: editingCustomer.customer_id,
-            address_type: "Billing",
-            address_line1: trimmedAddressLine1,
-            address_line2: trimmedAddressLine2 || null,
-            suburb: trimmedSuburb || null,
-            state: trimmedState || null,
-            postcode: trimmedPostcode || null,
-            country: trimmedCountry,
-            is_primary: true,
-            is_active: true,
-            is_deleted: false,
-          });
-
-        if (addressInsertError) throw addressInsertError;
+        if (contactDeleteError) throw contactDeleteError;
       }
 
-      setShowEditDialog(false);
-      setEditingCustomer(null);
+      const existingAddressIds = new Set(
+        (editingCustomer.customer_addresses ?? []).map((address) => address.address_id)
+      );
+      const retainedAddressIds = new Set(
+        normalizedAddresses
+          .map((address) => address.address_id)
+          .filter((addressId): addressId is string => Boolean(addressId))
+      );
+      const removedAddressIds = [...existingAddressIds].filter(
+        (addressId) => !retainedAddressIds.has(addressId)
+      );
+
+      for (const address of normalizedAddresses) {
+        const payload = {
+          address_type: address.address_type,
+          address_line1: address.address_line1,
+          address_line2: address.address_line2 || null,
+          suburb: address.suburb || null,
+          state: address.state || null,
+          postcode: address.postcode || null,
+          country: address.country,
+          is_primary: address.draft_id === primaryAddressDraft.draft_id,
+          is_active: true,
+          is_deleted: false,
+          deleted_at: null,
+        };
+
+        if (address.address_id) {
+          const { error: addressUpdateError } = await supabase
+            .from("customer_addresses")
+            .update(payload)
+            .eq("address_id", address.address_id)
+            .eq("customer_id", editingCustomer.customer_id);
+
+          if (addressUpdateError) throw addressUpdateError;
+        } else {
+          const { error: addressInsertError } = await supabase
+            .from("customer_addresses")
+            .insert({
+              customer_id: editingCustomer.customer_id,
+              ...payload,
+            });
+
+          if (addressInsertError) throw addressInsertError;
+        }
+      }
+
+      if (removedAddressIds.length > 0) {
+        const { error: addressDeleteError } = await supabase
+          .from("customer_addresses")
+          .update({
+            is_primary: false,
+            is_active: false,
+            is_deleted: true,
+            deleted_at: new Date().toISOString(),
+          })
+          .eq("customer_id", editingCustomer.customer_id)
+          .in("address_id", removedAddressIds);
+
+        if (addressDeleteError) throw addressDeleteError;
+      }
+
+      setShowAddDialog(false);
+      resetCustomerForm();
 
       queryClient.invalidateQueries({
         queryKey: ["customers"],
@@ -1322,31 +1615,11 @@ export default function CustomerDatabase() {
   };
 
   const customerSummary = useMemo(() => {
-    const allCount = customers.length;
+    const total = customers.length;
+    const active = customers.filter((customer) => customer.is_active).length;
+    const inactive = customers.filter((customer) => !customer.is_active).length;
 
-    const commercialCount = customers.filter(
-      (customer) => customer.customer_type === "Commercial"
-    ).length;
-
-    const residentialCount = customers.filter(
-      (customer) => customer.customer_type === "Residential"
-    ).length;
-
-    const inactiveCount = customers.filter(
-      (customer) => !customer.is_active
-    ).length;
-
-    const missingPriceBookCount = customers.filter(
-      (customer) => !customer.price_book_id
-    ).length;
-
-    return {
-      allCount,
-      commercialCount,
-      residentialCount,
-      inactiveCount,
-      missingPriceBookCount,
-    };
+    return { total, active, inactive };
   }, [customers]);
 
   const filteredCustomers = useMemo(() => {
@@ -1424,7 +1697,9 @@ export default function CustomerDatabase() {
         : "",
       !viewingCustomer.price_book_id ? "Missing price book" : "",
       !contactSummary.contact ? "Missing primary contact" : "",
-      !preferredAddress || preferredAddress.address_type !== "Billing"
+      !(viewingCustomer.customer_addresses ?? []).some(
+        (address) => address.address_type === "Billing"
+      )
         ? "Missing billing address"
         : "",
       !viewingCustomer.is_active ? "Inactive customer" : "",
@@ -1871,7 +2146,7 @@ export default function CustomerDatabase() {
   };
 
   return (
-    <div className="w-full space-y-5 px-4 sm:px-5 lg:px-6">
+    <div className="w-full space-y-5 px-4 py-4 sm:px-5 lg:px-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
@@ -1891,7 +2166,7 @@ export default function CustomerDatabase() {
         </div>
 
         <Button
-          onClick={() => setShowAddDialog(true)}
+          onClick={openAddCustomer}
           className="flex h-11 w-full items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700 sm:w-auto sm:px-6"
         >
           <Plus className="mr-2 h-4 w-4" />
@@ -2411,16 +2686,54 @@ export default function CustomerDatabase() {
 
                         <DetailCard title="Contacts">
                           {viewingCustomer.customer_contacts?.length ? (
-                            <DetailTable
-                              headers={["Contact Name", "Position", "Phone", "Email", "Primary"]}
-                              rows={viewingCustomer.customer_contacts.map((contact) => [
-                                contact.contact_name,
-                                contact.position || "-",
-                                contact.phone || "-",
-                                contact.email || "-",
-                                contact.is_primary ? "Primary" : "-",
-                              ])}
-                            />
+                            <div className="grid gap-4 lg:grid-cols-2">
+                              {viewingCustomer.customer_contacts.map((contact) => (
+                                <article
+                                  key={contact.contact_id}
+                                  className={`rounded-2xl border p-4 shadow-sm ${
+                                    contact.is_primary
+                                      ? "border-[#9E4B4B]/40 bg-[#9E4B4B]/[0.04]"
+                                      : "border-slate-200 bg-white"
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <p className="truncate font-bold text-slate-900">
+                                          {contact.contact_name}
+                                        </p>
+                                        {contact.is_primary && (
+                                          <span className="rounded-full bg-[#9E4B4B] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
+                                            Primary
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="mt-1 text-sm text-slate-500">
+                                        {contact.position || "Position not recorded"}
+                                      </p>
+                                    </div>
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+                                      <UserRound className="h-5 w-5" />
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Phone</p>
+                                      <p className="mt-1 break-words text-sm font-semibold text-slate-800">
+                                        {contact.phone || "Not recorded"}
+                                      </p>
+                                    </div>
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Email</p>
+                                      <p className="mt-1 break-all text-sm font-semibold text-slate-800">
+                                        {contact.email || "Not recorded"}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </article>
+                              ))}
+                            </div>
                           ) : (
                             <DetailEmptyState title="No contacts found." />
                           )}
@@ -2428,19 +2741,45 @@ export default function CustomerDatabase() {
 
                         <DetailCard title="Addresses">
                           {viewingCustomer.customer_addresses?.length ? (
-                            <DetailTable
-                              headers={["Type", "Address Line 1", "Address Line 2", "Suburb", "State", "Postcode", "Country", "Primary"]}
-                              rows={viewingCustomer.customer_addresses.map((addressItem) => [
-                                addressItem.address_type,
-                                addressItem.address_line1,
-                                addressItem.address_line2 || "-",
-                                addressItem.suburb || "-",
-                                addressItem.state || "-",
-                                addressItem.postcode || "-",
-                                addressItem.country || "-",
-                                addressItem.is_primary ? "Primary" : "-",
-                              ])}
-                            />
+                            <div className="grid gap-4 lg:grid-cols-2">
+                              {viewingCustomer.customer_addresses.map((addressItem) => (
+                                <article
+                                  key={addressItem.address_id}
+                                  className={`rounded-2xl border p-4 shadow-sm ${
+                                    addressItem.is_primary
+                                      ? "border-[#9E4B4B]/40 bg-[#9E4B4B]/[0.04]"
+                                      : "border-slate-200 bg-white"
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <p className="font-bold text-slate-900">
+                                          {addressItem.address_type || "Other"}
+                                        </p>
+                                        {addressItem.is_primary && (
+                                          <span className="rounded-full bg-[#9E4B4B] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
+                                            Primary
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                        Customer Address
+                                      </p>
+                                    </div>
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+                                      <MapPin className="h-5 w-5" />
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                                    <p className="whitespace-pre-line text-sm font-semibold leading-6 text-slate-800">
+                                      {formatDetailAddress(addressItem)}
+                                    </p>
+                                  </div>
+                                </article>
+                              ))}
+                            </div>
                           ) : (
                             <DetailEmptyState title="No addresses found." />
                           )}
@@ -2483,268 +2822,21 @@ export default function CustomerDatabase() {
       ) : null}
 
       <Dialog
-        open={showEditDialog}
-        onOpenChange={setShowEditDialog}
-      >
-        <DialogContent className="flex max-h-[92vh] w-[calc(100vw-24px)] max-w-4xl flex-col overflow-hidden rounded-2xl p-0">
-          <DialogHeader className="border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
-            <DialogTitle className="text-lg font-bold text-slate-900">
-              Edit Customer
-            </DialogTitle>
-            <p className="text-sm text-slate-500">
-              {editingCustomer?.customer_code || "Customer record"}
-            </p>
-          </DialogHeader>
-
-          <div className="flex-1 overflow-y-auto bg-slate-50 px-4 py-5 sm:px-6">
-            <div className="space-y-5 text-sm">
-              <CustomerFormSection
-                number="01"
-                title="Customer Profile"
-                description="Core customer details used across projects, quotations, invoices, and reporting."
-              >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Customer Type</Label>
-                    <Select
-                      value={editCustomerType}
-                      onValueChange={(value) => {
-                        setEditCustomerType(value);
-                        if (value === "Residential") {
-                          setEditAbn("");
-                        }
-                        const currentDefault =
-                          editCustomerType === "Commercial" ? "Primary Contact" : "Customer";
-                        if (!editContactPosition.trim() || editContactPosition === currentDefault) {
-                          setEditContactPosition(
-                            value === "Commercial" ? "Primary Contact" : "Customer"
-                          );
-                        }
-                      }}
-                    >
-                      <SelectTrigger className={customerInputClassName}>
-                        <SelectValue placeholder="Select customer type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Residential">Residential</SelectItem>
-                        <SelectItem value="Commercial">Commercial</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>
-                      {editCustomerType === "Commercial"
-                        ? "Business / Company Name"
-                        : "Customer Name"}
-                    </Label>
-                    <Input
-                      className={customerInputClassName}
-                      value={editCustomerName}
-                      onChange={(e) => setEditCustomerName(e.target.value)}
-                    />
-                  </div>
-
-                  {editCustomerType === "Commercial" && (
-                    <div className="space-y-2">
-                      <Label>ABN</Label>
-                      <Input
-                        className={customerInputClassName}
-                        value={editAbn}
-                        onChange={(e) => setEditAbn(e.target.value)}
-                        placeholder="Australian Business Number"
-                      />
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <Label>Price Book</Label>
-                    <Select
-                      value={editPriceBookId}
-                      onValueChange={setEditPriceBookId}
-                    >
-                      <SelectTrigger className={customerInputClassName}>
-                        <SelectValue placeholder="Select default price book" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {priceBooks.length === 0 ? (
-                          <SelectItem value="no-price-book" disabled>
-                            No active price books found
-                          </SelectItem>
-                        ) : (
-                          priceBooks.map((priceBook) => (
-                            <SelectItem
-                              key={priceBook.price_book_id}
-                              value={priceBook.price_book_id}
-                            >
-                              {priceBook.price_book_code}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CustomerFormSection>
-
-              <CustomerFormSection
-                number="02"
-                title="Primary Contact"
-                description="Main person and communication details for this customer."
-              >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Contact Name</Label>
-                    <Input
-                      className={customerInputClassName}
-                      value={editContactName}
-                      onChange={(e) => setEditContactName(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Position</Label>
-                    <Input
-                      className={customerInputClassName}
-                      value={editContactPosition}
-                      onChange={(e) => setEditContactPosition(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Phone</Label>
-                    <Input
-                      className={customerInputClassName}
-                      value={editPhone}
-                      onChange={(e) => setEditPhone(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Email</Label>
-                    <Input
-                      type="email"
-                      className={customerInputClassName}
-                      value={editEmail}
-                      onChange={(e) => setEditEmail(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </CustomerFormSection>
-
-              <CustomerFormSection
-                number="03"
-                title="Billing Address"
-                description="Structured Australian billing address saved into dedicated address fields."
-              >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Address Line 1 / Street Address</Label>
-                    <Input
-                      className={customerInputClassName}
-                      value={editAddressLine1}
-                      onChange={(e) => setEditAddressLine1(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Address Line 2 / Unit, Level, Building</Label>
-                    <Input
-                      className={customerInputClassName}
-                      value={editAddressLine2}
-                      onChange={(e) => setEditAddressLine2(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Suburb</Label>
-                    <Input
-                      className={customerInputClassName}
-                      value={editSuburb}
-                      onChange={(e) => setEditSuburb(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>State</Label>
-                    <Select
-                      value={editStateName || EMPTY_SELECT_VALUE}
-                      onValueChange={(value) =>
-                        setEditStateName(value === EMPTY_SELECT_VALUE ? "" : value)
-                      }
-                    >
-                      <SelectTrigger className={customerInputClassName}>
-                        <SelectValue placeholder="Select state" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={EMPTY_SELECT_VALUE}>Select state</SelectItem>
-                        {AUSTRALIAN_STATES.map((stateCode) => (
-                          <SelectItem key={stateCode} value={stateCode}>
-                            {stateCode}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Postcode</Label>
-                    <Input
-                      className={customerInputClassName}
-                      value={editPostcode}
-                      onChange={(e) => setEditPostcode(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Country</Label>
-                    <Input
-                      className={customerInputClassName}
-                      value={editCountry}
-                      onChange={(e) => setEditCountry(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </CustomerFormSection>
-
-              <CustomerFormSection
-                number="04"
-                title="Notes"
-                description="Optional internal notes for sales, billing, access, or project context."
-              >
-                <Textarea
-                  className={customerTextareaClassName}
-                  value={editNotes}
-                  onChange={(e) => setEditNotes(e.target.value)}
-                />
-              </CustomerFormSection>
-            </div>
-          </div>
-
-          <div className="border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
-            <Button
-              type="button"
-              onClick={handleSaveEditCustomer}
-              disabled={customerFormSaving}
-              className="h-11 w-full rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700"
-            >
-              {customerFormSaving ? "Saving..." : "Save Changes"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
         open={showAddDialog}
-        onOpenChange={setShowAddDialog}
+        onOpenChange={(open) => {
+          setShowAddDialog(open);
+          if (!open) resetCustomerForm();
+        }}
       >
-        <DialogContent className="flex max-h-[92vh] w-[calc(100vw-24px)] max-w-4xl flex-col overflow-hidden rounded-2xl p-0">
+        <DialogContent className="flex max-h-[94vh] w-[calc(100vw-24px)] max-w-6xl flex-col overflow-hidden rounded-2xl p-0">
           <DialogHeader className="border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
             <DialogTitle className="text-lg font-bold text-slate-900">
-              Add Customer
+              {customerFormMode === "edit" ? "Edit Customer" : "Add Customer"}
             </DialogTitle>
             <p className="text-sm text-slate-500">
-              Create a customer profile with primary contact and billing address.
+              {customerFormMode === "edit"
+                ? editingCustomer?.customer_code || "Update customer profile"
+                : "Create a customer profile with primary contact and billing address."}
             </p>
           </DialogHeader>
 
@@ -2767,11 +2859,18 @@ export default function CustomerDatabase() {
                         }
                         const currentDefault =
                           customerType === "Commercial" ? "Primary Contact" : "Customer";
-                        if (!contactPosition.trim() || contactPosition === currentDefault) {
-                          setContactPosition(
-                            value === "Commercial" ? "Primary Contact" : "Customer"
-                          );
-                        }
+                        setCustomerContacts((current) =>
+                          current.map((contact) =>
+                            contact.is_primary &&
+                            (!contact.position.trim() || contact.position === currentDefault)
+                              ? {
+                                  ...contact,
+                                  position:
+                                    value === "Commercial" ? "Primary Contact" : "Customer",
+                                }
+                              : contact
+                          )
+                        );
                       }}
                     >
                       <SelectTrigger className={customerInputClassName}>
@@ -2796,9 +2895,13 @@ export default function CustomerDatabase() {
                       onChange={(e) => {
                         const nextValue = e.target.value;
                         setCustomerName(nextValue);
-                        if (!contactName.trim()) {
-                          setContactName(nextValue);
-                        }
+                        setCustomerContacts((current) =>
+                          current.map((contact) =>
+                            contact.is_primary && !contact.contact_name.trim()
+                              ? { ...contact, contact_name: nextValue }
+                              : contact
+                          )
+                        );
                       }}
                       placeholder={
                         customerType === "Commercial"
@@ -2853,141 +2956,318 @@ export default function CustomerDatabase() {
 
               <CustomerFormSection
                 number="02"
-                title="Primary Contact"
-                description="Main person and communication details saved as the primary customer contact."
+                title="Customer Contacts"
+                description="Add one or more contacts and choose the single primary contact used across the customer record."
               >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Contact Name</Label>
-                    <Input
-                      className={customerInputClassName}
-                      value={contactName}
-                      onChange={(e) => setContactName(e.target.value)}
-                      placeholder={
-                        customerType === "Commercial" ? "Primary contact name" : "Customer full name"
-                      }
-                    />
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs text-slate-500">
+                      The primary contact supplies the customer phone and email shown in lists and documents.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={addCustomerContact}
+                      className="h-10 rounded-xl border-slate-300 bg-white font-semibold"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Contact
+                    </Button>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Position</Label>
-                    <Input
-                      className={customerInputClassName}
-                      value={contactPosition}
-                      onChange={(e) => setContactPosition(e.target.value)}
-                      placeholder={
-                        customerType === "Commercial" ? "Primary Contact" : "Customer"
-                      }
-                    />
-                  </div>
+                  {customerContacts.map((contact, index) => (
+                    <div
+                      key={contact.draft_id}
+                      className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                    >
+                      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="font-bold text-slate-900">Contact {index + 1}</p>
+                          <p className="text-xs text-slate-500">
+                            {contact.is_primary ? "Primary customer contact" : "Additional customer contact"}
+                          </p>
+                        </div>
 
-                  <div className="space-y-2">
-                    <Label>Phone</Label>
-                    <Input
-                      className={customerInputClassName}
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder={
-                        customerType === "Commercial"
-                          ? "Office or business phone"
-                          : "Customer phone"
-                      }
-                    />
-                  </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant={contact.is_primary ? "default" : "outline"}
+                            onClick={() => setPrimaryCustomerContact(contact.draft_id)}
+                            className={
+                              contact.is_primary
+                                ? "h-9 rounded-xl bg-[#9E4B4B] px-3 text-xs font-bold text-white hover:bg-[#874040]"
+                                : "h-9 rounded-xl border-slate-300 bg-white px-3 text-xs font-bold"
+                            }
+                          >
+                            {contact.is_primary ? "Primary" : "Set Primary"}
+                          </Button>
 
-                  <div className="space-y-2">
-                    <Label>Email</Label>
-                    <Input
-                      type="email"
-                      className={customerInputClassName}
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder={
-                        customerType === "Commercial"
-                          ? "Accounts or office email"
-                          : "Customer email"
-                      }
-                    />
-                  </div>
+                          {customerContacts.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() => removeCustomerContact(contact.draft_id)}
+                              className="h-9 w-9 rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                              aria-label={`Remove contact ${index + 1}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Contact Name</Label>
+                          <Input
+                            className={customerInputClassName}
+                            value={contact.contact_name}
+                            onChange={(e) =>
+                              updateCustomerContact(contact.draft_id, {
+                                contact_name: e.target.value,
+                              })
+                            }
+                            placeholder={
+                              customerType === "Commercial"
+                                ? "Contact full name"
+                                : "Customer full name"
+                            }
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Position</Label>
+                          <Input
+                            className={customerInputClassName}
+                            value={contact.position}
+                            onChange={(e) =>
+                              updateCustomerContact(contact.draft_id, {
+                                position: e.target.value,
+                              })
+                            }
+                            placeholder={
+                              customerType === "Commercial" ? "Position or role" : "Customer"
+                            }
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Phone</Label>
+                          <Input
+                            className={customerInputClassName}
+                            value={contact.phone}
+                            onChange={(e) =>
+                              updateCustomerContact(contact.draft_id, {
+                                phone: e.target.value,
+                              })
+                            }
+                            placeholder="Phone number"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Email</Label>
+                          <Input
+                            type="email"
+                            className={customerInputClassName}
+                            value={contact.email}
+                            onChange={(e) =>
+                              updateCustomerContact(contact.draft_id, {
+                                email: e.target.value,
+                              })
+                            }
+                            placeholder="Email address"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </CustomerFormSection>
 
               <CustomerFormSection
                 number="03"
-                title="Billing Address"
-                description="Structured Australian billing address saved into dedicated address fields."
+                title="Customer Addresses"
+                description="Add one or more addresses and choose the single primary address used across the customer record."
               >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Address Line 1 / Street Address</Label>
-                    <Input
-                      className={customerInputClassName}
-                      value={addressLine1}
-                      onChange={(e) => setAddressLine1(e.target.value)}
-                      placeholder="Street number and street name"
-                    />
-                  </div>
-
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Address Line 2 / Unit, Level, Building</Label>
-                    <Input
-                      className={customerInputClassName}
-                      value={addressLine2}
-                      onChange={(e) => setAddressLine2(e.target.value)}
-                      placeholder="Unit, level, building, or suite"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Suburb</Label>
-                    <Input
-                      className={customerInputClassName}
-                      value={suburb}
-                      onChange={(e) => setSuburb(e.target.value)}
-                      placeholder="Suburb"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>State</Label>
-                    <Select
-                      value={stateName || EMPTY_SELECT_VALUE}
-                      onValueChange={(value) =>
-                        setStateName(value === EMPTY_SELECT_VALUE ? "" : value)
-                      }
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs text-slate-500">
+                      Use address types such as Billing, Delivery, Postal, Site, or Other.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={addCustomerAddress}
+                      className="h-10 rounded-xl border-slate-300 bg-white font-semibold"
                     >
-                      <SelectTrigger className={customerInputClassName}>
-                        <SelectValue placeholder="Select state" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={EMPTY_SELECT_VALUE}>Select state</SelectItem>
-                        {AUSTRALIAN_STATES.map((stateCode) => (
-                          <SelectItem key={stateCode} value={stateCode}>
-                            {stateCode}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Address
+                    </Button>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Postcode</Label>
-                    <Input
-                      className={customerInputClassName}
-                      value={postcode}
-                      onChange={(e) => setPostcode(e.target.value)}
-                      placeholder="Postcode"
-                    />
-                  </div>
+                  {customerAddresses.map((address, index) => (
+                    <div
+                      key={address.draft_id}
+                      className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                    >
+                      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="font-bold text-slate-900">Address {index + 1}</p>
+                          <p className="text-xs text-slate-500">
+                            {address.is_primary ? "Primary customer address" : "Additional customer address"}
+                          </p>
+                        </div>
 
-                  <div className="space-y-2">
-                    <Label>Country</Label>
-                    <Input
-                      className={customerInputClassName}
-                      value={country}
-                      onChange={(e) => setCountry(e.target.value)}
-                    />
-                  </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant={address.is_primary ? "default" : "outline"}
+                            onClick={() => setPrimaryCustomerAddress(address.draft_id)}
+                            className={
+                              address.is_primary
+                                ? "h-9 rounded-xl bg-[#9E4B4B] px-3 text-xs font-bold text-white hover:bg-[#874040]"
+                                : "h-9 rounded-xl border-slate-300 bg-white px-3 text-xs font-bold"
+                            }
+                          >
+                            {address.is_primary ? "Primary" : "Set Primary"}
+                          </Button>
+
+                          {customerAddresses.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() => removeCustomerAddress(address.draft_id)}
+                              className="h-9 w-9 rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                              aria-label={`Remove address ${index + 1}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Address Type</Label>
+                          <Select
+                            value={address.address_type}
+                            onValueChange={(value) =>
+                              updateCustomerAddress(address.draft_id, {
+                                address_type: value,
+                              })
+                            }
+                          >
+                            <SelectTrigger className={customerInputClassName}>
+                              <SelectValue placeholder="Select address type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Billing">Billing</SelectItem>
+                              <SelectItem value="Delivery">Delivery</SelectItem>
+                              <SelectItem value="Postal">Postal</SelectItem>
+                              <SelectItem value="Site">Site</SelectItem>
+                              <SelectItem value="Other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Country</Label>
+                          <Input
+                            className={customerInputClassName}
+                            value={address.country}
+                            onChange={(e) =>
+                              updateCustomerAddress(address.draft_id, {
+                                country: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+
+                        <div className="space-y-2 md:col-span-2">
+                          <Label>Address Line 1 / Street Address</Label>
+                          <Input
+                            className={customerInputClassName}
+                            value={address.address_line1}
+                            onChange={(e) =>
+                              updateCustomerAddress(address.draft_id, {
+                                address_line1: e.target.value,
+                              })
+                            }
+                            placeholder="Street number and street name"
+                          />
+                        </div>
+
+                        <div className="space-y-2 md:col-span-2">
+                          <Label>Address Line 2 / Unit, Level, Building</Label>
+                          <Input
+                            className={customerInputClassName}
+                            value={address.address_line2}
+                            onChange={(e) =>
+                              updateCustomerAddress(address.draft_id, {
+                                address_line2: e.target.value,
+                              })
+                            }
+                            placeholder="Unit, level, building, or suite"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Suburb</Label>
+                          <Input
+                            className={customerInputClassName}
+                            value={address.suburb}
+                            onChange={(e) =>
+                              updateCustomerAddress(address.draft_id, {
+                                suburb: e.target.value,
+                              })
+                            }
+                            placeholder="Suburb"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>State</Label>
+                          <Select
+                            value={address.state || EMPTY_SELECT_VALUE}
+                            onValueChange={(value) =>
+                              updateCustomerAddress(address.draft_id, {
+                                state: value === EMPTY_SELECT_VALUE ? "" : value,
+                              })
+                            }
+                          >
+                            <SelectTrigger className={customerInputClassName}>
+                              <SelectValue placeholder="Select state" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={EMPTY_SELECT_VALUE}>Select state</SelectItem>
+                              {AUSTRALIAN_STATES.map((stateCode) => (
+                                <SelectItem key={stateCode} value={stateCode}>
+                                  {stateCode}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Postcode</Label>
+                          <Input
+                            className={customerInputClassName}
+                            value={address.postcode}
+                            onChange={(e) =>
+                              updateCustomerAddress(address.draft_id, {
+                                postcode: e.target.value,
+                              })
+                            }
+                            placeholder="Postcode"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </CustomerFormSection>
 
@@ -3013,11 +3293,19 @@ export default function CustomerDatabase() {
           <div className="border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
             <Button
               type="button"
-              onClick={handleAddCustomer}
+              onClick={
+                customerFormMode === "edit"
+                  ? handleSaveEditCustomer
+                  : handleAddCustomer
+              }
               disabled={customerFormSaving}
               className="h-11 w-full rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700"
             >
-              {customerFormSaving ? "Saving..." : "Create Customer"}
+              {customerFormSaving
+                ? "Saving..."
+                : customerFormMode === "edit"
+                  ? "Update Customer"
+                  : "Create Customer"}
             </Button>
           </div>
         </DialogContent>
@@ -3486,66 +3774,55 @@ export default function CustomerDatabase() {
 
       {!viewingCustomer && (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                All Customers
-              </p>
-              <p className="mt-2 text-2xl font-black text-slate-900">
-                {customerSummary.allCount}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Total customer records
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                Commercial
-              </p>
-              <p className="mt-2 text-2xl font-black text-slate-900">
-                {customerSummary.commercialCount}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Business / builder customers
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                Residential
-              </p>
-              <p className="mt-2 text-2xl font-black text-slate-900">
-                {customerSummary.residentialCount}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Home owner customers
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                Inactive
-              </p>
-              <p className="mt-2 text-2xl font-black text-slate-900">
-                {customerSummary.inactiveCount}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Hidden from new work
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 shadow-sm">
-              <p className="text-xs font-bold uppercase tracking-wide text-amber-700">
-                Missing Price Book
-              </p>
-              <p className="mt-2 text-2xl font-black text-amber-900">
-                {customerSummary.missingPriceBookCount}
-              </p>
-              <p className="mt-1 text-xs text-amber-700">
-                Needs sales default
-              </p>
-            </div>
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            {[
+              {
+                label: "Total Customers",
+                value: customerSummary.total,
+                note: `${filteredCustomers.length} in current results`,
+                icon: Building2,
+              },
+              {
+                label: "Active",
+                value: customerSummary.active,
+                note: "Available for new projects",
+                icon: UserRound,
+              },
+              {
+                label: "Inactive",
+                value: customerSummary.inactive,
+                note: "Retained for history",
+                icon: Filter,
+              },
+              {
+                label: "Current Results",
+                value: filteredCustomers.length,
+                note: "Matches the current filters",
+                icon: Search,
+              },
+            ].map((card) => (
+              <div
+                key={card.label}
+                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                      {card.label}
+                    </p>
+                    <p className="mt-2 text-2xl font-black text-slate-900">
+                      {card.value}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {card.note}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-slate-100 p-2 text-slate-600">
+                    <card.icon className="h-5 w-5" />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -3596,7 +3873,7 @@ export default function CustomerDatabase() {
                   type="button"
                   variant="outline"
                   onClick={handlePrintCustomers}
-                  className="h-10 gap-2 rounded-xl text-xs font-bold"
+                  className="h-11 gap-2 rounded-xl text-xs font-bold"
                 >
                   <Printer className="h-4 w-4" />
                   Print
@@ -3606,7 +3883,7 @@ export default function CustomerDatabase() {
                   type="button"
                   variant="outline"
                   onClick={handlePrintCustomers}
-                  className="h-10 gap-2 rounded-xl text-xs font-bold"
+                  className="h-11 gap-2 rounded-xl text-xs font-bold"
                 >
                   <FileText className="h-4 w-4" />
                   PDF
@@ -3616,7 +3893,7 @@ export default function CustomerDatabase() {
                   type="button"
                   variant="outline"
                   onClick={handleExportCsv}
-                  className="h-10 gap-2 rounded-xl text-xs font-bold"
+                  className="h-11 gap-2 rounded-xl text-xs font-bold"
                 >
                   <Download className="h-4 w-4" />
                   CSV
@@ -3626,7 +3903,7 @@ export default function CustomerDatabase() {
                   type="button"
                   variant="outline"
                   onClick={handleExportExcel}
-                  className="h-10 gap-2 rounded-xl text-xs font-bold"
+                  className="h-11 gap-2 rounded-xl text-xs font-bold"
                 >
                   <FileSpreadsheet className="h-4 w-4" />
                   Excel
@@ -3635,12 +3912,11 @@ export default function CustomerDatabase() {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             {isLoading ? (
-              <div className="p-8 text-center text-slate-500">
+              <div className="p-12 text-center text-slate-500">
                 Loading customers...
               </div>
-
             ) : error ? (
               <div className="p-8 text-center text-red-600">
                 <div className="font-bold">Failed to load customers.</div>
@@ -3648,205 +3924,196 @@ export default function CustomerDatabase() {
                   Please refresh the page or contact an administrator if the problem continues.
                 </div>
               </div>
-
             ) : filteredCustomers.length === 0 ? (
-              <div className="p-8 text-center text-slate-500">
-                No customers found.
+              <div className="p-12 text-center">
+                <Building2 className="mx-auto h-10 w-10 text-slate-300" />
+                <p className="mt-3 font-semibold text-slate-700">
+                  No customers found
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Adjust the filters or create a new customer.
+                </p>
               </div>
             ) : (
               <>
-                {/* Mobile cards */}
-                <div className="space-y-3 p-3 md:hidden">
-                  {filteredCustomers.map((customer) => (
-                    <div
-                      key={customer.customer_id}
-                      className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-base font-bold text-slate-900 break-words">
-                            {customer.customer_name}
+                <div className="hidden lg:block">
+                  <div className="grid grid-cols-12 border-b bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                    <div className="col-span-3">Customer</div>
+                    <div className="col-span-2">Primary Contact</div>
+                    <div className="col-span-2">Customer Setup</div>
+                    <div className="col-span-2">Address</div>
+                    <div className="col-span-1">Status</div>
+                    <div className="col-span-2 text-right">Actions</div>
+                  </div>
+
+                  {filteredCustomers.map((customer) => {
+                    const primaryContact = getPrimaryContact(customer);
+                    const primaryAddress = getPrimaryAddress(customer);
+
+                    return (
+                      <div
+                        key={customer.customer_id}
+                        className="grid grid-cols-12 border-b px-4 py-4 last:border-0 hover:bg-slate-50"
+                      >
+                        <div className="col-span-3">
+                          <div className="flex items-start gap-3">
+                            <div className="rounded-xl bg-[#9E4B4B]/10 p-2 text-[#9E4B4B]">
+                              <Building2 className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0">
+                              <button
+                                type="button"
+                                onClick={() => openViewCustomer(customer)}
+                                className="block truncate text-left font-bold text-slate-900 hover:text-[#9E4B4B]"
+                              >
+                                {customer.customer_name}
+                              </button>
+                              <p className="text-xs font-mono text-slate-500">
+                                {customer.customer_code}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                ABN: {customer.abn || "—"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="col-span-2 min-w-0 text-sm">
+                          <p className="truncate font-medium text-slate-800">
+                            {primaryContact?.contact_name || "Not configured"}
                           </p>
-                          <p className="mt-1 text-xs font-mono text-slate-400">
-                            {customer.customer_code}
+                          <p className="mt-1 text-xs text-slate-500">
+                            {primaryContact?.position || "Contact"}
+                          </p>
+                          <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                            <Phone className="h-3 w-3 shrink-0" />
+                            <span className="truncate">
+                              {primaryContact?.phone || customer.phone || "—"}
+                            </span>
+                          </p>
+                          <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                            <Mail className="h-3 w-3 shrink-0" />
+                            <span className="truncate">
+                              {primaryContact?.email || customer.email || "—"}
+                            </span>
                           </p>
                         </div>
 
-                        <ActiveStatusBadge
-                          isActive={customer.is_active}
-                          className="shrink-0"
-                        />
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
-                          {customer.customer_type}
-                        </span>
-
-                        {customer.abn && (
-                          <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600">
-                            ABN: {customer.abn}
-                          </span>
-                        )}
-
-                        <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600">
-                          Price Book: {getCustomerPriceBookCode(customer)}
-                        </span>
-
-                      </div>
-
-                      <div className="space-y-2 text-sm text-slate-600">
-                        <div className="font-semibold text-slate-800">
-                          {getPrimaryContact(customer)?.contact_name || "No primary contact"}
+                        <div className="col-span-2 text-sm">
+                          <p className="font-medium text-slate-800">
+                            {customer.customer_type}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Price Book: {getCustomerPriceBookCode(customer)}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {customer.email || customer.phone || "No direct contact"}
+                          </p>
                         </div>
 
-                        <div className="text-xs text-slate-500">
-                          {getPrimaryContact(customer)?.position || "Contact"}
+                        <div className="col-span-2 pr-3 text-xs leading-relaxed text-slate-500">
+                          {formatAddress(primaryAddress)}
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <Phone size={14} className="shrink-0 text-slate-400" />
-                          <span className="break-all">
-                            {getPrimaryContact(customer)?.phone || customer.phone || "-"}
-                          </span>
+                        <div className="col-span-1">
+                          <ActiveStatusBadge isActive={customer.is_active} />
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <Mail size={14} className="shrink-0 text-slate-400" />
-                          <span className="break-all">
-                            {getPrimaryContact(customer)?.email || customer.email || "-"}
-                          </span>
-                        </div>
-
-                        <div className="text-xs leading-relaxed text-slate-500">
-                          Address: {formatAddress(getPrimaryAddress(customer))}
-                        </div>
-
-                        <div className="border-t border-slate-200 pt-3">
+                        <div className="col-span-2">
                           <StandardActions
                             isActive={customer.is_active}
                             onView={() => openViewCustomer(customer)}
                             onEdit={() => openEditCustomer(customer)}
-                            onToggleActive={() =>
-                              handleToggleCustomerActive(customer)
-                            }
+                            onToggleActive={() => handleToggleCustomerActive(customer)}
+                            onDelete={() => handleDeleteCustomer(customer)}
+                            size="desktop"
+                            align="end"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="space-y-3 p-3 lg:hidden">
+                  {filteredCustomers.map((customer) => {
+                    const primaryContact = getPrimaryContact(customer);
+                    const primaryAddress = getPrimaryAddress(customer);
+
+                    return (
+                      <div
+                        key={customer.customer_id}
+                        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-[#9E4B4B]">
+                              {customer.customer_code}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => openViewCustomer(customer)}
+                              className="mt-1 block truncate text-left text-base font-bold text-slate-900"
+                            >
+                              {customer.customer_name}
+                            </button>
+                            <p className="text-xs text-slate-500">
+                              {customer.customer_type}
+                            </p>
+                          </div>
+                          <ActiveStatusBadge isActive={customer.is_active} />
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <p className="text-xs text-slate-500">Primary Contact</p>
+                            <p className="font-medium">
+                              {primaryContact?.contact_name || "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Price Book</p>
+                            <p className="font-medium">
+                              {getCustomerPriceBookCode(customer)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">Phone</p>
+                            <p className="break-all">
+                              {primaryContact?.phone || customer.phone || "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">ABN</p>
+                            <p>{customer.abn || "—"}</p>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-xs text-slate-500">Email</p>
+                            <p className="break-all">
+                              {primaryContact?.email || customer.email || "—"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <p className="mt-3 flex items-start gap-2 text-xs text-slate-500">
+                          <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                          <span>{formatAddress(primaryAddress)}</span>
+                        </p>
+
+                        <div className="mt-4 border-t pt-4">
+                          <StandardActions
+                            isActive={customer.is_active}
+                            onView={() => openViewCustomer(customer)}
+                            onEdit={() => openEditCustomer(customer)}
+                            onToggleActive={() => handleToggleCustomerActive(customer)}
                             onDelete={() => handleDeleteCustomer(customer)}
                             size="mobile"
                             align="end"
                           />
                         </div>
-
                       </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Desktop table */}
-                <div className="hidden overflow-x-auto md:block">
-                  <table className="w-full text-left text-sm whitespace-nowrap">
-                    <thead className="bg-slate-900 text-white">
-                      <tr>
-                        <th className="px-6 py-4 font-bold uppercase tracking-wider">
-                          Customer
-                        </th>
-                        <th className="px-6 py-4 font-bold uppercase tracking-wider">
-                          Type
-                        </th>
-                        <th className="px-6 py-4 font-bold uppercase tracking-wider">
-                          Contact
-                        </th>
-                        <th className="px-6 py-4 font-bold uppercase tracking-wider">
-                          Address
-                        </th>
-                        <th className="px-6 py-4 font-bold uppercase tracking-wider">
-                          ABN
-                        </th>
-                        <th className="w-[210px] px-6 py-4 text-right font-bold uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredCustomers.map((customer) => {
-                        const primaryContact = getPrimaryContact(customer);
-                        const primaryAddress = getPrimaryAddress(customer);
-
-                        return (
-                          <tr
-                            key={customer.customer_id}
-                            className="hover:bg-slate-50 transition-colors"
-                          >
-                            <td className="px-6 py-4">
-                              <div className="flex flex-col">
-                                <span className="font-bold text-slate-900 text-base">
-                                  {customer.customer_name}
-                                </span>
-                                <span className="text-slate-400 text-xs font-mono mt-1">
-                                  {customer.customer_code}
-                                </span>
-                              </div>
-                            </td>
-
-                            <td className="px-6 py-4">
-                              <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold border bg-slate-100 text-slate-700 border-slate-200">
-                                {customer.customer_type}
-                              </span>
-                            </td>
-
-                            <td className="px-6 py-4">
-                              <div className="flex flex-col gap-1.5 text-slate-600 text-xs">
-                                <div className="font-bold text-slate-800">
-                                  {primaryContact?.contact_name || "-"}
-                                </div>
-
-                                <div className="text-slate-500">
-                                  {primaryContact?.position || "Contact"}
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                  <Phone size={14} className="text-slate-400" />
-                                  {primaryContact?.phone || customer.phone || "-"}
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                  <Mail size={14} className="text-slate-400" />
-                                  {primaryContact?.email || customer.email || "-"}
-                                </div>
-                              </div>
-                            </td>
-
-                            <td className="max-w-xs px-6 py-4 text-slate-600">
-                              <div className="whitespace-normal text-xs leading-relaxed">
-                                {formatAddress(primaryAddress)}
-                              </div>
-                            </td>
-
-                            <td className="px-6 py-4 text-slate-600">
-                              {customer.abn || "-"}
-                            </td>
-
-                            <td className="w-[210px] px-6 py-4">
-                              <StandardActions
-                                isActive={customer.is_active}
-                                onView={() => openViewCustomer(customer)}
-                                onEdit={() => openEditCustomer(customer)}
-                                onToggleActive={() =>
-                                  handleToggleCustomerActive(customer)
-                                }
-                                onDelete={() =>
-                                  handleDeleteCustomer(customer)
-                                }
-                                size="desktop"
-                                align="end"
-                              />
-                            </td>
-
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                    );
+                  })}
                 </div>
               </>
             )}

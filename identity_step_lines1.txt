@@ -1,0 +1,106 @@
+1181:                         searchPlaceholder="Search family code, name or description..."
+1182:                         emptyText="No matching Product Family found."
+1183:                         disabled={disabled}
+1184:                     />
+1185:                 </Field>
+1186: 
+1187:                 <Field
+1188:                     label="Thickness Code *"
+1189:                     manageLabel="Manage Thickness Codes"
+1190:                     onManage={onManage
+1191:                         ? () => onManage("thickness-codes")
+1192:                         : undefined}
+1193:                     helper={thicknessCode
+1194:                         ? thicknessCode.isUnspecified
+1195:                             ? "Unknown thickness is allowed. Actual thickness may be entered later without changing the Product Code."
+1196:                             : thicknessCode.thicknessMm === null
+1197:                             ? thicknessCode.description
+1198:                             : `Reference thickness: ${thicknessCode.thicknessMm} mm.`
+1199:                         : null}
+1200:                 >
+1201:                     <SearchablePicker
+1202:                         value={value.productThicknessCodeId}
+1203:                         onChange={(selected) =>
+1204:                             update({ productThicknessCodeId: selected })}
+1205:                         options={thicknessOptions}
+1206:                         placeholder="Select Thickness Code"
+1207:                         searchPlaceholder="Search thickness code or name..."
+1208:                         emptyText="No active Thickness Codes found."
+1209:                         disabled={disabled || !value.productCodeFamilyId}
+1210:                     />
+1211:                 </Field>
+1212: 
+1213:                 <Field
+1214:                     label="Product Code Type *"
+1215:                     manageLabel="Manage Product Code Types"
+1216:                     onManage={onManage
+1217:                         ? () => onManage("product-code-types")
+1218:                         : undefined}
+1219:                     helper="This controls the TTT segment. Business Product Type is selected separately below this identity section."
+1220:                 >
+1221:                     <SearchablePicker
+1222:                         value={value.productCodeTypeId}
+1223:                         onChange={(selected) =>
+1224:                             update({ productCodeTypeId: selected })}
+1225:                         options={typeOptions}
+1226:                         placeholder="Select Product Code Type"
+1227:                         searchPlaceholder="Search type code or name..."
+1228:                         emptyText="No active Product Code Types found."
+1229:                         disabled={disabled || !value.productCodeFamilyId}
+1230:                     />
+1231:                 </Field>
+1232: 
+1233:                 <Field
+1234:                     label="Size Rule *"
+1235:                     manageLabel="Manage Size Rules"
+1236:                     onManage={onManage
+1237:                         ? () => onManage("size-rules")
+1238:                         : undefined}
+1239:                     helper={sizeRule?.guidance}
+1240:                 >
+1241:                     <SearchablePicker
+1242:                         value={value.sizeRuleId}
+1243:                         onChange={(selected) =>
+1244:                             update({
+1245:                                 sizeRuleId: selected,
+1246:                                 firstValue: "",
+1247:                                 secondValue: "",
+1248:                             })}
+1249:                         options={sizeRuleOptions}
+1250:                         placeholder="Select Size Rule"
+1251:                         searchPlaceholder="Search size rule or example token..."
+1252:                         emptyText="No active Size Rules found."
+1253:                         disabled={disabled || !value.productCodeFamilyId}
+1254:                     />
+1255:                 </Field>
+1256: 
+1257:                 <Field
+1258:                     label="Product Colour *"
+1259:                     manageLabel="Manage Product Colours"
+1260:                     onManage={onManage
+1261:                         ? () => onManage("product-colours")
+1262:                         : undefined}
+1263:                     helper={colourMode === "not_applicable"
+1264:                         ? "This Product Family uses the Not Applicable colour identity."
+1265:                         : null}
+1266:                 >
+1267:                     <SearchablePicker
+1268:                         value={value.colourId}
+1269:                         onChange={(selected) => update({ colourId: selected })}
+1270:                         options={colourOptions}
+1271:                         placeholder="Select Product Colour"
+1272:                         searchPlaceholder="Search colour code or name..."
+1273:                         emptyText="No matching Product Colour found."
+1274:                         disabled={disabled || !value.productCodeFamilyId}
+1275:                     />
+1276:                 </Field>
+1277: 
+1278:                 <Field
+1279:                     label="Variant Code *"
+1280:                     helper="01 = Standard Product. 02–99 = Special Product Variant."
+1281:                 >
+1282:                     <Input
+1283:                         value={value.variantNumber}
+1284:                         onChange={(event) => {
+1285:                             const raw = event.target.value.replace(/\D/g, "")
+1286:                                 .slice(0, 2);

@@ -1,0 +1,641 @@
+--- a/src/pages/CustomerDatabase.tsx
++++ b/src/pages/CustomerDatabase.tsx
+@@ -93,6 +93,32 @@
+   is_primary: boolean;
+ };
+ 
++type CustomerAddressDraft = {
++  draft_id: string;
++  address_id: string | null;
++  address_type: string;
++  address_line1: string;
++  address_line2: string;
++  suburb: string;
++  state: string;
++  postcode: string;
++  country: string;
++  is_primary: boolean;
++};
++
++const createEmptyCustomerAddress = (isPrimary = false): CustomerAddressDraft => ({
++  draft_id: `address-${Date.now()}-${Math.random().toString(36).slice(2)}`,
++  address_id: null,
++  address_type: isPrimary ? "Billing" : "Delivery",
++  address_line1: "",
++  address_line2: "",
++  suburb: "",
++  state: "",
++  postcode: "",
++  country: "Australia",
++  is_primary: isPrimary,
++});
++
+ type CustomerFinancialSettingRow =
+   Database["public"]["Tables"]["customer_financial_settings"]["Row"];
+ 
+@@ -334,12 +360,9 @@
+   ]);
+   const [abn, setAbn] = useState("");
+   const [priceBookId, setPriceBookId] = useState("");
+-  const [addressLine1, setAddressLine1] = useState("");
+-  const [addressLine2, setAddressLine2] = useState("");
+-  const [suburb, setSuburb] = useState("");
+-  const [stateName, setStateName] = useState("");
+-  const [postcode, setPostcode] = useState("");
+-  const [country, setCountry] = useState("Australia");
++  const [customerAddresses, setCustomerAddresses] = useState<CustomerAddressDraft[]>([
++    createEmptyCustomerAddress(true),
++  ]);
+   const [notes, setNotes] = useState("");
+   const [customerFormSaving, setCustomerFormSaving] = useState(false);
+ 
+@@ -682,12 +705,7 @@
+     ]);
+     setAbn("");
+     setPriceBookId("");
+-    setAddressLine1("");
+-    setAddressLine2("");
+-    setSuburb("");
+-    setStateName("");
+-    setPostcode("");
+-    setCountry("Australia");
++    setCustomerAddresses([createEmptyCustomerAddress(true)]);
+     setNotes("");
+     setEditingCustomer(null);
+     setCustomerFormMode("add");
+@@ -745,6 +763,60 @@
+     });
+   };
+ 
++  const updateCustomerAddress = (
++    draftId: string,
++    changes: Partial<CustomerAddressDraft>
++  ) => {
++    setCustomerAddresses((current) =>
++      current.map((address) =>
++        address.draft_id === draftId ? { ...address, ...changes } : address
++      )
++    );
++  };
++
++  const addCustomerAddress = () => {
++    setCustomerAddresses((current) => [
++      ...current,
++      createEmptyCustomerAddress(current.length === 0),
++    ]);
++  };
++
++  const setPrimaryCustomerAddress = (draftId: string) => {
++    setCustomerAddresses((current) =>
++      current.map((address) => ({
++        ...address,
++        is_primary: address.draft_id === draftId,
++      }))
++    );
++  };
++
++  const removeCustomerAddress = (draftId: string) => {
++    const address = customerAddresses.find((item) => item.draft_id === draftId);
++    if (!address) return;
++
++    const label =
++      address.address_line1.trim() ||
++      `${address.address_type || "Customer"} address`;
++    const confirmed = window.confirm(
++      `Remove ${label}?\n\nExisting addresses will be soft deleted when the customer is saved.`
++    );
++    if (!confirmed) return;
++
++    setCustomerAddresses((current) => {
++      const remaining = current.filter((item) => item.draft_id !== draftId);
++      if (remaining.length === 0) {
++        return [createEmptyCustomerAddress(true)];
++      }
++      if (address.is_primary && !remaining.some((item) => item.is_primary)) {
++        return remaining.map((item, index) => ({
++          ...item,
++          is_primary: index === 0,
++        }));
++      }
++      return remaining;
++    });
++  };
++
+   const openAddCustomer = () => {
+     resetCustomerForm();
+     setShowAddDialog(true);
+@@ -764,12 +836,18 @@
+     const trimmedPhone = primaryContact?.phone || "";
+     const trimmedEmail = primaryContact?.email || "";
+     const trimmedAbn = abn.trim();
+-    const trimmedAddressLine1 = addressLine1.trim();
+-    const trimmedAddressLine2 = addressLine2.trim();
+-    const trimmedSuburb = suburb.trim();
+-    const trimmedState = stateName.trim();
+-    const trimmedPostcode = postcode.trim();
+-    const trimmedCountry = country.trim() || "Australia";
++    const normalizedAddresses = customerAddresses.map((address) => ({
++      ...address,
++      address_type: address.address_type.trim() || "Other",
++      address_line1: address.address_line1.trim(),
++      address_line2: address.address_line2.trim(),
++      suburb: address.suburb.trim(),
++      state: address.state.trim(),
++      postcode: address.postcode.trim(),
++      country: address.country.trim() || "Australia",
++    }));
++    const primaryAddress =
++      normalizedAddresses.find((address) => address.is_primary) || normalizedAddresses[0];
+     const trimmedNotes = notes.trim();
+ 
+     if (!trimmedCustomerName) {
+@@ -797,8 +875,18 @@
+       return;
+     }
+ 
+-    if (!trimmedAddressLine1) {
+-      alert("Address Line 1 is required.");
++    if (normalizedAddresses.length === 0) {
++      alert("Please add at least one address.");
++      return;
++    }
++
++    if (normalizedAddresses.some((address) => !address.address_line1)) {
++      alert("Address Line 1 is required for every address.");
++      return;
++    }
++
++    if (!primaryAddress) {
++      alert("Please select a primary address.");
+       return;
+     }
+ 
+@@ -849,19 +937,21 @@
+ 
+       const { error: addressError } = await supabase
+         .from("customer_addresses")
+-        .insert({
+-          customer_id: createdCustomer.customer_id,
+-          address_type: "Billing",
+-          address_line1: trimmedAddressLine1,
+-          address_line2: trimmedAddressLine2 || null,
+-          suburb: trimmedSuburb || null,
+-          state: trimmedState || null,
+-          postcode: trimmedPostcode || null,
+-          country: trimmedCountry,
+-          is_primary: true,
+-          is_active: true,
+-          is_deleted: false,
+-        });
++        .insert(
++          normalizedAddresses.map((address) => ({
++            customer_id: createdCustomer.customer_id,
++            address_type: address.address_type,
++            address_line1: address.address_line1,
++            address_line2: address.address_line2 || null,
++            suburb: address.suburb || null,
++            state: address.state || null,
++            postcode: address.postcode || null,
++            country: address.country,
++            is_primary: address.draft_id === primaryAddress.draft_id,
++            is_active: true,
++            is_deleted: false,
++          }))
++        );
+ 
+       if (addressError) throw addressError;
+ 
+@@ -1044,12 +1134,25 @@
+     );
+     setAbn(customer.abn || "");
+     setPriceBookId(customer.price_book_id || "");
+-    setAddressLine1(billingAddress?.address_line1 || "");
+-    setAddressLine2(billingAddress?.address_line2 || "");
+-    setSuburb(billingAddress?.suburb || "");
+-    setStateName(billingAddress?.state || "");
+-    setPostcode(billingAddress?.postcode || "");
+-    setCountry(billingAddress?.country || "Australia");
++    const existingAddresses = customer.customer_addresses ?? [];
++    setCustomerAddresses(
++      existingAddresses.length > 0
++        ? existingAddresses.map((address) => ({
++            draft_id: address.address_id,
++            address_id: address.address_id,
++            address_type: address.address_type || "Other",
++            address_line1: address.address_line1 || "",
++            address_line2: address.address_line2 || "",
++            suburb: address.suburb || "",
++            state: address.state || "",
++            postcode: address.postcode || "",
++            country: address.country || "Australia",
++            is_primary: address.address_id === billingAddress?.address_id
++              ? true
++              : address.is_primary,
++          }))
++        : [createEmptyCustomerAddress(true)]
++    );
+     setNotes(customer.notes || "");
+     setShowAddDialog(true);
+   };
+@@ -1073,12 +1176,18 @@
+     const trimmedPhone = primaryContactDraft?.phone || "";
+     const trimmedEmail = primaryContactDraft?.email || "";
+     const trimmedAbn = abn.trim();
+-    const trimmedAddressLine1 = addressLine1.trim();
+-    const trimmedAddressLine2 = addressLine2.trim();
+-    const trimmedSuburb = suburb.trim();
+-    const trimmedState = stateName.trim();
+-    const trimmedPostcode = postcode.trim();
+-    const trimmedCountry = country.trim() || "Australia";
++    const normalizedAddresses = customerAddresses.map((address) => ({
++      ...address,
++      address_type: address.address_type.trim() || "Other",
++      address_line1: address.address_line1.trim(),
++      address_line2: address.address_line2.trim(),
++      suburb: address.suburb.trim(),
++      state: address.state.trim(),
++      postcode: address.postcode.trim(),
++      country: address.country.trim() || "Australia",
++    }));
++    const primaryAddressDraft =
++      normalizedAddresses.find((address) => address.is_primary) || normalizedAddresses[0];
+     const trimmedNotes = notes.trim();
+ 
+     if (!trimmedCustomerName) {
+@@ -1106,12 +1215,20 @@
+       return;
+     }
+ 
+-    if (!trimmedAddressLine1) {
+-      alert("Address Line 1 is required.");
++    if (normalizedAddresses.length === 0) {
++      alert("Please add at least one address.");
++      return;
++    }
++
++    if (normalizedAddresses.some((address) => !address.address_line1)) {
++      alert("Address Line 1 is required for every address.");
+       return;
+     }
+ 
+-    const billingAddress = getBillingAddress(editingCustomer);
++    if (!primaryAddressDraft) {
++      alert("Please select a primary address.");
++      return;
++    }
+ 
+     setCustomerFormSaving(true);
+ 
+@@ -1190,42 +1307,66 @@
+         if (contactDeleteError) throw contactDeleteError;
+       }
+ 
+-      if (billingAddress?.address_id) {
+-        const { error: addressError } = await supabase
++      const existingAddressIds = new Set(
++        (editingCustomer.customer_addresses ?? []).map((address) => address.address_id)
++      );
++      const retainedAddressIds = new Set(
++        normalizedAddresses
++          .map((address) => address.address_id)
++          .filter((addressId): addressId is string => Boolean(addressId))
++      );
++      const removedAddressIds = [...existingAddressIds].filter(
++        (addressId) => !retainedAddressIds.has(addressId)
++      );
++
++      for (const address of normalizedAddresses) {
++        const payload = {
++          address_type: address.address_type,
++          address_line1: address.address_line1,
++          address_line2: address.address_line2 || null,
++          suburb: address.suburb || null,
++          state: address.state || null,
++          postcode: address.postcode || null,
++          country: address.country,
++          is_primary: address.draft_id === primaryAddressDraft.draft_id,
++          is_active: true,
++          is_deleted: false,
++          deleted_at: null,
++        };
++
++        if (address.address_id) {
++          const { error: addressUpdateError } = await supabase
++            .from("customer_addresses")
++            .update(payload)
++            .eq("address_id", address.address_id)
++            .eq("customer_id", editingCustomer.customer_id);
++
++          if (addressUpdateError) throw addressUpdateError;
++        } else {
++          const { error: addressInsertError } = await supabase
++            .from("customer_addresses")
++            .insert({
++              customer_id: editingCustomer.customer_id,
++              ...payload,
++            });
++
++          if (addressInsertError) throw addressInsertError;
++        }
++      }
++
++      if (removedAddressIds.length > 0) {
++        const { error: addressDeleteError } = await supabase
+           .from("customer_addresses")
+           .update({
+-            address_type: "Billing",
+-            address_line1: trimmedAddressLine1,
+-            address_line2: trimmedAddressLine2 || null,
+-            suburb: trimmedSuburb || null,
+-            state: trimmedState || null,
+-            postcode: trimmedPostcode || null,
+-            country: trimmedCountry,
+-            is_primary: true,
+-            is_active: true,
++            is_primary: false,
++            is_active: false,
++            is_deleted: true,
++            deleted_at: new Date().toISOString(),
+           })
+-          .eq("address_id", billingAddress.address_id)
+-          .eq("customer_id", editingCustomer.customer_id);
+-
+-        if (addressError) throw addressError;
+-      } else {
+-        const { error: addressInsertError } = await supabase
+-          .from("customer_addresses")
+-          .insert({
+-            customer_id: editingCustomer.customer_id,
+-            address_type: "Billing",
+-            address_line1: trimmedAddressLine1,
+-            address_line2: trimmedAddressLine2 || null,
+-            suburb: trimmedSuburb || null,
+-            state: trimmedState || null,
+-            postcode: trimmedPostcode || null,
+-            country: trimmedCountry,
+-            is_primary: true,
+-            is_active: true,
+-            is_deleted: false,
+-          });
++          .eq("customer_id", editingCustomer.customer_id)
++          .in("address_id", removedAddressIds);
+ 
+-        if (addressInsertError) throw addressInsertError;
++        if (addressDeleteError) throw addressDeleteError;
+       }
+ 
+       setShowAddDialog(false);
+@@ -2883,80 +3024,186 @@
+ 
+               <CustomerFormSection
+                 number="03"
+-                title="Billing Address"
+-                description="Structured Australian billing address saved into dedicated address fields."
++                title="Customer Addresses"
++                description="Add one or more addresses and choose the single primary address used across the customer record."
+               >
+-                <div className="grid gap-4 md:grid-cols-2">
+-                  <div className="space-y-2 md:col-span-2">
+-                    <Label>Address Line 1 / Street Address</Label>
+-                    <Input
+-                      className={customerInputClassName}
+-                      value={addressLine1}
+-                      onChange={(e) => setAddressLine1(e.target.value)}
+-                      placeholder="Street number and street name"
+-                    />
++                <div className="space-y-4">
++                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
++                    <p className="text-xs text-slate-500">
++                      Use address types such as Billing, Delivery, Postal, Site, or Other.
++                    </p>
++                    <Button
++                      type="button"
++                      variant="outline"
++                      onClick={addCustomerAddress}
++                      className="h-10 rounded-xl border-slate-300 bg-white font-semibold"
++                    >
++                      <Plus className="mr-2 h-4 w-4" />
++                      Add Address
++                    </Button>
+                   </div>
+ 
+-                  <div className="space-y-2 md:col-span-2">
+-                    <Label>Address Line 2 / Unit, Level, Building</Label>
+-                    <Input
+-                      className={customerInputClassName}
+-                      value={addressLine2}
+-                      onChange={(e) => setAddressLine2(e.target.value)}
+-                      placeholder="Unit, level, building, or suite"
+-                    />
+-                  </div>
++                  {customerAddresses.map((address, index) => (
++                    <div
++                      key={address.draft_id}
++                      className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
++                    >
++                      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
++                        <div>
++                          <p className="font-bold text-slate-900">Address {index + 1}</p>
++                          <p className="text-xs text-slate-500">
++                            {address.is_primary ? "Primary customer address" : "Additional customer address"}
++                          </p>
++                        </div>
+ 
+-                  <div className="space-y-2">
+-                    <Label>Suburb</Label>
+-                    <Input
+-                      className={customerInputClassName}
+-                      value={suburb}
+-                      onChange={(e) => setSuburb(e.target.value)}
+-                      placeholder="Suburb"
+-                    />
+-                  </div>
++                        <div className="flex items-center gap-2">
++                          <Button
++                            type="button"
++                            variant={address.is_primary ? "default" : "outline"}
++                            onClick={() => setPrimaryCustomerAddress(address.draft_id)}
++                            className={
++                              address.is_primary
++                                ? "h-9 rounded-xl bg-[#9E4B4B] px-3 text-xs font-bold text-white hover:bg-[#874040]"
++                                : "h-9 rounded-xl border-slate-300 bg-white px-3 text-xs font-bold"
++                            }
++                          >
++                            {address.is_primary ? "Primary" : "Set Primary"}
++                          </Button>
+ 
+-                  <div className="space-y-2">
+-                    <Label>State</Label>
+-                    <Select
+-                      value={stateName || EMPTY_SELECT_VALUE}
+-                      onValueChange={(value) =>
+-                        setStateName(value === EMPTY_SELECT_VALUE ? "" : value)
+-                      }
+-                    >
+-                      <SelectTrigger className={customerInputClassName}>
+-                        <SelectValue placeholder="Select state" />
+-                      </SelectTrigger>
+-                      <SelectContent>
+-                        <SelectItem value={EMPTY_SELECT_VALUE}>Select state</SelectItem>
+-                        {AUSTRALIAN_STATES.map((stateCode) => (
+-                          <SelectItem key={stateCode} value={stateCode}>
+-                            {stateCode}
+-                          </SelectItem>
+-                        ))}
+-                      </SelectContent>
+-                    </Select>
+-                  </div>
++                          {customerAddresses.length > 1 && (
++                            <Button
++                              type="button"
++                              variant="outline"
++                              size="icon"
++                              onClick={() => removeCustomerAddress(address.draft_id)}
++                              className="h-9 w-9 rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
++                              aria-label={`Remove address ${index + 1}`}
++                            >
++                              <Trash2 className="h-4 w-4" />
++                            </Button>
++                          )}
++                        </div>
++                      </div>
+ 
+-                  <div className="space-y-2">
+-                    <Label>Postcode</Label>
+-                    <Input
+-                      className={customerInputClassName}
+-                      value={postcode}
+-                      onChange={(e) => setPostcode(e.target.value)}
+-                      placeholder="Postcode"
+-                    />
+-                  </div>
++                      <div className="grid gap-4 md:grid-cols-2">
++                        <div className="space-y-2">
++                          <Label>Address Type</Label>
++                          <Select
++                            value={address.address_type}
++                            onValueChange={(value) =>
++                              updateCustomerAddress(address.draft_id, {
++                                address_type: value,
++                              })
++                            }
++                          >
++                            <SelectTrigger className={customerInputClassName}>
++                              <SelectValue placeholder="Select address type" />
++                            </SelectTrigger>
++                            <SelectContent>
++                              <SelectItem value="Billing">Billing</SelectItem>
++                              <SelectItem value="Delivery">Delivery</SelectItem>
++                              <SelectItem value="Postal">Postal</SelectItem>
++                              <SelectItem value="Site">Site</SelectItem>
++                              <SelectItem value="Other">Other</SelectItem>
++                            </SelectContent>
++                          </Select>
++                        </div>
+ 
+-                  <div className="space-y-2">
+-                    <Label>Country</Label>
+-                    <Input
+-                      className={customerInputClassName}
+-                      value={country}
+-                      onChange={(e) => setCountry(e.target.value)}
+-                    />
+-                  </div>
++                        <div className="space-y-2">
++                          <Label>Country</Label>
++                          <Input
++                            className={customerInputClassName}
++                            value={address.country}
++                            onChange={(e) =>
++                              updateCustomerAddress(address.draft_id, {
++                                country: e.target.value,
++                              })
++                            }
++                          />
++                        </div>
++
++                        <div className="space-y-2 md:col-span-2">
++                          <Label>Address Line 1 / Street Address</Label>
++                          <Input
++                            className={customerInputClassName}
++                            value={address.address_line1}
++                            onChange={(e) =>
++                              updateCustomerAddress(address.draft_id, {
++                                address_line1: e.target.value,
++                              })
++                            }
++                            placeholder="Street number and street name"
++                          />
++                        </div>
++
++                        <div className="space-y-2 md:col-span-2">
++                          <Label>Address Line 2 / Unit, Level, Building</Label>
++                          <Input
++                            className={customerInputClassName}
++                            value={address.address_line2}
++                            onChange={(e) =>
++                              updateCustomerAddress(address.draft_id, {
++                                address_line2: e.target.value,
++                              })
++                            }
++                            placeholder="Unit, level, building, or suite"
++                          />
++                        </div>
++
++                        <div className="space-y-2">
++                          <Label>Suburb</Label>
++                          <Input
++                            className={customerInputClassName}
++                            value={address.suburb}
++                            onChange={(e) =>
++                              updateCustomerAddress(address.draft_id, {
++                                suburb: e.target.value,
++                              })
++                            }
++                            placeholder="Suburb"
++                          />
++                        </div>
++
++                        <div className="space-y-2">
++                          <Label>State</Label>
++                          <Select
++                            value={address.state || EMPTY_SELECT_VALUE}
++                            onValueChange={(value) =>
++                              updateCustomerAddress(address.draft_id, {
++                                state: value === EMPTY_SELECT_VALUE ? "" : value,
++                              })
++                            }
++                          >
++                            <SelectTrigger className={customerInputClassName}>
++                              <SelectValue placeholder="Select state" />
++                            </SelectTrigger>
++                            <SelectContent>
++                              <SelectItem value={EMPTY_SELECT_VALUE}>Select state</SelectItem>
++                              {AUSTRALIAN_STATES.map((stateCode) => (
++                                <SelectItem key={stateCode} value={stateCode}>
++                                  {stateCode}
++                                </SelectItem>
++                              ))}
++                            </SelectContent>
++                          </Select>
++                        </div>
++
++                        <div className="space-y-2">
++                          <Label>Postcode</Label>
++                          <Input
++                            className={customerInputClassName}
++                            value={address.postcode}
++                            onChange={(e) =>
++                              updateCustomerAddress(address.draft_id, {
++                                postcode: e.target.value,
++                              })
++                            }
++                            placeholder="Postcode"
++                          />
++                        </div>
++                      </div>
++                    </div>
++                  ))}
+                 </div>
+               </CustomerFormSection>
+ 

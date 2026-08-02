@@ -16,11 +16,13 @@ type Family = {
     defaultTypeId: string | null; defaultSizeRuleId: string | null;
     colourMode: "required" | "optional" | "not_applicable";
 };
-type Variant = {
-    id: string; familyId: string; fullCode: string; name: string;
-    thicknessMm: number | null; subtypeValue: string | null;
-    sizeRuleId: string | null;
-    colourModeOverride: "required" | "optional" | "not_applicable" | null;
+type ThicknessCode = {
+    id: string;
+    code: string;
+    name: string;
+    thicknessMm: number | null;
+    meaning: "physical" | "unknown" | "not_applicable" | "reserved";
+    description: string | null;
 };
 type ProductType = { id: string; code: string; name: string };
 type SizeRule = {
@@ -37,24 +39,52 @@ type Colour = {
     referenceHex: string | null; isNotApplicable: boolean;
 };
 type PreviewResult = {
-    product_code_preview: string; full_category_code: string;
-    category_variant_name: string; family_code: string; family_name: string;
-    type_code: string; type_name: string; size_token: string;
-    size_rule_name: string; colour_code: string; colour_name: string;
-    selected_variant_number: number; variant_code: string;
-    variant_name: string; variant_description: string | null;
-    is_variant_available: boolean; warning_text: string;
+    product_code_preview: string;
+    full_category_code: string;
+    family_code: string;
+    family_name: string;
+    thickness_code: string;
+    thickness_name: string;
+    thickness_mm: number | null;
+    thickness_meaning: string;
+    type_code: string;
+    type_name: string;
+    size_token: string;
+    size_rule_name: string;
+    colour_code: string;
+    colour_name: string;
+    selected_variant_number: number;
+    variant_code: string;
+    variant_name: string;
+    variant_description: string | null;
+    is_variant_available: boolean;
+    warning_text: string;
 };
 
 export type ProductCodeBuilderValue = {
-    categoryVariantId: string; productCodeTypeId: string; sizeRuleId: string;
-    colourId: string; firstValue: number | null; secondValue: number | null;
-    variantNumber: number; variantCode: string;
-    variantName: string; variantDescription: string | null;
-    previewCode: string; fullCategoryCode: string; familyCode: string;
-    familyName: string; categoryVariantName: string; typeCode: string;
-    typeName: string; sizeToken: string; sizeRuleName: string;
-    colourCode: string; colourName: string;
+    productCodeFamilyId: string;
+    productThicknessCodeId: string;
+    productCodeTypeId: string;
+    sizeRuleId: string;
+    colourId: string;
+    firstValue: number | null;
+    secondValue: number | null;
+    variantNumber: number;
+    variantCode: string;
+    variantName: string;
+    variantDescription: string | null;
+    previewCode: string;
+    fullCategoryCode: string;
+    familyCode: string;
+    familyName: string;
+    thicknessCode: string;
+    thicknessName: string;
+    typeCode: string;
+    typeName: string;
+    sizeToken: string;
+    sizeRuleName: string;
+    colourCode: string;
+    colourName: string;
 };
 
 type Props = {
@@ -184,9 +214,12 @@ function SearchablePicker({
                                 className="h-11 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] pl-10 hover:border-[#9E4B4B] focus-visible:border-[#9E4B4B] focus-visible:ring-[#9E4B4B]/20"
                             />
                         </div>
-                        <p className="mt-2 text-xs text-slate-500">Type at least 2 letters to narrow the list.</p>
+                        <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+                            <span>Type at least 2 letters to narrow the list.</span>
+                            <span className="font-semibold">{filtered.length} options</span>
+                        </div>
                     </div>
-                    <div role="listbox" className="max-h-64 overflow-y-auto p-1">
+                    <div role="listbox" className="max-h-[22rem] overflow-y-auto overscroll-contain p-1">
                         {filtered.length === 0 ? (
                             <div className="px-3 py-6 text-center text-sm text-slate-500">{emptyText}</div>
                         ) : (
@@ -282,7 +315,7 @@ export function ProductCodeBuilderModal({
     open, onOpenChange, onConfirm, confirmLabel = "Use This Product Code",
 }: Props) {
     const [familyId, setFamilyId] = useState("");
-    const [variantId, setVariantId] = useState("");
+    const [thicknessCodeId, setThicknessCodeId] = useState("");
     const [typeId, setTypeId] = useState("");
     const [sizeRuleId, setSizeRuleId] = useState("");
     const [colourId, setColourId] = useState("");
@@ -312,22 +345,26 @@ export function ProductCodeBuilderModal({
         },
     });
 
-    const { data: variants = [], isLoading: loadingVariants } = useQuery({
-        queryKey: ["product-code-builder", "variants", familyId],
-        enabled: open && Boolean(familyId),
-        queryFn: async (): Promise<Variant[]> => {
-            const { data, error } = await db.from("product_code_category_variants")
-                .select("product_code_category_variant_id,product_code_family_id,full_category_code,variant_name,thickness_mm,subtype_value,size_rule_id,colour_mode_override")
-                .eq("product_code_family_id", familyId)
-                .eq("is_deleted", false).eq("is_active", true).eq("status", "active")
-                .order("variant_digit");
+    const { data: thicknessCodes = [], isLoading: loadingThicknessCodes } = useQuery({
+        queryKey: ["product-code-builder", "thickness-codes"],
+        enabled: open,
+        queryFn: async (): Promise<ThicknessCode[]> => {
+            const { data, error } = await db
+                .from("product_thickness_codes")
+                .select("product_thickness_code_id,thickness_code,thickness_name,thickness_mm,thickness_meaning,description")
+                .eq("is_deleted", false)
+                .eq("is_active", true)
+                .eq("status", "active")
+                .order("sort_order")
+                .order("thickness_code");
             if (error) throw error;
             return (data ?? []).map((row: any) => ({
-                id: row.product_code_category_variant_id, familyId: row.product_code_family_id,
-                fullCode: row.full_category_code, name: row.variant_name,
+                id: row.product_thickness_code_id,
+                code: row.thickness_code,
+                name: row.thickness_name,
                 thicknessMm: row.thickness_mm === null ? null : Number(row.thickness_mm),
-                subtypeValue: row.subtype_value, sizeRuleId: row.size_rule_id,
-                colourModeOverride: row.colour_mode_override,
+                meaning: row.thickness_meaning,
+                description: row.description,
             }));
         },
     });
@@ -393,12 +430,12 @@ export function ProductCodeBuilderModal({
     });
 
     const family = useMemo(() => families.find((x) => x.id === familyId) ?? null, [families, familyId]);
-    const variant = useMemo(() => variants.find((x) => x.id === variantId) ?? null, [variants, variantId]);
+    const thicknessCode = useMemo(() => thicknessCodes.find((x) => x.id === thicknessCodeId) ?? null, [thicknessCodes, thicknessCodeId]);
     const productType = useMemo(() => types.find((x) => x.id === typeId) ?? null, [types, typeId]);
     const sizeRule = useMemo(() => sizeRules.find((x) => x.id === sizeRuleId) ?? null, [sizeRules, sizeRuleId]);
     const colour = useMemo(() => colours.find((x) => x.id === colourId) ?? null, [colours, colourId]);
 
-    const colourMode = variant?.colourModeOverride ?? family?.colourMode ?? "optional";
+    const colourMode = family?.colourMode ?? "optional";
     const availableColours = useMemo(() => {
         if (colourMode === "not_applicable") return colours.filter((x) => x.isNotApplicable);
         if (colourMode === "required") return colours.filter((x) => !x.isNotApplicable);
@@ -429,20 +466,29 @@ export function ProductCodeBuilderModal({
         [families],
     );
 
-    const variantOptions = useMemo<SearchableOption[]>(
-        () => [...variants]
-            .sort((a, b) => a.fullCode.localeCompare(b.fullCode, "en-AU", { numeric: true }) || a.name.localeCompare(b.name, "en-AU"))
-            .map((item) => ({
-                value: item.id,
-                label: `${item.fullCode} — ${item.name}`,
-                description: item.thicknessMm !== null
-                    ? `Thickness: ${item.thicknessMm} mm`
-                    : item.subtypeValue
-                        ? `Subtype: ${titleCase(item.subtypeValue)}`
-                        : null,
-                searchText: `${item.fullCode} ${item.name} ${item.thicknessMm ?? ""} ${item.subtypeValue ?? ""}`,
-            })),
-        [variants],
+    const thicknessCodeOptions = useMemo<SearchableOption[]>(
+        () =>
+            [...thicknessCodes]
+                .sort((a, b) => a.thicknessMm === null && b.thicknessMm !== null
+                    ? 1
+                    : a.thicknessMm !== null && b.thicknessMm === null
+                        ? -1
+                        : (a.thicknessMm ?? 0) - (b.thicknessMm ?? 0)
+                            || a.code.localeCompare(b.code, "en-AU"))
+                .map((item) => ({
+                    value: item.id,
+                    label:
+                        item.code === "Z"
+                            ? "Z — Unknown"
+                            : item.code === "X"
+                                ? "X — Not Applicable"
+                                : `${item.code} — ${item.thicknessMm ?? item.name} mm`,
+                    description: item.description,
+                    searchText: `${item.code} ${item.name} ${item.thicknessMm ?? ""} ${item.meaning}`,
+                    searchCode: item.code,
+                    searchName: item.name,
+                })),
+        [thicknessCodes],
     );
 
     const sizeRuleOptions = useMemo<SearchableOption[]>(
@@ -467,11 +513,11 @@ export function ProductCodeBuilderModal({
 
     useEffect(() => {
         if (!family) {
-            setVariantId(""); setTypeId(""); setSizeRuleId(""); setColourId("");
+            setThicknessCodeId(""); setTypeId(""); setSizeRuleId(""); setColourId("");
             setFirstValue(""); setSecondValue(""); setPreview(null);
             return;
         }
-        setVariantId("");
+        setThicknessCodeId("");
         setTypeId(family.defaultTypeId ?? "");
         setSizeRuleId(family.defaultSizeRuleId ?? "");
         setFirstValue(""); setSecondValue(""); setVariantNumber("01");
@@ -480,15 +526,9 @@ export function ProductCodeBuilderModal({
     }, [family?.id]);
 
     useEffect(() => {
-        if (!variant) {
-            setPreview(null);
-            return;
-        }
-        setSizeRuleId(variant.sizeRuleId ?? family?.defaultSizeRuleId ?? "");
-        setFirstValue(""); setSecondValue(""); setVariantNumber("01");
-        setVariantName("Standard"); setVariantDescription("");
-        setPreview(null); setPreviewError(null);
-    }, [variant?.id, family?.defaultSizeRuleId]);
+        setPreview(null);
+        setPreviewError(null);
+    }, [thicknessCode?.id]);
 
     useEffect(() => {
         if (family?.defaultTypeId && types.some((x) => x.id === family.defaultTypeId)) {
@@ -505,14 +545,14 @@ export function ProductCodeBuilderModal({
         } else if (colourMode === "required" && colour?.isNotApplicable) {
             setColourId("");
         }
-    }, [family?.id, variant?.id, colourMode, colours, colour?.isNotApplicable]);
+    }, [family?.id, colourMode, colours, colour?.isNotApplicable]);
 
     useEffect(() => {
         setPreview(null);
         setPreviewError(null);
     }, [
         familyId,
-        variantId,
+        thicknessCodeId,
         typeId,
         sizeRuleId,
         colourId,
@@ -524,7 +564,7 @@ export function ProductCodeBuilderModal({
     ]);
 
     const reset = () => {
-        setFamilyId(""); setVariantId(""); setTypeId(""); setSizeRuleId("");
+        setFamilyId(""); setThicknessCodeId(""); setTypeId(""); setSizeRuleId("");
         setColourId(""); setFirstValue(""); setSecondValue("");
         setVariantNumber("01");
         setVariantName("Standard");
@@ -539,7 +579,7 @@ export function ProductCodeBuilderModal({
 
     const validate = () => {
         if (!familyId) throw new Error("Product Family is required.");
-        if (!variantId) throw new Error("Category Variant is required.");
+        if (!thicknessCodeId) throw new Error("Thickness Code is required.");
         if (!typeId) throw new Error("Product Type is required.");
         if (!sizeRuleId) throw new Error("Size Rule is required.");
         if (!colourId) throw new Error("Product Colour is required.");
@@ -570,7 +610,18 @@ export function ProductCodeBuilderModal({
             throw new Error("Variant Code must be a whole number between 01 and 99.");
         }
 
-        const selectedVariantName = variantName.trim();
+        const selectedVariantName =
+            selectedVariantNumber === 1 ? "Standard" : variantName.trim();
+
+        if (
+            selectedVariantNumber !== 1 &&
+            selectedVariantName.toLowerCase() === "standard"
+        ) {
+            throw new Error(
+                "Variant Name ‘Standard’ is reserved for Variant Code 01. Enter the specification that makes this variant different.",
+            );
+        }
+
         if (selectedVariantName.length < 2 || selectedVariantName.length > 120) {
             throw new Error("Variant Name must contain between 2 and 120 characters.");
         }
@@ -609,9 +660,10 @@ export function ProductCodeBuilderModal({
             setIsPreviewing(true);
 
             const { data, error } = await db.rpc(
-                "preview_product_code_variant",
+                "preview_product_code_variant_v2",
                 {
-                    p_category_variant_id: variantId,
+                    p_product_code_family_id: familyId,
+                    p_product_thickness_code_id: thicknessCodeId,
                     p_product_code_type_id: typeId,
                     p_size_rule_id: sizeRuleId,
                     p_colour_id: colourId,
@@ -654,12 +706,13 @@ export function ProductCodeBuilderModal({
                 throw new Error("This Variant Code has already been used.");
             }
 
-            if (!family || !variant || !productType || !sizeRule || !colour) {
+            if (!family || !thicknessCode || !productType || !sizeRule || !colour) {
                 throw new Error("Product Code selections are incomplete.");
             }
 
             onConfirm({
-                categoryVariantId: variantId,
+                productCodeFamilyId: familyId,
+                productThicknessCodeId: thicknessCodeId,
                 productCodeTypeId: typeId,
                 sizeRuleId,
                 colourId,
@@ -673,7 +726,8 @@ export function ProductCodeBuilderModal({
                 fullCategoryCode: preview.full_category_code,
                 familyCode: preview.family_code,
                 familyName: preview.family_name,
-                categoryVariantName: preview.category_variant_name,
+                thicknessCode: preview.thickness_code,
+                thicknessName: preview.thickness_name,
                 typeCode: preview.type_code,
                 typeName: preview.type_name,
                 sizeToken: preview.size_token,
@@ -687,7 +741,7 @@ export function ProductCodeBuilderModal({
         }
     };
 
-    const loading = loadingFamilies || loadingVariants || loadingTypes || loadingSizeRules || loadingColours;
+    const loading = loadingFamilies || loadingThicknessCodes || loadingTypes || loadingSizeRules || loadingColours;
     const liveSizeToken = buildLiveSizeToken(
         sizeRule,
         firstValue,
@@ -701,8 +755,8 @@ export function ProductCodeBuilderModal({
 
     const previewText = preview
         ? preview.product_code_preview
-        : variant
-            ? `${variant.fullCode}-${productType?.code ?? "TTT"}-${liveSizeToken}-${colour?.code ?? "CLR"}-${liveVariantCode}`
+        : family && thicknessCode
+            ? `${family.code}${thicknessCode.code}-${productType?.code ?? "TTT"}-${liveSizeToken}-${colour?.code ?? "CLR"}-${liveVariantCode}`
             : "CCC-TTT-WWWXLLLL-CLR-VV";
 
     return (
@@ -752,23 +806,23 @@ export function ProductCodeBuilderModal({
                                 {family?.description && <Help>{family.description}</Help>}
                             </Field>
 
-                            <Field label="Category Variant *">
+                            <Field label="Thickness Code *">
                                 <SearchablePicker
-                                    value={variantId}
-                                    onChange={setVariantId}
-                                    options={variantOptions}
-                                    placeholder={familyId ? "Select Category Variant" : "Select Product Family first"}
-                                    searchPlaceholder="Search category code, name, thickness or subtype..."
-                                    disabled={!familyId}
-                                    emptyText={familyId ? "No Category Variants are configured for this Family." : "Select Product Family first."}
+                                    value={thicknessCodeId}
+                                    onChange={setThicknessCodeId}
+                                    options={thicknessCodeOptions}
+                                    placeholder="Select Thickness Code"
+                                    searchPlaceholder="Search thickness code or thickness..."
+                                    disabled={false}
+                                    emptyText="No active Thickness Codes found."
                                 />
-                                {variant && (
+                                {thicknessCode && (
                                     <Help>
-                                        {variant.thicknessMm !== null
-                                            ? `Thickness: ${variant.thicknessMm} mm`
-                                            : variant.subtypeValue
-                                                ? `Subtype: ${titleCase(variant.subtypeValue)}`
-                                                : variant.name}
+                                        {thicknessCode.code === "Z"
+                                            ? "Thickness is currently unknown. The Product Code will retain Z."
+                                            : thicknessCode.code === "X"
+                                                ? "Thickness is not applicable to this Product."
+                                                : `Physical thickness: ${thicknessCode.thicknessMm} mm.`}
                                     </Help>
                                 )}
                             </Field>
@@ -794,9 +848,9 @@ export function ProductCodeBuilderModal({
                                         setSecondValue("");
                                     }}
                                     options={sizeRuleOptions}
-                                    placeholder={variantId ? "Select Size Rule" : "Select Category Variant first"}
+                                    placeholder={familyId ? "Select Size Rule" : "Select Product Family first"}
                                     searchPlaceholder="Search size rule name, code or example..."
-                                    disabled={!variantId}
+                                    disabled={!familyId}
                                     emptyText="No matching Size Rule found."
                                 />
                                 {sizeRule && <Help>Example: <span className="font-mono font-semibold">{sizeRule.exampleToken}</span></Help>}
@@ -828,9 +882,9 @@ export function ProductCodeBuilderModal({
                                     value={colourId}
                                     onChange={setColourId}
                                     options={colourOptions}
-                                    placeholder={variantId ? "Select Product Colour" : "Select Category Variant first"}
+                                    placeholder={familyId ? "Select Product Colour" : "Select Product Family first"}
                                     searchPlaceholder="Search colour code or name..."
-                                    disabled={!variantId}
+                                    disabled={!familyId}
                                     emptyText="No Product Colours are available for the selected rule."
                                 />
                                 <Help>
@@ -850,28 +904,54 @@ export function ProductCodeBuilderModal({
                                         const value = event.target.value;
                                         if (value === "" || /^\d{1,2}$/.test(value)) {
                                             setVariantNumber(value);
+
+                                            if (value !== "") {
+                                                const numericValue = Number(value);
+                                                if (numericValue === 1) {
+                                                    setVariantName("Standard");
+                                                } else if (
+                                                    variantName.trim().toLowerCase() ===
+                                                    "standard"
+                                                ) {
+                                                    setVariantName("");
+                                                }
+                                            }
                                         }
                                     }}
                                     placeholder="Example: 05"
-                                    disabled={!variantId || !typeId || !sizeRuleId || !colourId}
+                                    disabled={!thicknessCodeId || !typeId || !sizeRuleId || !colourId}
                                     className="h-11"
                                 />
                                 <Help>
-                                    Use a new number when the product has a materially different specification.
+                                    Use 02–99 only for a special factory-added feature applied to the same base Product.
                                 </Help>
                             </Field>
 
                             <Field label="Variant Name *">
                                 <Input
-                                    value={variantName}
-                                    onChange={(event) => setVariantName(event.target.value)}
+                                    value={
+                                        Number(variantNumber) === 1
+                                            ? "Standard"
+                                            : variantName
+                                    }
+                                    onChange={(event) =>
+                                        setVariantName(event.target.value)
+                                    }
                                     maxLength={120}
-                                    placeholder="Example: Wooden Design"
-                                    disabled={!variantNumber}
+                                    placeholder={
+                                        Number(variantNumber) === 1
+                                            ? "Standard"
+                                            : "Example: High Gloss Coating"
+                                    }
+                                    disabled={
+                                        !variantNumber || Number(variantNumber) === 1
+                                    }
                                     className="h-11"
                                 />
                                 <Help>
-                                    Short meaning of this Variant Code within the same Product Code base.
+                                    {Number(variantNumber) === 1
+                                        ? "Variant Code 01 is always Standard."
+                                        : "Describe the special factory-added feature that distinguishes this Product from the Standard version. ‘Standard’ is reserved for Variant Code 01."}
                                 </Help>
                             </Field>
 
@@ -938,7 +1018,7 @@ export function ProductCodeBuilderModal({
                                         icon={Hash}
                                         label="Category"
                                         value={preview.full_category_code}
-                                        detail={preview.category_variant_name}
+                                        detail={`${preview.thickness_code} — ${preview.thickness_name}`}
                                     />
                                     <Segment
                                         icon={Tag}

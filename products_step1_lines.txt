@@ -1,0 +1,301 @@
+2021:                     <div className="max-h-[calc(90vh-72px)] space-y-6 overflow-y-auto px-4 py-5 sm:px-6">
+2022:                         <section className="rounded-2xl border border-[#E5E7EB] bg-[#FCFAFA] p-4">
+2023:                             <SectionHeading
+2024:                                 number={1}
+2025:                                 title="Product Information"
+2026:                                 helper="Basic identity and classification used across REDS."
+2027:                             />
+2028:                             <div className="mt-4 grid gap-4 md:grid-cols-2">
+2029:                                 {editingProduct ? (
+2030:                                     <div className="space-y-2">
+2031:                                         <Label>Product Code</Label>
+2032:                                         <Input
+2033:                                             value={productCode}
+2034:                                             readOnly
+2035:                                             className="cursor-not-allowed bg-slate-100 font-mono"
+2036:                                         />
+2037:                                         <p className="text-xs text-slate-500">
+2038:                                             Product Code is permanent and cannot be changed.
+2039:                                         </p>
+2040:                                     </div>
+2041:                                 ) : null}
+2042: 
+2043:                                 <div className={`space-y-2 ${editingProduct ? "" : "md:col-span-2"}`}>
+2044:                                     <Label>Product Name *</Label>
+2045:                                     <Input
+2046:                                         className={FIELD_CLASS}
+2047:                                         value={productName}
+2048:                                         onChange={(event) => setProductName(event.target.value)}
+2049:                                         placeholder="Enter the product name used throughout REDS"
+2050:                                     />
+2051:                                 </div>
+2052: 
+2053:                                 <div className="space-y-2">
+2054:                                     <Label>Product Category *</Label>
+2055: 
+2056:                                     <div
+2057:                                         ref={categoryComboboxRef}
+2058:                                         className="relative"
+2059:                                     >
+2060:                                         <button
+2061:                                             type="button"
+2062:                                             aria-haspopup="listbox"
+2063:                                             aria-expanded={categoryComboboxOpen}
+2064:                                             onClick={() => {
+2065:                                                 setCategoryComboboxOpen((
+2066:                                                     current,
+2067:                                                 ) => !current);
+2068:                                                 setCategorySearch("");
+2069:                                             }}
+2070:                                             className={`${FIELD_CLASS} flex w-full items-center justify-between px-3 text-left`}
+2071:                                         >
+2072:                                             <span
+2073:                                                 className={selectedCategory
+2074:                                                     ? "truncate text-[#111827]"
+2075:                                                     : "truncate text-[#6B7280]"}
+2076:                                             >
+2077:                                                 {selectedCategory
+2078:                                                     ? categoryPath.get(
+2079:                                                         selectedCategory
+2080:                                                             .category_id,
+2081:                                                     ) ??
+2082:                                                         selectedCategory
+2083:                                                             .category_name
+2084:                                                     : "Select Category"}
+2085:                                             </span>
+2086: 
+2087:                                             <ChevronDown
+2088:                                                 className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${
+2089:                                                     categoryComboboxOpen
+2090:                                                         ? "rotate-180"
+2091:                                                         : ""
+2092:                                                 }`}
+2093:                                             />
+2094:                                         </button>
+2095: 
+2096:                                         {categoryComboboxOpen
+2097:                                             ? (
+2098:                                                 <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-xl">
+2099:                                                     <div className="border-b border-[#E5E7EB] p-3">
+2100:                                                         <div className="relative">
+2101:                                                             <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
+2102:                                                             <Input
+2103:                                                                 autoFocus
+2104:                                                                 className={`${FIELD_CLASS} pl-10`}
+2105:                                                                 value={categorySearch}
+2106:                                                                 onChange={(
+2107:                                                                     event,
+2108:                                                                 ) => setCategorySearch(
+2109:                                                                     event.target
+2110:                                                                         .value,
+2111:                                                                 )}
+2112:                                                                 placeholder="Type at least 2 letters..."
+2113:                                                             />
+2114:                                                         </div>
+2115: 
+2116:                                                         <p className="mt-2 text-xs text-slate-500">
+2117:                                                             Search by category
+2118:                                                             name, code or full
+2119:                                                             category path.
+2120:                                                         </p>
+2121:                                                     </div>
+2122: 
+2123:                                                     <div
+2124:                                                         role="listbox"
+2125:                                                         className="max-h-64 overflow-y-auto p-1"
+2126:                                                     >
+2127:                                                         {filteredCategoryOptions
+2128:                                                                 .length === 0
+2129:                                                             ? (
+2130:                                                                 <div className="px-3 py-6 text-center text-sm text-slate-500">
+2131:                                                                     No matching
+2132:                                                                     Product
+2133:                                                                     Category
+2134:                                                                     found.
+2135:                                                                 </div>
+2136:                                                             )
+2137:                                                             : (
+2138:                                                                 filteredCategoryOptions
+2139:                                                                     .map(
+2140:                                                                         (
+2141:                                                                             category,
+2142:                                                                         ) => {
+2143:                                                                             const path =
+2144:                                                                                 categoryPath
+2145:                                                                                     .get(
+2146:                                                                                         category
+2147:                                                                                             .category_id,
+2148:                                                                                     ) ??
+2149:                                                                                     category
+2150:                                                                                         .category_name;
+2151:                                                                             const selected =
+2152:                                                                                 category
+2153:                                                                                     .category_id ===
+2154:                                                                                     categoryId;
+2155: 
+2156:                                                                             return (
+2157:                                                                                 <button
+2158:                                                                                     key={category
+2159:                                                                                         .category_id}
+2160:                                                                                     type="button"
+2161:                                                                                     role="option"
+2162:                                                                                     aria-selected={selected}
+2163:                                                                                     onClick={() => {
+2164:                                                                                         setCategoryId(
+2165:                                                                                             category
+2166:                                                                                                 .category_id,
+2167:                                                                                         );
+2168:                                                                                         setDynamicValues(
+2169:                                                                                             {},
+2170:                                                                                         );
+2171:                                                                                         setCategorySearch(
+2172:                                                                                             "",
+2173:                                                                                         );
+2174:                                                                                         setCategoryComboboxOpen(
+2175:                                                                                             false,
+2176:                                                                                         );
+2177:                                                                                     }}
+2178:                                                                                     className="flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left hover:bg-[#FBF1F1] focus:bg-[#FBF1F1] focus:outline-none"
+2179:                                                                                 >
+2180:                                                                                     <Check
+2181:                                                                                         className={`mt-0.5 h-4 w-4 shrink-0 ${
+2182:                                                                                             selected
+2183:                                                                                                 ? "text-[#9E4B4B]"
+2184:                                                                                                 : "text-transparent"
+2185:                                                                                         }`}
+2186:                                                                                     />
+2187: 
+2188:                                                                                     <span className="min-w-0">
+2189:                                                                                         <span className="block break-words text-sm font-semibold text-slate-900">
+2190:                                                                                             {path}
+2191:                                                                                         </span>
+2192:                                                                                         <span className="mt-0.5 block font-mono text-xs text-slate-500">
+2193:                                                                                             {category
+2194:                                                                                                 .category_code}
+2195:                                                                                         </span>
+2196:                                                                                     </span>
+2197:                                                                                 </button>
+2198:                                                                             );
+2199:                                                                         },
+2200:                                                                     )
+2201:                                                             )}
+2202:                                                     </div>
+2203:                                                 </div>
+2204:                                             )
+2205:                                             : null}
+2206:                                     </div>
+2207: 
+2208:                                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+2209:                                         <p className="text-xs text-slate-500">
+2210:                                             Categories are arranged by Parent →
+2211:                                             Child. Type two letters to narrow
+2212:                                             the list.
+2213:                                         </p>
+2214:                                         {isAdmin
+2215:                                             ? (
+2216:                                                 <Button
+2217:                                                     type="button"
+2218:                                                     variant="outline"
+2219:                                                     size="sm"
+2220:                                                     onClick={() =>
+2221:                                                         openMasterData(
+2222:                                                             "categories",
+2223:                                                         )}
+2224:                                                     className="h-9 rounded-xl border-[#D8B4B4] text-[#7F1D1D] hover:bg-[#FBF1F1]"
+2225:                                                 >
+2226:                                                     <Settings2 className="mr-2 h-4 w-4" />
+2227:                                                     Manage Categories
+2228:                                                 </Button>
+2229:                                             )
+2230:                                             : null}
+2231:                                     </div>
+2232:                                 </div>
+2233: 
+2234:                                 <div className="space-y-2">
+2235:                                     <Label>Product Type *</Label>
+2236:                                     <Select
+2237:                                         value={productType}
+2238:                                         onValueChange={(value) => {
+2239:                                             const next = value as ProductType;
+2240:                                             setProductType(next);
+2241: 
+2242:                                             const service = next === "Service";
+2243: 
+2244:                                             setIsServiceItem(service);
+2245:                                             setIsStockItem(!service);
+2246:                                         }}
+2247:                                     >
+2248:                                         <SelectTrigger className={FIELD_CLASS}>
+2249:                                             <SelectValue />
+2250:                                         </SelectTrigger>
+2251:                                         <SelectContent>
+2252:                                             {PRODUCT_TYPES.map((type) => (
+2253:                                                 <SelectItem
+2254:                                                     key={type}
+2255:                                                     value={type}
+2256:                                                 >
+2257:                                                     {type}
+2258:                                                 </SelectItem>
+2259:                                             ))}
+2260:                                         </SelectContent>
+2261:                                     </Select>
+2262:                                 </div>
+2263: 
+2264:                                 <div className="space-y-2 md:col-span-2">
+2265:                                     <Label>Description</Label>
+2266:                                     <textarea
+2267:                                         rows={3}
+2268:                                         value={description}
+2269:                                         onChange={(event) =>
+2270:                                             setDescription(event.target.value)}
+2271:                                         className={TEXTAREA_CLASS}
+2272:                                     />
+2273:                                 </div>
+2274: 
+2275:                                 <div className="space-y-2 md:col-span-2">
+2276:                                     <Label>Search Keywords</Label>
+2277:                                     <Input
+2278:                                         className={FIELD_CLASS}
+2279:                                         value={searchKeywords}
+2280:                                         onChange={(event) => setSearchKeywords(
+2281:                                             event.target.value,
+2282:                                         )}
+2283:                                         placeholder="Example: oak engineered timber natural"
+2284:                                     />
+2285:                                 </div>
+2286:                             </div>
+2287:                         </section>
+2288:                         <section className="rounded-2xl border border-[#E5E7EB] bg-[#FCFAFA] p-4">
+2289:     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+2290:         <SectionHeading
+2291:             number={2}
+2292:             title="Product Code Identity"
+2293:             helper={
+2294:                 editingProduct
+2295:                     ? "Product Code identity is permanent and cannot be changed."
+2296:                     : "Select the controlled values that form the permanent Product Code."
+2297:             }
+2298:         />
+2299: 
+2300:     </div>
+2301: 
+2302:     {editingProduct ? (
+2303:         <div className="mt-4 space-y-4">
+2304:             <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+2305:                 <p className="text-xs font-bold uppercase tracking-wide text-red-700">
+2306:                     Product Code
+2307:                 </p>
+2308:                 <p className="mt-2 break-all font-mono text-lg font-black text-slate-900">
+2309:                     {productCode}
+2310:                 </p>
+2311:             </div>
+2312: 
+2313:             <p className="text-xs text-amber-700">
+2314:                 Product Code identity is immutable after Product creation.
+2315:             </p>
+2316:         </div>
+2317:     ) : (
+2318:         <div className="mt-4">
+2319:             <ProductIdentityStep
+2320:                 value={productIdentityForm}
+2321:                 onChange={setProductIdentityForm}

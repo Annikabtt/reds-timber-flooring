@@ -160,7 +160,7 @@ const TEXTAREA_CLASS =
     "rounded-xl border-[#E5E7EB] bg-[#F7F9FB] hover:border-[#9E4B4B] focus-visible:ring-[#9E4B4B]";
 
 const RED_BUTTON =
-    "rounded-xl bg-[#8B3F3F] text-white hover:bg-[#743434] shadow-sm";
+    "flex h-11 items-center justify-center rounded-xl bg-red-600 px-5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-red-700";
 
 const PAYMENT_METHODS = [
     "Bank Transfer",

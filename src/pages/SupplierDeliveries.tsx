@@ -46,7 +46,9 @@ type PurchaseOrder = {
   site_id: string | null;
   order_status: string | null;
   total_amount: number | string | null;
-  suppliers: { supplier_code: string | null; supplier_name: string | null } | null;
+  suppliers:
+    | { supplier_code: string | null; supplier_name: string | null }
+    | null;
   projects: { project_no: string | null; project_name: string | null } | null;
   project_sites: { site_code: string | null; site_name: string | null } | null;
 };
@@ -107,7 +109,9 @@ type SupplierDelivery = {
     order_status: string | null;
     total_amount: number | string | null;
   } | null;
-  suppliers: { supplier_code: string | null; supplier_name: string | null } | null;
+  suppliers:
+    | { supplier_code: string | null; supplier_name: string | null }
+    | null;
   projects: {
     project_no: string | null;
     project_name: string | null;
@@ -183,14 +187,21 @@ const formatMoney = (value: unknown) =>
 const formatDate = (value: string | null | undefined) => {
   if (!value) return "-";
   const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("en-AU");
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString("en-AU");
 };
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof Error) return error.message;
   if (typeof error === "object" && error !== null) {
     const candidate = error as Record<string, unknown>;
-    return [candidate.message, candidate.details, candidate.hint, candidate.code]
+    return [
+      candidate.message,
+      candidate.details,
+      candidate.hint,
+      candidate.code,
+    ]
       .filter(Boolean)
       .map(String)
       .join(" | ");
@@ -199,10 +210,16 @@ const getErrorMessage = (error: unknown) => {
 };
 
 const statusClass = (status: string) => {
-  if (status === "Received") return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  if (status === "Partial") return "bg-amber-50 text-amber-700 border-amber-200";
+  if (status === "Received") {
+    return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  }
+  if (status === "Partial") {
+    return "bg-amber-50 text-amber-700 border-amber-200";
+  }
   if (status === "Rejected") return "bg-red-50 text-red-700 border-red-200";
-  if (status === "Cancelled") return "bg-slate-100 text-slate-600 border-slate-200";
+  if (status === "Cancelled") {
+    return "bg-slate-100 text-slate-600 border-slate-200";
+  }
   return "bg-blue-50 text-blue-700 border-blue-200";
 };
 
@@ -214,7 +231,9 @@ const SupplierDeliveries = () => {
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [purchaseOrderId, setPurchaseOrderId] = useState("");
-  const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().slice(0, 10));
+  const [deliveryDate, setDeliveryDate] = useState(
+    new Date().toISOString().slice(0, 10),
+  );
   const [supplierDeliveryNoteNo, setSupplierDeliveryNoteNo] = useState("");
   const [createNotes, setCreateNotes] = useState("");
   const [createLines, setCreateLines] = useState<CreateLineState[]>([]);
@@ -334,7 +353,10 @@ const SupplierDeliveries = () => {
           if (!row.purchase_order_line_id) continue;
           existing.set(
             row.purchase_order_line_id,
-            round6((existing.get(row.purchase_order_line_id) ?? 0) + toNumber(row.received_quantity)),
+            round6(
+              (existing.get(row.purchase_order_line_id) ?? 0) +
+                toNumber(row.received_quantity),
+            ),
           );
         }
       }
@@ -344,7 +366,8 @@ const SupplierDeliveries = () => {
   });
 
   const poLines = poLineResult?.lines ?? [];
-  const existingQuantities = poLineResult?.existing ?? new Map<string, number>();
+  const existingQuantities = poLineResult?.existing ??
+    new Map<string, number>();
 
   useEffect(() => {
     if (!showCreateDialog || !purchaseOrderId) {
@@ -354,8 +377,12 @@ const SupplierDeliveries = () => {
 
     setCreateLines(
       poLines.map((line) => {
-        const existing = existingQuantities.get(line.purchase_order_line_id) ?? 0;
-        const outstanding = Math.max(0, round6(toNumber(line.quantity) - existing));
+        const existing = existingQuantities.get(line.purchase_order_line_id) ??
+          0;
+        const outstanding = Math.max(
+          0,
+          round6(toNumber(line.quantity) - existing),
+        );
         return {
           purchaseOrderLineId: line.purchase_order_line_id,
           selected: outstanding > 0,
@@ -447,15 +474,21 @@ const SupplierDeliveries = () => {
   });
 
   const selectedDelivery =
-    deliveries.find((item) => item.supplier_delivery_id === selectedDeliveryId) ?? null;
+    deliveries.find((item) =>
+      item.supplier_delivery_id === selectedDeliveryId
+    ) ?? null;
 
-  const { data: stockLocations = [], isLoading: stockLocationsLoading } = useQuery({
-    queryKey: ["stock-locations-for-site-receiving", selectedDelivery?.site_id],
-    enabled: showReceiveDialog && Boolean(selectedDelivery?.site_id),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("stock_locations")
-        .select(`
+  const { data: stockLocations = [], isLoading: stockLocationsLoading } =
+    useQuery({
+      queryKey: [
+        "stock-locations-for-site-receiving",
+        selectedDelivery?.site_id,
+      ],
+      enabled: showReceiveDialog && Boolean(selectedDelivery?.site_id),
+      queryFn: async () => {
+        const { data, error } = await supabase
+          .from("stock_locations")
+          .select(`
           stock_location_id,
           location_code,
           location_name,
@@ -463,20 +496,22 @@ const SupplierDeliveries = () => {
           project_id,
           site_id
         `)
-        .eq("site_id", selectedDelivery!.site_id!)
-        .eq("is_active", true)
-        .eq("is_deleted", false)
-        .order("location_name", { ascending: true });
+          .eq("site_id", selectedDelivery!.site_id!)
+          .eq("is_active", true)
+          .eq("is_deleted", false)
+          .order("location_name", { ascending: true });
 
-      if (error) throw error;
-      return (data ?? []) as StockLocation[];
-    },
-  });
+        if (error) throw error;
+        return (data ?? []) as StockLocation[];
+      },
+    });
 
   const productIds = useMemo(
     () =>
       Array.from(
-        new Set((selectedDelivery?.supplier_delivery_items ?? []).map((item) => item.product_id)),
+        new Set((selectedDelivery?.supplier_delivery_items ?? []).map((item) =>
+          item.product_id
+        )),
       ),
     [selectedDelivery],
   );
@@ -525,11 +560,13 @@ const SupplierDeliveries = () => {
     setReceiveNotes("");
     setReceiveLines(
       delivery.supplier_delivery_items.map((item) => {
-        const processed =
-          toNumber(item.accepted_quantity) +
+        const processed = toNumber(item.accepted_quantity) +
           toNumber(item.damaged_quantity) +
           toNumber(item.rejected_quantity);
-        const outstanding = Math.max(0, round6(toNumber(item.received_quantity) - processed));
+        const outstanding = Math.max(
+          0,
+          round6(toNumber(item.received_quantity) - processed),
+        );
 
         return {
           supplierDeliveryItemId: item.supplier_delivery_item_id,
@@ -556,23 +593,34 @@ const SupplierDeliveries = () => {
       if (!deliveryDate) throw new Error("Please select the delivery date.");
 
       const selected = createLines.filter((line) => line.selected);
-      if (selected.length === 0) throw new Error("Please select at least one PO line.");
+      if (selected.length === 0) {
+        throw new Error("Please select at least one PO line.");
+      }
 
       const items = selected.map((state) => {
         const line = poLines.find(
-          (candidate) => candidate.purchase_order_line_id === state.purchaseOrderLineId,
+          (candidate) =>
+            candidate.purchase_order_line_id === state.purchaseOrderLineId,
         );
         if (!line) throw new Error("Selected PO line was not found.");
 
         const quantity = toNumber(state.quantity);
-        const existing = existingQuantities.get(line.purchase_order_line_id) ?? 0;
-        const outstanding = Math.max(0, round6(toNumber(line.quantity) - existing));
+        const existing = existingQuantities.get(line.purchase_order_line_id) ??
+          0;
+        const outstanding = Math.max(
+          0,
+          round6(toNumber(line.quantity) - existing),
+        );
 
         if (quantity <= 0) {
-          throw new Error(`Delivery quantity must be greater than zero on PO line ${line.line_no}.`);
+          throw new Error(
+            `Delivery quantity must be greater than zero on PO line ${line.line_no}.`,
+          );
         }
         if (round6(quantity) > round6(outstanding)) {
-          throw new Error(`Delivery quantity exceeds outstanding on PO line ${line.line_no}.`);
+          throw new Error(
+            `Delivery quantity exceeds outstanding on PO line ${line.line_no}.`,
+          );
         }
 
         return {
@@ -604,7 +652,9 @@ const SupplierDeliveries = () => {
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["supplier_deliveries"] }),
-        queryClient.invalidateQueries({ queryKey: ["purchase-order-lines-for-delivery"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["purchase-order-lines-for-delivery"],
+        }),
         queryClient.invalidateQueries({ queryKey: ["purchase_orders"] }),
       ]);
     },
@@ -613,16 +663,24 @@ const SupplierDeliveries = () => {
 
   const receiveDelivery = useMutation({
     mutationFn: async () => {
-      if (!selectedDelivery) throw new Error("Supplier delivery was not found.");
-      if (!selectedDelivery.site_id) throw new Error("Delivery site is missing.");
+      if (!selectedDelivery) {
+        throw new Error("Supplier delivery was not found.");
+      }
+      if (!selectedDelivery.site_id) {
+        throw new Error("Delivery site is missing.");
+      }
       if (!stockLocationId) throw new Error("Please select a stock location.");
 
       const selected = receiveLines.filter((line) => line.selected);
-      if (selected.length === 0) throw new Error("Please select at least one delivery line.");
+      if (selected.length === 0) {
+        throw new Error("Please select at least one delivery line.");
+      }
 
       const items = selected.map((state) => {
         const item = selectedDelivery.supplier_delivery_items.find(
-          (candidate) => candidate.supplier_delivery_item_id === state.supplierDeliveryItemId,
+          (candidate) =>
+            candidate.supplier_delivery_item_id ===
+              state.supplierDeliveryItemId,
         );
         if (!item) throw new Error("Selected delivery item was not found.");
 
@@ -632,17 +690,23 @@ const SupplierDeliveries = () => {
         const rejected = toNumber(state.rejected);
         const damageDetail = toNumber(state.damageDetailQuantity);
 
-        const processed =
-          toNumber(item.accepted_quantity) +
+        const processed = toNumber(item.accepted_quantity) +
           toNumber(item.damaged_quantity) +
           toNumber(item.rejected_quantity);
-        const outstanding = Math.max(0, round6(toNumber(item.received_quantity) - processed));
+        const outstanding = Math.max(
+          0,
+          round6(toNumber(item.received_quantity) - processed),
+        );
 
         if (received <= 0) {
-          throw new Error(`Received quantity must be greater than zero on line ${item.line_no}.`);
+          throw new Error(
+            `Received quantity must be greater than zero on line ${item.line_no}.`,
+          );
         }
         if (round6(received) > round6(outstanding)) {
-          throw new Error(`Received quantity exceeds outstanding on line ${item.line_no}.`);
+          throw new Error(
+            `Received quantity exceeds outstanding on line ${item.line_no}.`,
+          );
         }
         if (round6(accepted + damaged + rejected) !== round6(received)) {
           throw new Error(
@@ -652,10 +716,14 @@ const SupplierDeliveries = () => {
 
         if (damageDetail > 0) {
           if (!state.damageDetailUomCode) {
-            throw new Error(`Please select damage UOM on line ${item.line_no}.`);
+            throw new Error(
+              `Please select damage UOM on line ${item.line_no}.`,
+            );
           }
           if (!state.damageDescription.trim()) {
-            throw new Error(`Please describe the damage on line ${item.line_no}.`);
+            throw new Error(
+              `Please describe the damage on line ${item.line_no}.`,
+            );
           }
         }
 
@@ -666,8 +734,12 @@ const SupplierDeliveries = () => {
           damaged_quantity: damaged,
           rejected_quantity: rejected,
           damage_detail_quantity: damageDetail,
-          damage_detail_uom_code: damageDetail > 0 ? state.damageDetailUomCode : null,
-          damage_description: damageDetail > 0 ? state.damageDescription.trim() : null,
+          damage_detail_uom_code: damageDetail > 0
+            ? state.damageDetailUomCode
+            : null,
+          damage_description: damageDetail > 0
+            ? state.damageDescription.trim()
+            : null,
           replacement_required: damageDetail > 0,
           lot_no: state.lotNo.trim() || null,
           expiry_date: state.expiryDate || null,
@@ -690,7 +762,9 @@ const SupplierDeliveries = () => {
       return data;
     },
     onSuccess: async (result) => {
-      const statusText = result?.delivery_status ? ` Delivery: ${result.delivery_status}.` : "";
+      const statusText = result?.delivery_status
+        ? ` Delivery: ${result.delivery_status}.`
+        : "";
       toast.success(`Goods receiving completed.${statusText}`);
       setShowReceiveDialog(false);
       resetReceive();
@@ -706,13 +780,17 @@ const SupplierDeliveries = () => {
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 
-  const selectedPO = purchaseOrders.find((po) => po.purchase_order_id === purchaseOrderId);
+  const selectedPO = purchaseOrders.find((po) =>
+    po.purchase_order_id === purchaseOrderId
+  );
 
   const filteredDeliveries = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase();
 
     return deliveries.filter((delivery) => {
-      if (statusFilter !== "all" && delivery.delivery_status !== statusFilter) return false;
+      if (statusFilter !== "all" && delivery.delivery_status !== statusFilter) {
+        return false;
+      }
       if (!keyword) return true;
 
       return [
@@ -732,10 +810,14 @@ const SupplierDeliveries = () => {
   const summary = useMemo(
     () => ({
       total: deliveries.length,
-      pending: deliveries.filter((item) => item.delivery_status === "Pending").length,
-      partial: deliveries.filter((item) => item.delivery_status === "Partial").length,
-      received: deliveries.filter((item) => item.delivery_status === "Received").length,
-      rejected: deliveries.filter((item) => item.delivery_status === "Rejected").length,
+      pending:
+        deliveries.filter((item) => item.delivery_status === "Pending").length,
+      partial:
+        deliveries.filter((item) => item.delivery_status === "Partial").length,
+      received:
+        deliveries.filter((item) => item.delivery_status === "Received").length,
+      rejected:
+        deliveries.filter((item) => item.delivery_status === "Rejected").length,
     }),
     [deliveries],
   );
@@ -769,17 +851,19 @@ const SupplierDeliveries = () => {
             </h1>
           </div>
           <p className="mt-1 text-sm text-slate-500">
-            Create delivery documents from purchase orders and confirm goods received at site.
+            Create delivery documents from purchase orders and confirm goods
+            received at site.
           </p>
         </div>
 
         {permissions.canCreate && (
           <Button
+            type="button"
             onClick={() => {
               resetCreate();
               setShowCreateDialog(true);
             }}
-            className="gap-2 bg-[#9E4B4B] text-white hover:bg-[#863F3F]"
+            className="flex h-11 items-center justify-center gap-2 rounded-xl bg-red-600 px-5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-red-700"
           >
             <Plus className="h-4 w-4" />
             Create Delivery
@@ -795,8 +879,13 @@ const SupplierDeliveries = () => {
           ["Received", summary.received],
           ["Rejected", summary.rejected],
         ].map(([label, value]) => (
-          <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+          <div
+            key={label}
+            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {label}
+            </p>
             <p className="mt-1 text-2xl font-bold text-slate-900">{value}</p>
           </div>
         ))}
@@ -835,132 +924,155 @@ const SupplierDeliveries = () => {
         </div>
       </div>
 
-      {deliveriesLoading ? (
-        <div className="flex min-h-[260px] items-center justify-center rounded-2xl border bg-white">
-          <Loader2 className="h-7 w-7 animate-spin text-[#9E4B4B]" />
-        </div>
-      ) : deliveriesError ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800">
-          {getErrorMessage(deliveriesError)}
-        </div>
-      ) : filteredDeliveries.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
-          No supplier deliveries found.
-        </div>
-      ) : (
-        <div className="space-y-0">
-          <div className="hidden grid-cols-[minmax(210px,1.1fr)_minmax(180px,1fr)_minmax(180px,1fr)_minmax(240px,1.2fr)_minmax(180px,1fr)_120px] gap-4 rounded-t-2xl border border-b-0 border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 lg:grid">
-            <div>Delivery</div>
-            <div>Purchase Order</div>
-            <div>Supplier</div>
-            <div>Project / Site</div>
-            <div>Progress</div>
-            <div className="text-right">Action</div>
+      {deliveriesLoading
+        ? (
+          <div className="flex min-h-[260px] items-center justify-center rounded-2xl border bg-white">
+            <Loader2 className="h-7 w-7 animate-spin text-[#9E4B4B]" />
           </div>
+        )
+        : deliveriesError
+        ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800">
+            {getErrorMessage(deliveriesError)}
+          </div>
+        )
+        : filteredDeliveries.length === 0
+        ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
+            No supplier deliveries found.
+          </div>
+        )
+        : (
+          <div className="space-y-0">
+            <div className="hidden grid-cols-[minmax(210px,1.1fr)_minmax(180px,1fr)_minmax(180px,1fr)_minmax(240px,1.2fr)_minmax(180px,1fr)_120px] gap-4 rounded-t-2xl border border-b-0 border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 lg:grid">
+              <div>Delivery</div>
+              <div>Purchase Order</div>
+              <div>Supplier</div>
+              <div>Project / Site</div>
+              <div>Progress</div>
+              <div className="text-right">Action</div>
+            </div>
 
-          {filteredDeliveries.map((delivery) => {
-            const items = delivery.supplier_delivery_items ?? [];
-            const outstanding = Math.max(
-              0,
-              round6(
-                items.reduce(
-                  (sum, item) =>
-                    sum +
-                    toNumber(item.received_quantity) -
-                    toNumber(item.accepted_quantity) -
-                    toNumber(item.damaged_quantity) -
-                    toNumber(item.rejected_quantity),
-                  0,
+            {filteredDeliveries.map((delivery) => {
+              const items = delivery.supplier_delivery_items ?? [];
+              const outstanding = Math.max(
+                0,
+                round6(
+                  items.reduce(
+                    (sum, item) =>
+                      sum +
+                      toNumber(item.received_quantity) -
+                      toNumber(item.accepted_quantity) -
+                      toNumber(item.damaged_quantity) -
+                      toNumber(item.rejected_quantity),
+                    0,
+                  ),
                 ),
-              ),
-            );
+              );
 
-            return (
-              <div
-                key={delivery.supplier_delivery_id}
-                className="border border-slate-200 bg-white p-4 shadow-sm first:rounded-t-none last:rounded-b-2xl lg:border-t-0 lg:shadow-none"
-              >
-                <div className="grid gap-4 lg:grid-cols-[minmax(210px,1.1fr)_minmax(180px,1fr)_minmax(180px,1fr)_minmax(240px,1.2fr)_minmax(180px,1fr)_120px] lg:items-center">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-bold text-slate-900">{delivery.delivery_no}</p>
-                      <span
-                        className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass(
-                          delivery.delivery_status,
-                        )}`}
-                      >
-                        {delivery.delivery_status}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {formatDate(delivery.delivery_date)}
-                      {delivery.supplier_delivery_note_no
-                        ? ` · DO ${delivery.supplier_delivery_note_no}`
-                        : ""}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-slate-500 lg:hidden">Purchase Order</p>
-                    <p className="font-medium text-slate-800">
-                      {delivery.purchase_orders?.purchase_order_no ?? "-"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-slate-500 lg:hidden">Supplier</p>
-                    <p className="font-medium text-slate-800">
-                      {delivery.suppliers?.supplier_name ?? "-"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-slate-500 lg:hidden">Project / Site</p>
-                    <p className="font-medium text-slate-800">
-                      {delivery.projects?.project_name ?? "-"}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {delivery.project_sites?.site_name ?? "-"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-slate-500 lg:hidden">Progress</p>
-                    <p className="font-medium text-slate-800">
-                      {items.length} lines · Outstanding {formatQty(outstanding)}
-                    </p>
-                    {permissions.canViewCost && (
-                      <p className="text-xs text-slate-500">
-                        {formatMoney(delivery.purchase_orders?.total_amount)}
+              return (
+                <div
+                  key={delivery.supplier_delivery_id}
+                  className="border border-slate-200 bg-white p-4 shadow-sm first:rounded-t-none last:rounded-b-2xl lg:border-t-0 lg:shadow-none"
+                >
+                  <div className="grid gap-4 lg:grid-cols-[minmax(210px,1.1fr)_minmax(180px,1fr)_minmax(180px,1fr)_minmax(240px,1.2fr)_minmax(180px,1fr)_120px] lg:items-center">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-slate-900">
+                          {delivery.delivery_no}
+                        </p>
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                            statusClass(
+                              delivery.delivery_status,
+                            )
+                          }`}
+                        >
+                          {delivery.delivery_status}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {formatDate(delivery.delivery_date)}
+                        {delivery.supplier_delivery_note_no
+                          ? ` · DO ${delivery.supplier_delivery_note_no}`
+                          : ""}
                       </p>
-                    )}
-                  </div>
+                    </div>
 
-                  <div className="flex justify-start lg:justify-end">
-                    {permissions.canReceive &&
-                    outstanding > 0 &&
-                    !["Rejected", "Cancelled"].includes(delivery.delivery_status) ? (
-                      <Button
-                        size="sm"
-                        onClick={() => openReceive(delivery)}
-                        className="gap-2 bg-[#9E4B4B] text-white hover:bg-[#863F3F]"
-                      >
-                        <ClipboardCheck className="h-4 w-4" />
-                        Receive
-                      </Button>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-xs text-slate-500">
-                        <CheckCircle2 className="h-4 w-4" />
-                        No action
-                      </span>
-                    )}
+                    <div>
+                      <p className="text-xs text-slate-500 lg:hidden">
+                        Purchase Order
+                      </p>
+                      <p className="font-medium text-slate-800">
+                        {delivery.purchase_orders?.purchase_order_no ?? "-"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-slate-500 lg:hidden">
+                        Supplier
+                      </p>
+                      <p className="font-medium text-slate-800">
+                        {delivery.suppliers?.supplier_name ?? "-"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-slate-500 lg:hidden">
+                        Project / Site
+                      </p>
+                      <p className="font-medium text-slate-800">
+                        {delivery.projects?.project_name ?? "-"}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {delivery.project_sites?.site_name ?? "-"}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-slate-500 lg:hidden">
+                        Progress
+                      </p>
+                      <p className="font-medium text-slate-800">
+                        {items.length} lines · Outstanding{" "}
+                        {formatQty(outstanding)}
+                      </p>
+                      {permissions.canViewCost && (
+                        <p className="text-xs text-slate-500">
+                          {formatMoney(delivery.purchase_orders?.total_amount)}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex justify-start lg:justify-end">
+                      {permissions.canReceive &&
+                          outstanding > 0 &&
+                          !["Rejected", "Cancelled"].includes(
+                            delivery.delivery_status,
+                          )
+                        ? (
+                          <Button
+                            size="sm"
+                            onClick={() => openReceive(delivery)}
+                            className="gap-2 bg-[#9E4B4B] text-white hover:bg-[#863F3F]"
+                          >
+                            <ClipboardCheck className="h-4 w-4" />
+                            Receive
+                          </Button>
+                        )
+                        : (
+                          <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+                            <CheckCircle2 className="h-4 w-4" />
+                            No action
+                          </span>
+                        )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
 
       <Dialog
         open={showCreateDialog}
@@ -983,29 +1095,40 @@ const SupplierDeliveries = () => {
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#9E4B4B] text-sm font-bold text-white">
                   1
                 </span>
-                <h3 className="font-semibold text-slate-900">Delivery document</h3>
+                <h3 className="font-semibold text-slate-900">
+                  Delivery document
+                </h3>
               </div>
 
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <div className="space-y-2 md:col-span-2">
                   <Label>Purchase Order *</Label>
-                  <Select value={purchaseOrderId} onValueChange={setPurchaseOrderId}>
+                  <Select
+                    value={purchaseOrderId}
+                    onValueChange={setPurchaseOrderId}
+                  >
                     <SelectTrigger className={inputClass}>
                       <SelectValue placeholder="Select purchase order" />
                     </SelectTrigger>
                     <SelectContent>
-                    {purchaseOrders.length === 0 ? (
-                        <div className="px-3 py-4 text-sm text-slate-500">
-                        No purchase orders with outstanding quantities.
-                        </div>
-                    ) : (
-                        purchaseOrders.map((po) => (
-                        <SelectItem key={po.purchase_order_id} value={po.purchase_order_id}>
-                            {po.purchase_order_no ?? "-"} — {po.suppliers?.supplier_name ?? "-"} —{" "}
-                            {po.order_status ?? "-"}
-                        </SelectItem>
-                        ))
-                    )}
+                      {purchaseOrders.length === 0
+                        ? (
+                          <div className="px-3 py-4 text-sm text-slate-500">
+                            No purchase orders with outstanding quantities.
+                          </div>
+                        )
+                        : (
+                          purchaseOrders.map((po) => (
+                            <SelectItem
+                              key={po.purchase_order_id}
+                              value={po.purchase_order_id}
+                            >
+                              {po.purchase_order_no ?? "-"} —{" "}
+                              {po.suppliers?.supplier_name ?? "-"} —{" "}
+                              {po.order_status ?? "-"}
+                            </SelectItem>
+                          ))
+                        )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1024,16 +1147,26 @@ const SupplierDeliveries = () => {
                   <Label>Supplier Delivery Note No</Label>
                   <Input
                     value={supplierDeliveryNoteNo}
-                    onChange={(event) => setSupplierDeliveryNoteNo(event.target.value)}
+                    onChange={(event) =>
+                      setSupplierDeliveryNoteNo(event.target.value)}
                     className={inputClass}
                   />
                 </div>
 
                 {selectedPO && (
                   <div className="rounded-xl border bg-slate-50 p-4 text-sm md:col-span-2">
-                    <p><strong>Supplier:</strong> {selectedPO.suppliers?.supplier_name ?? "-"}</p>
-                    <p><strong>Project:</strong> {selectedPO.projects?.project_name ?? "-"}</p>
-                    <p><strong>Site:</strong> {selectedPO.project_sites?.site_name ?? "-"}</p>
+                    <p>
+                      <strong>Supplier:</strong>{" "}
+                      {selectedPO.suppliers?.supplier_name ?? "-"}
+                    </p>
+                    <p>
+                      <strong>Project:</strong>{" "}
+                      {selectedPO.projects?.project_name ?? "-"}
+                    </p>
+                    <p>
+                      <strong>Site:</strong>{" "}
+                      {selectedPO.project_sites?.site_name ?? "-"}
+                    </p>
                   </div>
                 )}
               </div>
@@ -1044,109 +1177,143 @@ const SupplierDeliveries = () => {
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#9E4B4B] text-sm font-bold text-white">
                   2
                 </span>
-                <h3 className="font-semibold text-slate-900">Items on this delivery</h3>
+                <h3 className="font-semibold text-slate-900">
+                  Items on this delivery
+                </h3>
               </div>
 
-              {!purchaseOrderId ? (
-                <div className="mt-4 rounded-xl border border-dashed p-8 text-center text-sm text-slate-500">
-                  Select a purchase order first.
-                </div>
-              ) : poLinesLoading ? (
-                <div className="flex min-h-[150px] items-center justify-center">
-                  <Loader2 className="h-6 w-6 animate-spin text-[#9E4B4B]" />
-                </div>
-              ) : (
-                <div className="mt-4 space-y-3">
-                  {poLines.map((line) => {
-                    const state = createLines.find(
-                      (item) => item.purchaseOrderLineId === line.purchase_order_line_id,
-                    );
-                    const existing = existingQuantities.get(line.purchase_order_line_id) ?? 0;
-                    const outstanding = Math.max(0, round6(toNumber(line.quantity) - existing));
+              {!purchaseOrderId
+                ? (
+                  <div className="mt-4 rounded-xl border border-dashed p-8 text-center text-sm text-slate-500">
+                    Select a purchase order first.
+                  </div>
+                )
+                : poLinesLoading
+                ? (
+                  <div className="flex min-h-[150px] items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-[#9E4B4B]" />
+                  </div>
+                )
+                : (
+                  <div className="mt-4 space-y-3">
+                    {poLines.map((line) => {
+                      const state = createLines.find(
+                        (item) =>
+                          item.purchaseOrderLineId ===
+                            line.purchase_order_line_id,
+                      );
+                      const existing =
+                        existingQuantities.get(line.purchase_order_line_id) ??
+                          0;
+                      const outstanding = Math.max(
+                        0,
+                        round6(toNumber(line.quantity) - existing),
+                      );
 
-                    return (
-                      <div key={line.purchase_order_line_id} className="rounded-xl border p-4">
-                        <div className="flex items-start gap-3">
-                          <input
-                            type="checkbox"
-                            checked={state?.selected ?? false}
-                            disabled={outstanding <= 0}
-                            onChange={(event) =>
-                              setCreateLines((current) =>
-                                current.map((item) =>
-                                  item.purchaseOrderLineId === line.purchase_order_line_id
-                                    ? { ...item, selected: event.target.checked }
-                                    : item,
-                                ),
-                              )
-                            }
-                            className="mt-1 h-4 w-4 accent-[#9E4B4B]"
-                          />
+                      return (
+                        <div
+                          key={line.purchase_order_line_id}
+                          className="rounded-xl border p-4"
+                        >
+                          <div className="flex items-start gap-3">
+                            <input
+                              type="checkbox"
+                              checked={state?.selected ?? false}
+                              disabled={outstanding <= 0}
+                              onChange={(event) =>
+                                setCreateLines((current) =>
+                                  current.map((item) =>
+                                    item.purchaseOrderLineId ===
+                                        line.purchase_order_line_id
+                                      ? {
+                                        ...item,
+                                        selected: event.target.checked,
+                                      }
+                                      : item
+                                  )
+                                )}
+                              className="mt-1 h-4 w-4 accent-[#9E4B4B]"
+                            />
 
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-                              <div>
-                                <p className="font-semibold text-slate-900">
-                                  Line {line.line_no} — {line.products?.product_code ?? "-"}
-                                </p>
-                                <p className="text-sm text-slate-700">
-                                  {line.products?.product_name ?? line.description ?? "-"}
-                                </p>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
+                                <div>
+                                  <p className="font-semibold text-slate-900">
+                                    Line {line.line_no} —{" "}
+                                    {line.products?.product_code ?? "-"}
+                                  </p>
+                                  <p className="text-sm text-slate-700">
+                                    {line.products?.product_name ??
+                                      line.description ?? "-"}
+                                  </p>
+                                </div>
+                                <div className="text-xs text-slate-500 sm:text-right">
+                                  <p>Ordered: {formatQty(line.quantity)}</p>
+                                  <p>
+                                    Existing deliveries: {formatQty(existing)}
+                                  </p>
+                                  <p className="font-semibold">
+                                    Outstanding: {formatQty(outstanding)}
+                                  </p>
+                                </div>
                               </div>
-                              <div className="text-xs text-slate-500 sm:text-right">
-                                <p>Ordered: {formatQty(line.quantity)}</p>
-                                <p>Existing deliveries: {formatQty(existing)}</p>
-                                <p className="font-semibold">Outstanding: {formatQty(outstanding)}</p>
-                              </div>
+
+                              {state?.selected && (
+                                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                                  <div className="space-y-2">
+                                    <Label>Delivery Quantity *</Label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      max={outstanding}
+                                      step={line.allow_fractional_quantity ===
+                                          false
+                                        ? "1"
+                                        : "0.000001"}
+                                      value={state.quantity}
+                                      onChange={(event) =>
+                                        setCreateLines((current) =>
+                                          current.map((item) =>
+                                            item.purchaseOrderLineId ===
+                                                line.purchase_order_line_id
+                                              ? {
+                                                ...item,
+                                                quantity: event.target.value,
+                                              }
+                                              : item
+                                          )
+                                        )}
+                                      className={inputClass}
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>Line Notes</Label>
+                                    <Input
+                                      value={state.notes}
+                                      onChange={(event) =>
+                                        setCreateLines((current) =>
+                                          current.map((item) =>
+                                            item.purchaseOrderLineId ===
+                                                line.purchase_order_line_id
+                                              ? {
+                                                ...item,
+                                                notes: event.target.value,
+                                              }
+                                              : item
+                                          )
+                                        )}
+                                      className={inputClass}
+                                    />
+                                  </div>
+                                </div>
+                              )}
                             </div>
-
-                            {state?.selected && (
-                              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                                <div className="space-y-2">
-                                  <Label>Delivery Quantity *</Label>
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    max={outstanding}
-                                    step={line.allow_fractional_quantity === false ? "1" : "0.000001"}
-                                    value={state.quantity}
-                                    onChange={(event) =>
-                                      setCreateLines((current) =>
-                                        current.map((item) =>
-                                          item.purchaseOrderLineId === line.purchase_order_line_id
-                                            ? { ...item, quantity: event.target.value }
-                                            : item,
-                                        ),
-                                      )
-                                    }
-                                    className={inputClass}
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label>Line Notes</Label>
-                                  <Input
-                                    value={state.notes}
-                                    onChange={(event) =>
-                                      setCreateLines((current) =>
-                                        current.map((item) =>
-                                          item.purchaseOrderLineId === line.purchase_order_line_id
-                                            ? { ...item, notes: event.target.value }
-                                            : item,
-                                        ),
-                                      )
-                                    }
-                                    className={inputClass}
-                                  />
-                                </div>
-                              </div>
-                            )}
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                )}
             </section>
 
             <section className="rounded-2xl border p-4">
@@ -1165,7 +1332,10 @@ const SupplierDeliveries = () => {
             </section>
 
             <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setShowCreateDialog(false)}
+              >
                 Cancel
               </Button>
               <Button
@@ -1173,11 +1343,9 @@ const SupplierDeliveries = () => {
                 disabled={createDelivery.isPending || poLinesLoading}
                 className="gap-2 bg-[#9E4B4B] text-white hover:bg-[#863F3F]"
               >
-                {createDelivery.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <PackageCheck className="h-4 w-4" />
-                )}
+                {createDelivery.isPending
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <PackageCheck className="h-4 w-4" />}
                 Create Pending Delivery
               </Button>
             </div>
@@ -1194,29 +1362,48 @@ const SupplierDeliveries = () => {
       >
         <DialogContent className="max-h-[94vh] max-w-7xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Receive Goods — {selectedDelivery?.delivery_no ?? ""}</DialogTitle>
+            <DialogTitle>
+              Receive Goods — {selectedDelivery?.delivery_no ?? ""}
+            </DialogTitle>
           </DialogHeader>
 
           {selectedDelivery && (
             <div className="space-y-5">
               <div className="rounded-2xl border bg-slate-50 p-4 text-sm">
-                <p><strong>Supplier:</strong> {selectedDelivery.suppliers?.supplier_name ?? "-"}</p>
-                <p><strong>PO:</strong> {selectedDelivery.purchase_orders?.purchase_order_no ?? "-"}</p>
-                <p><strong>Project:</strong> {selectedDelivery.projects?.project_name ?? "-"}</p>
-                <p><strong>Site:</strong> {selectedDelivery.project_sites?.site_name ?? "-"}</p>
+                <p>
+                  <strong>Supplier:</strong>{" "}
+                  {selectedDelivery.suppliers?.supplier_name ?? "-"}
+                </p>
+                <p>
+                  <strong>PO:</strong>{" "}
+                  {selectedDelivery.purchase_orders?.purchase_order_no ?? "-"}
+                </p>
+                <p>
+                  <strong>Project:</strong>{" "}
+                  {selectedDelivery.projects?.project_name ?? "-"}
+                </p>
+                <p>
+                  <strong>Site:</strong>{" "}
+                  {selectedDelivery.project_sites?.site_name ?? "-"}
+                </p>
               </div>
 
               <section className="rounded-2xl border p-4">
-                <h3 className="font-semibold text-slate-900">1. Receiving location</h3>
+                <h3 className="font-semibold text-slate-900">
+                  1. Receiving location
+                </h3>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Stock Location *</Label>
-                    <Select value={stockLocationId} onValueChange={setStockLocationId}>
+                    <Select
+                      value={stockLocationId}
+                      onValueChange={setStockLocationId}
+                    >
                       <SelectTrigger className={inputClass}>
                         <SelectValue
-                          placeholder={
-                            stockLocationsLoading ? "Loading locations..." : "Select stock location"
-                          }
+                          placeholder={stockLocationsLoading
+                            ? "Loading locations..."
+                            : "Select stock location"}
                         />
                       </SelectTrigger>
                       <SelectContent>
@@ -1250,30 +1437,38 @@ const SupplierDeliveries = () => {
               </section>
 
               <section className="rounded-2xl border p-4">
-                <h3 className="font-semibold text-slate-900">2. Inspect and classify items</h3>
+                <h3 className="font-semibold text-slate-900">
+                  2. Inspect and classify items
+                </h3>
 
                 <div className="mt-4 space-y-4">
                   {selectedDelivery.supplier_delivery_items.map((item) => {
                     const state = receiveLines.find(
-                      (line) => line.supplierDeliveryItemId === item.supplier_delivery_item_id,
+                      (line) =>
+                        line.supplierDeliveryItemId ===
+                          item.supplier_delivery_item_id,
                     );
-                    const processed =
-                      toNumber(item.accepted_quantity) +
+                    const processed = toNumber(item.accepted_quantity) +
                       toNumber(item.damaged_quantity) +
                       toNumber(item.rejected_quantity);
                     const outstanding = Math.max(
                       0,
                       round6(toNumber(item.received_quantity) - processed),
                     );
-                    const classified =
-                      toNumber(state?.accepted) +
+                    const classified = toNumber(state?.accepted) +
                       toNumber(state?.damaged) +
                       toNumber(state?.rejected);
-                    const balanced = round6(classified) === round6(toNumber(state?.received));
-                    const units = productUnits.filter((unit) => unit.product_id === item.product_id);
+                    const balanced =
+                      round6(classified) === round6(toNumber(state?.received));
+                    const units = productUnits.filter((unit) =>
+                      unit.product_id === item.product_id
+                    );
 
                     return (
-                      <div key={item.supplier_delivery_item_id} className="rounded-2xl border p-4">
+                      <div
+                        key={item.supplier_delivery_item_id}
+                        className="rounded-2xl border p-4"
+                      >
                         <div className="flex items-start gap-3">
                           <input
                             type="checkbox"
@@ -1282,12 +1477,15 @@ const SupplierDeliveries = () => {
                             onChange={(event) =>
                               setReceiveLines((current) =>
                                 current.map((line) =>
-                                  line.supplierDeliveryItemId === item.supplier_delivery_item_id
-                                    ? { ...line, selected: event.target.checked }
-                                    : line,
-                                ),
-                              )
-                            }
+                                  line.supplierDeliveryItemId ===
+                                      item.supplier_delivery_item_id
+                                    ? {
+                                      ...line,
+                                      selected: event.target.checked,
+                                    }
+                                    : line
+                                )
+                              )}
                             className="mt-1 h-4 w-4 accent-[#9E4B4B]"
                           />
 
@@ -1295,16 +1493,23 @@ const SupplierDeliveries = () => {
                             <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
                               <div>
                                 <p className="font-semibold text-slate-900">
-                                  Line {item.line_no} — {item.products?.product_code ?? "-"}
+                                  Line {item.line_no} —{" "}
+                                  {item.products?.product_code ?? "-"}
                                 </p>
                                 <p className="text-sm text-slate-700">
                                   {item.products?.product_name ?? "-"}
                                 </p>
                               </div>
                               <div className="text-xs text-slate-500 sm:text-right">
-                                <p>Document: {formatQty(item.received_quantity)} {item.received_uom_code}</p>
+                                <p>
+                                  Document: {formatQty(item.received_quantity)}
+                                  {" "}
+                                  {item.received_uom_code}
+                                </p>
                                 <p>Processed: {formatQty(processed)}</p>
-                                <p className="font-semibold">Outstanding: {formatQty(outstanding)}</p>
+                                <p className="font-semibold">
+                                  Outstanding: {formatQty(outstanding)}
+                                </p>
                               </div>
                             </div>
 
@@ -1323,17 +1528,21 @@ const SupplierDeliveries = () => {
                                         type="number"
                                         min="0"
                                         step="0.000001"
-                                        value={state[field as keyof ReceiveLineState] as string}
+                                        value={state[
+                                          field as keyof ReceiveLineState
+                                        ] as string}
                                         onChange={(event) =>
                                           setReceiveLines((current) =>
                                             current.map((line) =>
                                               line.supplierDeliveryItemId ===
-                                              item.supplier_delivery_item_id
-                                                ? { ...line, [field]: event.target.value }
-                                                : line,
-                                            ),
-                                          )
-                                        }
+                                                  item.supplier_delivery_item_id
+                                                ? {
+                                                  ...line,
+                                                  [field]: event.target.value,
+                                                }
+                                                : line
+                                            )
+                                          )}
                                         className={inputClass}
                                       />
                                     </div>
@@ -1347,7 +1556,8 @@ const SupplierDeliveries = () => {
                                       : "border-red-200 bg-red-50 text-red-700"
                                   }`}
                                 >
-                                  Classified {formatQty(classified)} of {formatQty(state.received)}{" "}
+                                  Classified {formatQty(classified)} of{" "}
+                                  {formatQty(state.received)}{" "}
                                   {item.received_uom_code}
                                 </div>
 
@@ -1369,16 +1579,18 @@ const SupplierDeliveries = () => {
                                             onChange={(event) =>
                                               setReceiveLines((current) =>
                                                 current.map((line) =>
-                                                  line.supplierDeliveryItemId ===
-                                                  item.supplier_delivery_item_id
+                                                  line
+                                                      .supplierDeliveryItemId ===
+                                                      item
+                                                        .supplier_delivery_item_id
                                                     ? {
-                                                        ...line,
-                                                        damageDetailQuantity: event.target.value,
-                                                      }
-                                                    : line,
-                                                ),
-                                              )
-                                            }
+                                                      ...line,
+                                                      damageDetailQuantity:
+                                                        event.target.value,
+                                                    }
+                                                    : line
+                                                )
+                                              )}
                                             className={inputClass}
                                           />
                                         </div>
@@ -1390,15 +1602,22 @@ const SupplierDeliveries = () => {
                                             onValueChange={(value) =>
                                               setReceiveLines((current) =>
                                                 current.map((line) =>
-                                                  line.supplierDeliveryItemId ===
-                                                  item.supplier_delivery_item_id
-                                                    ? { ...line, damageDetailUomCode: value }
-                                                    : line,
-                                                ),
-                                              )
-                                            }
+                                                  line
+                                                      .supplierDeliveryItemId ===
+                                                      item
+                                                        .supplier_delivery_item_id
+                                                    ? {
+                                                      ...line,
+                                                      damageDetailUomCode:
+                                                        value,
+                                                    }
+                                                    : line
+                                                )
+                                              )}
                                           >
-                                            <SelectTrigger className={inputClass}>
+                                            <SelectTrigger
+                                              className={inputClass}
+                                            >
                                               <SelectValue placeholder="Select UOM" />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -1421,16 +1640,18 @@ const SupplierDeliveries = () => {
                                             onChange={(event) =>
                                               setReceiveLines((current) =>
                                                 current.map((line) =>
-                                                  line.supplierDeliveryItemId ===
-                                                  item.supplier_delivery_item_id
+                                                  line
+                                                      .supplierDeliveryItemId ===
+                                                      item
+                                                        .supplier_delivery_item_id
                                                     ? {
-                                                        ...line,
-                                                        damageDescription: event.target.value,
-                                                      }
-                                                    : line,
-                                                ),
-                                              )
-                                            }
+                                                      ...line,
+                                                      damageDescription:
+                                                        event.target.value,
+                                                    }
+                                                    : line
+                                                )
+                                              )}
                                             className={inputClass}
                                           />
                                         </div>
@@ -1448,12 +1669,14 @@ const SupplierDeliveries = () => {
                                         setReceiveLines((current) =>
                                           current.map((line) =>
                                             line.supplierDeliveryItemId ===
-                                            item.supplier_delivery_item_id
-                                              ? { ...line, lotNo: event.target.value }
-                                              : line,
-                                          ),
-                                        )
-                                      }
+                                                item.supplier_delivery_item_id
+                                              ? {
+                                                ...line,
+                                                lotNo: event.target.value,
+                                              }
+                                              : line
+                                          )
+                                        )}
                                       className={inputClass}
                                     />
                                   </div>
@@ -1467,12 +1690,14 @@ const SupplierDeliveries = () => {
                                         setReceiveLines((current) =>
                                           current.map((line) =>
                                             line.supplierDeliveryItemId ===
-                                            item.supplier_delivery_item_id
-                                              ? { ...line, expiryDate: event.target.value }
-                                              : line,
-                                          ),
-                                        )
-                                      }
+                                                item.supplier_delivery_item_id
+                                              ? {
+                                                ...line,
+                                                expiryDate: event.target.value,
+                                              }
+                                              : line
+                                          )
+                                        )}
                                       className={inputClass}
                                     />
                                   </div>
@@ -1485,12 +1710,14 @@ const SupplierDeliveries = () => {
                                         setReceiveLines((current) =>
                                           current.map((line) =>
                                             line.supplierDeliveryItemId ===
-                                            item.supplier_delivery_item_id
-                                              ? { ...line, notes: event.target.value }
-                                              : line,
-                                          ),
-                                        )
-                                      }
+                                                item.supplier_delivery_item_id
+                                              ? {
+                                                ...line,
+                                                notes: event.target.value,
+                                              }
+                                              : line
+                                          )
+                                        )}
                                       className={inputClass}
                                     />
                                   </div>
@@ -1506,24 +1733,27 @@ const SupplierDeliveries = () => {
               </section>
 
               <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-                The backend atomically creates receipt audit records, stock lots and movements,
-                replacement claims/payment holds, delivery status, PO status and Telegram events.
+                The backend atomically creates receipt audit records, stock lots
+                and movements, replacement claims/payment holds, delivery
+                status, PO status and Telegram events.
               </div>
 
               <div className="flex justify-end gap-3">
-                <Button variant="outline" onClick={() => setShowReceiveDialog(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowReceiveDialog(false)}
+                >
                   Cancel
                 </Button>
                 <Button
                   onClick={() => receiveDelivery.mutate()}
-                  disabled={receiveDelivery.isPending || stockLocations.length === 0}
+                  disabled={receiveDelivery.isPending ||
+                    stockLocations.length === 0}
                   className="gap-2 bg-[#9E4B4B] text-white hover:bg-[#863F3F]"
                 >
-                  {receiveDelivery.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <ClipboardCheck className="h-4 w-4" />
-                  )}
+                  {receiveDelivery.isPending
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <ClipboardCheck className="h-4 w-4" />}
                   Confirm Goods Receipt
                 </Button>
               </div>

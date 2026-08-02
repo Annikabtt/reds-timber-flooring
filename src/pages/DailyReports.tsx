@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { CalendarDays, Plus, Search } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -30,7 +30,6 @@ import {
   MobilePhotoUpload,
   type PendingPhoto,
 } from "@/components/mobile/MobilePhotoUpload";
-
 
 type TimeStatus =
   | "Pending"
@@ -200,15 +199,13 @@ const calculateLabourTime = (record: LabourRecord): LabourRecord => {
 
   return {
     ...record,
-    time_status:
-      totalMinutes / 60 > NEED_REVIEW_HOURS_LIMIT
-        ? "Need Review"
-        : "Completed",
+    time_status: totalMinutes / 60 > NEED_REVIEW_HOURS_LIMIT
+      ? "Need Review"
+      : "Completed",
     regular_hours: (normalWorkedMinutes / 60).toFixed(2),
     overtime_hours: (overtimeMinutes / 60).toFixed(2),
   };
 };
-
 
 const dailyReportInputClassName =
   "h-11 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] text-base text-slate-900 hover:border-[#9E4B4B] focus-visible:border-[#9E4B4B] focus-visible:ring-[#9E4B4B]/30 md:text-sm";
@@ -257,7 +254,6 @@ const DailyReports = () => {
   const workOrderIdFromUrl = searchParams.get("workOrderId");
   const editReportIdFromUrl = searchParams.get("editReportId");
 
-
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>("add");
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
@@ -291,16 +287,23 @@ const DailyReports = () => {
   // ใช้ชั่วคราวระหว่างการ Refactor
   const photoFiles = pendingPhotos.map((photo) => photo.file);
   const photoCaption = "";
-  const setPhotoCaption = () => { };
-  const [selectedActivityTypeIds, setSelectedActivityTypeIds] = useState<string[]>([]);
-  const [openWorkerCardIndexes, setOpenWorkerCardIndexes] = useState<number[]>([0]);
-  const [openOvertimeCardIndexes, setOpenOvertimeCardIndexes] = useState<number[]>([]);
+  const setPhotoCaption = () => {};
+  const [selectedActivityTypeIds, setSelectedActivityTypeIds] = useState<
+    string[]
+  >([]);
+  const [openWorkerCardIndexes, setOpenWorkerCardIndexes] = useState<number[]>([
+    0,
+  ]);
+  const [openOvertimeCardIndexes, setOpenOvertimeCardIndexes] = useState<
+    number[]
+  >([]);
   const [labourRecords, setLabourRecords] = useState<LabourRecord[]>([]);
-  const [activeDraftReportId, setActiveDraftReportId] = useState<string | null>(null);
+  const [activeDraftReportId, setActiveDraftReportId] = useState<string | null>(
+    null,
+  );
   const [isManualBackdatedEntry, setIsManualBackdatedEntry] = useState(false);
   const formatHoursMinutes = (regularHours: string, overtimeHours: string) => {
-    const totalHours =
-      Number(regularHours || 0) + Number(overtimeHours || 0);
+    const totalHours = Number(regularHours || 0) + Number(overtimeHours || 0);
 
     const totalMinutes = Math.round(totalHours * 60);
     const hours = Math.floor(totalMinutes / 60);
@@ -313,7 +316,9 @@ const DailyReports = () => {
     if (!record.clock_in || !record.clock_out) return 0;
 
     const [clockInHour, clockInMinute] = record.clock_in.split(":").map(Number);
-    const [clockOutHour, clockOutMinute] = record.clock_out.split(":").map(Number);
+    const [clockOutHour, clockOutMinute] = record.clock_out.split(":").map(
+      Number,
+    );
 
     const clockInMinutes = clockInHour * 60 + clockInMinute;
     const clockOutMinutes = clockOutHour * 60 + clockOutMinute;
@@ -339,7 +344,7 @@ const DailyReports = () => {
 
   const combineReportDateAndTime = (
     dateValue: string,
-    timeValue: string | null | undefined
+    timeValue: string | null | undefined,
   ) => {
     if (!dateValue || !timeValue) return null;
 
@@ -363,7 +368,7 @@ const DailyReports = () => {
       hour,
       minute,
       0,
-      0
+      0,
     ).toISOString();
   };
 
@@ -401,7 +406,7 @@ const DailyReports = () => {
   const updateLabourRecord = (
     index: number,
     field: keyof LabourRecord,
-    value: string
+    value: string,
   ) => {
     setLabourRecords((prev) =>
       prev.map((record, i) => {
@@ -630,7 +635,7 @@ const DailyReports = () => {
     return (
       employees.find(
         (employee) =>
-          employee.email?.toLowerCase() === currentUserEmail.toLowerCase()
+          employee.email?.toLowerCase() === currentUserEmail.toLowerCase(),
       ) || null
     );
   }, [employees, currentUserEmail]);
@@ -840,7 +845,7 @@ const DailyReports = () => {
 
   const filteredAreas = useMemo(() => {
     return areas.filter(
-      (area) => area.project_id === projectId && area.site_id === siteId
+      (area) => area.project_id === projectId && area.site_id === siteId,
     );
   }, [areas, projectId, siteId]);
   const filterSites = useMemo(() => {
@@ -850,8 +855,8 @@ const DailyReports = () => {
 
   const filterAreas = useMemo(() => {
     return areas.filter((area) => {
-      const matchProject =
-        filterProjectId === "all" || area.project_id === filterProjectId;
+      const matchProject = filterProjectId === "all" ||
+        area.project_id === filterProjectId;
       const matchSite = filterSiteId === "all" || area.site_id === filterSiteId;
 
       return matchProject && matchSite;
@@ -877,7 +882,6 @@ const DailyReports = () => {
     estimatedQuantity: selectedArea?.estimated_quantity,
   });
 
-
   useEffect(() => {
     const completed = Number(completedQuantity || 0);
     const estimated = Number(selectedArea?.estimated_quantity || 0);
@@ -889,7 +893,7 @@ const DailyReports = () => {
 
     const calculatedProgress = Math.min(
       (completed / estimated) * 100,
-      100
+      100,
     );
 
     setProgressPercent(calculatedProgress.toFixed(2));
@@ -899,7 +903,6 @@ const DailyReports = () => {
     if (!workOrderIdFromUrl) return;
 
     setShowAddDialog(true);
-
   }, [workOrderIdFromUrl]);
 
   const filteredWorkOrders = useMemo(() => {
@@ -907,7 +910,7 @@ const DailyReports = () => {
       (workOrder) =>
         workOrder.project_id === projectId &&
         workOrder.site_id === siteId &&
-        workOrder.area_id === areaId
+        workOrder.area_id === areaId,
     );
   }, [workOrders, projectId, siteId, areaId]);
 
@@ -916,11 +919,9 @@ const DailyReports = () => {
 
     return (
       workOrders.find(
-        (workOrder) =>
-          workOrder.work_order_id === workOrderIdFromUrl
+        (workOrder) => workOrder.work_order_id === workOrderIdFromUrl,
       ) || null
     );
-
   }, [workOrders, workOrderIdFromUrl]);
 
   const isDraftMode = !!activeDraftReportId;
@@ -944,16 +945,14 @@ const DailyReports = () => {
       setReportDate(new Date().toISOString().slice(0, 10));
     }
 
-    const activeAssignments =
-      selectedWorkOrder.work_assignments?.filter(
-        (assignment) => !assignment.is_deleted
-      ) || [];
+    const activeAssignments = selectedWorkOrder.work_assignments?.filter(
+      (assignment) => !assignment.is_deleted,
+    ) || [];
 
     if (activeAssignments.length === 0) {
       setLabourRecords([]);
       setOpenWorkerCardIndexes([0]);
       return;
-
     }
 
     const assignedLabourRecords = activeAssignments.map((assignment) => ({
@@ -970,11 +969,11 @@ const DailyReports = () => {
     const currentWorkerIndex = assignedLabourRecords.findIndex(
       (record) =>
         currentEmployee &&
-        record.employee_id === currentEmployee.employee_id
+        record.employee_id === currentEmployee.employee_id,
     );
 
     setOpenWorkerCardIndexes(
-      currentWorkerIndex >= 0 ? [currentWorkerIndex] : [0]
+      currentWorkerIndex >= 0 ? [currentWorkerIndex] : [0],
     );
   }, [selectedWorkOrder, reportDate, currentEmployee]);
 
@@ -994,7 +993,7 @@ const DailyReports = () => {
 
     const resumedLabourRecords = draftWorkers.map((worker) => {
       const matchedTimeLog = draftTimeLogs.find(
-        (timeLog) => timeLog.employee_id === worker.employee_id
+        (timeLog) => timeLog.employee_id === worker.employee_id,
       );
 
       return {
@@ -1003,8 +1002,7 @@ const DailyReports = () => {
         work_time_log_id: matchedTimeLog?.work_time_log_id || "",
         employee_id: worker.employee_id || "",
         work_assignment_id: worker.work_assignment_id || "",
-        replaces_work_assignment_id:
-          worker.replaces_work_assignment_id || "",
+        replaces_work_assignment_id: worker.replaces_work_assignment_id || "",
         worker_source: (worker.worker_source || "Additional") as WorkerSource,
         attendance_status:
           (worker.attendance_status || "Present") as AttendanceStatus,
@@ -1014,19 +1012,18 @@ const DailyReports = () => {
         break_minutes: String(matchedTimeLog?.break_minutes ?? "60"),
         ot_start: matchedTimeLog?.ot_start || worker.ot_start || "",
         ot_finish: matchedTimeLog?.ot_finish || worker.ot_finish || "",
-        time_status:
-          (matchedTimeLog?.time_status || "Pending") as TimeStatus,
+        time_status: (matchedTimeLog?.time_status || "Pending") as TimeStatus,
         regular_hours: String(
-          matchedTimeLog?.regular_hours ?? worker.regular_hours ?? "0"
+          matchedTimeLog?.regular_hours ?? worker.regular_hours ?? "0",
         ),
         overtime_hours: String(
-          matchedTimeLog?.overtime_hours ?? worker.overtime_hours ?? "0"
+          matchedTimeLog?.overtime_hours ?? worker.overtime_hours ?? "0",
         ),
         completed_quantity: String(worker.completed_quantity ?? "0"),
         ot_completed_quantity: String(
           matchedTimeLog?.ot_completed_quantity ??
-          worker.ot_completed_quantity ??
-          "0"
+            worker.ot_completed_quantity ??
+            "0",
         ),
         worker_role: worker.worker_role || "",
         notes: worker.notes || matchedTimeLog?.notes || "",
@@ -1061,7 +1058,6 @@ const DailyReports = () => {
     setEditingReportId(null);
     setEditingApprovalStatus("");
     setIsManualBackdatedEntry(false);
-
   };
 
   const openEditDailyReport = async (reportId: string) => {
@@ -1157,7 +1153,7 @@ const DailyReports = () => {
     setSelectedActivityTypeIds(
       (report.daily_report_activities || [])
         .map((activity) => activity.activity_type_id)
-        .filter(Boolean)
+        .filter(Boolean),
     );
 
     const reportWorkers = report.daily_report_workers || [];
@@ -1165,7 +1161,7 @@ const DailyReports = () => {
 
     const loadedLabourRecords = reportWorkers.map((worker) => {
       const matchedTimeLog = timeLogs.find(
-        (timeLog) => timeLog.employee_id === worker.employee_id
+        (timeLog) => timeLog.employee_id === worker.employee_id,
       );
 
       return calculateLabourTime({
@@ -1174,8 +1170,7 @@ const DailyReports = () => {
         work_time_log_id: matchedTimeLog?.work_time_log_id || "",
         employee_id: worker.employee_id || "",
         work_assignment_id: worker.work_assignment_id || "",
-        replaces_work_assignment_id:
-          worker.replaces_work_assignment_id || "",
+        replaces_work_assignment_id: worker.replaces_work_assignment_id || "",
         worker_source: (worker.worker_source || "Additional") as WorkerSource,
         attendance_status:
           (worker.attendance_status || "Present") as AttendanceStatus,
@@ -1184,24 +1179,23 @@ const DailyReports = () => {
         clock_out: timestampToTimeValue(matchedTimeLog?.clock_out),
         break_minutes: String(matchedTimeLog?.break_minutes ?? "60"),
         ot_start: timestampToTimeValue(
-          matchedTimeLog?.ot_start || worker.ot_start
+          matchedTimeLog?.ot_start || worker.ot_start,
         ),
         ot_finish: timestampToTimeValue(
-          matchedTimeLog?.ot_finish || worker.ot_finish
+          matchedTimeLog?.ot_finish || worker.ot_finish,
         ),
-        time_status:
-          (matchedTimeLog?.time_status || "Pending") as TimeStatus,
+        time_status: (matchedTimeLog?.time_status || "Pending") as TimeStatus,
         regular_hours: String(
-          matchedTimeLog?.regular_hours ?? worker.regular_hours ?? "0"
+          matchedTimeLog?.regular_hours ?? worker.regular_hours ?? "0",
         ),
         overtime_hours: String(
-          matchedTimeLog?.overtime_hours ?? worker.overtime_hours ?? "0"
+          matchedTimeLog?.overtime_hours ?? worker.overtime_hours ?? "0",
         ),
         completed_quantity: String(worker.completed_quantity ?? "0"),
         ot_completed_quantity: String(
           matchedTimeLog?.ot_completed_quantity ??
-          worker.ot_completed_quantity ??
-          "0"
+            worker.ot_completed_quantity ??
+            "0",
         ),
         worker_role: worker.worker_role || "",
         notes: worker.notes || matchedTimeLog?.notes || "",
@@ -1211,7 +1205,7 @@ const DailyReports = () => {
     setLabourRecords(
       loadedLabourRecords.length > 0
         ? loadedLabourRecords
-        : [createEmptyLabourRecord()]
+        : [createEmptyLabourRecord()],
     );
 
     setOpenWorkerCardIndexes([0]);
@@ -1242,7 +1236,10 @@ const DailyReports = () => {
       if (!record.employee_id) throw new Error("Please select employee.");
       if (!record.activity_type_id) throw new Error("Please select activity.");
 
-      if (record.clock_in || record.daily_report_worker_id || record.work_time_log_id) {
+      if (
+        record.clock_in || record.daily_report_worker_id ||
+        record.work_time_log_id
+      ) {
         throw new Error("This worker has already checked in.");
       }
 
@@ -1279,7 +1276,9 @@ const DailyReports = () => {
 
         if (reportError) throw reportError;
         if (!createdReport?.report_id) {
-          throw new Error("Draft report was created but report ID was not returned.");
+          throw new Error(
+            "Draft report was created but report ID was not returned.",
+          );
         }
 
         reportId = createdReport.report_id;
@@ -1301,7 +1300,9 @@ const DailyReports = () => {
           completed_quantity: Number(checkedInRecord.completed_quantity || 0),
           ot_start: checkedInRecord.ot_start || null,
           ot_finish: checkedInRecord.ot_finish || null,
-          ot_completed_quantity: Number(checkedInRecord.ot_completed_quantity || 0),
+          ot_completed_quantity: Number(
+            checkedInRecord.ot_completed_quantity || 0,
+          ),
           worker_role: checkedInRecord.worker_role.trim() || null,
           notes: checkedInRecord.notes.trim() || null,
         })
@@ -1332,14 +1333,26 @@ const DailyReports = () => {
           regular_hours: Number(checkedInRecord.regular_hours || 0),
           overtime_hours: Number(checkedInRecord.overtime_hours || 0),
           break_minutes: Number(checkedInRecord.break_minutes || 0),
-          clock_in: combineReportDateAndTime(reportDate, checkedInRecord.clock_in),
+          clock_in: combineReportDateAndTime(
+            reportDate,
+            checkedInRecord.clock_in,
+          ),
           clock_out: null,
-          ot_start: combineReportDateAndTime(reportDate, checkedInRecord.ot_start),
-          ot_finish: combineReportDateAndTime(reportDate, checkedInRecord.ot_finish),
-          ot_completed_quantity: Number(checkedInRecord.ot_completed_quantity || 0),
+          ot_start: combineReportDateAndTime(
+            reportDate,
+            checkedInRecord.ot_start,
+          ),
+          ot_finish: combineReportDateAndTime(
+            reportDate,
+            checkedInRecord.ot_finish,
+          ),
+          ot_completed_quantity: Number(
+            checkedInRecord.ot_completed_quantity || 0,
+          ),
           approved: false,
           time_status: checkedInRecord.time_status,
-          notes: checkedInRecord.notes.trim() || checkedInRecord.worker_role.trim() || null,
+          notes: checkedInRecord.notes.trim() ||
+            checkedInRecord.worker_role.trim() || null,
           is_deleted: false,
         })
         .select("work_time_log_id")
@@ -1358,7 +1371,9 @@ const DailyReports = () => {
         checkedInRecord,
       };
     },
-    onSuccess: ({ reportId, workerRowId, timeLogId, recordIndex, checkedInRecord }) => {
+    onSuccess: (
+      { reportId, workerRowId, timeLogId, recordIndex, checkedInRecord },
+    ) => {
       setActiveDraftReportId(reportId);
 
       setLabourRecords((prev) =>
@@ -1387,7 +1402,9 @@ const DailyReports = () => {
       record: LabourRecord;
       recordIndex: number;
     }) => {
-      if (!activeDraftReportId) throw new Error("No active draft report found.");
+      if (!activeDraftReportId) {
+        throw new Error("No active draft report found.");
+      }
       if (!record.daily_report_worker_id) {
         throw new Error("No worker row found for this worker.");
       }
@@ -1412,7 +1429,7 @@ const DailyReports = () => {
           ot_start: checkedOutRecord.ot_start || null,
           ot_finish: checkedOutRecord.ot_finish || null,
           ot_completed_quantity: Number(
-            checkedOutRecord.ot_completed_quantity || 0
+            checkedOutRecord.ot_completed_quantity || 0,
           ),
           notes: checkedOutRecord.notes.trim() || null,
         })
@@ -1423,18 +1440,26 @@ const DailyReports = () => {
       const { error: timeLogUpdateError } = await supabase
         .from("work_time_logs")
         .update({
-          clock_out: combineReportDateAndTime(reportDate, checkedOutRecord.clock_out),
+          clock_out: combineReportDateAndTime(
+            reportDate,
+            checkedOutRecord.clock_out,
+          ),
           regular_hours: Number(checkedOutRecord.regular_hours || 0),
           overtime_hours: Number(checkedOutRecord.overtime_hours || 0),
           break_minutes: Number(checkedOutRecord.break_minutes || 0),
-          ot_start: combineReportDateAndTime(reportDate, checkedOutRecord.ot_start),
-          ot_finish: combineReportDateAndTime(reportDate, checkedOutRecord.ot_finish),
+          ot_start: combineReportDateAndTime(
+            reportDate,
+            checkedOutRecord.ot_start,
+          ),
+          ot_finish: combineReportDateAndTime(
+            reportDate,
+            checkedOutRecord.ot_finish,
+          ),
           ot_completed_quantity: Number(
-            checkedOutRecord.ot_completed_quantity || 0
+            checkedOutRecord.ot_completed_quantity || 0,
           ),
           time_status: checkedOutRecord.time_status,
-          notes:
-            checkedOutRecord.notes.trim() ||
+          notes: checkedOutRecord.notes.trim() ||
             checkedOutRecord.worker_role.trim() ||
             null,
         })
@@ -1496,7 +1521,9 @@ const DailyReports = () => {
           completed_quantity: Number(updatedRecord.completed_quantity || 0),
           ot_start: updatedRecord.ot_start || null,
           ot_finish: updatedRecord.ot_finish || null,
-          ot_completed_quantity: Number(updatedRecord.ot_completed_quantity || 0),
+          ot_completed_quantity: Number(
+            updatedRecord.ot_completed_quantity || 0,
+          ),
           worker_role: updatedRecord.worker_role.trim() || null,
           notes: updatedRecord.notes.trim() || null,
         })
@@ -1507,17 +1534,30 @@ const DailyReports = () => {
       const { error: timeLogUpdateError } = await supabase
         .from("work_time_logs")
         .update({
-          clock_in: combineReportDateAndTime(reportDate, updatedRecord.clock_in),
-          clock_out: combineReportDateAndTime(reportDate, updatedRecord.clock_out),
+          clock_in: combineReportDateAndTime(
+            reportDate,
+            updatedRecord.clock_in,
+          ),
+          clock_out: combineReportDateAndTime(
+            reportDate,
+            updatedRecord.clock_out,
+          ),
           break_minutes: Number(updatedRecord.break_minutes || 0),
           regular_hours: Number(updatedRecord.regular_hours || 0),
           overtime_hours: Number(updatedRecord.overtime_hours || 0),
-          ot_start: combineReportDateAndTime(reportDate, updatedRecord.ot_start),
-          ot_finish: combineReportDateAndTime(reportDate, updatedRecord.ot_finish),
-          ot_completed_quantity: Number(updatedRecord.ot_completed_quantity || 0),
+          ot_start: combineReportDateAndTime(
+            reportDate,
+            updatedRecord.ot_start,
+          ),
+          ot_finish: combineReportDateAndTime(
+            reportDate,
+            updatedRecord.ot_finish,
+          ),
+          ot_completed_quantity: Number(
+            updatedRecord.ot_completed_quantity || 0,
+          ),
           time_status: updatedRecord.time_status,
-          notes:
-            updatedRecord.notes.trim() ||
+          notes: updatedRecord.notes.trim() ||
             updatedRecord.worker_role.trim() ||
             null,
         })
@@ -1552,7 +1592,7 @@ const DailyReports = () => {
       if (!workOrderId) throw new Error("Please select a work order.");
       if (!reportDate) throw new Error("Please select report date.");
       const dailyReportWorkers = labourRecords.filter(
-        (record) => record.employee_id
+        (record) => record.employee_id,
       );
 
       const normalizedDailyReportWorkers = dailyReportWorkers.map((record) => {
@@ -1565,8 +1605,7 @@ const DailyReports = () => {
         return {
           ...calculatedRecord,
           time_status: "Need Review" as TimeStatus,
-          notes:
-            calculatedRecord.notes.trim() ||
+          notes: calculatedRecord.notes.trim() ||
             "Manual / backdated time entry. Please review before payroll approval.",
         };
       });
@@ -1576,7 +1615,7 @@ const DailyReports = () => {
           record.attendance_status === "Present" &&
           record.activity_type_id &&
           record.clock_in &&
-          record.clock_out
+          record.clock_out,
       );
 
       if (dailyReportWorkers.length === 0) {
@@ -1585,7 +1624,7 @@ const DailyReports = () => {
 
       if (formMode !== "edit" && timeLogWorkers.length === 0) {
         throw new Error(
-          "Please add at least one present worker with activity, check in, and check out."
+          "Please add at least one present worker with activity, check in, and check out.",
         );
       }
 
@@ -1600,9 +1639,8 @@ const DailyReports = () => {
       }
 
       const completedToday = normalizedDailyReportWorkers.reduce(
-        (total, record) =>
-          total + Number(record.completed_quantity || 0),
-        0
+        (total, record) => total + Number(record.completed_quantity || 0),
+        0,
       );
 
       if (completedToday < 0) {
@@ -1615,21 +1653,20 @@ const DailyReports = () => {
         !notes.trim()
       ) {
         throw new Error(
-          "Please enter Issues Found or Notes when Completed Quantity Today is 0."
+          "Please enter Issues Found or Notes when Completed Quantity Today is 0.",
         );
       }
 
       const estimatedQuantity = Number(
-        selectedArea?.estimated_quantity || 0
+        selectedArea?.estimated_quantity || 0,
       );
 
-      const progress =
-        estimatedQuantity > 0
-          ? Math.min(
-            (completedToday / estimatedQuantity) * 100,
-            100
-          )
-          : 0;
+      const progress = estimatedQuantity > 0
+        ? Math.min(
+          (completedToday / estimatedQuantity) * 100,
+          100,
+        )
+        : 0;
 
       let finalReportId = activeDraftReportId;
 
@@ -1662,7 +1699,7 @@ const DailyReports = () => {
 
           if (existingReportWorkers && existingReportWorkers.length > 0) {
             throw new Error(
-              "A daily report already exists for this worker, work order, and report date. Please open the existing report instead of creating a duplicate."
+              "A daily report already exists for this worker, work order, and report date. Please open the existing report instead of creating a duplicate.",
             );
           }
         }
@@ -1674,14 +1711,14 @@ const DailyReports = () => {
           .update({
             report_date: reportDate,
             weather_condition: weatherCondition || null,
-            workers_count:
-              formMode === "edit"
-                ? new Set(dailyReportWorkers.map((record) => record.employee_id)).size
-                : new Set(timeLogWorkers.map((record) => record.employee_id)).size,
-            approval_status:
-              formMode === "edit"
-                ? editingApprovalStatus || "Submitted"
-                : "Submitted",
+            workers_count: formMode === "edit"
+              ? new Set(dailyReportWorkers.map((record) => record.employee_id))
+                .size
+              : new Set(timeLogWorkers.map((record) => record.employee_id))
+                .size,
+            approval_status: formMode === "edit"
+              ? editingApprovalStatus || "Submitted"
+              : "Submitted",
             progress_percent: progress,
             completed_quantity: completedToday,
             work_completed: workCompleted.trim() || null,
@@ -1702,7 +1739,9 @@ const DailyReports = () => {
             work_order_id: workOrderId,
             report_date: reportDate,
             weather_condition: weatherCondition || null,
-            workers_count: new Set(timeLogWorkers.map((record) => record.employee_id)).size,
+            workers_count: new Set(timeLogWorkers.map((record) =>
+              record.employee_id
+            )).size,
             approval_status: "Submitted",
             progress_percent: progress,
             completed_quantity: completedToday,
@@ -1718,7 +1757,9 @@ const DailyReports = () => {
         if (createReportError) throw createReportError;
 
         if (!createdReport?.report_id) {
-          throw new Error("Daily report was created but report ID was not returned.");
+          throw new Error(
+            "Daily report was created but report ID was not returned.",
+          );
         }
 
         finalReportId = createdReport.report_id;
@@ -1753,8 +1794,8 @@ const DailyReports = () => {
           report_id: finalReportId,
           employee_id: record.employee_id,
           work_assignment_id: record.work_assignment_id || null,
-          replaces_work_assignment_id:
-            record.replaces_work_assignment_id || null,
+          replaces_work_assignment_id: record.replaces_work_assignment_id ||
+            null,
           worker_source: record.worker_source,
           attendance_status: record.attendance_status,
           activity_type_id: record.activity_type_id,
@@ -1779,8 +1820,8 @@ const DailyReports = () => {
           report_id: finalReportId,
           employee_id: record.employee_id,
           work_assignment_id: record.work_assignment_id || null,
-          replaces_work_assignment_id:
-            record.replaces_work_assignment_id || null,
+          replaces_work_assignment_id: record.replaces_work_assignment_id ||
+            null,
           worker_source: record.worker_source,
           attendance_status: record.attendance_status,
           project_id: projectId,
@@ -1825,13 +1866,15 @@ const DailyReports = () => {
                 completed_quantity: Number(record.completed_quantity || 0),
                 ot_start: record.ot_start || null,
                 ot_finish: record.ot_finish || null,
-                ot_completed_quantity: Number(record.ot_completed_quantity || 0),
+                ot_completed_quantity: Number(
+                  record.ot_completed_quantity || 0,
+                ),
                 worker_role: record.worker_role.trim() || null,
                 notes: record.notes.trim() || null,
               })
               .eq(
                 "daily_report_worker_id",
-                record.daily_report_worker_id
+                record.daily_report_worker_id,
               );
 
             if (workerUpdateError) throw workerUpdateError;
@@ -1845,16 +1888,23 @@ const DailyReports = () => {
                 attendance_status: record.attendance_status,
                 worker_source: record.worker_source,
                 clock_in: combineReportDateAndTime(reportDate, record.clock_in),
-                clock_out: combineReportDateAndTime(reportDate, record.clock_out),
+                clock_out: combineReportDateAndTime(
+                  reportDate,
+                  record.clock_out,
+                ),
                 break_minutes: Number(record.break_minutes || 0),
                 regular_hours: Number(record.regular_hours || 0),
                 overtime_hours: Number(record.overtime_hours || 0),
                 ot_start: combineReportDateAndTime(reportDate, record.ot_start),
-                ot_finish: combineReportDateAndTime(reportDate, record.ot_finish),
-                ot_completed_quantity: Number(record.ot_completed_quantity || 0),
+                ot_finish: combineReportDateAndTime(
+                  reportDate,
+                  record.ot_finish,
+                ),
+                ot_completed_quantity: Number(
+                  record.ot_completed_quantity || 0,
+                ),
                 time_status: record.time_status,
-                notes:
-                  record.notes.trim() ||
+                notes: record.notes.trim() ||
                   record.worker_role.trim() ||
                   null,
               })
@@ -1925,10 +1975,9 @@ const DailyReports = () => {
                   ? {
                     ...item,
                     status: "uploaded",
-                    error:
-                      error instanceof Error
-                        ? error.message
-                        : "Photo upload failed.",
+                    error: error instanceof Error
+                      ? error.message
+                      : "Photo upload failed.",
                   }
                   : item
               )
@@ -1942,22 +1991,24 @@ const DailyReports = () => {
         uploadedPhotoCount,
         failedPhotoCount,
       };
-
     },
     onSuccess: (result) => {
-
-      queryClient.invalidateQueries({ queryKey: ["daily_report", result.reportId] });
-      queryClient.invalidateQueries({ queryKey: ["linked_work_time_logs", result.reportId] });
+      queryClient.invalidateQueries({
+        queryKey: ["daily_report", result.reportId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["linked_work_time_logs", result.reportId],
+      });
 
       if (result.failedPhotoCount > 0) {
         toast.warning(
-          `Daily report saved. ${result.uploadedPhotoCount} photo(s) uploaded, ${result.failedPhotoCount} failed.`
+          `Daily report saved. ${result.uploadedPhotoCount} photo(s) uploaded, ${result.failedPhotoCount} failed.`,
         );
       } else {
         toast.success(
           formMode === "edit"
             ? "Daily report updated successfully."
-            : "Daily report submitted and time logs created for review."
+            : "Daily report submitted and time logs created for review.",
         );
       }
       queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
@@ -1983,8 +2034,7 @@ const DailyReports = () => {
       const areaName = report.project_areas?.area_name || "";
       const workOrderTitle = report.work_orders?.title || "";
 
-      const matchKeyword =
-        !keyword ||
+      const matchKeyword = !keyword ||
         report.report_date?.toLowerCase().includes(keyword) ||
         report.weather_condition?.toLowerCase().includes(keyword) ||
         report.work_completed?.toLowerCase().includes(keyword) ||
@@ -1994,14 +2044,14 @@ const DailyReports = () => {
         areaName.toLowerCase().includes(keyword) ||
         workOrderTitle.toLowerCase().includes(keyword);
 
-      const matchProject =
-        filterProjectId === "all" || report.project_id === filterProjectId;
-      const matchSite =
-        filterSiteId === "all" || report.site_id === filterSiteId;
-      const matchArea =
-        filterAreaId === "all" || report.area_id === filterAreaId;
-      const matchStatus =
-        filterStatus === "all" || report.approval_status === filterStatus;
+      const matchProject = filterProjectId === "all" ||
+        report.project_id === filterProjectId;
+      const matchSite = filterSiteId === "all" ||
+        report.site_id === filterSiteId;
+      const matchArea = filterAreaId === "all" ||
+        report.area_id === filterAreaId;
+      const matchStatus = filterStatus === "all" ||
+        report.approval_status === filterStatus;
 
       return (
         matchKeyword &&
@@ -2040,30 +2090,31 @@ const DailyReports = () => {
 
   const areaSummary = useMemo(() => {
     const approvedReports = filteredDailyReports.filter(
-      (report) => report.approval_status === "Approved"
+      (report) => report.approval_status === "Approved",
     );
 
     const pendingReports = filteredDailyReports.filter((report) =>
-      ["Submitted", "Ready for Inspection"].includes(report.approval_status || "")
+      ["Submitted", "Ready for Inspection"].includes(
+        report.approval_status || "",
+      )
     );
 
     const approvedProgress = approvedReports.reduce(
       (sum, report) => sum + Number(report.completed_quantity || 0),
-      0
+      0,
     );
 
     const pendingReview = pendingReports.reduce(
       (sum, report) => sum + Number(report.completed_quantity || 0),
-      0
+      0,
     );
 
-    const estimatedQuantity =
-      filterAreaId !== "all"
-        ? Number(
-          areas.find((area) => area.area_id === filterAreaId)
-            ?.estimated_quantity || 0
-        )
-        : 0;
+    const estimatedQuantity = filterAreaId !== "all"
+      ? Number(
+        areas.find((area) => area.area_id === filterAreaId)
+          ?.estimated_quantity || 0,
+      )
+      : 0;
 
     const latestReport = filteredDailyReports[0]?.report_date || "-";
 
@@ -2097,23 +2148,22 @@ const DailyReports = () => {
         .filter((report) => report.approval_status === "Approved")
         .reduce(
           (sum, report) => sum + Number(report.completed_quantity || 0),
-          0
+          0,
         );
 
       const pendingProgress = reports
         .filter((report) =>
           ["Submitted", "Ready for Inspection"].includes(
-            report.approval_status || ""
+            report.approval_status || "",
           )
         )
-
         .reduce(
           (sum, report) => sum + Number(report.completed_quantity || 0),
-          0
+          0,
         );
 
       const estimatedQuantity = Number(
-        firstReport?.project_areas?.estimated_quantity || 0
+        firstReport?.project_areas?.estimated_quantity || 0,
       );
 
       return {
@@ -2146,22 +2196,23 @@ const DailyReports = () => {
       default:
         return "bg-slate-100 text-slate-500 border-slate-200";
     }
-
   };
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div className="flex items-start gap-3">
-          <div className="rounded-xl bg-red-50 p-3 text-red-600">
-            <CalendarDays className="h-5 w-5" />
+    <div className="space-y-5 px-4 pb-8 pt-4 animate-fade-in sm:px-6 lg:px-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-50">
+            <CalendarDays className="h-6 w-6 text-red-600" />
           </div>
 
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-black leading-tight text-slate-900 md:text-3xl">
               Daily Progress Review
             </h1>
-            <p className="text-sm text-slate-500 md:text-base">
-              Review daily work progress, worker reports, photos, issues, and approval status.
+
+            <p className="mt-1 text-sm text-slate-500">
+              Review daily work progress, worker reports, photos, issues, and
+              approval status.
             </p>
           </div>
         </div>
@@ -2175,7 +2226,7 @@ const DailyReports = () => {
               setReportDate(new Date().toISOString().slice(0, 10));
               setShowAddDialog(true);
             }}
-            className="ml-14 h-9 w-fit self-start rounded-xl bg-red-600 px-3 text-xs font-bold text-white shadow-sm transition-all hover:bg-red-700 md:ml-0 md:h-11 md:self-auto md:px-6 md:text-sm"
+            className="flex h-11 w-full shrink-0 items-center justify-center rounded-xl bg-red-600 px-5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-red-700 sm:w-auto print:hidden"
           >
             <Plus className="mr-1.5 h-4 w-4 md:mr-2" />
             Add Report
@@ -2280,7 +2331,9 @@ const DailyReports = () => {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-sm font-bold text-slate-900">
-                {filterAreaId === "all" ? "Filtered Progress Summary" : "Area Progress Summary"}
+                {filterAreaId === "all"
+                  ? "Filtered Progress Summary"
+                  : "Area Progress Summary"}
               </p>
               <p className="mt-1 text-xs text-slate-500">
                 {filterAreaId === "all"
@@ -2297,196 +2350,346 @@ const DailyReports = () => {
             </div>
           </div>
 
-          {filterAreaId === "all" ? (
-            <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
-              <p className="text-sm font-semibold text-slate-900">
-                Select an area to view area-level progress.
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                The list below is currently showing reports across all selected areas.
-              </p>
+          {filterAreaId === "all"
+            ? (
+              <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-sm font-semibold text-slate-900">
+                  Select an area to view area-level progress.
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  The list below is currently showing reports across all
+                  selected areas.
+                </p>
 
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-xs font-medium text-slate-500">
-                    Approved Progress
-                  </p>
-                  <p className="mt-2 text-lg font-black text-slate-900">
-                    {areaSummary.approvedProgress.toFixed(2)} sqm
-                  </p>
-                </div>
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="text-xs font-medium text-slate-500">
+                      Approved Progress
+                    </p>
+                    <p className="mt-2 text-lg font-black text-slate-900">
+                      {areaSummary.approvedProgress.toFixed(2)} sqm
+                    </p>
+                  </div>
 
-                <div className="rounded-xl bg-amber-50 p-3">
-                  <p className="text-xs font-medium text-amber-700">
-                    Pending Review
-                  </p>
-                  <p className="mt-2 text-lg font-black text-amber-700">
-                    {areaSummary.pendingReview.toFixed(2)} sqm
-                  </p>
-                </div>
+                  <div className="rounded-xl bg-amber-50 p-3">
+                    <p className="text-xs font-medium text-amber-700">
+                      Pending Review
+                    </p>
+                    <p className="mt-2 text-lg font-black text-amber-700">
+                      {areaSummary.pendingReview.toFixed(2)} sqm
+                    </p>
+                  </div>
 
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-xs font-medium text-slate-500">
-                    Pending Reports
-                  </p>
-                  <p className="mt-2 text-lg font-black text-slate-900">
-                    {areaSummary.pendingReports}
-                  </p>
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="text-xs font-medium text-slate-500">
+                      Pending Reports
+                    </p>
+                    <p className="mt-2 text-lg font-black text-slate-900">
+                      {areaSummary.pendingReports}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : (
-            <>
-              <div className="mt-4 max-w-3xl">
-                <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
-                  <span>Approved Progress</span>
-                  <span className="font-semibold text-slate-900">
-                    {areaSummary.estimatedQuantity > 0
-                      ? `${Math.min(
-                        (areaSummary.approvedProgress /
-                          areaSummary.estimatedQuantity) *
-                        100,
-                        100
-                      ).toFixed(2)}%`
-                      : "0.00%"}
-                  </span>
-                </div>
+            )
+            : (
+              <>
+                <div className="mt-4 max-w-3xl">
+                  <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
+                    <span>Approved Progress</span>
+                    <span className="font-semibold text-slate-900">
+                      {areaSummary.estimatedQuantity > 0
+                        ? `${
+                          Math.min(
+                            (areaSummary.approvedProgress /
+                              areaSummary.estimatedQuantity) *
+                              100,
+                            100,
+                          ).toFixed(2)
+                        }%`
+                        : "0.00%"}
+                    </span>
+                  </div>
 
-                <div className="mt-2 h-3 w-full rounded-full bg-slate-200">
-                  <div
-                    className="h-3 rounded-full bg-red-600"
-                    style={{
-                      width: `${areaSummary.estimatedQuantity > 0
-                        ? Math.min(
-                          (areaSummary.approvedProgress /
-                            areaSummary.estimatedQuantity) *
-                          100,
-                          100
-                        )
-                        : 0
+                  <div className="mt-2 h-3 w-full rounded-full bg-slate-200">
+                    <div
+                      className="h-3 rounded-full bg-red-600"
+                      style={{
+                        width: `${
+                          areaSummary.estimatedQuantity > 0
+                            ? Math.min(
+                              (areaSummary.approvedProgress /
+                                areaSummary.estimatedQuantity) *
+                                100,
+                              100,
+                            )
+                            : 0
                         }%`,
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                <div className="rounded-xl border border-slate-200 bg-white p-4">
-                  <p className="text-xs font-medium text-slate-500">
-                    Approved Progress
-                  </p>
-                  <p className="mt-2 text-xl font-black text-slate-900">
-                    {areaSummary.approvedProgress.toFixed(2)} sqm
-                  </p>
+                      }}
+                    />
+                  </div>
                 </div>
 
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                  <p className="text-xs font-medium text-amber-700">
-                    Pending Review
-                  </p>
-                  <p className="mt-2 text-xl font-black text-amber-700">
-                    {areaSummary.pendingReview.toFixed(2)} sqm
-                  </p>
-                </div>
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <p className="text-xs font-medium text-slate-500">
+                      Approved Progress
+                    </p>
+                    <p className="mt-2 text-xl font-black text-slate-900">
+                      {areaSummary.approvedProgress.toFixed(2)} sqm
+                    </p>
+                  </div>
 
-                <div className="rounded-xl border border-slate-200 bg-white p-4">
-                  <p className="text-xs font-medium text-slate-500">
-                    Remaining
-                  </p>
-                  <p className="mt-2 text-xl font-black text-slate-900">
-                    {areaSummary.remaining.toFixed(2)} sqm
-                  </p>
-                </div>
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <p className="text-xs font-medium text-amber-700">
+                      Pending Review
+                    </p>
+                    <p className="mt-2 text-xl font-black text-amber-700">
+                      {areaSummary.pendingReview.toFixed(2)} sqm
+                    </p>
+                  </div>
 
-                <div className="rounded-xl border border-slate-200 bg-white p-4">
-                  <p className="text-xs font-medium text-slate-500">
-                    Estimated Quantity
-                  </p>
-                  <p className="mt-2 text-xl font-black text-slate-900">
-                    {areaSummary.estimatedQuantity.toFixed(2)} sqm
-                  </p>
-                </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <p className="text-xs font-medium text-slate-500">
+                      Remaining
+                    </p>
+                    <p className="mt-2 text-xl font-black text-slate-900">
+                      {areaSummary.remaining.toFixed(2)} sqm
+                    </p>
+                  </div>
 
-                <div className="rounded-xl border border-slate-200 bg-white p-4">
-                  <p className="text-xs font-medium text-slate-500">
-                    Pending Reports
-                  </p>
-                  <p className="mt-2 text-xl font-black text-slate-900">
-                    {areaSummary.pendingReports}
-                  </p>
-                </div>
-              </div>
-            </>
-          )}
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <p className="text-xs font-medium text-slate-500">
+                      Estimated Quantity
+                    </p>
+                    <p className="mt-2 text-xl font-black text-slate-900">
+                      {areaSummary.estimatedQuantity.toFixed(2)} sqm
+                    </p>
+                  </div>
 
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <p className="text-xs font-medium text-slate-500">
+                      Pending Reports
+                    </p>
+                    <p className="mt-2 text-xl font-black text-slate-900">
+                      {areaSummary.pendingReports}
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
         </div>
 
-        {filteredDailyReports.length === 0 ? (
-          <div className="p-8 text-center text-slate-500">
-            No daily reports found.
-          </div>
-        ) : (
-          groupedDailyReports.map((group) => (
-            <div key={group.areaKey} className="border-b last:border-b-0">
-              <div className="border-b bg-slate-100 px-4 py-3">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <p className="font-bold text-slate-900">
-                      {group.areaCode} - {group.areaName}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      Site: {group.siteName} · Reports: {group.reportCount} · Latest:{" "}
-                      {group.latestReport}
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3 text-xs">
+        {filteredDailyReports.length === 0
+          ? (
+            <div className="p-8 text-center text-slate-500">
+              No daily reports found.
+            </div>
+          )
+          : (
+            groupedDailyReports.map((group) => (
+              <div key={group.areaKey} className="border-b last:border-b-0">
+                <div className="border-b bg-slate-100 px-4 py-3">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                      <p className="text-slate-500">Approved</p>
                       <p className="font-bold text-slate-900">
-                        {group.approvedProgress.toFixed(2)} {group.unitOfMeasure}
+                        {group.areaCode} - {group.areaName}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Site: {group.siteName} · Reports: {group.reportCount}
+                        {" "}
+                        · Latest: {group.latestReport}
                       </p>
                     </div>
 
-                    <div>
-                      <p className="text-slate-500">Pending</p>
-                      <p className="font-bold text-amber-700">
-                        {group.pendingProgress.toFixed(2)} {group.unitOfMeasure}
-                      </p>
-                    </div>
+                    <div className="grid grid-cols-3 gap-3 text-xs">
+                      <div>
+                        <p className="text-slate-500">Approved</p>
+                        <p className="font-bold text-slate-900">
+                          {group.approvedProgress.toFixed(2)}{" "}
+                          {group.unitOfMeasure}
+                        </p>
+                      </div>
 
-                    <div>
-                      <p className="text-slate-500">Remaining</p>
-                      <p className="font-bold text-slate-900">
-                        {group.remaining.toFixed(2)} {group.unitOfMeasure}
-                      </p>
+                      <div>
+                        <p className="text-slate-500">Pending</p>
+                        <p className="font-bold text-amber-700">
+                          {group.pendingProgress.toFixed(2)}{" "}
+                          {group.unitOfMeasure}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-slate-500">Remaining</p>
+                        <p className="font-bold text-slate-900">
+                          {group.remaining.toFixed(2)} {group.unitOfMeasure}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Desktop table header */}
-              <div className="hidden grid-cols-12 gap-3 border-b bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 xl:grid">
-                <div className="col-span-1">Date</div>
-                <div className="col-span-2">Project</div>
-                <div className="col-span-2">Work Summary</div>
-                <div className="col-span-2">Work Order</div>
-                <div className="col-span-2">Worker Report</div>
-                <div className="col-span-1">Progress</div>
-                <div className="col-span-1">Status</div>
-                <div className="col-span-1">Action</div>
-              </div>
+                {/* Desktop table header */}
+                <div className="hidden grid-cols-12 gap-3 border-b bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 xl:grid">
+                  <div className="col-span-1">Date</div>
+                  <div className="col-span-2">Project</div>
+                  <div className="col-span-2">Work Summary</div>
+                  <div className="col-span-2">Work Order</div>
+                  <div className="col-span-2">Worker Report</div>
+                  <div className="col-span-1">Progress</div>
+                  <div className="col-span-1">Status</div>
+                  <div className="col-span-1">Action</div>
+                </div>
 
-              {group.reports.map((report) => (
-                <div key={report.report_id}>
-                  {/* Mobile card */}
-                  <div className="space-y-4 border-b px-4 py-4 last:border-b-0 xl:hidden">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-slate-900">
-                          {report.report_date || "-"}
+                {group.reports.map((report) => (
+                  <div key={report.report_id}>
+                    {/* Mobile card */}
+                    <div className="space-y-4 border-b px-4 py-4 last:border-b-0 xl:hidden">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-slate-900">
+                            {report.report_date || "-"}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-600">
+                            {report.projects?.project_name || "-"}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {report.projects?.project_no || "-"} ·{" "}
+                            {report.projects?.customers?.customer_name || "-"}
+                          </p>
+                        </div>
+
+                        <span
+                          className={`inline-flex shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                            getApprovalStatusClass(
+                              report.approval_status,
+                            )
+                          }`}
+                        >
+                          {report.approval_status || "-"}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs text-slate-500">Workers</p>
+                          <p className="font-medium text-slate-900">
+                            {report.daily_report_workers?.[0]?.employees
+                              ?.display_name ||
+                              `${
+                                report.daily_report_workers?.[0]?.employees
+                                  ?.first_name || ""
+                              } ${
+                                report.daily_report_workers?.[0]?.employees
+                                  ?.last_name || ""
+                              }`.trim() ||
+                              report.daily_report_workers?.[0]?.employees
+                                ?.employee_code ||
+                              "Worker not found"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200 p-3">
+                        <p className="text-xs text-slate-500">Work Order</p>
+                        <p className="mt-1 font-medium text-slate-900">
+                          {report.work_orders?.title || "-"}
                         </p>
-                        <p className="mt-1 text-sm text-slate-600">
+                        <p className="text-xs text-slate-500">
+                          {report.work_orders?.work_order_no || "-"} ·{" "}
+                          {report.work_orders?.status || "-"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200 p-3">
+                        <p className="text-xs text-slate-500">Work Completed</p>
+                        <p className="mt-1 text-sm text-slate-800">
+                          {report.work_completed || "No work summary"}
+                        </p>
+                        <p className="mt-2 text-xs text-slate-500">
+                          Issues: {report.issues_found || "-"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs text-slate-500">Progress</p>
+                            <p className="mt-1 text-base font-bold text-slate-900">
+                              {Number(report.progress_percent || 0).toFixed(2)}%
+                            </p>
+                          </div>
+
+                          <div className="text-right text-xs text-slate-500">
+                            {Number(report.completed_quantity || 0).toFixed(2)}
+                            {" "}
+                            / {Number(
+                              report.project_areas?.estimated_quantity || 0,
+                            ).toFixed(2)}{" "}
+                            {report.project_areas?.unit_of_measure || ""}
+                          </div>
+                        </div>
+
+                        <div className="mt-3 h-2 w-full rounded-full bg-slate-100">
+                          <div
+                            className="h-2 rounded-full bg-red-600"
+                            style={{
+                              width: `${
+                                Math.min(
+                                  Number(report.progress_percent || 0),
+                                  100,
+                                )
+                              }%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs text-slate-500">Hours</p>
+                          <p className="mt-1 font-medium text-slate-900">
+                            {report.daily_report_workers?.length
+                              ? report.daily_report_workers
+                                .reduce(
+                                  (sum, worker) =>
+                                    sum +
+                                    Number(worker.regular_hours || 0) +
+                                    Number(worker.overtime_hours || 0),
+                                  0,
+                                )
+                                .toFixed(2)
+                              : "0.00"}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs text-slate-500">Photos</p>
+                          <p className="mt-1 font-medium text-slate-900">
+                            {report.daily_report_photos?.filter(
+                              (photo) => !photo.is_deleted,
+                            ).length || 0}
+                          </p>
+                        </div>
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        className="h-11 w-full rounded-xl"
+                        onClick={() =>
+                          navigate(`/daily-reports/${report.report_id}`)}
+                      >
+                        View Report
+                      </Button>
+                    </div>
+
+                    {/* Desktop row */}
+                    <div className="hidden grid-cols-12 gap-3 border-b px-4 py-4 transition-colors hover:bg-slate-50 last:border-b-0 xl:grid">
+                      <div className="col-span-1 text-sm text-slate-700">
+                        {report.report_date || "-"}
+                      </div>
+
+                      <div className="col-span-2">
+                        <p className="font-medium text-slate-800">
                           {report.projects?.project_name || "-"}
                         </p>
                         <p className="text-xs text-slate-500">
@@ -2495,265 +2698,143 @@ const DailyReports = () => {
                         </p>
                       </div>
 
-                      <span
-                        className={`inline-flex shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold ${getApprovalStatusClass(
-                          report.approval_status
-                        )}`}
-                      >
-                        {report.approval_status || "-"}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <p className="text-xs text-slate-500">Workers</p>
-                        <p className="font-medium text-slate-900">
-                          {report.daily_report_workers?.[0]?.employees?.display_name ||
-                            `${report.daily_report_workers?.[0]?.employees?.first_name || ""} ${report.daily_report_workers?.[0]?.employees?.last_name || ""
-                              }`.trim() ||
-                            report.daily_report_workers?.[0]?.employees?.employee_code ||
-                            "Worker not found"}
+                      <div className="col-span-2 text-slate-700">
+                        <p className="font-medium text-slate-800">
+                          {report.work_completed || "No work summary"}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Issues: {report.issues_found || "-"}
                         </p>
                       </div>
-                    </div>
 
-                    <div className="rounded-xl border border-slate-200 p-3">
-                      <p className="text-xs text-slate-500">Work Order</p>
-                      <p className="mt-1 font-medium text-slate-900">
-                        {report.work_orders?.title || "-"}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {report.work_orders?.work_order_no || "-"} ·{" "}
-                        {report.work_orders?.status || "-"}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-slate-200 p-3">
-                      <p className="text-xs text-slate-500">Work Completed</p>
-                      <p className="mt-1 text-sm text-slate-800">
-                        {report.work_completed || "No work summary"}
-                      </p>
-                      <p className="mt-2 text-xs text-slate-500">
-                        Issues: {report.issues_found || "-"}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-slate-200 p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs text-slate-500">Progress</p>
-                          <p className="mt-1 text-base font-bold text-slate-900">
-                            {Number(report.progress_percent || 0).toFixed(2)}%
-                          </p>
-                        </div>
-
-                        <div className="text-right text-xs text-slate-500">
-                          {Number(report.completed_quantity || 0).toFixed(2)} /{" "}
-                          {Number(
-                            report.project_areas?.estimated_quantity || 0
-                          ).toFixed(2)}{" "}
-                          {report.project_areas?.unit_of_measure || ""}
-                        </div>
+                      <div className="col-span-2 text-slate-700">
+                        <p>{report.work_orders?.title || "-"}</p>
+                        <p className="text-xs text-slate-500">
+                          {report.work_orders?.work_order_no || "-"} ·{" "}
+                          {report.work_orders?.status || "-"}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Activities: {report.daily_report_activities?.length
+                            ? report.daily_report_activities
+                              .map((item) =>
+                                item.work_activity_types?.activity_name
+                              )
+                              .filter(Boolean)
+                              .join(", ")
+                            : "-"}
+                        </p>
                       </div>
 
-                      <div className="mt-3 h-2 w-full rounded-full bg-slate-100">
-                        <div
-                          className="h-2 rounded-full bg-red-600"
-                          style={{
-                            width: `${Math.min(
-                              Number(report.progress_percent || 0),
-                              100
-                            )}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
+                      <div className="col-span-2 text-slate-700">
+                        <p className="font-medium text-slate-900">
+                          {(() => {
+                            const worker = report.daily_report_workers?.[0];
+                            const employee = worker?.employees;
 
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <p className="text-xs text-slate-500">Hours</p>
-                        <p className="mt-1 font-medium text-slate-900">
-                          {report.daily_report_workers?.length
+                            return (
+                              employee?.display_name ||
+                              `${employee?.first_name || ""} ${
+                                employee?.last_name || ""
+                              }`.trim() ||
+                              employee?.employee_code ||
+                              "Worker not found"
+                            );
+                          })()}
+                        </p>
+
+                        <p className="text-xs text-slate-500">
+                          Hours: {report.daily_report_workers?.length
                             ? report.daily_report_workers
                               .reduce(
                                 (sum, worker) =>
                                   sum +
                                   Number(worker.regular_hours || 0) +
                                   Number(worker.overtime_hours || 0),
-                                0
+                                0,
+                              )
+                              .toFixed(2)
+                            : "0.00"}
+                        </p>
+
+                        <p className="text-xs text-slate-500">
+                          Qty: {report.daily_report_workers?.length
+                            ? report.daily_report_workers
+                              .reduce(
+                                (sum, worker) =>
+                                  sum + Number(worker.completed_quantity || 0),
+                                0,
                               )
                               .toFixed(2)
                             : "0.00"}
                         </p>
                       </div>
 
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <p className="text-xs text-slate-500">Photos</p>
-                        <p className="mt-1 font-medium text-slate-900">
-                          {report.daily_report_photos?.filter(
-                            (photo) => !photo.is_deleted
+                      <div className="col-span-1 text-slate-700">
+                        <p className="font-semibold text-slate-900">
+                          {Number(report.progress_percent || 0).toFixed(2)}%
+                        </p>
+
+                        <div className="mt-2 h-2 w-full rounded-full bg-slate-100">
+                          <div
+                            className="h-2 rounded-full bg-red-600"
+                            style={{
+                              width: `${
+                                Math.min(
+                                  Number(report.progress_percent || 0),
+                                  100,
+                                )
+                              }%`,
+                            }}
+                          />
+                        </div>
+
+                        <p className="mt-2 text-xs text-slate-500">
+                          {Number(report.completed_quantity || 0).toFixed(2)} /
+                          {" "}
+                          {Number(
+                            report.project_areas?.estimated_quantity || 0,
+                          ).toFixed(2)}{" "}
+                          {report.project_areas?.unit_of_measure || ""}
+                        </p>
+                      </div>
+
+                      <div className="col-span-1 text-slate-700">
+                        <span
+                          className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${
+                            getApprovalStatusClass(
+                              report.approval_status,
+                            )
+                          }`}
+                        >
+                          {report.approval_status || "-"}
+                        </span>
+
+                        <p className="mt-2 text-xs text-slate-500">
+                          Photos: {report.daily_report_photos?.filter(
+                            (photo) => !photo.is_deleted,
                           ).length || 0}
                         </p>
                       </div>
-                    </div>
 
-                    <Button
-                      variant="outline"
-                      className="h-11 w-full rounded-xl"
-                      onClick={() => navigate(`/daily-reports/${report.report_id}`)}
-                    >
-                      View Report
-                    </Button>
-                  </div>
-
-                  {/* Desktop row */}
-                  <div className="hidden grid-cols-12 gap-3 border-b px-4 py-4 transition-colors hover:bg-slate-50 last:border-b-0 xl:grid">
-                    <div className="col-span-1 text-sm text-slate-700">
-                      {report.report_date || "-"}
-                    </div>
-
-                    <div className="col-span-2">
-                      <p className="font-medium text-slate-800">
-                        {report.projects?.project_name || "-"}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {report.projects?.project_no || "-"} ·{" "}
-                        {report.projects?.customers?.customer_name || "-"}
-                      </p>
-                    </div>
-
-                    <div className="col-span-2 text-slate-700">
-                      <p className="font-medium text-slate-800">
-                        {report.work_completed || "No work summary"}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        Issues: {report.issues_found || "-"}
-                      </p>
-                    </div>
-
-                    <div className="col-span-2 text-slate-700">
-                      <p>{report.work_orders?.title || "-"}</p>
-                      <p className="text-xs text-slate-500">
-                        {report.work_orders?.work_order_no || "-"} ·{" "}
-                        {report.work_orders?.status || "-"}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        Activities:{" "}
-                        {report.daily_report_activities?.length
-                          ? report.daily_report_activities
-                            .map((item) => item.work_activity_types?.activity_name)
-                            .filter(Boolean)
-                            .join(", ")
-                          : "-"}
-                      </p>
-                    </div>
-
-                    <div className="col-span-2 text-slate-700">
-                      <p className="font-medium text-slate-900">
-                        {(() => {
-                          const worker = report.daily_report_workers?.[0];
-                          const employee = worker?.employees;
-
-                          return (
-                            employee?.display_name ||
-                            `${employee?.first_name || ""} ${employee?.last_name || ""}`.trim() ||
-                            employee?.employee_code ||
-                            "Worker not found"
-                          );
-                        })()}
-                      </p>
-
-                      <p className="text-xs text-slate-500">
-                        Hours:{" "}
-                        {report.daily_report_workers?.length
-                          ? report.daily_report_workers
-                            .reduce(
-                              (sum, worker) =>
-                                sum +
-                                Number(worker.regular_hours || 0) +
-                                Number(worker.overtime_hours || 0),
-                              0
-                            )
-                            .toFixed(2)
-                          : "0.00"}
-                      </p>
-
-                      <p className="text-xs text-slate-500">
-                        Qty:{" "}
-                        {report.daily_report_workers?.length
-                          ? report.daily_report_workers
-                            .reduce(
-                              (sum, worker) =>
-                                sum + Number(worker.completed_quantity || 0),
-                              0
-                            )
-                            .toFixed(2)
-                          : "0.00"}
-                      </p>
-                    </div>
-
-                    <div className="col-span-1 text-slate-700">
-                      <p className="font-semibold text-slate-900">
-                        {Number(report.progress_percent || 0).toFixed(2)}%
-                      </p>
-
-                      <div className="mt-2 h-2 w-full rounded-full bg-slate-100">
-                        <div
-                          className="h-2 rounded-full bg-red-600"
-                          style={{
-                            width: `${Math.min(
-                              Number(report.progress_percent || 0),
-                              100
-                            )}%`,
-                          }}
-                        />
+                      <div className="col-span-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            navigate(`/daily-reports/${report.report_id}`)}
+                        >
+                          View
+                        </Button>
                       </div>
-
-                      <p className="mt-2 text-xs text-slate-500">
-                        {Number(report.completed_quantity || 0).toFixed(2)} /{" "}
-                        {Number(
-                          report.project_areas?.estimated_quantity || 0
-                        ).toFixed(2)}{" "}
-                        {report.project_areas?.unit_of_measure || ""}
-                      </p>
-                    </div>
-
-                    <div className="col-span-1 text-slate-700">
-                      <span
-                        className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${getApprovalStatusClass(
-                          report.approval_status
-                        )}`}
-                      >
-                        {report.approval_status || "-"}
-                      </span>
-
-                      <p className="mt-2 text-xs text-slate-500">
-                        Photos:{" "}
-                        {report.daily_report_photos?.filter(
-                          (photo) => !photo.is_deleted
-                        ).length || 0}
-                      </p>
-                    </div>
-
-                    <div className="col-span-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => navigate(`/daily-reports/${report.report_id}`)}
-                      >
-                        View
-                      </Button>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ))
-        )}
+                ))}
+              </div>
+            ))
+          )}
       </div>
 
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-
         <DialogContent className="max-h-[94dvh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-x-hidden overflow-y-auto rounded-2xl bg-slate-50 p-0 sm:max-w-5xl">
           <div className="border-b bg-white px-5 py-5 sm:px-6">
             <DialogHeader>
@@ -2763,7 +2844,8 @@ const DailyReports = () => {
             </DialogHeader>
 
             <p className="mt-1 text-sm text-slate-500">
-              Record the work order, date, worker activity, site notes and supporting photos.
+              Record the work order, date, worker activity, site notes and
+              supporting photos.
             </p>
           </div>
 
@@ -2773,7 +2855,6 @@ const DailyReports = () => {
               title="Work Order Summary"
               description="Select the issued work order and confirm the project, site and area context."
             >
-
               {!workOrderIdFromUrl && (
                 <div className="space-y-2">
                   <Label>Select Work Order *</Label>
@@ -2781,7 +2862,7 @@ const DailyReports = () => {
                     value={workOrderId}
                     onValueChange={(value) => {
                       const selected = workOrders.find(
-                        (workOrder) => workOrder.work_order_id === value
+                        (workOrder) => workOrder.work_order_id === value,
                       );
 
                       setWorkOrderId(value);
@@ -2793,14 +2874,17 @@ const DailyReports = () => {
 
                         const activeAssignments =
                           selected.work_assignments?.filter(
-                            (assignment) => !assignment.is_deleted
+                            (assignment) => !assignment.is_deleted,
                           ) || [];
 
                         if (activeAssignments.length > 0) {
-                          const assignedLabourRecords = activeAssignments.map((assignment) => ({
+                          const assignedLabourRecords = activeAssignments.map((
+                            assignment,
+                          ) => ({
                             ...createEmptyLabourRecord(),
                             employee_id: assignment.employee_id || "",
-                            work_assignment_id: assignment.work_assignment_id || "",
+                            work_assignment_id: assignment.work_assignment_id ||
+                              "",
                             worker_source: "Assigned" as WorkerSource,
                             attendance_status: "Present" as AttendanceStatus,
                             worker_role: "Assigned Worker",
@@ -2815,7 +2899,9 @@ const DailyReports = () => {
                       }
                     }}
                   >
-                    <SelectTrigger className={dailyReportSelectTriggerClassName}>
+                    <SelectTrigger
+                      className={dailyReportSelectTriggerClassName}
+                    >
                       <SelectValue placeholder="Select work order" />
                     </SelectTrigger>
 
@@ -2825,7 +2911,8 @@ const DailyReports = () => {
                           key={workOrder.work_order_id}
                           value={workOrder.work_order_id}
                         >
-                          {workOrder.work_order_no || "-"} - {workOrder.title || "-"}
+                          {workOrder.work_order_no || "-"} -{" "}
+                          {workOrder.title || "-"}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -2868,7 +2955,9 @@ const DailyReports = () => {
                   onClick={() => setShowWorkOrderDetails((current) => !current)}
                   className="h-10 w-full rounded-xl text-sm font-semibold"
                 >
-                  {showWorkOrderDetails ? "Hide Project Details" : "Show Project Details"}
+                  {showWorkOrderDetails
+                    ? "Hide Project Details"
+                    : "Show Project Details"}
                 </Button>
 
                 {showWorkOrderDetails && (
@@ -2892,7 +2981,8 @@ const DailyReports = () => {
                             Site
                           </p>
                           <p className="font-semibold text-slate-900">
-                            {selectedSite?.site_code || "-"} - {selectedSite?.site_name || "-"}
+                            {selectedSite?.site_code || "-"} -{" "}
+                            {selectedSite?.site_name || "-"}
                           </p>
                         </div>
 
@@ -2901,7 +2991,8 @@ const DailyReports = () => {
                             Area
                           </p>
                           <p className="font-semibold text-slate-900">
-                            {selectedArea?.area_code || "-"} - {selectedArea?.area_name || "-"}
+                            {selectedArea?.area_code || "-"} -{" "}
+                            {selectedArea?.area_name || "-"}
                           </p>
                         </div>
 
@@ -2928,7 +3019,8 @@ const DailyReports = () => {
                             Planned Start
                           </p>
                           <p className="font-semibold text-slate-900">
-                            {selectedWorkOrderForForm?.planned_start_date || "-"}
+                            {selectedWorkOrderForForm?.planned_start_date ||
+                              "-"}
                           </p>
                         </div>
 
@@ -2938,7 +3030,7 @@ const DailyReports = () => {
                           </p>
                           <p className="font-semibold text-slate-900">
                             {selectedWorkOrderForForm?.work_assignments?.filter(
-                              (assignment) => !assignment.is_deleted
+                              (assignment) => !assignment.is_deleted,
                             ).length || 0}
                           </p>
                         </div>
@@ -2993,8 +3085,7 @@ const DailyReports = () => {
                 type="checkbox"
                 checked={isManualBackdatedEntry}
                 onChange={(event) =>
-                  setIsManualBackdatedEntry(event.target.checked)
-                }
+                  setIsManualBackdatedEntry(event.target.checked)}
                 className="mt-1"
               />
 
@@ -3004,9 +3095,9 @@ const DailyReports = () => {
                 </p>
 
                 <p className="mt-1 text-xs leading-5 text-amber-700">
-                  Use this when entering past work records or correcting time manually.
-                  Saved time logs will be marked as Need Review and not payroll approved.
-                  Add the reason in worker notes.
+                  Use this when entering past work records or correcting time
+                  manually. Saved time logs will be marked as Need Review and
+                  not payroll approved. Add the reason in worker notes.
                 </p>
               </div>
             </label>
@@ -3024,9 +3115,10 @@ const DailyReports = () => {
                     Manual time entry is enabled.
                   </p>
                   <p className="mt-1 text-xs leading-5 text-amber-700">
-                    Enter the actual Check In and Check Out times for the selected report date.
-                    Use worker notes to explain the reason, for example site access delay,
-                    missed check-in, phone issue, or supervisor correction.
+                    Enter the actual Check In and Check Out times for the
+                    selected report date. Use worker notes to explain the
+                    reason, for example site access delay, missed check-in,
+                    phone issue, or supervisor correction.
                   </p>
                 </div>
               )}
@@ -3035,8 +3127,10 @@ const DailyReports = () => {
                 .sort((a, b) => {
                   if (!currentEmployee) return 0;
 
-                  const aIsCurrent = a.employee_id === currentEmployee.employee_id;
-                  const bIsCurrent = b.employee_id === currentEmployee.employee_id;
+                  const aIsCurrent =
+                    a.employee_id === currentEmployee.employee_id;
+                  const bIsCurrent =
+                    b.employee_id === currentEmployee.employee_id;
 
                   if (aIsCurrent && !bIsCurrent) return -1;
                   if (!aIsCurrent && bIsCurrent) return 1;
@@ -3045,68 +3139,80 @@ const DailyReports = () => {
                 })
                 .map((record, index) => {
                   const workerStatus = getWorkerCompletionStatus(record);
-                  const workerSourceBadge = getWorkerSourceBadge(record.worker_source);
-                  const attendanceBadge = getAttendanceBadge(record.attendance_status);
+                  const workerSourceBadge = getWorkerSourceBadge(
+                    record.worker_source,
+                  );
+                  const attendanceBadge = getAttendanceBadge(
+                    record.attendance_status,
+                  );
                   const isOpen = openWorkerCardIndexes.includes(index);
-                  const isOvertimeOpen = openOvertimeCardIndexes.includes(index);
+                  const isOvertimeOpen = openOvertimeCardIndexes.includes(
+                    index,
+                  );
 
                   const assignedWorkerOptions = labourRecords.filter(
                     (worker) =>
                       worker.worker_source === "Assigned" &&
                       worker.work_assignment_id &&
-                      worker.employee_id
+                      worker.employee_id,
                   );
 
                   const selectedEmployee = employees.find(
-                    (employee) => employee.employee_id === record.employee_id
+                    (employee) => employee.employee_id === record.employee_id,
                   );
 
-                  const workerName =
-                    selectedEmployee?.display_name ||
-                    `${selectedEmployee?.first_name || ""} ${selectedEmployee?.last_name || ""}`.trim() ||
+                  const workerName = selectedEmployee?.display_name ||
+                    `${selectedEmployee?.first_name || ""} ${
+                      selectedEmployee?.last_name || ""
+                    }`.trim() ||
                     "Select worker";
                   const selectedActivityType = activityTypes.find(
-                    (activityType) => activityType.activity_type_id === record.activity_type_id
+                    (activityType) =>
+                      activityType.activity_type_id === record.activity_type_id,
                   );
 
                   const workerActivityName =
-                    selectedActivityType?.activity_name || "No activity selected";
+                    selectedActivityType?.activity_name ||
+                    "No activity selected";
 
-                  const workerTimeSummary =
-                    record.clock_in || record.clock_out
-                      ? `${record.clock_in || "--:--"} - ${record.clock_out || "--:--"}`
-                      : "No time recorded";
+                  const workerTimeSummary = record.clock_in || record.clock_out
+                    ? `${record.clock_in || "--:--"} - ${
+                      record.clock_out || "--:--"
+                    }`
+                    : "No time recorded";
 
                   const workerElapsedMinutes = calculateElapsedMinutes(record);
-                  const workerElapsedTimeText = formatElapsedMinutes(workerElapsedMinutes);
+                  const workerElapsedTimeText = formatElapsedMinutes(
+                    workerElapsedMinutes,
+                  );
 
                   const replacingWorker = assignedWorkerOptions.find(
                     (worker) =>
-                      worker.work_assignment_id === record.replaces_work_assignment_id
+                      worker.work_assignment_id ===
+                        record.replaces_work_assignment_id,
                   );
 
                   const replacingEmployee = employees.find(
                     (employee) =>
-                      employee.employee_id === replacingWorker?.employee_id
+                      employee.employee_id === replacingWorker?.employee_id,
                   );
 
-                  const replacingWorkerName =
-                    replacingEmployee?.display_name ||
-                    `${replacingEmployee?.first_name || ""} ${replacingEmployee?.last_name || ""}`.trim() ||
+                  const replacingWorkerName = replacingEmployee?.display_name ||
+                    `${replacingEmployee?.first_name || ""} ${
+                      replacingEmployee?.last_name || ""
+                    }`.trim() ||
                     replacingEmployee?.employee_code ||
                     "";
 
-                  const isCurrentWorker =
-                    !!currentEmployee &&
+                  const isCurrentWorker = !!currentEmployee &&
                     record.employee_id === currentEmployee.employee_id;
 
                   const canManageWorkerAssignment = userCanManageWorkers;
 
-                  const canEditWorkerLog =
-                    userCanManageWorkers || isCurrentWorker;
+                  const canEditWorkerLog = userCanManageWorkers ||
+                    isCurrentWorker;
 
-                  const canRemoveWorker =
-                    userCanManageWorkers &&
+                  const canRemoveWorker = userCanManageWorkers &&
                     record.worker_source !== "Assigned";
 
                   return (
@@ -3123,10 +3229,11 @@ const DailyReports = () => {
                               : [...current, index]
                           );
                         }}
-                        className={`flex w-full flex-col gap-3 border-b px-4 py-3 text-left sm:flex-row sm:items-center sm:justify-between ${isCurrentWorker
-                          ? "border-blue-200 bg-blue-50"
-                          : "border-slate-200 bg-slate-50"
-                          }`}
+                        className={`flex w-full flex-col gap-3 border-b px-4 py-3 text-left sm:flex-row sm:items-center sm:justify-between ${
+                          isCurrentWorker
+                            ? "border-blue-200 bg-blue-50"
+                            : "border-slate-200 bg-slate-50"
+                        }`}
                       >
                         <div>
                           {isCurrentWorker && (
@@ -3137,10 +3244,11 @@ const DailyReports = () => {
 
                           <div className="flex flex-wrap items-center gap-2">
                             <p
-                              className={`font-black ${isCurrentWorker
-                                ? "text-lg text-blue-950"
-                                : "text-base text-slate-900"
-                                }`}
+                              className={`font-black ${
+                                isCurrentWorker
+                                  ? "text-lg text-blue-950"
+                                  : "text-base text-slate-900"
+                              }`}
                             >
                               {workerName}
                             </p>
@@ -3174,45 +3282,54 @@ const DailyReports = () => {
 
                           <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
                             <div className="rounded-xl bg-white/70 px-3 py-2">
-                              <p className="font-semibold text-slate-500">Activity</p>
+                              <p className="font-semibold text-slate-500">
+                                Activity
+                              </p>
                               <p className="mt-1 truncate font-bold text-slate-900">
                                 {workerActivityName}
                               </p>
                             </div>
                             {record.worker_source === "Replacement" &&
                               replacingWorkerName && (
-                                <div className="mt-3 rounded-xl border border-purple-200 bg-purple-50 px-3 py-2">
-                                  <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">
-                                    Replacing
-                                  </p>
+                              <div className="mt-3 rounded-xl border border-purple-200 bg-purple-50 px-3 py-2">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">
+                                  Replacing
+                                </p>
 
-                                  <p className="mt-1 font-bold text-purple-900">
-                                    {replacingWorkerName}
-                                  </p>
-                                </div>
-                              )}
+                                <p className="mt-1 font-bold text-purple-900">
+                                  {replacingWorkerName}
+                                </p>
+                              </div>
+                            )}
                             <div className="rounded-xl bg-white/70 px-3 py-2">
-                              <p className="font-semibold text-slate-500">Time</p>
+                              <p className="font-semibold text-slate-500">
+                                Time
+                              </p>
                               <p className="mt-1 font-bold text-slate-900">
                                 {workerTimeSummary}
                               </p>
                             </div>
 
                             <div className="rounded-xl bg-white/70 px-3 py-2">
-                              <p className="font-semibold text-slate-500">Hours</p>
+                              <p className="font-semibold text-slate-500">
+                                Hours
+                              </p>
                               <p className="mt-1 font-bold text-slate-900">
                                 {workerElapsedTimeText}
                               </p>
                             </div>
 
                             <div className="rounded-xl bg-white/70 px-3 py-2">
-                              <p className="font-semibold text-slate-500">Qty</p>
+                              <p className="font-semibold text-slate-500">
+                                Qty
+                              </p>
                               <p className="mt-1 font-bold text-slate-900">
-                                {Number(record.completed_quantity || 0).toFixed(2)}
+                                {Number(record.completed_quantity || 0).toFixed(
+                                  2,
+                                )}
                               </p>
                             </div>
                           </div>
-
                         </div>
 
                         <span className="text-xs font-semibold text-slate-500">
@@ -3241,20 +3358,36 @@ const DailyReports = () => {
                                 value={record.worker_source}
                                 disabled={!canManageWorkerAssignment}
                                 onValueChange={(value) => {
-                                  updateLabourRecord(index, "worker_source", value as WorkerSource);
+                                  updateLabourRecord(
+                                    index,
+                                    "worker_source",
+                                    value as WorkerSource,
+                                  );
 
                                   if (value !== "Replacement") {
-                                    updateLabourRecord(index, "replaces_work_assignment_id", "");
+                                    updateLabourRecord(
+                                      index,
+                                      "replaces_work_assignment_id",
+                                      "",
+                                    );
                                   }
                                 }}
                               >
-                                <SelectTrigger className={dailyReportSelectTriggerClassName}>
+                                <SelectTrigger
+                                  className={dailyReportSelectTriggerClassName}
+                                >
                                   <SelectValue placeholder="Worker Source" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="Assigned">Assigned Worker</SelectItem>
-                                  <SelectItem value="Additional">Additional Worker</SelectItem>
-                                  <SelectItem value="Replacement">Replacement Worker</SelectItem>
+                                  <SelectItem value="Assigned">
+                                    Assigned Worker
+                                  </SelectItem>
+                                  <SelectItem value="Additional">
+                                    Additional Worker
+                                  </SelectItem>
+                                  <SelectItem value="Replacement">
+                                    Replacement Worker
+                                  </SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -3265,24 +3398,45 @@ const DailyReports = () => {
                                 value={record.attendance_status}
                                 disabled={!canManageWorkerAssignment}
                                 onValueChange={(value) =>
-                                  updateLabourRecord(index, "attendance_status", value as AttendanceStatus)
-                                }
+                                  updateLabourRecord(
+                                    index,
+                                    "attendance_status",
+                                    value as AttendanceStatus,
+                                  )}
                               >
-                                <SelectTrigger className={dailyReportSelectTriggerClassName}>
+                                <SelectTrigger
+                                  className={dailyReportSelectTriggerClassName}
+                                >
                                   <SelectValue placeholder="Select attendance" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="Present">Present</SelectItem>
+                                  <SelectItem value="Present">
+                                    Present
+                                  </SelectItem>
                                   <SelectItem value="Late">Late</SelectItem>
-                                  <SelectItem value="Leave Early">Leave Early</SelectItem>
-                                  <SelectItem value="Not Attended">Not Attended</SelectItem>
-                                  <SelectItem value="Replaced">Replaced</SelectItem>
+                                  <SelectItem value="Leave Early">
+                                    Leave Early
+                                  </SelectItem>
+                                  <SelectItem value="Not Attended">
+                                    Not Attended
+                                  </SelectItem>
+                                  <SelectItem value="Replaced">
+                                    Replaced
+                                  </SelectItem>
                                   <SelectItem value="Sick">Sick</SelectItem>
-                                  <SelectItem value="Annual Leave">Annual Leave</SelectItem>
-                                  <SelectItem value="Public Holiday">Public Holiday</SelectItem>
-                                  <SelectItem value="Training">Training</SelectItem>
+                                  <SelectItem value="Annual Leave">
+                                    Annual Leave
+                                  </SelectItem>
+                                  <SelectItem value="Public Holiday">
+                                    Public Holiday
+                                  </SelectItem>
+                                  <SelectItem value="Training">
+                                    Training
+                                  </SelectItem>
                                   <SelectItem value="Travel">Travel</SelectItem>
-                                  <SelectItem value="Standby">Standby</SelectItem>
+                                  <SelectItem value="Standby">
+                                    Standby
+                                  </SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -3294,34 +3448,48 @@ const DailyReports = () => {
                                   value={record.replaces_work_assignment_id}
                                   disabled={!canManageWorkerAssignment}
                                   onValueChange={(value) =>
-                                    updateLabourRecord(index, "replaces_work_assignment_id", value)
-                                  }
+                                    updateLabourRecord(
+                                      index,
+                                      "replaces_work_assignment_id",
+                                      value,
+                                    )}
                                 >
-                                  <SelectTrigger className={dailyReportSelectTriggerClassName}>
+                                  <SelectTrigger
+                                    className={dailyReportSelectTriggerClassName}
+                                  >
                                     <SelectValue placeholder="Select assigned worker being replaced" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {assignedWorkerOptions.map((assignedWorker) => {
-                                      const assignedEmployee = employees.find(
-                                        (employee) =>
-                                          employee.employee_id === assignedWorker.employee_id
-                                      );
+                                    {assignedWorkerOptions.map(
+                                      (assignedWorker) => {
+                                        const assignedEmployee = employees.find(
+                                          (employee) =>
+                                            employee.employee_id ===
+                                              assignedWorker.employee_id,
+                                        );
 
-                                      const assignedWorkerName =
-                                        assignedEmployee?.display_name ||
-                                        `${assignedEmployee?.first_name || ""} ${assignedEmployee?.last_name || ""}`.trim() ||
-                                        assignedEmployee?.employee_code ||
-                                        "Assigned worker";
+                                        const assignedWorkerName =
+                                          assignedEmployee?.display_name ||
+                                          `${
+                                            assignedEmployee?.first_name || ""
+                                          } ${
+                                            assignedEmployee?.last_name || ""
+                                          }`.trim() ||
+                                          assignedEmployee?.employee_code ||
+                                          "Assigned worker";
 
-                                      return (
-                                        <SelectItem
-                                          key={assignedWorker.work_assignment_id}
-                                          value={assignedWorker.work_assignment_id}
-                                        >
-                                          {assignedWorkerName}
-                                        </SelectItem>
-                                      );
-                                    })}
+                                        return (
+                                          <SelectItem
+                                            key={assignedWorker
+                                              .work_assignment_id}
+                                            value={assignedWorker
+                                              .work_assignment_id}
+                                          >
+                                            {assignedWorkerName}
+                                          </SelectItem>
+                                        );
+                                      },
+                                    )}
                                     {userCanManageWorkers && (
                                       <Button
                                         type="button"
@@ -3346,10 +3514,15 @@ const DailyReports = () => {
                                 value={record.employee_id}
                                 disabled={!canManageWorkerAssignment}
                                 onValueChange={(value) =>
-                                  updateLabourRecord(index, "employee_id", value)
-                                }
+                                  updateLabourRecord(
+                                    index,
+                                    "employee_id",
+                                    value,
+                                  )}
                               >
-                                <SelectTrigger className={dailyReportSelectTriggerClassName}>
+                                <SelectTrigger
+                                  className={dailyReportSelectTriggerClassName}
+                                >
                                   <SelectValue placeholder="Select employee" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -3359,7 +3532,9 @@ const DailyReports = () => {
                                       value={employee.employee_id}
                                     >
                                       {employee.display_name ||
-                                        `${employee.first_name || ""} ${employee.last_name || ""}`.trim() ||
+                                        `${employee.first_name || ""} ${
+                                          employee.last_name || ""
+                                        }`.trim() ||
                                         employee.employee_code}
                                     </SelectItem>
                                   ))}
@@ -3370,149 +3545,172 @@ const DailyReports = () => {
                             <div className="space-y-2">
                               <Label>Work Activity</Label>
 
-                              {userCanManageWorkers ? (
-                                <Select
-                                  value={record.activity_type_id}
-                                  onValueChange={(value) =>
-                                    updateLabourRecord(index, "activity_type_id", value)
-                                  }
-                                >
-                                  <SelectTrigger className={dailyReportSelectTriggerClassName}>
-                                    <SelectValue placeholder="Select work activity" />
-                                  </SelectTrigger>
+                              {userCanManageWorkers
+                                ? (
+                                  <Select
+                                    value={record.activity_type_id}
+                                    onValueChange={(value) =>
+                                      updateLabourRecord(
+                                        index,
+                                        "activity_type_id",
+                                        value,
+                                      )}
+                                  >
+                                    <SelectTrigger
+                                      className={dailyReportSelectTriggerClassName}
+                                    >
+                                      <SelectValue placeholder="Select work activity" />
+                                    </SelectTrigger>
 
-                                  <SelectContent>
-                                    {activityTypes.map((activityType) => (
-                                      <SelectItem
-                                        key={activityType.activity_type_id}
-                                        value={activityType.activity_type_id}
-                                      >
-                                        {activityType.activity_code || "-"} -{" "}
-                                        {activityType.activity_name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                <div className="min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                                  <p className="text-sm font-semibold text-slate-900">
-                                    {workerActivityName}
-                                  </p>
-                                  <p className="mt-1 text-xs text-slate-500">
-                                    Assigned by management
-                                  </p>
-                                </div>
-                              )}
+                                    <SelectContent>
+                                      {activityTypes.map((activityType) => (
+                                        <SelectItem
+                                          key={activityType.activity_type_id}
+                                          value={activityType.activity_type_id}
+                                        >
+                                          {activityType.activity_code || "-"} -
+                                          {" "}
+                                          {activityType.activity_name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                )
+                                : (
+                                  <div className="min-h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                                    <p className="text-sm font-semibold text-slate-900">
+                                      {workerActivityName}
+                                    </p>
+                                    <p className="mt-1 text-xs text-slate-500">
+                                      Assigned by management
+                                    </p>
+                                  </div>
+                                )}
                             </div>
                           </div>
 
                           <div className="rounded-xl border border-slate-200 p-3">
-                            {isManualBackdatedEntry ? (
-                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                                  <Label>Manual Check In</Label>
+                            {isManualBackdatedEntry
+                              ? (
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                                    <Label>Manual Check In</Label>
 
-                                  <Input
-                                    type="time"
-                                    value={record.clock_in}
-                                    disabled={!canEditWorkerLog}
-                                    onChange={(event) =>
-                                      updateLabourRecord(index, "clock_in", event.target.value)
-                                    }
-                                    className="mt-2 h-11 rounded-xl text-base md:text-sm"
-                                  />
+                                    <Input
+                                      type="time"
+                                      value={record.clock_in}
+                                      disabled={!canEditWorkerLog}
+                                      onChange={(event) =>
+                                        updateLabourRecord(
+                                          index,
+                                          "clock_in",
+                                          event.target.value,
+                                        )}
+                                      className="mt-2 h-11 rounded-xl text-base md:text-sm"
+                                    />
 
-                                  <p className="mt-2 text-xs text-amber-700">
-                                    Enter the actual start time for the selected report date.
-                                  </p>
+                                    <p className="mt-2 text-xs text-amber-700">
+                                      Enter the actual start time for the
+                                      selected report date.
+                                    </p>
+                                  </div>
+
+                                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                                    <Label>Manual Check Out</Label>
+
+                                    <Input
+                                      type="time"
+                                      value={record.clock_out}
+                                      disabled={!canEditWorkerLog}
+                                      onChange={(event) =>
+                                        updateLabourRecord(
+                                          index,
+                                          "clock_out",
+                                          event.target.value,
+                                        )}
+                                      className="mt-2 h-11 rounded-xl text-base md:text-sm"
+                                    />
+
+                                    <p className="mt-2 text-xs text-amber-700">
+                                      Saved as Need Review and not payroll
+                                      approved.
+                                    </p>
+                                  </div>
                                 </div>
+                              )
+                              : (
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                    <Label>Check In</Label>
 
-                                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                                  <Label>Manual Check Out</Label>
+                                    <Button
+                                      type="button"
+                                      variant={record.clock_in
+                                        ? "outline"
+                                        : "default"}
+                                      disabled={!canEditWorkerLog ||
+                                        startDraftReport.isPending ||
+                                        !!record.clock_in ||
+                                        !!record.daily_report_worker_id ||
+                                        !!record.work_time_log_id}
+                                      onClick={() => {
+                                        if (record.clock_in) {
+                                          updateLabourRecord(
+                                            index,
+                                            "clock_in",
+                                            getCurrentTimeValue(),
+                                          );
+                                          return;
+                                        }
 
-                                  <Input
-                                    type="time"
-                                    value={record.clock_out}
-                                    disabled={!canEditWorkerLog}
-                                    onChange={(event) =>
-                                      updateLabourRecord(index, "clock_out", event.target.value)
-                                    }
-                                    className="mt-2 h-11 rounded-xl text-base md:text-sm"
-                                  />
+                                        startDraftReport.mutate({
+                                          record,
+                                          recordIndex: index,
+                                        });
+                                      }}
+                                      className="mt-2 h-11 w-full rounded-xl text-sm font-semibold"
+                                    >
+                                      {record.clock_in
+                                        ? "Update Check In"
+                                        : "Check In Now"}
+                                    </Button>
 
-                                  <p className="mt-2 text-xs text-amber-700">
-                                    Saved as Need Review and not payroll approved.
-                                  </p>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                  <Label>Check In</Label>
+                                    <p className="mt-2 text-sm font-bold text-slate-900">
+                                      {record.clock_in || "Not checked in"}
+                                    </p>
+                                  </div>
 
-                                  <Button
-                                    type="button"
-                                    variant={record.clock_in ? "outline" : "default"}
-                                    disabled={
-                                      !canEditWorkerLog ||
-                                      startDraftReport.isPending ||
-                                      !!record.clock_in ||
-                                      !!record.daily_report_worker_id ||
-                                      !!record.work_time_log_id
-                                    }
-                                    onClick={() => {
-                                      if (record.clock_in) {
-                                        updateLabourRecord(index, "clock_in", getCurrentTimeValue());
-                                        return;
-                                      }
+                                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                    <Label>Check Out</Label>
 
-                                      startDraftReport.mutate({
-                                        record,
-                                        recordIndex: index,
-                                      });
-                                    }}
-                                    className="mt-2 h-11 w-full rounded-xl text-sm font-semibold"
-                                  >
-                                    {record.clock_in ? "Update Check In" : "Check In Now"}
-                                  </Button>
-
-                                  <p className="mt-2 text-sm font-bold text-slate-900">
-                                    {record.clock_in || "Not checked in"}
-                                  </p>
-                                </div>
-
-                                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                  <Label>Check Out</Label>
-
-                                  <Button
-                                    type="button"
-                                    variant={record.clock_out ? "outline" : "default"}
-                                    disabled={
-                                      !canEditWorkerLog ||
-                                      !record.clock_in ||
-                                      finishDraftReport.isPending
-                                    }
-                                    onClick={() =>
-                                      finishDraftReport.mutate({
-                                        record,
-                                        recordIndex: index,
-                                      })
-                                    }
-                                    className="mt-2 h-11 w-full rounded-xl text-sm font-semibold"
-                                  >
-                                    {record.clock_out
-                                      ? "Update Check Out"
-                                      : record.clock_in
+                                    <Button
+                                      type="button"
+                                      variant={record.clock_out
+                                        ? "outline"
+                                        : "default"}
+                                      disabled={!canEditWorkerLog ||
+                                        !record.clock_in ||
+                                        finishDraftReport.isPending}
+                                      onClick={() =>
+                                        finishDraftReport.mutate({
+                                          record,
+                                          recordIndex: index,
+                                        })}
+                                      className="mt-2 h-11 w-full rounded-xl text-sm font-semibold"
+                                    >
+                                      {record.clock_out
+                                        ? "Update Check Out"
+                                        : record.clock_in
                                         ? "Check Out Now"
                                         : "Check In First"}
-                                  </Button>
+                                    </Button>
 
-                                  <p className="mt-2 text-sm font-bold text-slate-900">
-                                    {record.clock_out || "Not checked out"}
-                                  </p>
+                                    <p className="mt-2 text-sm font-bold text-slate-900">
+                                      {record.clock_out || "Not checked out"}
+                                    </p>
+                                  </div>
                                 </div>
-                              </div>
-                            )}
+                              )}
 
                             <div className="mt-3 space-y-2">
                               <Label>Break Minutes</Label>
@@ -3523,8 +3721,11 @@ const DailyReports = () => {
                                 value={record.break_minutes}
                                 disabled={!canEditWorkerLog}
                                 onChange={(e) =>
-                                  updateLabourRecord(index, "break_minutes", e.target.value)
-                                }
+                                  updateLabourRecord(
+                                    index,
+                                    "break_minutes",
+                                    e.target.value,
+                                  )}
                                 placeholder="60"
                                 className={dailyReportInputClassName}
                               />
@@ -3537,8 +3738,11 @@ const DailyReports = () => {
                               value={record.notes}
                               disabled={!canEditWorkerLog}
                               onChange={(e) =>
-                                updateLabourRecord(index, "notes", e.target.value)
-                              }
+                                updateLabourRecord(
+                                  index,
+                                  "notes",
+                                  e.target.value,
+                                )}
                               placeholder="Worker notes..."
                               className={dailyReportTextareaClassName}
                             />
@@ -3552,8 +3756,11 @@ const DailyReports = () => {
                               value={record.completed_quantity}
                               disabled={!canEditWorkerLog}
                               onChange={(e) =>
-                                updateLabourRecord(index, "completed_quantity", e.target.value)
-                              }
+                                updateLabourRecord(
+                                  index,
+                                  "completed_quantity",
+                                  e.target.value,
+                                )}
                               placeholder="0"
                               className={dailyReportInputClassName}
                             />
@@ -3572,7 +3779,9 @@ const DailyReports = () => {
                               className="flex w-full items-center justify-between gap-3 text-left"
                             >
                               <div>
-                                <p className="text-sm font-bold text-slate-900">Overtime</p>
+                                <p className="text-sm font-bold text-slate-900">
+                                  Overtime
+                                </p>
                                 <p className="text-xs text-slate-500">
                                   Open only when this worker has overtime work.
                                 </p>
@@ -3580,9 +3789,11 @@ const DailyReports = () => {
 
                               <div className="flex items-center gap-2">
                                 <span
-                                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${getTimeStatusClass(
-                                    record.time_status
-                                  )}`}
+                                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                                    getTimeStatusClass(
+                                      record.time_status,
+                                    )
+                                  }`}
                                 >
                                   {record.time_status}
                                 </span>
@@ -3601,11 +3812,16 @@ const DailyReports = () => {
 
                                     <Button
                                       type="button"
-                                      variant={record.ot_start ? "outline" : "default"}
-                                      disabled={!canEditWorkerLog || !record.clock_out}
+                                      variant={record.ot_start
+                                        ? "outline"
+                                        : "default"}
+                                      disabled={!canEditWorkerLog ||
+                                        !record.clock_out}
                                       onClick={() => {
                                         if (!record.clock_out) {
-                                          toast.error("Please Check Out before starting OT.");
+                                          toast.error(
+                                            "Please Check Out before starting OT.",
+                                          );
                                           return;
                                         }
 
@@ -3621,8 +3837,8 @@ const DailyReports = () => {
                                       {record.ot_start
                                         ? "Update Start OT"
                                         : record.clock_out
-                                          ? "Start OT Now"
-                                          : "Check Out First"}
+                                        ? "Start OT Now"
+                                        : "Check Out First"}
                                     </Button>
 
                                     <p className="mt-2 text-sm font-bold text-slate-900">
@@ -3635,8 +3851,11 @@ const DailyReports = () => {
 
                                     <Button
                                       type="button"
-                                      variant={record.ot_finish ? "outline" : "default"}
-                                      disabled={!canEditWorkerLog || !record.ot_start}
+                                      variant={record.ot_finish
+                                        ? "outline"
+                                        : "default"}
+                                      disabled={!canEditWorkerLog ||
+                                        !record.ot_start}
                                       onClick={() => {
                                         if (!record.ot_start) {
                                           toast.error("Please start OT first.");
@@ -3655,8 +3874,8 @@ const DailyReports = () => {
                                       {record.ot_finish
                                         ? "Update Finish OT"
                                         : record.ot_start
-                                          ? "Finish OT Now"
-                                          : "Start OT First"}
+                                        ? "Finish OT Now"
+                                        : "Start OT First"}
                                     </Button>
 
                                     <p className="mt-2 text-sm font-bold text-slate-900">
@@ -3671,18 +3890,15 @@ const DailyReports = () => {
                                     type="number"
                                     inputMode="decimal"
                                     value={record.ot_completed_quantity}
-                                    disabled={
-                                      !canEditWorkerLog ||
-                                      !record.ot_start
-                                    }
+                                    disabled={!canEditWorkerLog ||
+                                      !record.ot_start}
                                     onChange={(e) =>
                                       updateDraftWorkerTime.mutate({
                                         record,
                                         recordIndex: index,
                                         field: "ot_completed_quantity",
-                                        value: e.target.value
-                                      })
-                                    }
+                                        value: e.target.value,
+                                      })}
                                     placeholder="0"
                                     className={dailyReportInputClassName}
                                   />
@@ -3690,30 +3906,38 @@ const DailyReports = () => {
 
                                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                                   <div className="rounded-xl bg-white p-3">
-                                    <p className="text-xs font-semibold text-slate-500">Regular</p>
+                                    <p className="text-xs font-semibold text-slate-500">
+                                      Regular
+                                    </p>
                                     <p className="mt-1 text-sm font-black text-slate-900">
                                       {record.regular_hours} hr
                                     </p>
                                   </div>
 
                                   <div className="rounded-xl bg-white p-3">
-                                    <p className="text-xs font-semibold text-slate-500">OT</p>
+                                    <p className="text-xs font-semibold text-slate-500">
+                                      OT
+                                    </p>
                                     <p className="mt-1 text-sm font-black text-slate-900">
                                       {record.overtime_hours} hr
                                     </p>
                                   </div>
 
                                   <div className="rounded-xl bg-white p-3">
-                                    <p className="text-xs font-semibold text-slate-500">Total</p>
+                                    <p className="text-xs font-semibold text-slate-500">
+                                      Total
+                                    </p>
                                     <p className="mt-1 text-sm font-black text-slate-900">
-                                      {formatHoursMinutes(record.regular_hours, record.overtime_hours)}
+                                      {formatHoursMinutes(
+                                        record.regular_hours,
+                                        record.overtime_hours,
+                                      )}
                                     </p>
                                   </div>
                                 </div>
                               </div>
                             )}
                           </div>
-
                         </div>
                       )}
                     </div>
@@ -3770,8 +3994,8 @@ const DailyReports = () => {
             </div>
           </div>
         </DialogContent>
-      </Dialog >
-    </div >
+      </Dialog>
+    </div>
   );
 };
 

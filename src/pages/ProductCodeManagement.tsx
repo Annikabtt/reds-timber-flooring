@@ -149,7 +149,7 @@ const db = supabase as any;
 
 const TABS = [
     { key: "families" as const, title: "Product Families", icon: Boxes },
-    { key: "variants" as const, title: "Category Variants", icon: Grid3X3 },
+    { key: "variants" as const, title: "Thickness Codes", icon: Grid3X3 },
     { key: "ranges" as const, title: "Code Ranges", icon: Layers3 },
     { key: "types" as const, title: "Product Types", icon: Braces },
     { key: "size-rules" as const, title: "Size Rules", icon: Ruler },
@@ -473,36 +473,31 @@ const ProductCodeManagement = () => {
     });
 
     const { data: variants = [], isLoading: loadingVariants } = useQuery({
-        queryKey: ["product-code-management", "variants"],
+        queryKey: ["product-code-management", "thickness-codes"],
         queryFn: async (): Promise<VariantRow[]> => {
             const { data, error } = await db
-                .from("product_code_category_variants")
-                .select(
-                    `
-          *,
-          product_code_families(family_code,family_name),
-          product_code_size_rules(size_rule_code)
-        `,
-                )
+                .from("product_thickness_codes")
+                .select("*")
                 .eq("is_deleted", false)
-                .order("full_category_code");
+                .order("sort_order")
+                .order("thickness_code");
             if (error) throw error;
             return (data ?? []).map((row: any) => ({
-                id: row.product_code_category_variant_id,
-                familyId: row.product_code_family_id,
-                familyCode: row.product_code_families?.family_code ?? "-",
-                familyName: row.product_code_families?.family_name ?? "-",
-                digit: row.variant_digit,
-                fullCode: row.full_category_code,
-                name: row.variant_name,
+                id: row.product_thickness_code_id,
+                familyId: "",
+                familyCode: "",
+                familyName: "",
+                digit: row.thickness_code,
+                fullCode: row.thickness_code,
+                name: row.thickness_name,
                 description: row.description,
-                thickness: row.thickness_mm,
-                subtype: row.subtype_value,
-                sizeRuleId: row.size_rule_id,
-                sizeRuleCode: row.product_code_size_rules?.size_rule_code ?? null,
-                colourModeOverride: row.colour_mode_override,
+                thickness: row.thickness_mm === null ? null : Number(row.thickness_mm),
+                subtype: row.thickness_meaning,
+                sizeRuleId: null,
+                sizeRuleCode: null,
+                colourModeOverride: null,
                 guidance: row.guidance_text,
-                reservationNotes: row.reservation_notes,
+                reservationNotes: null,
                 status: row.status,
                 sortOrder: row.sort_order,
                 active: row.is_active,
@@ -564,7 +559,7 @@ const ProductCodeManagement = () => {
 
         const getPrimaryCode = (row: any) => {
             if (tab === "families") return String(row.code ?? "");
-            if (tab === "variants") return String(row.fullCode ?? "");
+            if (tab === "variants") return String(row.digit ?? "");
             if (tab === "ranges") return String(row.rangeCode ?? "");
             if (tab === "types") return String(row.code ?? "");
             if (tab === "size-rules") return String(row.code ?? "");
@@ -1107,46 +1102,44 @@ const ProductCodeManagement = () => {
                 return;
             }
 
-            if (!variantForm.familyId) throw new Error("Product Family is required.");
-            const family = families.find((item) => item.id === variantForm.familyId);
-            if (!family)
-                throw new Error("Selected Product Family could not be found.");
-
-            const digit = variantForm.digit.trim();
-            const name = variantForm.name.trim();
-            if (!/^[0-9]$/.test(digit)) {
-                throw new Error("Variant Digit must contain exactly 1 digit.");
+            const code = variantForm.digit.trim().toUpperCase();
+            if (!/^[0-9A-Z]$/.test(code)) {
+                throw new Error("Thickness Code must contain exactly one uppercase letter or number.");
             }
-            if (!name) throw new Error("Category Variant name is required.");
+
+            let meaning =
+                code === "Z"
+                    ? "unknown"
+                    : code === "X"
+                        ? "not_applicable"
+                        : "physical";
+
             const thickness =
                 variantForm.thickness.trim() === ""
                     ? null
                     : Number(variantForm.thickness);
-            if (
-                thickness !== null &&
-                (!Number.isFinite(thickness) || thickness <= 0)
-            ) {
-                throw new Error("Thickness must be greater than zero.");
-            }
-            if (thickness !== null && family.variantMeaning !== "thickness") {
-                throw new Error(
-                    "Thickness may only be entered for a Thickness-based Product Family.",
-                );
+
+            if (meaning === "physical" && (
+                thickness === null ||
+                !Number.isFinite(thickness) ||
+                thickness <= 0
+            )) {
+                throw new Error("Physical Thickness Code requires a thickness greater than zero.");
             }
 
+            const name =
+                code === "Z"
+                    ? "Unknown"
+                    : code === "X"
+                        ? "Not Applicable"
+                        : variantForm.name.trim() || `${thickness} mm`;
+
             const payload = {
-                variant_name: name,
+                thickness_name: name,
+                thickness_mm: meaning === "physical" ? thickness : null,
+                thickness_meaning: meaning,
                 description: variantForm.description.trim() || null,
-                thickness_mm: thickness,
-                subtype_value: variantForm.subtype.trim() || null,
-                size_rule_id:
-                    variantForm.sizeRuleId === "default" ? null : variantForm.sizeRuleId,
-                colour_mode_override:
-                    variantForm.colourModeOverride === "default"
-                        ? null
-                        : variantForm.colourModeOverride,
                 guidance_text: variantForm.guidance.trim() || null,
-                reservation_notes: variantForm.reservationNotes.trim() || null,
                 status: variantForm.status,
                 sort_order: parseNonNegative(variantForm.sortOrder, "Sort order"),
                 is_active: variantForm.active,
@@ -1155,15 +1148,16 @@ const ProductCodeManagement = () => {
 
             const result = editingId
                 ? await db
-                    .from("product_code_category_variants")
+                    .from("product_thickness_codes")
                     .update(payload)
-                    .eq("product_code_category_variant_id", editingId)
-                : await db.from("product_code_category_variants").insert({
-                    product_code_family_id: family.id,
-                    variant_digit: digit,
-                    full_category_code: `${family.code}${digit}`,
-                    ...payload,
-                });
+                    .eq("product_thickness_code_id", editingId)
+                : await db
+                    .from("product_thickness_codes")
+                    .insert({
+                        thickness_code: code,
+                        ...payload,
+                    });
+
             if (result.error) throw result.error;
         },
         onSuccess: () => {
@@ -1267,25 +1261,27 @@ const ProductCodeManagement = () => {
                     {(filteredRows as VariantRow[]).map((row) => (
                         <div
                             key={row.id}
-                            className="grid gap-4 p-4 hover:bg-slate-50 lg:grid-cols-[100px_1.5fr_1.2fr_1fr_auto] lg:items-center"
+                            className="grid gap-4 p-4 hover:bg-slate-50 lg:grid-cols-[100px_1.6fr_1.2fr_1fr_auto] lg:items-center"
                         >
-                            <p className="font-mono text-2xl font-black text-red-700">
-                                {row.fullCode}
+                            <p className="font-mono text-3xl font-black text-red-700">
+                                {row.digit}
                             </p>
                             <div>
                                 <p className="font-bold text-slate-900">{row.name}</p>
-                                <p className="text-sm text-slate-500">
-                                    {row.familyCode} · {row.familyName}
+                                <p className="mt-1 text-sm text-slate-500">
+                                    {row.description || "Independent one-character Thickness Code"}
                                 </p>
                             </div>
                             <div>
                                 <p className="text-sm font-semibold text-slate-700">
-                                    {row.thickness !== null
-                                        ? `${row.thickness} mm`
-                                        : row.subtype || "General variant"}
+                                    {row.digit === "Z"
+                                        ? "Unknown thickness"
+                                        : row.digit === "X"
+                                            ? "Not applicable"
+                                            : `${row.thickness} mm`}
                                 </p>
-                                <p className="text-xs text-slate-500">
-                                    Size: {row.sizeRuleCode || "Family default"}
+                                <p className="text-xs capitalize text-slate-500">
+                                  {String(row.subtype ?? "").split("_").join(" ")}  
                                 </p>
                             </div>
                             <div>{renderStatusBadge(row.status)}</div>
@@ -2171,152 +2167,93 @@ const ProductCodeManagement = () => {
             );
         }
 
-        const selectedFamily = families.find(
-            (family) => family.id === variantForm.familyId,
-        );
+        const specialCode =
+            variantForm.digit.toUpperCase() === "Z" ||
+            variantForm.digit.toUpperCase() === "X";
+
         return (
             <>
-                <div className="space-y-2">
-                    <Label>Product Family *</Label>
-                    <Select
-                        value={variantForm.familyId}
-                        disabled={Boolean(editingId)}
-                        onValueChange={(value) =>
-                            setVariantForm((current) => ({
-                                ...current,
-                                familyId: value,
-                                digit: "",
-                            }))
-                        }
-                    >
-                        <SelectTrigger>
-                            <SelectValue placeholder="Select Product Family" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {families
-                                .filter((family) => family.status !== "inactive")
-                                .map((family) => (
-                                    <SelectItem key={family.id} value={family.id}>
-                                        {family.code} — {family.name}
-                                    </SelectItem>
-                                ))}
-                        </SelectContent>
-                    </Select>
-                </div>
                 <div className="grid gap-4 sm:grid-cols-[140px_1fr]">
                     <div className="space-y-2">
-                        <Label>Variant Digit *</Label>
+                        <Label>Thickness Code *</Label>
                         <Input
                             maxLength={1}
+                            autoCapitalize="characters"
                             value={variantForm.digit}
                             disabled={Boolean(editingId)}
-                            onChange={(event) =>
+                            onChange={(event) => {
+                                const code = event.target.value
+                                    .toUpperCase()
+                                    .replace(/[^0-9A-Z]/g, "")
+                                    .slice(0, 1);
+
                                 setVariantForm((current) => ({
                                     ...current,
-                                    digit: event.target.value.replace(/\D/g, ""),
-                                }))
-                            }
+                                    digit: code,
+                                    name:
+                                        code === "Z"
+                                            ? "Unknown"
+                                            : code === "X"
+                                                ? "Not Applicable"
+                                                : current.name,
+                                    thickness:
+                                        code === "Z" || code === "X"
+                                            ? ""
+                                            : current.thickness,
+                                }));
+                            }}
                         />
+                        <p className="text-xs text-slate-500">
+                            One character only. Z = Unknown, X = Not Applicable.
+                        </p>
                     </div>
+
                     <div className="space-y-2">
-                        <Label>Variant Name *</Label>
+                        <Label>Thickness Name *</Label>
                         <Input
                             value={variantForm.name}
+                            disabled={specialCode}
                             onChange={(event) =>
                                 setVariantForm((current) => ({
                                     ...current,
                                     name: event.target.value,
                                 }))
                             }
+                            placeholder="Example: 10 mm"
                         />
                     </div>
                 </div>
-                {selectedFamily && variantForm.digit && (
-                    <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-center">
-                        <p className="text-xs font-bold uppercase tracking-wide text-red-600">
-                            Full Category Code
-                        </p>
-                        <p className="mt-1 font-mono text-4xl font-black text-red-700">
-                            {selectedFamily.code}
-                            {variantForm.digit}
-                        </p>
-                    </div>
-                )}
-                <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                        <Label>Thickness (mm)</Label>
-                        <Input
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            disabled={selectedFamily?.variantMeaning !== "thickness"}
-                            value={variantForm.thickness}
-                            onChange={(event) =>
-                                setVariantForm((current) => ({
-                                    ...current,
-                                    thickness: event.target.value,
-                                }))
-                            }
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Subtype Value</Label>
-                        <Input
-                            value={variantForm.subtype}
-                            onChange={(event) =>
-                                setVariantForm((current) => ({
-                                    ...current,
-                                    subtype: event.target.value.toUpperCase(),
-                                }))
-                            }
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Size Rule Override</Label>
-                        <Select
-                            value={variantForm.sizeRuleId}
-                            onValueChange={(value) =>
-                                setVariantForm((current) => ({ ...current, sizeRuleId: value }))
-                            }
-                        >
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="default">Use Family default</SelectItem>
-                                {sizeRules.map((rule) => (
-                                    <SelectItem key={rule.id} value={rule.id}>
-                                        {rule.code} — {rule.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Colour Rule Override</Label>
-                        <Select
-                            value={variantForm.colourModeOverride}
-                            onValueChange={(value) =>
-                                setVariantForm((current) => ({
-                                    ...current,
-                                    colourModeOverride: value,
-                                }))
-                            }
-                        >
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="default">Use Family default</SelectItem>
-                                {COLOUR_MODE_OPTIONS.map((value) => (
-                                    <SelectItem key={value} value={value}>
-                                        {value.replace("_", " ")}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+
+                <div className="space-y-2">
+                    <Label>Physical Thickness (mm)</Label>
+                    <Input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        disabled={specialCode}
+                        value={variantForm.thickness}
+                        onChange={(event) =>
+                            setVariantForm((current) => ({
+                                ...current,
+                                thickness: event.target.value,
+                            }))
+                        }
+                        placeholder={specialCode ? "Not required" : "Enter physical thickness"}
+                    />
                 </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                        Code Preview
+                    </p>
+                    <p className="mt-1 font-mono text-4xl font-black text-red-700">
+                        {variantForm.digit || "—"}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-600">
+                        Product Family and Product Type are configured separately.
+                    </p>
+                </div>
+
                 <TextAreaField
                     label="Description"
                     value={variantForm.description}
@@ -2329,16 +2266,6 @@ const ProductCodeManagement = () => {
                     value={variantForm.guidance}
                     onChange={(value) =>
                         setVariantForm((current) => ({ ...current, guidance: value }))
-                    }
-                />
-                <TextAreaField
-                    label="Reservation Notes"
-                    value={variantForm.reservationNotes}
-                    onChange={(value) =>
-                        setVariantForm((current) => ({
-                            ...current,
-                            reservationNotes: value,
-                        }))
                     }
                 />
                 <StatusAndOrder
@@ -2413,7 +2340,7 @@ const ProductCodeManagement = () => {
                                 {builderResult.previewCode}
                             </p>
                             <p className="mt-2 text-sm text-slate-600">
-                                {builderResult.categoryVariantName} · {builderResult.typeName} · {builderResult.colourName}
+                              {builderResult.thicknessCode} — {builderResult.thicknessName} · {builderResult.typeName} · {builderResult.colourName}  
                             </p>
                             <p className="mt-1 text-xs text-slate-500">
                                 This is a preview only. No Product was created and no Running Number was consumed.

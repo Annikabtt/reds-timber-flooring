@@ -1,0 +1,515 @@
+--- a/src/pages/CustomerDatabase.tsx
++++ b/src/pages/CustomerDatabase.tsx
+@@ -88,6 +88,8 @@
+   | "Day of Following Month";
+ 
+ type LineAmountType = "Exclusive" | "Inclusive";
++
++type CustomerFormMode = "add" | "edit";
+ 
+ type CustomerFinancialSettingsForm = {
+   defaultCurrency: string;
+@@ -302,6 +304,8 @@
+   const [typeFilter, setTypeFilter] = useState("All");
+   const [statusFilter, setStatusFilter] = useState("All");
+   const [showAddDialog, setShowAddDialog] = useState(false);
++  const [customerFormMode, setCustomerFormMode] = useState<CustomerFormMode>("add");
++  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+   const [customerName, setCustomerName] = useState("");
+   const [customerType, setCustomerType] = useState("Residential");
+   const [phone, setPhone] = useState("");
+@@ -325,23 +329,6 @@
+   const [detailProjectSearch, setDetailProjectSearch] = useState("");
+   const [detailProjectStatus, setDetailProjectStatus] = useState("All");
+ 
+-  const [showEditDialog, setShowEditDialog] = useState(false);
+-  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+-  const [editCustomerName, setEditCustomerName] = useState("");
+-  const [editCustomerType, setEditCustomerType] = useState("Residential");
+-  const [editPhone, setEditPhone] = useState("");
+-  const [editEmail, setEditEmail] = useState("");
+-  const [editContactName, setEditContactName] = useState("");
+-  const [editContactPosition, setEditContactPosition] = useState("");
+-  const [editAbn, setEditAbn] = useState("");
+-  const [editPriceBookId, setEditPriceBookId] = useState("");
+-  const [editAddressLine1, setEditAddressLine1] = useState("");
+-  const [editAddressLine2, setEditAddressLine2] = useState("");
+-  const [editSuburb, setEditSuburb] = useState("");
+-  const [editStateName, setEditStateName] = useState("");
+-  const [editPostcode, setEditPostcode] = useState("");
+-  const [editCountry, setEditCountry] = useState("Australia");
+-  const [editNotes, setEditNotes] = useState("");
+ 
+   // Admin role detection
+   const [userRole, setUserRole] = useState<AppRole | null>(null);
+@@ -667,6 +654,31 @@
+     }
+   }, [selectedCustomerId, isCurrentUserAdmin, customerFinancialSettings, financialSettingsLoading]);
+ 
++  const resetCustomerForm = () => {
++    setCustomerName("");
++    setCustomerType("Residential");
++    setPhone("");
++    setEmail("");
++    setContactName("");
++    setContactPosition("Customer");
++    setAbn("");
++    setPriceBookId("");
++    setAddressLine1("");
++    setAddressLine2("");
++    setSuburb("");
++    setStateName("");
++    setPostcode("");
++    setCountry("Australia");
++    setNotes("");
++    setEditingCustomer(null);
++    setCustomerFormMode("add");
++  };
++
++  const openAddCustomer = () => {
++    resetCustomerForm();
++    setShowAddDialog(true);
++  };
++
+   const handleAddCustomer = async () => {
+     const trimmedCustomerName = customerName.trim();
+     const trimmedPhone = phone.trim();
+@@ -759,23 +771,8 @@
+ 
+       if (addressError) throw addressError;
+ 
+-      setCustomerName("");
+-      setCustomerType("Residential");
+-      setPhone("");
+-      setEmail("");
+-      setContactName("");
+-      setContactPosition("Customer");
+-      setAbn("");
+-      setPriceBookId("");
+-      setAddressLine1("");
+-      setAddressLine2("");
+-      setSuburb("");
+-      setStateName("");
+-      setPostcode("");
+-      setCountry("Australia");
+-      setNotes("");
+-
+       setShowAddDialog(false);
++      resetCustomerForm();
+ 
+       queryClient.invalidateQueries({
+         queryKey: ["customers"],
+@@ -925,25 +922,26 @@
+     const billingAddress = getBillingAddress(customer);
+ 
+     setEditingCustomer(customer);
+-    setEditCustomerName(customer.customer_name || "");
+-    setEditCustomerType(customer.customer_type || "Residential");
+-    setEditContactName(primaryContact?.contact_name || customer.customer_name || "");
+-    setEditContactPosition(
++    setCustomerFormMode("edit");
++    setCustomerName(customer.customer_name || "");
++    setCustomerType(customer.customer_type || "Residential");
++    setContactName(primaryContact?.contact_name || customer.customer_name || "");
++    setContactPosition(
+       primaryContact?.position ||
+       (customer.customer_type === "Commercial" ? "Primary Contact" : "Customer")
+     );
+-    setEditPhone(primaryContact?.phone || customer.phone || "");
+-    setEditEmail(primaryContact?.email || customer.email || "");
+-    setEditAbn(customer.abn || "");
+-    setEditPriceBookId(customer.price_book_id || "");
+-    setEditAddressLine1(billingAddress?.address_line1 || "");
+-    setEditAddressLine2(billingAddress?.address_line2 || "");
+-    setEditSuburb(billingAddress?.suburb || "");
+-    setEditStateName(billingAddress?.state || "");
+-    setEditPostcode(billingAddress?.postcode || "");
+-    setEditCountry(billingAddress?.country || "Australia");
+-    setEditNotes(customer.notes || "");
+-    setShowEditDialog(true);
++    setPhone(primaryContact?.phone || customer.phone || "");
++    setEmail(primaryContact?.email || customer.email || "");
++    setAbn(customer.abn || "");
++    setPriceBookId(customer.price_book_id || "");
++    setAddressLine1(billingAddress?.address_line1 || "");
++    setAddressLine2(billingAddress?.address_line2 || "");
++    setSuburb(billingAddress?.suburb || "");
++    setStateName(billingAddress?.state || "");
++    setPostcode(billingAddress?.postcode || "");
++    setCountry(billingAddress?.country || "Australia");
++    setNotes(customer.notes || "");
++    setShowAddDialog(true);
+   };
+ 
+   const handleSaveEditCustomer = async () => {
+@@ -952,21 +950,21 @@
+       return;
+     }
+ 
+-    const trimmedCustomerName = editCustomerName.trim();
+-    const trimmedPhone = editPhone.trim();
+-    const trimmedEmail = editEmail.trim();
+-    const trimmedContactName = editContactName.trim() || trimmedCustomerName;
++    const trimmedCustomerName = customerName.trim();
++    const trimmedPhone = phone.trim();
++    const trimmedEmail = email.trim();
++    const trimmedContactName = contactName.trim() || trimmedCustomerName;
+     const trimmedContactPosition =
+-      editContactPosition.trim() ||
+-      (editCustomerType === "Commercial" ? "Primary Contact" : "Customer");
+-    const trimmedAbn = editAbn.trim();
+-    const trimmedAddressLine1 = editAddressLine1.trim();
+-    const trimmedAddressLine2 = editAddressLine2.trim();
+-    const trimmedSuburb = editSuburb.trim();
+-    const trimmedState = editStateName.trim();
+-    const trimmedPostcode = editPostcode.trim();
+-    const trimmedCountry = editCountry.trim() || "Australia";
+-    const trimmedNotes = editNotes.trim();
++      contactPosition.trim() ||
++      (customerType === "Commercial" ? "Primary Contact" : "Customer");
++    const trimmedAbn = abn.trim();
++    const trimmedAddressLine1 = addressLine1.trim();
++    const trimmedAddressLine2 = addressLine2.trim();
++    const trimmedSuburb = suburb.trim();
++    const trimmedState = stateName.trim();
++    const trimmedPostcode = postcode.trim();
++    const trimmedCountry = country.trim() || "Australia";
++    const trimmedNotes = notes.trim();
+ 
+     if (!trimmedCustomerName) {
+       alert("Customer Name is required");
+@@ -993,11 +991,11 @@
+         .from("customers")
+         .update({
+           customer_name: trimmedCustomerName,
+-          customer_type: editCustomerType,
+-          price_book_id: editPriceBookId || null,
++          customer_type: customerType,
++          price_book_id: priceBookId || null,
+           phone: trimmedPhone || null,
+           email: trimmedEmail || null,
+-          abn: editCustomerType === "Commercial" ? trimmedAbn || null : null,
++          abn: customerType === "Commercial" ? trimmedAbn || null : null,
+           notes: trimmedNotes || null,
+         })
+         .eq("customer_id", editingCustomer.customer_id);
+@@ -1074,8 +1072,8 @@
+         if (addressInsertError) throw addressInsertError;
+       }
+ 
+-      setShowEditDialog(false);
+-      setEditingCustomer(null);
++      setShowAddDialog(false);
++      resetCustomerForm();
+ 
+       queryClient.invalidateQueries({
+         queryKey: ["customers"],
+@@ -1871,7 +1869,7 @@
+         </div>
+ 
+         <Button
+-          onClick={() => setShowAddDialog(true)}
++          onClick={openAddCustomer}
+           className="flex h-11 w-full items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700 sm:w-auto sm:px-6"
+         >
+           <Plus className="mr-2 h-4 w-4" />
+@@ -2463,268 +2461,21 @@
+       ) : null}
+ 
+       <Dialog
+-        open={showEditDialog}
+-        onOpenChange={setShowEditDialog}
++        open={showAddDialog}
++        onOpenChange={(open) => {
++          setShowAddDialog(open);
++          if (!open) resetCustomerForm();
++        }}
+       >
+         <DialogContent className="flex max-h-[92vh] w-[calc(100vw-24px)] max-w-4xl flex-col overflow-hidden rounded-2xl p-0">
+           <DialogHeader className="border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
+             <DialogTitle className="text-lg font-bold text-slate-900">
+-              Edit Customer
++              {customerFormMode === "edit" ? "Edit Customer" : "Add Customer"}
+             </DialogTitle>
+             <p className="text-sm text-slate-500">
+-              {editingCustomer?.customer_code || "Customer record"}
+-            </p>
+-          </DialogHeader>
+-
+-          <div className="flex-1 overflow-y-auto bg-slate-50 px-4 py-5 sm:px-6">
+-            <div className="space-y-5 text-sm">
+-              <CustomerFormSection
+-                number="01"
+-                title="Customer Profile"
+-                description="Core customer details used across projects, quotations, invoices, and reporting."
+-              >
+-                <div className="grid gap-4 md:grid-cols-2">
+-                  <div className="space-y-2">
+-                    <Label>Customer Type</Label>
+-                    <Select
+-                      value={editCustomerType}
+-                      onValueChange={(value) => {
+-                        setEditCustomerType(value);
+-                        if (value === "Residential") {
+-                          setEditAbn("");
+-                        }
+-                        const currentDefault =
+-                          editCustomerType === "Commercial" ? "Primary Contact" : "Customer";
+-                        if (!editContactPosition.trim() || editContactPosition === currentDefault) {
+-                          setEditContactPosition(
+-                            value === "Commercial" ? "Primary Contact" : "Customer"
+-                          );
+-                        }
+-                      }}
+-                    >
+-                      <SelectTrigger className={customerInputClassName}>
+-                        <SelectValue placeholder="Select customer type" />
+-                      </SelectTrigger>
+-                      <SelectContent>
+-                        <SelectItem value="Residential">Residential</SelectItem>
+-                        <SelectItem value="Commercial">Commercial</SelectItem>
+-                      </SelectContent>
+-                    </Select>
+-                  </div>
+-
+-                  <div className="space-y-2">
+-                    <Label>
+-                      {editCustomerType === "Commercial"
+-                        ? "Business / Company Name"
+-                        : "Customer Name"}
+-                    </Label>
+-                    <Input
+-                      className={customerInputClassName}
+-                      value={editCustomerName}
+-                      onChange={(e) => setEditCustomerName(e.target.value)}
+-                    />
+-                  </div>
+-
+-                  {editCustomerType === "Commercial" && (
+-                    <div className="space-y-2">
+-                      <Label>ABN</Label>
+-                      <Input
+-                        className={customerInputClassName}
+-                        value={editAbn}
+-                        onChange={(e) => setEditAbn(e.target.value)}
+-                        placeholder="Australian Business Number"
+-                      />
+-                    </div>
+-                  )}
+-
+-                  <div className="space-y-2">
+-                    <Label>Price Book</Label>
+-                    <Select
+-                      value={editPriceBookId}
+-                      onValueChange={setEditPriceBookId}
+-                    >
+-                      <SelectTrigger className={customerInputClassName}>
+-                        <SelectValue placeholder="Select default price book" />
+-                      </SelectTrigger>
+-                      <SelectContent>
+-                        {priceBooks.length === 0 ? (
+-                          <SelectItem value="no-price-book" disabled>
+-                            No active price books found
+-                          </SelectItem>
+-                        ) : (
+-                          priceBooks.map((priceBook) => (
+-                            <SelectItem
+-                              key={priceBook.price_book_id}
+-                              value={priceBook.price_book_id}
+-                            >
+-                              {priceBook.price_book_code}
+-                            </SelectItem>
+-                          ))
+-                        )}
+-                      </SelectContent>
+-                    </Select>
+-                  </div>
+-                </div>
+-              </CustomerFormSection>
+-
+-              <CustomerFormSection
+-                number="02"
+-                title="Primary Contact"
+-                description="Main person and communication details for this customer."
+-              >
+-                <div className="grid gap-4 md:grid-cols-2">
+-                  <div className="space-y-2">
+-                    <Label>Contact Name</Label>
+-                    <Input
+-                      className={customerInputClassName}
+-                      value={editContactName}
+-                      onChange={(e) => setEditContactName(e.target.value)}
+-                    />
+-                  </div>
+-
+-                  <div className="space-y-2">
+-                    <Label>Position</Label>
+-                    <Input
+-                      className={customerInputClassName}
+-                      value={editContactPosition}
+-                      onChange={(e) => setEditContactPosition(e.target.value)}
+-                    />
+-                  </div>
+-
+-                  <div className="space-y-2">
+-                    <Label>Phone</Label>
+-                    <Input
+-                      className={customerInputClassName}
+-                      value={editPhone}
+-                      onChange={(e) => setEditPhone(e.target.value)}
+-                    />
+-                  </div>
+-
+-                  <div className="space-y-2">
+-                    <Label>Email</Label>
+-                    <Input
+-                      type="email"
+-                      className={customerInputClassName}
+-                      value={editEmail}
+-                      onChange={(e) => setEditEmail(e.target.value)}
+-                    />
+-                  </div>
+-                </div>
+-              </CustomerFormSection>
+-
+-              <CustomerFormSection
+-                number="03"
+-                title="Billing Address"
+-                description="Structured Australian billing address saved into dedicated address fields."
+-              >
+-                <div className="grid gap-4 md:grid-cols-2">
+-                  <div className="space-y-2 md:col-span-2">
+-                    <Label>Address Line 1 / Street Address</Label>
+-                    <Input
+-                      className={customerInputClassName}
+-                      value={editAddressLine1}
+-                      onChange={(e) => setEditAddressLine1(e.target.value)}
+-                    />
+-                  </div>
+-
+-                  <div className="space-y-2 md:col-span-2">
+-                    <Label>Address Line 2 / Unit, Level, Building</Label>
+-                    <Input
+-                      className={customerInputClassName}
+-                      value={editAddressLine2}
+-                      onChange={(e) => setEditAddressLine2(e.target.value)}
+-                    />
+-                  </div>
+-
+-                  <div className="space-y-2">
+-                    <Label>Suburb</Label>
+-                    <Input
+-                      className={customerInputClassName}
+-                      value={editSuburb}
+-                      onChange={(e) => setEditSuburb(e.target.value)}
+-                    />
+-                  </div>
+-
+-                  <div className="space-y-2">
+-                    <Label>State</Label>
+-                    <Select
+-                      value={editStateName || EMPTY_SELECT_VALUE}
+-                      onValueChange={(value) =>
+-                        setEditStateName(value === EMPTY_SELECT_VALUE ? "" : value)
+-                      }
+-                    >
+-                      <SelectTrigger className={customerInputClassName}>
+-                        <SelectValue placeholder="Select state" />
+-                      </SelectTrigger>
+-                      <SelectContent>
+-                        <SelectItem value={EMPTY_SELECT_VALUE}>Select state</SelectItem>
+-                        {AUSTRALIAN_STATES.map((stateCode) => (
+-                          <SelectItem key={stateCode} value={stateCode}>
+-                            {stateCode}
+-                          </SelectItem>
+-                        ))}
+-                      </SelectContent>
+-                    </Select>
+-                  </div>
+-
+-                  <div className="space-y-2">
+-                    <Label>Postcode</Label>
+-                    <Input
+-                      className={customerInputClassName}
+-                      value={editPostcode}
+-                      onChange={(e) => setEditPostcode(e.target.value)}
+-                    />
+-                  </div>
+-
+-                  <div className="space-y-2">
+-                    <Label>Country</Label>
+-                    <Input
+-                      className={customerInputClassName}
+-                      value={editCountry}
+-                      onChange={(e) => setEditCountry(e.target.value)}
+-                    />
+-                  </div>
+-                </div>
+-              </CustomerFormSection>
+-
+-              <CustomerFormSection
+-                number="04"
+-                title="Notes"
+-                description="Optional internal notes for sales, billing, access, or project context."
+-              >
+-                <Textarea
+-                  className={customerTextareaClassName}
+-                  value={editNotes}
+-                  onChange={(e) => setEditNotes(e.target.value)}
+-                />
+-              </CustomerFormSection>
+-            </div>
+-          </div>
+-
+-          <div className="border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
+-            <Button
+-              type="button"
+-              onClick={handleSaveEditCustomer}
+-              disabled={customerFormSaving}
+-              className="h-11 w-full rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700"
+-            >
+-              {customerFormSaving ? "Saving..." : "Save Changes"}
+-            </Button>
+-          </div>
+-        </DialogContent>
+-      </Dialog>
+-
+-      <Dialog
+-        open={showAddDialog}
+-        onOpenChange={setShowAddDialog}
+-      >
+-        <DialogContent className="flex max-h-[92vh] w-[calc(100vw-24px)] max-w-4xl flex-col overflow-hidden rounded-2xl p-0">
+-          <DialogHeader className="border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
+-            <DialogTitle className="text-lg font-bold text-slate-900">
+-              Add Customer
+-            </DialogTitle>
+-            <p className="text-sm text-slate-500">
+-              Create a customer profile with primary contact and billing address.
++              {customerFormMode === "edit"
++                ? editingCustomer?.customer_code || "Update customer profile"
++                : "Create a customer profile with primary contact and billing address."}
+             </p>
+           </DialogHeader>
+ 
+@@ -2993,11 +2744,19 @@
+           <div className="border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
+             <Button
+               type="button"
+-              onClick={handleAddCustomer}
++              onClick={
++                customerFormMode === "edit"
++                  ? handleSaveEditCustomer
++                  : handleAddCustomer
++              }
+               disabled={customerFormSaving}
+               className="h-11 w-full rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700"
+             >
+-              {customerFormSaving ? "Saving..." : "Create Customer"}
++              {customerFormSaving
++                ? "Saving..."
++                : customerFormMode === "edit"
++                  ? "Update Customer"
++                  : "Create Customer"}
+             </Button>
+           </div>
+         </DialogContent>

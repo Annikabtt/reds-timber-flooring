@@ -1,0 +1,31 @@
+1231:                 </Field>
+1232: 
+1233:                 <Field
+1234:                     label="Size Rule *"
+1235:                     manageLabel="Manage Size Rules"
+1236:                     onManage={onManage
+1237:                         ? () => onManage("size-rules")
+1238:                         : undefined}
+1239:                     helper={sizeRule?.guidance}
+1240:                 >
+1241:                     <SearchablePicker
+1242:                         value={value.sizeRuleId}
+1243:                         onChange={(selected) =>
+1244:                             update({
+1245:                                 sizeRuleId: selected,
+1246:                                 firstValue: "",
+1247:                                 secondValue: "",
+1248:                             })}
+1249:                         options={sizeRuleOptions}
+1250:                         placeholder="Select Size Rule"
+1251:                         searchPlaceholder="Search size rule or example token..."
+1252:                         emptyText="No active Size Rules found."
+1253:                         disabled={disabled || !value.productCodeFamilyId}
+1254:                     />
+1255:                 </Field>
+1256: 
+1257:                 <Field
+1258:                     label="Product Colour *"
+1259:                     manageLabel="Manage Product Colours"
+1260:                     onManage={onManage
+1261:                         ? () => onManage("product-colours")

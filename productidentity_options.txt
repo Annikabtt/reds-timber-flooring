@@ -1,0 +1,61 @@
+701:     );
+702: 
+703:     const thicknessOptions = useMemo<SearchableOption[]>(
+704:         () =>
+705:             thicknessCodes.map((item) => ({
+706:                 value: item.id,
+707:                 label: `${item.code} — ${item.name}`,
+708:                 description: item.description,
+709:                 searchText: `${item.code} ${item.name} ${
+710:                     item.description ?? ""
+711:                 }`,
+712:                 searchCode: item.code,
+713:                 searchName: item.name,
+714:             })),
+715:         [thicknessCodes],
+716:     );
+717: 
+718:     const typeOptions = useMemo<SearchableOption[]>(
+719:         () =>
+720:             types.map((item) => ({
+721:                 value: item.id,
+722:                 label: `${item.code} — ${item.name}`,
+723:                 searchText: `${item.code} ${item.name}`,
+724:                 searchCode: item.code,
+725:                 searchName: item.name,
+726:             })),
+727:         [types],
+728:     );
+729: 
+730:     const sizeRuleOptions = useMemo<SearchableOption[]>(
+731:         () =>
+732:             sizeRules.map((item) => ({
+733:                 value: item.id,
+734:                 label: `${item.name} — ${item.exampleToken}`,
+735:                 description: item.guidance,
+736:                 searchText: `${item.code} ${item.name} ${item.exampleToken} ${
+737:                     item.guidance ?? ""
+738:                 }`,
+739:                 searchCode: item.code,
+740:                 searchName: item.name,
+741:             })),
+742:         [sizeRules],
+743:     );
+744: 
+745:     const colourOptions = useMemo<SearchableOption[]>(
+746:         () =>
+747:             availableColours.map((item) => ({
+748:                 value: item.id,
+749:                 label: `${item.code} — ${item.name}`,
+750:                 searchText: `${item.code} ${item.name}`,
+751:                 swatch: item.referenceHex,
+752:                 searchCode: item.code,
+753:                 searchName: item.name,
+754:             })),
+755:         [availableColours],
+756:     );
+757: 
+758:     useEffect(() => {
+759:         if (!family) return;
+760:         const patch: Partial<ProductIdentityFormValue> = {};
+761:         if (

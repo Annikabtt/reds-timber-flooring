@@ -1,0 +1,612 @@
+diff --git a/src/pages/CustomerDatabase.tsx b/src/pages/CustomerDatabase.tsx
+index 6e8237d..08eec21 100644
+--- a/src/pages/CustomerDatabase.tsx
++++ b/src/pages/CustomerDatabase.tsx
+@@ -15,6 +15,7 @@ import {
+   Plus,
+   Printer,
+   Search,
++  Trash2,
+   UserRound,
+ } from "lucide-react";
+ 
+@@ -60,6 +61,26 @@ type CustomerContact = {
+   is_primary: boolean;
+ };
+ 
++type CustomerContactDraft = {
++  draft_id: string;
++  contact_id: string | null;
++  contact_name: string;
++  position: string;
++  phone: string;
++  email: string;
++  is_primary: boolean;
++};
++
++const createEmptyCustomerContact = (isPrimary = false): CustomerContactDraft => ({
++  draft_id: `contact-${Date.now()}-${Math.random().toString(36).slice(2)}`,
++  contact_id: null,
++  contact_name: "",
++  position: "",
++  phone: "",
++  email: "",
++  is_primary: isPrimary,
++});
++
+ type CustomerAddress = {
+   address_id: string;
+   address_type: string;
+@@ -308,10 +329,9 @@ export default function CustomerDatabase() {
+   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+   const [customerName, setCustomerName] = useState("");
+   const [customerType, setCustomerType] = useState("Residential");
+-  const [phone, setPhone] = useState("");
+-  const [email, setEmail] = useState("");
+-  const [contactName, setContactName] = useState("");
+-  const [contactPosition, setContactPosition] = useState("Customer");
++  const [customerContacts, setCustomerContacts] = useState<CustomerContactDraft[]>([
++    { ...createEmptyCustomerContact(true), position: "Customer" },
++  ]);
+   const [abn, setAbn] = useState("");
+   const [priceBookId, setPriceBookId] = useState("");
+   const [addressLine1, setAddressLine1] = useState("");
+@@ -657,10 +677,9 @@ export default function CustomerDatabase() {
+   const resetCustomerForm = () => {
+     setCustomerName("");
+     setCustomerType("Residential");
+-    setPhone("");
+-    setEmail("");
+-    setContactName("");
+-    setContactPosition("Customer");
++    setCustomerContacts([
++      { ...createEmptyCustomerContact(true), position: "Customer" },
++    ]);
+     setAbn("");
+     setPriceBookId("");
+     setAddressLine1("");
+@@ -674,6 +693,58 @@ export default function CustomerDatabase() {
+     setCustomerFormMode("add");
+   };
+ 
++  const updateCustomerContact = (
++    draftId: string,
++    changes: Partial<CustomerContactDraft>
++  ) => {
++    setCustomerContacts((current) =>
++      current.map((contact) =>
++        contact.draft_id === draftId ? { ...contact, ...changes } : contact
++      )
++    );
++  };
++
++  const addCustomerContact = () => {
++    setCustomerContacts((current) => [
++      ...current,
++      createEmptyCustomerContact(current.length === 0),
++    ]);
++  };
++
++  const setPrimaryCustomerContact = (draftId: string) => {
++    setCustomerContacts((current) =>
++      current.map((contact) => ({
++        ...contact,
++        is_primary: contact.draft_id === draftId,
++      }))
++    );
++  };
++
++  const removeCustomerContact = (draftId: string) => {
++    const contact = customerContacts.find((item) => item.draft_id === draftId);
++    if (!contact) return;
++
++    const label = contact.contact_name.trim() || "this contact";
++    const confirmed = window.confirm(
++      `Remove ${label}?\n\nExisting contacts will be soft deleted when the customer is saved.`
++    );
++    if (!confirmed) return;
++
++    setCustomerContacts((current) => {
++      const remaining = current.filter((item) => item.draft_id !== draftId);
++      if (remaining.length === 0) {
++        return [createEmptyCustomerContact(true)];
++      }
++      if (contact.is_primary && !remaining.some((item) => item.is_primary)) {
++        return remaining.map((item, index) => ({
++          ...item,
++          is_primary: index === 0,
++        }));
++      }
++      return remaining;
++    });
++  };
++
+   const openAddCustomer = () => {
+     resetCustomerForm();
+     setShowAddDialog(true);
+@@ -681,11 +752,17 @@ export default function CustomerDatabase() {
+ 
+   const handleAddCustomer = async () => {
+     const trimmedCustomerName = customerName.trim();
+-    const trimmedPhone = phone.trim();
+-    const trimmedEmail = email.trim();
+-    const trimmedContactName = contactName.trim() || trimmedCustomerName;
+-    const trimmedContactPosition =
+-      contactPosition.trim() || (customerType === "Commercial" ? "Primary Contact" : "Customer");
++    const normalizedContacts = customerContacts.map((contact) => ({
++      ...contact,
++      contact_name: contact.contact_name.trim(),
++      position: contact.position.trim(),
++      phone: contact.phone.trim(),
++      email: contact.email.trim(),
++    }));
++    const primaryContact =
++      normalizedContacts.find((contact) => contact.is_primary) || normalizedContacts[0];
++    const trimmedPhone = primaryContact?.phone || "";
++    const trimmedEmail = primaryContact?.email || "";
+     const trimmedAbn = abn.trim();
+     const trimmedAddressLine1 = addressLine1.trim();
+     const trimmedAddressLine2 = addressLine2.trim();
+@@ -700,8 +777,23 @@ export default function CustomerDatabase() {
+       return;
+     }
+ 
++    if (normalizedContacts.length === 0) {
++      alert("Please add at least one contact.");
++      return;
++    }
++
++    if (normalizedContacts.some((contact) => !contact.contact_name)) {
++      alert("Contact Name is required for every contact.");
++      return;
++    }
++
++    if (!primaryContact) {
++      alert("Please select a primary contact.");
++      return;
++    }
++
+     if (!trimmedPhone && !trimmedEmail) {
+-      alert("Please enter at least phone or email.");
++      alert("Please enter at least phone or email for the primary contact.");
+       return;
+     }
+ 
+@@ -740,16 +832,18 @@ export default function CustomerDatabase() {
+ 
+       const { error: contactError } = await supabase
+         .from("customer_contacts")
+-        .insert({
+-          customer_id: createdCustomer.customer_id,
+-          contact_name: trimmedContactName,
+-          position: trimmedContactPosition || null,
+-          phone: trimmedPhone || null,
+-          email: trimmedEmail || null,
+-          is_primary: true,
+-          is_active: true,
+-          is_deleted: false,
+-        });
++        .insert(
++          normalizedContacts.map((contact) => ({
++            customer_id: createdCustomer.customer_id,
++            contact_name: contact.contact_name,
++            position: contact.position || null,
++            phone: contact.phone || null,
++            email: contact.email || null,
++            is_primary: contact.draft_id === primaryContact.draft_id,
++            is_active: true,
++            is_deleted: false,
++          }))
++        );
+ 
+       if (contactError) throw contactError;
+ 
+@@ -925,13 +1019,29 @@ export default function CustomerDatabase() {
+     setCustomerFormMode("edit");
+     setCustomerName(customer.customer_name || "");
+     setCustomerType(customer.customer_type || "Residential");
+-    setContactName(primaryContact?.contact_name || customer.customer_name || "");
+-    setContactPosition(
+-      primaryContact?.position ||
+-      (customer.customer_type === "Commercial" ? "Primary Contact" : "Customer")
++    const existingContacts = customer.customer_contacts ?? [];
++    setCustomerContacts(
++      existingContacts.length > 0
++        ? existingContacts.map((contact) => ({
++            draft_id: contact.contact_id,
++            contact_id: contact.contact_id,
++            contact_name: contact.contact_name || "",
++            position: contact.position || "",
++            phone: contact.phone || "",
++            email: contact.email || "",
++            is_primary: contact.contact_id === primaryContact?.contact_id,
++          }))
++        : [
++            {
++              ...createEmptyCustomerContact(true),
++              contact_name: customer.customer_name || "",
++              position:
++                customer.customer_type === "Commercial" ? "Primary Contact" : "Customer",
++              phone: customer.phone || "",
++              email: customer.email || "",
++            },
++          ]
+     );
+-    setPhone(primaryContact?.phone || customer.phone || "");
+-    setEmail(primaryContact?.email || customer.email || "");
+     setAbn(customer.abn || "");
+     setPriceBookId(customer.price_book_id || "");
+     setAddressLine1(billingAddress?.address_line1 || "");
+@@ -951,12 +1061,17 @@ export default function CustomerDatabase() {
+     }
+ 
+     const trimmedCustomerName = customerName.trim();
+-    const trimmedPhone = phone.trim();
+-    const trimmedEmail = email.trim();
+-    const trimmedContactName = contactName.trim() || trimmedCustomerName;
+-    const trimmedContactPosition =
+-      contactPosition.trim() ||
+-      (customerType === "Commercial" ? "Primary Contact" : "Customer");
++    const normalizedContacts = customerContacts.map((contact) => ({
++      ...contact,
++      contact_name: contact.contact_name.trim(),
++      position: contact.position.trim(),
++      phone: contact.phone.trim(),
++      email: contact.email.trim(),
++    }));
++    const primaryContactDraft =
++      normalizedContacts.find((contact) => contact.is_primary) || normalizedContacts[0];
++    const trimmedPhone = primaryContactDraft?.phone || "";
++    const trimmedEmail = primaryContactDraft?.email || "";
+     const trimmedAbn = abn.trim();
+     const trimmedAddressLine1 = addressLine1.trim();
+     const trimmedAddressLine2 = addressLine2.trim();
+@@ -971,8 +1086,23 @@ export default function CustomerDatabase() {
+       return;
+     }
+ 
++    if (normalizedContacts.length === 0) {
++      alert("Please add at least one contact.");
++      return;
++    }
++
++    if (normalizedContacts.some((contact) => !contact.contact_name)) {
++      alert("Contact Name is required for every contact.");
++      return;
++    }
++
++    if (!primaryContactDraft) {
++      alert("Please select a primary contact.");
++      return;
++    }
++
+     if (!trimmedPhone && !trimmedEmail) {
+-      alert("Please enter at least phone or email.");
++      alert("Please enter at least phone or email for the primary contact.");
+       return;
+     }
+ 
+@@ -981,7 +1111,6 @@ export default function CustomerDatabase() {
+       return;
+     }
+ 
+-    const primaryContact = getPrimaryContact(editingCustomer);
+     const billingAddress = getBillingAddress(editingCustomer);
+ 
+     setCustomerFormSaving(true);
+@@ -1002,36 +1131,63 @@ export default function CustomerDatabase() {
+ 
+       if (customerError) throw customerError;
+ 
+-      if (primaryContact?.contact_id) {
+-        const { error: contactError } = await supabase
++      const existingContactIds = new Set(
++        (editingCustomer.customer_contacts ?? []).map((contact) => contact.contact_id)
++      );
++      const retainedContactIds = new Set(
++        normalizedContacts
++          .map((contact) => contact.contact_id)
++          .filter((contactId): contactId is string => Boolean(contactId))
++      );
++      const removedContactIds = [...existingContactIds].filter(
++        (contactId) => !retainedContactIds.has(contactId)
++      );
++
++      for (const contact of normalizedContacts) {
++        const payload = {
++          contact_name: contact.contact_name,
++          position: contact.position || null,
++          phone: contact.phone || null,
++          email: contact.email || null,
++          is_primary: contact.draft_id === primaryContactDraft.draft_id,
++          is_active: true,
++          is_deleted: false,
++          deleted_at: null,
++        };
++
++        if (contact.contact_id) {
++          const { error: contactUpdateError } = await supabase
++            .from("customer_contacts")
++            .update(payload)
++            .eq("contact_id", contact.contact_id)
++            .eq("customer_id", editingCustomer.customer_id);
++
++          if (contactUpdateError) throw contactUpdateError;
++        } else {
++          const { error: contactInsertError } = await supabase
++            .from("customer_contacts")
++            .insert({
++              customer_id: editingCustomer.customer_id,
++              ...payload,
++            });
++
++          if (contactInsertError) throw contactInsertError;
++        }
++      }
++
++      if (removedContactIds.length > 0) {
++        const { error: contactDeleteError } = await supabase
+           .from("customer_contacts")
+           .update({
+-            contact_name: trimmedContactName,
+-            position: trimmedContactPosition || null,
+-            phone: trimmedPhone || null,
+-            email: trimmedEmail || null,
+-            is_primary: true,
+-            is_active: true,
++            is_primary: false,
++            is_active: false,
++            is_deleted: true,
++            deleted_at: new Date().toISOString(),
+           })
+-          .eq("contact_id", primaryContact.contact_id)
+-          .eq("customer_id", editingCustomer.customer_id);
++          .eq("customer_id", editingCustomer.customer_id)
++          .in("contact_id", removedContactIds);
+ 
+-        if (contactError) throw contactError;
+-      } else {
+-        const { error: contactInsertError } = await supabase
+-          .from("customer_contacts")
+-          .insert({
+-            customer_id: editingCustomer.customer_id,
+-            contact_name: trimmedContactName,
+-            position: trimmedContactPosition || null,
+-            phone: trimmedPhone || null,
+-            email: trimmedEmail || null,
+-            is_primary: true,
+-            is_active: true,
+-            is_deleted: false,
+-          });
+-
+-        if (contactInsertError) throw contactInsertError;
++        if (contactDeleteError) throw contactDeleteError;
+       }
+ 
+       if (billingAddress?.address_id) {
+@@ -2498,11 +2654,18 @@ export default function CustomerDatabase() {
+                         }
+                         const currentDefault =
+                           customerType === "Commercial" ? "Primary Contact" : "Customer";
+-                        if (!contactPosition.trim() || contactPosition === currentDefault) {
+-                          setContactPosition(
+-                            value === "Commercial" ? "Primary Contact" : "Customer"
+-                          );
+-                        }
++                        setCustomerContacts((current) =>
++                          current.map((contact) =>
++                            contact.is_primary &&
++                            (!contact.position.trim() || contact.position === currentDefault)
++                              ? {
++                                  ...contact,
++                                  position:
++                                    value === "Commercial" ? "Primary Contact" : "Customer",
++                                }
++                              : contact
++                          )
++                        );
+                       }}
+                     >
+                       <SelectTrigger className={customerInputClassName}>
+@@ -2527,9 +2690,13 @@ export default function CustomerDatabase() {
+                       onChange={(e) => {
+                         const nextValue = e.target.value;
+                         setCustomerName(nextValue);
+-                        if (!contactName.trim()) {
+-                          setContactName(nextValue);
+-                        }
++                        setCustomerContacts((current) =>
++                          current.map((contact) =>
++                            contact.is_primary && !contact.contact_name.trim()
++                              ? { ...contact, contact_name: nextValue }
++                              : contact
++                          )
++                        );
+                       }}
+                       placeholder={
+                         customerType === "Commercial"
+@@ -2584,62 +2751,133 @@ export default function CustomerDatabase() {
+ 
+               <CustomerFormSection
+                 number="02"
+-                title="Primary Contact"
+-                description="Main person and communication details saved as the primary customer contact."
++                title="Customer Contacts"
++                description="Add one or more contacts and choose the single primary contact used across the customer record."
+               >
+-                <div className="grid gap-4 md:grid-cols-2">
+-                  <div className="space-y-2">
+-                    <Label>Contact Name</Label>
+-                    <Input
+-                      className={customerInputClassName}
+-                      value={contactName}
+-                      onChange={(e) => setContactName(e.target.value)}
+-                      placeholder={
+-                        customerType === "Commercial" ? "Primary contact name" : "Customer full name"
+-                      }
+-                    />
++                <div className="space-y-4">
++                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
++                    <p className="text-xs text-slate-500">
++                      The primary contact supplies the customer phone and email shown in lists and documents.
++                    </p>
++                    <Button
++                      type="button"
++                      variant="outline"
++                      onClick={addCustomerContact}
++                      className="h-10 rounded-xl border-slate-300 bg-white font-semibold"
++                    >
++                      <Plus className="mr-2 h-4 w-4" />
++                      Add Contact
++                    </Button>
+                   </div>
+ 
+-                  <div className="space-y-2">
+-                    <Label>Position</Label>
+-                    <Input
+-                      className={customerInputClassName}
+-                      value={contactPosition}
+-                      onChange={(e) => setContactPosition(e.target.value)}
+-                      placeholder={
+-                        customerType === "Commercial" ? "Primary Contact" : "Customer"
+-                      }
+-                    />
+-                  </div>
++                  {customerContacts.map((contact, index) => (
++                    <div
++                      key={contact.draft_id}
++                      className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
++                    >
++                      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
++                        <div>
++                          <p className="font-bold text-slate-900">Contact {index + 1}</p>
++                          <p className="text-xs text-slate-500">
++                            {contact.is_primary ? "Primary customer contact" : "Additional customer contact"}
++                          </p>
++                        </div>
+ 
+-                  <div className="space-y-2">
+-                    <Label>Phone</Label>
+-                    <Input
+-                      className={customerInputClassName}
+-                      value={phone}
+-                      onChange={(e) => setPhone(e.target.value)}
+-                      placeholder={
+-                        customerType === "Commercial"
+-                          ? "Office or business phone"
+-                          : "Customer phone"
+-                      }
+-                    />
+-                  </div>
++                        <div className="flex items-center gap-2">
++                          <Button
++                            type="button"
++                            variant={contact.is_primary ? "default" : "outline"}
++                            onClick={() => setPrimaryCustomerContact(contact.draft_id)}
++                            className={
++                              contact.is_primary
++                                ? "h-9 rounded-xl bg-[#9E4B4B] px-3 text-xs font-bold text-white hover:bg-[#874040]"
++                                : "h-9 rounded-xl border-slate-300 bg-white px-3 text-xs font-bold"
++                            }
++                          >
++                            {contact.is_primary ? "Primary" : "Set Primary"}
++                          </Button>
+ 
+-                  <div className="space-y-2">
+-                    <Label>Email</Label>
+-                    <Input
+-                      type="email"
+-                      className={customerInputClassName}
+-                      value={email}
+-                      onChange={(e) => setEmail(e.target.value)}
+-                      placeholder={
+-                        customerType === "Commercial"
+-                          ? "Accounts or office email"
+-                          : "Customer email"
+-                      }
+-                    />
+-                  </div>
++                          {customerContacts.length > 1 && (
++                            <Button
++                              type="button"
++                              variant="outline"
++                              size="icon"
++                              onClick={() => removeCustomerContact(contact.draft_id)}
++                              className="h-9 w-9 rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
++                              aria-label={`Remove contact ${index + 1}`}
++                            >
++                              <Trash2 className="h-4 w-4" />
++                            </Button>
++                          )}
++                        </div>
++                      </div>
++
++                      <div className="grid gap-4 md:grid-cols-2">
++                        <div className="space-y-2">
++                          <Label>Contact Name</Label>
++                          <Input
++                            className={customerInputClassName}
++                            value={contact.contact_name}
++                            onChange={(e) =>
++                              updateCustomerContact(contact.draft_id, {
++                                contact_name: e.target.value,
++                              })
++                            }
++                            placeholder={
++                              customerType === "Commercial"
++                                ? "Contact full name"
++                                : "Customer full name"
++                            }
++                          />
++                        </div>
++
++                        <div className="space-y-2">
++                          <Label>Position</Label>
++                          <Input
++                            className={customerInputClassName}
++                            value={contact.position}
++                            onChange={(e) =>
++                              updateCustomerContact(contact.draft_id, {
++                                position: e.target.value,
++                              })
++                            }
++                            placeholder={
++                              customerType === "Commercial" ? "Position or role" : "Customer"
++                            }
++                          />
++                        </div>
++
++                        <div className="space-y-2">
++                          <Label>Phone</Label>
++                          <Input
++                            className={customerInputClassName}
++                            value={contact.phone}
++                            onChange={(e) =>
++                              updateCustomerContact(contact.draft_id, {
++                                phone: e.target.value,
++                              })
++                            }
++                            placeholder="Phone number"
++                          />
++                        </div>
++
++                        <div className="space-y-2">
++                          <Label>Email</Label>
++                          <Input
++                            type="email"
++                            className={customerInputClassName}
++                            value={contact.email}
++                            onChange={(e) =>
++                              updateCustomerContact(contact.draft_id, {
++                                email: e.target.value,
++                              })
++                            }
++                            placeholder="Email address"
++                          />
++                        </div>
++                      </div>
++                    </div>
++                  ))}
+                 </div>
+               </CustomerFormSection>
+ 

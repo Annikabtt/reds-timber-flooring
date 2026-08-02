@@ -1,0 +1,111 @@
+1286:                                 .slice(0, 2);
+1287:                             const numeric = Number(raw || "0");
+1288:                             update({
+1289:                                 variantNumber: raw,
+1290:                                 variantName: numeric === 1
+1291:                                     ? "Standard"
+1292:                                     : value.variantName === "Standard"
+1293:                                     ? ""
+1294:                                     : value.variantName,
+1295:                                 variantDescription: numeric === 1
+1296:                                     ? ""
+1297:                                     : value.variantDescription,
+1298:                             });
+1299:                         }}
+1300:                         onBlur={() => {
+1301:                             const numeric = Number(value.variantNumber);
+1302:                             if (
+1303:                                 Number.isInteger(numeric) && numeric >= 1 &&
+1304:                                 numeric <= 99
+1305:                             ) {
+1306:                                 update({
+1307:                                     variantNumber: String(numeric).padStart(
+1308:                                         2,
+1309:                                         "0",
+1310:                                     ),
+1311:                                 });
+1312:                             }
+1313:                         }}
+1314:                         inputMode="numeric"
+1315:                         placeholder="01"
+1316:                         disabled={disabled}
+1317:                         className="h-11 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] font-mono hover:border-[#9E4B4B] focus-visible:border-[#9E4B4B] focus-visible:ring-[#9E4B4B]/20"
+1318:                     />
+1319:                 </Field>
+1320:             </div>
+1321: 
+1322:             {sizeRule
+1323:                 ? (
+1324:                     <div className="grid gap-4 rounded-2xl border border-[#E5E7EB] bg-white p-4 sm:grid-cols-2">
+1325:                         <Field
+1326:                             label={`${sizeRule.firstLabel}${
+1327:                                 sizeRule.firstUnit
+1328:                                     ? ` (${sizeRule.firstUnit})`
+1329:                                     : ""
+1330:                             }${
+1331:                                 sizeRule.firstMode === "numeric" &&
+1332:                                     !sizeRule.allowFirstUnspecified
+1333:                                     ? " *"
+1334:                                     : ""
+1335:                             }`}
+1336:                         >
+1337:                             <Input
+1338:                                 value={value.firstValue}
+1339:                                 onChange={(event) =>
+1340:                                     update({ firstValue: event.target.value })}
+1341:                                 inputMode="numeric"
+1342:                                 disabled={disabled ||
+1343:                                     sizeRule.firstMode === "not_applicable"}
+1344:                                 placeholder={sizeRule.firstMode ===
+1345:                                         "not_applicable"
+1346:                                     ? "Not applicable"
+1347:                                     : "Enter value"}
+1348:                                 className="h-11 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] hover:border-[#9E4B4B] focus-visible:border-[#9E4B4B] focus-visible:ring-[#9E4B4B]/20"
+1349:                             />
+1350:                         </Field>
+1351: 
+1352:                         <Field
+1353:                             label={`${sizeRule.secondLabel}${
+1354:                                 sizeRule.secondUnit
+1355:                                     ? ` (${sizeRule.secondUnit})`
+1356:                                     : ""
+1357:                             }${
+1358:                                 sizeRule.secondMode === "numeric" &&
+1359:                                     !sizeRule.allowSecondUnspecified
+1360:                                     ? " *"
+1361:                                     : ""
+1362:                             }`}
+1363:                         >
+1364:                             <Input
+1365:                                 value={value.secondValue}
+1366:                                 onChange={(event) =>
+1367:                                     update({ secondValue: event.target.value })}
+1368:                                 inputMode="numeric"
+1369:                                 disabled={disabled ||
+1370:                                     sizeRule.secondMode === "not_applicable"}
+1371:                                 placeholder={sizeRule.secondMode ===
+1372:                                         "not_applicable"
+1373:                                     ? "Not applicable"
+1374:                                     : sizeRule.secondMode ===
+1375:                                             "random_or_numeric"
+1376:                                     ? "Leave blank for random"
+1377:                                     : "Enter value"}
+1378:                                 className="h-11 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] hover:border-[#9E4B4B] focus-visible:border-[#9E4B4B] focus-visible:ring-[#9E4B4B]/20"
+1379:                             />
+1380:                         </Field>
+1381:                     </div>
+1382:                 )
+1383:                 : null}
+1384: 
+1385:             {isSpecialVariant
+1386:                 ? (
+1387:                     <div className="grid gap-4 rounded-2xl border border-[#E5E7EB] bg-white p-4 sm:grid-cols-2">
+1388:                         <Field label="Variant Name *">
+1389:                             <Input
+1390:                                 value={value.variantName}
+1391:                                 onChange={(event) =>
+1392:                                     update({ variantName: event.target.value })}
+1393:                                 maxLength={120}
+1394:                                 placeholder="Describe the special variant"
+1395:                                 disabled={disabled}
+1396:                                 className="h-11 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] hover:border-[#9E4B4B] focus-visible:border-[#9E4B4B] focus-visible:ring-[#9E4B4B]/20"

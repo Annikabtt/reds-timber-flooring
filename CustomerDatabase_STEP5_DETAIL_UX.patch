@@ -1,0 +1,126 @@
+--- a/src/pages/CustomerDatabase.tsx
++++ b/src/pages/CustomerDatabase.tsx
+@@ -2686,16 +2686,54 @@
+ 
+                         <DetailCard title="Contacts">
+                           {viewingCustomer.customer_contacts?.length ? (
+-                            <DetailTable
+-                              headers={["Contact Name", "Position", "Phone", "Email", "Primary"]}
+-                              rows={viewingCustomer.customer_contacts.map((contact) => [
+-                                contact.contact_name,
+-                                contact.position || "-",
+-                                contact.phone || "-",
+-                                contact.email || "-",
+-                                contact.is_primary ? "Primary" : "-",
+-                              ])}
+-                            />
++                            <div className="grid gap-4 lg:grid-cols-2">
++                              {viewingCustomer.customer_contacts.map((contact) => (
++                                <article
++                                  key={contact.contact_id}
++                                  className={`rounded-2xl border p-4 shadow-sm ${
++                                    contact.is_primary
++                                      ? "border-[#9E4B4B]/40 bg-[#9E4B4B]/[0.04]"
++                                      : "border-slate-200 bg-white"
++                                  }`}
++                                >
++                                  <div className="flex items-start justify-between gap-3">
++                                    <div className="min-w-0">
++                                      <div className="flex flex-wrap items-center gap-2">
++                                        <p className="truncate font-bold text-slate-900">
++                                          {contact.contact_name}
++                                        </p>
++                                        {contact.is_primary && (
++                                          <span className="rounded-full bg-[#9E4B4B] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
++                                            Primary
++                                          </span>
++                                        )}
++                                      </div>
++                                      <p className="mt-1 text-sm text-slate-500">
++                                        {contact.position || "Position not recorded"}
++                                      </p>
++                                    </div>
++                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600">
++                                      <UserRound className="h-5 w-5" />
++                                    </div>
++                                  </div>
++
++                                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
++                                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
++                                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Phone</p>
++                                      <p className="mt-1 break-words text-sm font-semibold text-slate-800">
++                                        {contact.phone || "Not recorded"}
++                                      </p>
++                                    </div>
++                                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
++                                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Email</p>
++                                      <p className="mt-1 break-all text-sm font-semibold text-slate-800">
++                                        {contact.email || "Not recorded"}
++                                      </p>
++                                    </div>
++                                  </div>
++                                </article>
++                              ))}
++                            </div>
+                           ) : (
+                             <DetailEmptyState title="No contacts found." />
+                           )}
+@@ -2703,19 +2741,45 @@
+ 
+                         <DetailCard title="Addresses">
+                           {viewingCustomer.customer_addresses?.length ? (
+-                            <DetailTable
+-                              headers={["Type", "Address Line 1", "Address Line 2", "Suburb", "State", "Postcode", "Country", "Primary"]}
+-                              rows={viewingCustomer.customer_addresses.map((addressItem) => [
+-                                addressItem.address_type,
+-                                addressItem.address_line1,
+-                                addressItem.address_line2 || "-",
+-                                addressItem.suburb || "-",
+-                                addressItem.state || "-",
+-                                addressItem.postcode || "-",
+-                                addressItem.country || "-",
+-                                addressItem.is_primary ? "Primary" : "-",
+-                              ])}
+-                            />
++                            <div className="grid gap-4 lg:grid-cols-2">
++                              {viewingCustomer.customer_addresses.map((addressItem) => (
++                                <article
++                                  key={addressItem.address_id}
++                                  className={`rounded-2xl border p-4 shadow-sm ${
++                                    addressItem.is_primary
++                                      ? "border-[#9E4B4B]/40 bg-[#9E4B4B]/[0.04]"
++                                      : "border-slate-200 bg-white"
++                                  }`}
++                                >
++                                  <div className="flex items-start justify-between gap-3">
++                                    <div className="min-w-0">
++                                      <div className="flex flex-wrap items-center gap-2">
++                                        <p className="font-bold text-slate-900">
++                                          {addressItem.address_type || "Other"}
++                                        </p>
++                                        {addressItem.is_primary && (
++                                          <span className="rounded-full bg-[#9E4B4B] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
++                                            Primary
++                                          </span>
++                                        )}
++                                      </div>
++                                      <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
++                                        Customer Address
++                                      </p>
++                                    </div>
++                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600">
++                                      <MapPin className="h-5 w-5" />
++                                    </div>
++                                  </div>
++
++                                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
++                                    <p className="whitespace-pre-line text-sm font-semibold leading-6 text-slate-800">
++                                      {formatDetailAddress(addressItem)}
++                                    </p>
++                                  </div>
++                                </article>
++                              ))}
++                            </div>
+                           ) : (
+                             <DetailEmptyState title="No addresses found." />
+                           )}

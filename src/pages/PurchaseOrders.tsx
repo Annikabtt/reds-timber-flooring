@@ -1048,10 +1048,10 @@ const PurchaseOrders = () => {
           lead_time_days: line.lead_time_days == null
             ? ""
             : String(line.lead_time_days),
-          supplier_product_code:
-            line.supplier_product_code ?? line.products?.product_code ?? "",
-          supplier_product_name:
-            line.supplier_product_name ?? line.products?.product_name ?? "",
+          supplier_product_code: line.supplier_product_code ??
+            line.products?.product_code ?? "",
+          supplier_product_name: line.supplier_product_name ??
+            line.products?.product_name ?? "",
           notes: line.notes ?? "",
         })),
     );
@@ -1121,26 +1121,22 @@ const PurchaseOrders = () => {
     updateLine(key, {
       product_id: productIdValue,
       quantity: currentLine?.quantity || "1",
-      material_supplier_link_id:
-        supplierLink?.material_supplier_link_id ?? "",
+      material_supplier_link_id: supplierLink?.material_supplier_link_id ?? "",
       description: product?.description || product?.product_name || "",
       purchase_uom_code: purchaseUomCode,
-      unit_cost:
-        supplierLink?.last_purchase_price != null
-          ? String(supplierLink.last_purchase_price)
-          : supplierLink?.default_cost_price != null
-            ? String(supplierLink.default_cost_price)
-            : "",
-      tax_type:
-        supplierLink?.default_tax_type || defaultTaxType || "",
-      lead_time_days:
-        supplierLink?.lead_time_days == null
-          ? ""
-          : String(supplierLink.lead_time_days),
-      supplier_product_code:
-        supplierLink?.supplier_product_code ?? product?.product_code ?? "",
-      supplier_product_name:
-        supplierLink?.supplier_product_name ?? product?.product_name ?? "",
+      unit_cost: supplierLink?.last_purchase_price != null
+        ? String(supplierLink.last_purchase_price)
+        : supplierLink?.default_cost_price != null
+        ? String(supplierLink.default_cost_price)
+        : "",
+      tax_type: supplierLink?.default_tax_type || defaultTaxType || "",
+      lead_time_days: supplierLink?.lead_time_days == null
+        ? ""
+        : String(supplierLink.lead_time_days),
+      supplier_product_code: supplierLink?.supplier_product_code ??
+        product?.product_code ?? "",
+      supplier_product_name: supplierLink?.supplier_product_name ??
+        product?.product_name ?? "",
     });
   };
 
@@ -1170,8 +1166,7 @@ const PurchaseOrders = () => {
       product_id: option.product_id,
       material_supplier_link_id: supplierLink?.material_supplier_link_id ?? "",
       description: option.description,
-      purchase_uom_code:
-        getPreferredPurchaseUom(product, supplierLink) ||
+      purchase_uom_code: getPreferredPurchaseUom(product, supplierLink) ||
         option.base_uom_code,
       quantity: String(option.outstanding_base_quantity),
       unit_cost: supplierLink?.last_purchase_price != null
@@ -1184,10 +1179,10 @@ const PurchaseOrders = () => {
       lead_time_days: supplierLink?.lead_time_days == null
         ? ""
         : String(supplierLink.lead_time_days),
-      supplier_product_code:
-        supplierLink?.supplier_product_code ?? product?.product_code ?? "",
-      supplier_product_name:
-        supplierLink?.supplier_product_name ?? product?.product_name ?? "",
+      supplier_product_code: supplierLink?.supplier_product_code ??
+        product?.product_code ?? "",
+      supplier_product_name: supplierLink?.supplier_product_name ??
+        product?.product_name ?? "",
       tax_type: supplierLink?.default_tax_type || defaultTaxType || "",
     });
   };
@@ -1216,8 +1211,7 @@ const PurchaseOrders = () => {
       material_supplier_link_id: supplierLink?.material_supplier_link_id ?? "",
       description: option.description || product?.product_name ||
         "Stock Request item",
-            purchase_uom_code:
-        getPreferredPurchaseUom(product, supplierLink) ||
+      purchase_uom_code: getPreferredPurchaseUom(product, supplierLink) ||
         option.request_uom_code ||
         option.base_uom_code ||
         "",
@@ -1235,10 +1229,10 @@ const PurchaseOrders = () => {
       lead_time_days: supplierLink?.lead_time_days == null
         ? ""
         : String(supplierLink.lead_time_days),
-      supplier_product_code:
-        supplierLink?.supplier_product_code ?? product?.product_code ?? "",
-      supplier_product_name:
-        supplierLink?.supplier_product_name ?? product?.product_name ?? "",
+      supplier_product_code: supplierLink?.supplier_product_code ??
+        product?.product_code ?? "",
+      supplier_product_name: supplierLink?.supplier_product_name ??
+        product?.product_name ?? "",
       tax_type: supplierLink?.default_tax_type || defaultTaxType || "",
     });
   };
@@ -1522,19 +1516,27 @@ const PurchaseOrders = () => {
               <strong>${line.products?.product_code ?? ""}</strong><br />
               ${line.description || line.products?.product_name || ""}
             </td>
-            <td>${line.supplier_product_code ?? line.products?.product_code ?? ""}</td>
+            <td>${
+          line.supplier_product_code ?? line.products?.product_code ?? ""
+        }</td>
             <td class="number">${numberValue(line.quantity).toFixed(2)}</td>
             <td>${line.purchase_uom_code ?? ""}</td>
-            <td class="number">${moneyFormatter.format(
-              numberValue(line.unit_cost),
-            )}</td>
-            <td class="number">${numberValue(
-              line.discount_percent,
-            ).toFixed(2)}%</td>
+            <td class="number">${
+          moneyFormatter.format(
+            numberValue(line.unit_cost),
+          )
+        }</td>
+            <td class="number">${
+          numberValue(
+            line.discount_percent,
+          ).toFixed(2)
+        }%</td>
             <td class="number">${numberValue(line.tax_rate).toFixed(2)}%</td>
-            <td class="number">${moneyFormatter.format(
-              numberValue(line.line_total),
-            )}</td>
+            <td class="number">${
+          moneyFormatter.format(
+            numberValue(line.line_total),
+          )
+        }</td>
           </tr>
         `,
       )
@@ -1550,12 +1552,16 @@ const PurchaseOrders = () => {
           <div>
             <h2>${purchaseOrder.purchase_order_no}</h2>
             <div class="row"><strong>Status:</strong> ${purchaseOrder.order_status}</div>
-            <div class="row"><strong>Order date:</strong> ${formatDate(
-              purchaseOrder.order_date,
-            )}</div>
-            <div class="row"><strong>Expected:</strong> ${formatDate(
-              purchaseOrder.expected_delivery_date,
-            )}</div>
+            <div class="row"><strong>Order date:</strong> ${
+      formatDate(
+        purchaseOrder.order_date,
+      )
+    }</div>
+            <div class="row"><strong>Expected:</strong> ${
+      formatDate(
+        purchaseOrder.expected_delivery_date,
+      )
+    }</div>
           </div>
         </div>
 
@@ -1563,30 +1569,32 @@ const PurchaseOrders = () => {
           <div class="card">
             <h2>Supplier</h2>
             <div class="row"><strong>${
-              purchaseOrder.suppliers?.supplier_name ?? "—"
-            }</strong></div>
-            <div class="row">${purchaseOrder.suppliers?.supplier_code ?? ""}</div>
+      purchaseOrder.suppliers?.supplier_name ?? "—"
+    }</strong></div>
+            <div class="row">${
+      purchaseOrder.suppliers?.supplier_code ?? ""
+    }</div>
             <div class="row"><strong>Supplier order reference:</strong> ${
-              purchaseOrder.supplier_reference ?? "—"
-            }</div>
+      purchaseOrder.supplier_reference ?? "—"
+    }</div>
             <div class="row"><strong>Supplier quote:</strong> ${
-              purchaseOrder.supplier_quote_no ?? "—"
-            }</div>
+      purchaseOrder.supplier_quote_no ?? "—"
+    }</div>
           </div>
           <div class="card">
             <h2>Project & Delivery</h2>
             <div class="row"><strong>${
-              purchaseOrder.projects?.project_no ?? ""
-            }</strong> ${purchaseOrder.projects?.project_name ?? "—"}</div>
-            <div class="row">${
-              purchaseOrder.project_sites?.site_code ?? ""
-            } ${purchaseOrder.project_sites?.site_name ?? ""}</div>
+      purchaseOrder.projects?.project_no ?? ""
+    }</strong> ${purchaseOrder.projects?.project_name ?? "—"}</div>
+            <div class="row">${purchaseOrder.project_sites?.site_code ?? ""} ${
+      purchaseOrder.project_sites?.site_name ?? ""
+    }</div>
             <div class="row"><strong>Contact:</strong> ${
-              purchaseOrder.delivery_contact_name ?? "—"
-            } ${purchaseOrder.delivery_contact_phone ?? ""}</div>
+      purchaseOrder.delivery_contact_name ?? "—"
+    } ${purchaseOrder.delivery_contact_phone ?? ""}</div>
             <div class="row"><strong>Method:</strong> ${
-              purchaseOrder.delivery_method ?? "—"
-            }</div>
+      purchaseOrder.delivery_method ?? "—"
+    }</div>
           </div>
         </div>
 
@@ -1608,15 +1616,21 @@ const PurchaseOrders = () => {
         </table>
 
         <div class="totals">
-          <div class="total-row"><span>Subtotal</span><strong>${moneyFormatter.format(
-            numberValue(purchaseOrder.subtotal_amount),
-          )}</strong></div>
-          <div class="total-row"><span>Tax</span><strong>${moneyFormatter.format(
-            numberValue(purchaseOrder.tax_amount),
-          )}</strong></div>
-          <div class="total-row grand-total"><span>Total</span><span>${moneyFormatter.format(
-            numberValue(purchaseOrder.total_amount),
-          )}</span></div>
+          <div class="total-row"><span>Subtotal</span><strong>${
+      moneyFormatter.format(
+        numberValue(purchaseOrder.subtotal_amount),
+      )
+    }</strong></div>
+          <div class="total-row"><span>Tax</span><strong>${
+      moneyFormatter.format(
+        numberValue(purchaseOrder.tax_amount),
+      )
+    }</strong></div>
+          <div class="total-row grand-total"><span>Total</span><span>${
+      moneyFormatter.format(
+        numberValue(purchaseOrder.total_amount),
+      )
+    }</span></div>
         </div>
 
         <div class="grid notes-grid">
@@ -1804,7 +1818,7 @@ const PurchaseOrders = () => {
           </Button>
           <Button
             onClick={openCreateDialog}
-            className="bg-[#8F1D2C] text-white hover:bg-[#741725]"
+            className="flex h-11 items-center justify-center rounded-xl bg-red-600 px-5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-red-700"
           >
             <Plus className="mr-2 h-4 w-4" />
             New Purchase Order
@@ -2181,78 +2195,73 @@ const PurchaseOrders = () => {
                 </div>
 
                 <div className="space-y-2">
-  <Label>Default Tax Type</Label>
+                  <Label>Default Tax Type</Label>
 
-  <Select
-    value={defaultTaxType || "__none"}
-    onValueChange={(value) => {
-      const nextTaxType =
-        value === "__none" ? "" : value;
+                  <Select
+                    value={defaultTaxType || "__none"}
+                    onValueChange={(value) => {
+                      const nextTaxType = value === "__none" ? "" : value;
 
-      setDefaultTaxType(nextTaxType);
+                      setDefaultTaxType(nextTaxType);
 
-      setLines((current) =>
-        current.map((line) => ({
-          ...line,
-          tax_type:
-            line.tax_type || nextTaxType,
-        })),
-      );
-    }}
-  >
-    <SelectTrigger className={inputClassName}>
-      <SelectValue placeholder="Not configured" />
-    </SelectTrigger>
+                      setLines((current) => current.map((line) => ({
+                        ...line,
+                        tax_type: line.tax_type || nextTaxType,
+                      })));
+                    }}
+                  >
+                    <SelectTrigger className={inputClassName}>
+                      <SelectValue placeholder="Not configured" />
+                    </SelectTrigger>
 
-    <SelectContent>
-      <SelectItem value="__none">
-        Not configured
-      </SelectItem>
+                    <SelectContent>
+                      <SelectItem value="__none">
+                        Not configured
+                      </SelectItem>
 
-      {taxTypeOptions.map((taxType) => (
-        <SelectItem key={taxType} value={taxType}>
-          {taxType}
-        </SelectItem>
-      ))}
-    </SelectContent>
-  </Select>
+                      {taxTypeOptions.map((taxType) => (
+                        <SelectItem key={taxType} value={taxType}>
+                          {taxType}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
-  {taxTypeOptions.length === 0 && (
-    <p className="text-xs text-slate-500">
-      No Tax Type is configured for the selected supplier.
-      Tax Rate can still be entered on each line.
-    </p>
-  )}
-</div>
+                  {taxTypeOptions.length === 0 && (
+                    <p className="text-xs text-slate-500">
+                      No Tax Type is configured for the selected supplier. Tax
+                      Rate can still be entered on each line.
+                    </p>
+                  )}
+                </div>
 
                 <div className="space-y-2">
-  <Label>Payment Terms</Label>
+                  <Label>Payment Terms</Label>
 
-  <Select
-    value={paymentTermsType || "__none"}
-    onValueChange={(value) =>
-      setPaymentTermsType(
-        value === "__none" ? "" : value,
-      )
-    }
-  >
-    <SelectTrigger className={inputClassName}>
-      <SelectValue placeholder="Select payment terms" />
-    </SelectTrigger>
+                  <Select
+                    value={paymentTermsType || "__none"}
+                    onValueChange={(value) =>
+                      setPaymentTermsType(
+                        value === "__none" ? "" : value,
+                      )}
+                  >
+                    <SelectTrigger className={inputClassName}>
+                      <SelectValue placeholder="Select payment terms" />
+                    </SelectTrigger>
 
-    <SelectContent>
-      <SelectItem value="__none">
-        Not configured
-      </SelectItem>
+                    <SelectContent>
+                      <SelectItem value="__none">
+                        Not configured
+                      </SelectItem>
 
-      {paymentTermsOptions.map((term) => (
-        <SelectItem key={term} value={term}>
-          {term}
-        </SelectItem>
-      ))}
-    </SelectContent>
-  </Select>
-</div>
+                      {paymentTermsOptions.map((term) => (
+                        <SelectItem key={term} value={term}>
+                          {term}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
                 <div className="space-y-2">
                   <Label>Payment Terms Days</Label>
@@ -2634,66 +2643,67 @@ const PurchaseOrders = () => {
                         </div>
 
                         <div className="space-y-2">
-  <Label>Purchase UOM *</Label>
+                          <Label>Purchase UOM *</Label>
 
-  <Select
-    value={line.purchase_uom_code || "__none"}
-    onValueChange={(value) =>
-      updateLine(line.key, {
-        purchase_uom_code:
-          value === "__none" ? "" : value,
-      })
-    }
-    disabled={!line.product_id}
-  >
-    <SelectTrigger className={inputClassName}>
-      <SelectValue
-        placeholder={
-          line.product_id
-            ? "Select Purchase UOM"
-            : "Select product first"
-        }
-      />
-    </SelectTrigger>
+                          <Select
+                            value={line.purchase_uom_code || "__none"}
+                            onValueChange={(value) =>
+                              updateLine(line.key, {
+                                purchase_uom_code: value === "__none"
+                                  ? ""
+                                  : value,
+                              })}
+                            disabled={!line.product_id}
+                          >
+                            <SelectTrigger className={inputClassName}>
+                              <SelectValue
+                                placeholder={line.product_id
+                                  ? "Select Purchase UOM"
+                                  : "Select product first"}
+                              />
+                            </SelectTrigger>
 
-    <SelectContent>
-      {getPurchaseUomOptions(line.product_id).length === 0 ? (
-        <SelectItem value="__none" disabled>
-          No valid Purchase UOM
-        </SelectItem>
-      ) : (
-        getPurchaseUomOptions(line.product_id).map(
-          (uomCode) => (
-            <SelectItem
-              key={uomCode}
-              value={uomCode}
-            >
-              {uomCode}
-            </SelectItem>
-          ),
-        )
-      )}
-    </SelectContent>
-  </Select>
+                            <SelectContent>
+                              {getPurchaseUomOptions(line.product_id).length ===
+                                  0
+                                ? (
+                                  <SelectItem value="__none" disabled>
+                                    No valid Purchase UOM
+                                  </SelectItem>
+                                )
+                                : (
+                                  getPurchaseUomOptions(line.product_id).map(
+                                    (uomCode) => (
+                                      <SelectItem
+                                        key={uomCode}
+                                        value={uomCode}
+                                      >
+                                        {uomCode}
+                                      </SelectItem>
+                                    ),
+                                  )
+                                )}
+                            </SelectContent>
+                          </Select>
 
-  {selectedProduct?.default_purchase_uom_code &&
-    selectedProduct.default_purchase_uom_code !==
-      selectedProduct.base_uom_code &&
-    !hasPurchaseUomConversion(
-      selectedProduct,
-      selectedProduct.default_purchase_uom_code,
-    ) && (
-      <p className="text-xs text-amber-700">
-        Default Purchase UOM{" "}
-        <strong>
-          {selectedProduct.default_purchase_uom_code}
-        </strong>{" "}
-        has no active conversion to Base UOM{" "}
-        <strong>{selectedProduct.base_uom_code}</strong>.
-        Base UOM has been selected instead.
-      </p>
-    )}
-</div>
+                          {selectedProduct?.default_purchase_uom_code &&
+                            selectedProduct.default_purchase_uom_code !==
+                              selectedProduct.base_uom_code &&
+                            !hasPurchaseUomConversion(
+                              selectedProduct,
+                              selectedProduct.default_purchase_uom_code,
+                            ) && (
+                            <p className="text-xs text-amber-700">
+                              Default Purchase UOM{" "}
+                              <strong>
+                                {selectedProduct.default_purchase_uom_code}
+                              </strong>{" "}
+                              has no active conversion to Base UOM{" "}
+                              <strong>{selectedProduct.base_uom_code}</strong>.
+                              Base UOM has been selected instead.
+                            </p>
+                          )}
+                        </div>
 
                         <div className="space-y-2">
                           <Label>Quantity *</Label>
@@ -2702,9 +2712,10 @@ const PurchaseOrders = () => {
                             min="0"
                             step="any"
                             value={line.quantity}
-                            onChange={(event) => updateLine(line.key, {
-                              quantity: event.target.value,
-                            })}
+                            onChange={(event) =>
+                              updateLine(line.key, {
+                                quantity: event.target.value,
+                              })}
                             className={inputClassName}
                           />
                         </div>
@@ -2735,10 +2746,9 @@ const PurchaseOrders = () => {
                           <Label>Description</Label>
                           <Input
                             value={line.description}
-                            onChange={(event) =>
-                              updateLine(line.key, {
-                                description: event.target.value,
-                              })}
+                            onChange={(event) => updateLine(line.key, {
+                              description: event.target.value,
+                            })}
                             className={inputClassName}
                           />
                         </div>
@@ -2776,34 +2786,32 @@ const PurchaseOrders = () => {
                         </div>
 
                         <div className="space-y-2">
-  <Label>Tax Type</Label>
+                          <Label>Tax Type</Label>
 
-  <Select
-    value={line.tax_type || "__none"}
-    onValueChange={(value) =>
-      updateLine(line.key, {
-        tax_type:
-          value === "__none" ? "" : value,
-      })
-    }
-  >
-    <SelectTrigger className={inputClassName}>
-      <SelectValue placeholder="Not configured" />
-    </SelectTrigger>
+                          <Select
+                            value={line.tax_type || "__none"}
+                            onValueChange={(value) =>
+                              updateLine(line.key, {
+                                tax_type: value === "__none" ? "" : value,
+                              })}
+                          >
+                            <SelectTrigger className={inputClassName}>
+                              <SelectValue placeholder="Not configured" />
+                            </SelectTrigger>
 
-    <SelectContent>
-      <SelectItem value="__none">
-        Not configured
-      </SelectItem>
+                            <SelectContent>
+                              <SelectItem value="__none">
+                                Not configured
+                              </SelectItem>
 
-      {taxTypeOptions.map((taxType) => (
-        <SelectItem key={taxType} value={taxType}>
-          {taxType}
-        </SelectItem>
-      ))}
-    </SelectContent>
-  </Select>
-</div>
+                              {taxTypeOptions.map((taxType) => (
+                                <SelectItem key={taxType} value={taxType}>
+                                  {taxType}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
 
                         <div className="space-y-2">
                           <Label>Required By</Label>
@@ -2833,13 +2841,14 @@ const PurchaseOrders = () => {
                         </div>
 
                         <div className="space-y-2">
-                          <Label>Supplier Product Code / REDS Product Code</Label>
+                          <Label>
+                            Supplier Product Code / REDS Product Code
+                          </Label>
                           <Input
                             value={line.supplier_product_code}
-                            onChange={(event) =>
-                              updateLine(line.key, {
-                                supplier_product_code: event.target.value,
-                              })}
+                            onChange={(event) => updateLine(line.key, {
+                              supplier_product_code: event.target.value,
+                            })}
                             className={inputClassName}
                           />
                         </div>
@@ -2848,10 +2857,9 @@ const PurchaseOrders = () => {
                           <Label>Line Notes</Label>
                           <Input
                             value={line.notes}
-                            onChange={(event) =>
-                              updateLine(line.key, {
-                                notes: event.target.value,
-                              })}
+                            onChange={(event) => updateLine(line.key, {
+                              notes: event.target.value,
+                            })}
                             className={inputClassName}
                           />
                         </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -127,7 +127,7 @@ export default function Projects() {
           customers (
             customer_name
           )
-        `
+        `,
         )
         .eq("is_deleted", false)
         .order("created_at", { ascending: false });
@@ -147,8 +147,8 @@ export default function Projects() {
         .toLowerCase()
         .includes(searchValue);
 
-    const matchesStatus =
-      statusFilter === "All" || project.project_status === statusFilter;
+    const matchesStatus = statusFilter === "All" ||
+      project.project_status === statusFilter;
 
     return matchesSearch && matchesStatus;
   });
@@ -179,7 +179,7 @@ export default function Projects() {
     setContractValue(
       project.contract_value !== null && project.contract_value !== undefined
         ? Number(project.contract_value).toLocaleString("en-AU")
-        : ""
+        : "",
     );
     setStartDate(project.start_date ?? "");
     setEstimatedCompletionDate(project.estimated_completion_date ?? "");
@@ -212,7 +212,7 @@ export default function Projects() {
       value: projects
         .reduce(
           (total, project) => total + Number(project.contract_value ?? 0),
-          0
+          0,
         )
         .toLocaleString("en-AU", {
           style: "currency",
@@ -332,11 +332,10 @@ export default function Projects() {
       }),
   });
 
-
   const deleteProject = useMutation({
     mutationFn: async (projectId: string) => {
       const confirmed = window.confirm(
-        "Delete this project? This will hide the project from the active list."
+        "Delete this project? This will hide the project from the active list.",
       );
 
       if (!confirmed) return;
@@ -377,7 +376,7 @@ export default function Projects() {
   const downloadFile = (
     content: string,
     fileName: string,
-    mimeType: string
+    mimeType: string,
   ) => {
     const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
@@ -416,7 +415,7 @@ export default function Projects() {
     downloadFile(
       csvContent,
       "projects.csv",
-      "text/csv;charset=utf-8;"
+      "text/csv;charset=utf-8;",
     );
   };
 
@@ -434,12 +433,14 @@ export default function Projects() {
     const tableRows = exportRows
       .map(
         (row) =>
-          `<tr>${headers
-            .map(
-              (header) =>
-                `<td>${String(row[header as keyof typeof row] ?? "")}</td>`
-            )
-            .join("")}</tr>`
+          `<tr>${
+            headers
+              .map(
+                (header) =>
+                  `<td>${String(row[header as keyof typeof row] ?? "")}</td>`,
+              )
+              .join("")
+          }</tr>`,
       )
       .join("");
 
@@ -464,7 +465,7 @@ export default function Projects() {
     downloadFile(
       excelContent,
       "projects.xls",
-      "application/vnd.ms-excel;charset=utf-8;"
+      "application/vnd.ms-excel;charset=utf-8;",
     );
   };
 
@@ -473,28 +474,27 @@ export default function Projects() {
   };
 
   return (
-    <div className="space-y-6 px-4 pb-6 animate-fade-in sm:px-0">
+    <div className="space-y-6 px-4 pb-8 pt-4 animate-fade-in sm:px-6 lg:px-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-50">
-              <FolderKanban className="h-6 w-6 text-red-600" />
-            </div>
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-50">
+            <FolderKanban className="h-6 w-6 text-red-600" />
+          </div>
 
-            <div className="min-w-0">
-              <h1 className="text-2xl font-black leading-tight text-slate-900 md:text-3xl">
-                Projects
-              </h1>
-              <p className="mt-0.5 text-sm text-slate-500">
-                Track project records from REDS database.
-              </p>
-            </div>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-black leading-tight text-slate-900 md:text-3xl">
+              Projects
+            </h1>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Track project records from REDS database.
+            </p>
           </div>
         </div>
 
         <Button
           onClick={openCreateProject}
-          className="flex h-11 w-full items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-red-700 sm:w-auto sm:px-6 print:hidden"
+          className="flex h-11 w-full shrink-0 items-center justify-center rounded-xl bg-red-600 px-5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-red-700 sm:w-auto print:hidden"
         >
           <Plus className="mr-2 h-4 w-4" />
           Add Project
@@ -597,7 +597,8 @@ export default function Projects() {
                   type="text"
                   inputMode="decimal"
                   value={contractValue}
-                  onChange={(e) => setContractValue(formatNumberInput(e.target.value))}
+                  onChange={(e) =>
+                    setContractValue(formatNumberInput(e.target.value))}
                   placeholder="0.00"
                 />
               </div>
@@ -617,9 +618,7 @@ export default function Projects() {
                   <Input
                     type="date"
                     value={estimatedCompletionDate}
-                    onChange={(e) =>
-                      setEstimatedCompletionDate(e.target.value)
-                    }
+                    onChange={(e) => setEstimatedCompletionDate(e.target.value)}
                   />
                 </div>
               </div>
@@ -638,12 +637,10 @@ export default function Projects() {
                 disabled={createProject.isPending || updateProject.isPending}
               >
                 {editingProjectId
-                  ? updateProject.isPending
-                    ? "Updating..."
-                    : "Update Project"
+                  ? updateProject.isPending ? "Updating..." : "Update Project"
                   : createProject.isPending
-                    ? "Creating..."
-                    : "Create Project"}
+                  ? "Creating..."
+                  : "Create Project"}
               </Button>
             </form>
           </DialogContent>
@@ -678,9 +675,10 @@ export default function Projects() {
                 <div>
                   <p className="text-sm text-muted-foreground">Status</p>
                   <span
-                    className={`inline-flex text-xs px-2 py-0.5 rounded-full ${statusBadge[viewingProject.project_status] ??
-                      "bg-muted text-muted-foreground"
-                      }`}
+                    className={`inline-flex text-xs px-2 py-0.5 rounded-full ${
+                      statusBadge[viewingProject.project_status] ??
+                        "bg-muted text-muted-foreground"
+                    }`}
                   >
                     {viewingProject.project_status}
                   </span>
@@ -704,7 +702,7 @@ export default function Projects() {
                         {
                           style: "currency",
                           currency: "AUD",
-                        }
+                        },
                       )
                       : "-"}
                   </p>
@@ -715,7 +713,7 @@ export default function Projects() {
                   <p className="font-medium">
                     {viewingProject.start_date
                       ? new Date(
-                        viewingProject.start_date
+                        viewingProject.start_date,
                       ).toLocaleDateString("en-AU")
                       : "-"}
                   </p>
@@ -728,7 +726,7 @@ export default function Projects() {
                   <p className="font-medium">
                     {viewingProject.estimated_completion_date
                       ? new Date(
-                        viewingProject.estimated_completion_date
+                        viewingProject.estimated_completion_date,
                       ).toLocaleDateString("en-AU")
                       : "-"}
                   </p>
@@ -763,10 +761,18 @@ export default function Projects() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {summaryCards.map((card) => (
-          <Card key={card.label} className="border-border/50">
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">{card.label}</p>
-              <p className="mt-2 text-2xl font-semibold">{card.value}</p>
+          <Card
+            key={card.label}
+            className="rounded-2xl border border-slate-200 bg-white shadow-sm"
+          >
+            <CardContent className="p-5">
+              <p className="text-sm font-medium text-slate-500">
+                {card.label}
+              </p>
+
+              <p className="mt-2 text-2xl font-bold text-slate-900">
+                {card.value}
+              </p>
             </CardContent>
           </Card>
         ))}
@@ -846,232 +852,235 @@ export default function Projects() {
         </div>
       </div>
 
-      {filteredProjects.length > 0 ? (
-        <>
-          <div className="hidden md:block">
-            <Card className="border-border/50">
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader className="bg-slate-100">
-                    <TableRow className="hover:bg-slate-100">
-                      <TableHead>Project No</TableHead>
-                      <TableHead>Project Name</TableHead>
-                      <TableHead>Customer</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">
-                        Contract Value
-                      </TableHead>
-                      <TableHead>Start Date</TableHead>
-                      <TableHead>Est. Completion</TableHead>
-                      <TableHead className="text-right print:hidden">
-                        Actions
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
+      {filteredProjects.length > 0
+        ? (
+          <>
+            <div className="hidden md:block">
+              <Card className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader className="bg-slate-50">
+                      <TableRow className="hover:bg-slate-100">
+                        <TableHead>Project No</TableHead>
+                        <TableHead>Project Name</TableHead>
+                        <TableHead>Customer</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">
+                          Contract Value
+                        </TableHead>
+                        <TableHead>Start Date</TableHead>
+                        <TableHead>Est. Completion</TableHead>
+                        <TableHead className="text-right print:hidden">
+                          Actions
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
 
-                  <TableBody>
-                    {filteredProjects.map((project) => (
-                      <TableRow key={project.project_id}>
-                        <TableCell className="font-medium">
-                          {project.project_no}
-                        </TableCell>
+                    <TableBody>
+                      {filteredProjects.map((project) => (
+                        <TableRow key={project.project_id}>
+                          <TableCell className="font-medium">
+                            {project.project_no}
+                          </TableCell>
 
-                        <TableCell>{project.project_name}</TableCell>
+                          <TableCell>{project.project_name}</TableCell>
 
-                        <TableCell>
-                          {project.customers?.customer_name ?? "No customer"}
-                        </TableCell>
+                          <TableCell>
+                            {project.customers?.customer_name ?? "No customer"}
+                          </TableCell>
 
-                        <TableCell>{project.project_type ?? "-"}</TableCell>
+                          <TableCell>{project.project_type ?? "-"}</TableCell>
 
-                        <TableCell>
-                          <span
-                            className={`text-xs px-2 py-0.5 rounded-full ${statusBadge[project.project_status] ??
-                              "bg-muted text-muted-foreground"
+                          <TableCell>
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded-full ${
+                                statusBadge[project.project_status] ??
+                                  "bg-muted text-muted-foreground"
                               }`}
-                          >
-                            {project.project_status}
-                          </span>
-                        </TableCell>
+                            >
+                              {project.project_status}
+                            </span>
+                          </TableCell>
 
-                        <TableCell className="text-right">
+                          <TableCell className="text-right">
+                            {project.contract_value !== null
+                              ? Number(project.contract_value).toLocaleString(
+                                "en-AU",
+                                {
+                                  style: "currency",
+                                  currency: "AUD",
+                                },
+                              )
+                              : "-"}
+                          </TableCell>
+
+                          <TableCell>
+                            {project.start_date
+                              ? new Date(project.start_date).toLocaleDateString(
+                                "en-AU",
+                              )
+                              : "-"}
+                          </TableCell>
+
+                          <TableCell>
+                            {project.estimated_completion_date
+                              ? new Date(
+                                project.estimated_completion_date,
+                              ).toLocaleDateString("en-AU")
+                              : "-"}
+                          </TableCell>
+
+                          <TableCell className="w-[210px] text-right print:hidden">
+                            <StandardActions
+                              isActive={project.is_active}
+                              onView={() =>
+                                openViewProject(project)}
+                              onEdit={() => openEditProject(project)}
+                              onToggleActive={() =>
+                                toggleProjectActive.mutate({
+                                  projectId: project.project_id,
+                                  isActive: !project.is_active,
+                                })}
+                              onDelete={() =>
+                                deleteProject.mutate(project.project_id)}
+                              isStatusPending={toggleProjectActive.isPending}
+                              isDeletePending={deleteProject.isPending}
+                              size="desktop"
+                              align="end"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid gap-4 md:hidden">
+              {filteredProjects.map((project) => (
+                <Card key={project.project_id} className="border-border/50">
+                  <CardContent className="space-y-4 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h2 className="font-semibold leading-tight">
+                          {project.project_name}
+                        </h2>
+                        <p className="text-sm text-muted-foreground">
+                          {project.project_no}
+                        </p>
+                      </div>
+
+                      <span
+                        className={`shrink-0 text-xs px-2 py-0.5 rounded-full ${
+                          statusBadge[project.project_status] ??
+                            "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {project.project_status}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="col-span-2 rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                          Customer
+                        </p>
+                        <p className="mt-1 font-semibold text-slate-900">
+                          {project.customers?.customer_name ?? "No customer"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                          Type
+                        </p>
+                        <p className="mt-1 font-semibold text-slate-900">
+                          {project.project_type ?? "-"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                          Contract Value
+                        </p>
+                        <p className="mt-1 font-semibold text-slate-900">
                           {project.contract_value !== null
                             ? Number(project.contract_value).toLocaleString(
                               "en-AU",
                               {
                                 style: "currency",
                                 currency: "AUD",
-                              }
+                              },
                             )
                             : "-"}
-                        </TableCell>
+                        </p>
+                      </div>
 
-                        <TableCell>
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                          Start Date
+                        </p>
+                        <p className="mt-1 font-semibold text-slate-900">
                           {project.start_date
                             ? new Date(project.start_date).toLocaleDateString(
-                              "en-AU"
+                              "en-AU",
                             )
                             : "-"}
-                        </TableCell>
+                        </p>
+                      </div>
 
-                        <TableCell>
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                          Est. Completion
+                        </p>
+                        <p className="mt-1 font-semibold text-slate-900">
                           {project.estimated_completion_date
                             ? new Date(
-                              project.estimated_completion_date
+                              project.estimated_completion_date,
                             ).toLocaleDateString("en-AU")
                             : "-"}
-                        </TableCell>
-
-                        <TableCell className="w-[210px] text-right print:hidden">
-                          <StandardActions
-                            isActive={project.is_active}
-                            onView={() => openViewProject(project)}
-                            onEdit={() => openEditProject(project)}
-                            onToggleActive={() =>
-                              toggleProjectActive.mutate({
-                                projectId: project.project_id,
-                                isActive: !project.is_active,
-                              })
-                            }
-                            onDelete={() =>
-                              deleteProject.mutate(project.project_id)
-                            }
-                            isStatusPending={toggleProjectActive.isPending}
-                            isDeletePending={deleteProject.isPending}
-                            size="desktop"
-                            align="end"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid gap-4 md:hidden">
-            {filteredProjects.map((project) => (
-              <Card key={project.project_id} className="border-border/50">
-                <CardContent className="space-y-4 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h2 className="font-semibold leading-tight">
-                        {project.project_name}
-                      </h2>
-                      <p className="text-sm text-muted-foreground">
-                        {project.project_no}
-                      </p>
+                        </p>
+                      </div>
                     </div>
 
-                    <span
-                      className={`shrink-0 text-xs px-2 py-0.5 rounded-full ${statusBadge[project.project_status] ??
-                        "bg-muted text-muted-foreground"
-                        }`}
-                    >
-                      {project.project_status}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="col-span-2 rounded-xl bg-slate-50 p-3">
-                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                        Customer
-                      </p>
-                      <p className="mt-1 font-semibold text-slate-900">
-                        {project.customers?.customer_name ?? "No customer"}
-                      </p>
+                    <div className="border-t border-slate-200 pt-4 print:hidden">
+                      <StandardActions
+                        isActive={project.is_active}
+                        onView={() =>
+                          openViewProject(project)}
+                        onEdit={() =>
+                          openEditProject(project)}
+                        onToggleActive={() =>
+                          toggleProjectActive.mutate({
+                            projectId: project.project_id,
+                            isActive: !project.is_active,
+                          })}
+                        onDelete={() =>
+                          deleteProject.mutate(project.project_id)}
+                        isStatusPending={toggleProjectActive.isPending}
+                        isDeletePending={deleteProject.isPending}
+                        size="mobile"
+                        align="end"
+                      />
                     </div>
-
-                    <div className="rounded-xl bg-slate-50 p-3">
-                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                        Type
-                      </p>
-                      <p className="mt-1 font-semibold text-slate-900">
-                        {project.project_type ?? "-"}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl bg-slate-50 p-3">
-                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                        Contract Value
-                      </p>
-                      <p className="mt-1 font-semibold text-slate-900">
-                        {project.contract_value !== null
-                          ? Number(project.contract_value).toLocaleString(
-                            "en-AU",
-                            {
-                              style: "currency",
-                              currency: "AUD",
-                            }
-                          )
-                          : "-"}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl bg-slate-50 p-3">
-                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                        Start Date
-                      </p>
-                      <p className="mt-1 font-semibold text-slate-900">
-                        {project.start_date
-                          ? new Date(project.start_date).toLocaleDateString(
-                            "en-AU"
-                          )
-                          : "-"}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl bg-slate-50 p-3">
-                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                        Est. Completion
-                      </p>
-                      <p className="mt-1 font-semibold text-slate-900">
-                        {project.estimated_completion_date
-                          ? new Date(
-                            project.estimated_completion_date
-                          ).toLocaleDateString("en-AU")
-                          : "-"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-slate-200 pt-4 print:hidden">
-                    <StandardActions
-                      isActive={project.is_active}
-                      onView={() => openViewProject(project)}
-                      onEdit={() => openEditProject(project)}
-                      onToggleActive={() =>
-                        toggleProjectActive.mutate({
-                          projectId: project.project_id,
-                          isActive: !project.is_active,
-                        })
-                      }
-                      onDelete={() =>
-                        deleteProject.mutate(project.project_id)
-                      }
-                      isStatusPending={toggleProjectActive.isPending}
-                      isDeletePending={deleteProject.isPending}
-                      size="mobile"
-                      align="end"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </>
-      ) : (
-        <Card className="border-border/50">
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <FolderKanban className="h-12 w-12 text-muted-foreground/40 mb-4" />
-            <p className="text-muted-foreground">
-              No projects yet. Create your first one!
-            </p>
-          </CardContent>
-        </Card>
-      )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </>
+        )
+        : (
+          <Card className="border-border/50">
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <FolderKanban className="h-12 w-12 text-muted-foreground/40 mb-4" />
+              <p className="text-muted-foreground">
+                No projects yet. Create your first one!
+              </p>
+            </CardContent>
+          </Card>
+        )}
     </div>
   );
 }

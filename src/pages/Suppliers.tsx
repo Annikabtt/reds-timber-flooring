@@ -1,20 +1,20 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import {
     Building2,
+    CreditCard,
     Download,
     FileSpreadsheet,
     FileText,
+    Filter,
+    Link2,
     Mail,
+    MapPin,
+    PackageSearch,
     Phone,
     Plus,
     Printer,
     Search,
-    MapPin,
     Truck,
-    CreditCard,
-    PackageSearch,
-    Link2,
-    Filter,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -91,7 +91,7 @@ type SupplierAddressDraft = {
 };
 
 const createEmptyContact = (
-    isPrimary = false
+    isPrimary = false,
 ): SupplierContactDraft => ({
     contact_id: null,
     contact_name: "",
@@ -106,7 +106,7 @@ const createEmptyContact = (
 });
 
 const createEmptyAddress = (
-    isPrimary = false
+    isPrimary = false,
 ): SupplierAddressDraft => ({
     address_id: null,
     address_type: "Business",
@@ -190,7 +190,6 @@ const supplierSelect = `
   )
 `;
 
-
 const supplierInputClassName =
     "h-11 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] text-base text-slate-900 hover:border-[#9E4B4B] focus-visible:border-[#9E4B4B] focus-visible:ring-[#9E4B4B]/30 md:text-sm";
 
@@ -238,12 +237,15 @@ const Suppliers = () => {
     const [xeroFilter, setXeroFilter] = useState<XeroFilter>("all");
 
     const [showViewDialog, setShowViewDialog] = useState(false);
-    const [viewingSupplier, setViewingSupplier] =
-        useState<SupplierListRow | null>(null);
+    const [viewingSupplier, setViewingSupplier] = useState<
+        SupplierListRow | null
+    >(null);
 
     const [showFormDialog, setShowFormDialog] = useState(false);
     const [formMode, setFormMode] = useState<FormMode>("add");
-    const [editingSupplierId, setEditingSupplierId] = useState<string | null>(null);
+    const [editingSupplierId, setEditingSupplierId] = useState<string | null>(
+        null,
+    );
 
     const [supplierName, setSupplierName] = useState("");
     const [legalName, setLegalName] = useState("");
@@ -256,7 +258,9 @@ const Suppliers = () => {
     const [paymentTermsType, setPaymentTermsType] = useState("Days After Bill");
     const [defaultCurrency, setDefaultCurrency] = useState("AUD");
     const [defaultTaxType, setDefaultTaxType] = useState("");
-    const [defaultExpenseAccountCode, setDefaultExpenseAccountCode] = useState("");
+    const [defaultExpenseAccountCode, setDefaultExpenseAccountCode] = useState(
+        "",
+    );
     const [deliveryLeadDays, setDeliveryLeadDays] = useState("");
     const [minimumOrderValue, setMinimumOrderValue] = useState("");
     const [freightNotes, setFreightNotes] = useState("");
@@ -274,29 +278,31 @@ const Suppliers = () => {
         SupplierAddressDraft[]
     >([createEmptyAddress(true)]);
 
-    const { data: suppliers = [], isLoading, error: suppliersError } = useQuery({
-        queryKey: ["suppliers"],
-        queryFn: async () => {
-            const { data, error } = await supabase
-                .from("suppliers")
-                .select(supplierSelect)
-                .eq("is_deleted", false)
-                .eq("supplier_contacts.is_deleted", false)
-                .eq("supplier_addresses.is_deleted", false)
-                .order("supplier_name", { ascending: true });
+    const { data: suppliers = [], isLoading, error: suppliersError } = useQuery(
+        {
+            queryKey: ["suppliers"],
+            queryFn: async () => {
+                const { data, error } = await supabase
+                    .from("suppliers")
+                    .select(supplierSelect)
+                    .eq("is_deleted", false)
+                    .eq("supplier_contacts.is_deleted", false)
+                    .eq("supplier_addresses.is_deleted", false)
+                    .order("supplier_name", { ascending: true });
 
-            if (error) throw error;
-            return data as SupplierListRow[];
+                if (error) throw error;
+                return data as SupplierListRow[];
+            },
         },
-    });
+    );
 
     const supplierTypes = useMemo(() => {
         return Array.from(
             new Set(
                 suppliers
                     .map((supplier) => supplier.supplier_type)
-                    .filter((value): value is string => Boolean(value))
-            )
+                    .filter((value): value is string => Boolean(value)),
+            ),
         ).sort((a, b) => a.localeCompare(b));
     }, [suppliers]);
 
@@ -304,7 +310,9 @@ const Suppliers = () => {
         return {
             total: suppliers.length,
             active: suppliers.filter((supplier) => supplier.is_active).length,
-            inactive: suppliers.filter((supplier) => !supplier.is_active).length,
+            inactive: suppliers.filter((supplier) =>
+                !supplier.is_active
+            ).length,
             xeroSynced: suppliers.filter((supplier) =>
                 supplier.xero_status.toLowerCase().includes("sync") &&
                 !supplier.xero_status.toLowerCase().includes("not")
@@ -316,32 +324,32 @@ const Suppliers = () => {
         const keyword = searchTerm.trim().toLowerCase();
 
         return suppliers.filter((supplier) => {
-            const matchesType =
-                typeFilter === "all" || supplier.supplier_type === typeFilter;
+            const matchesType = typeFilter === "all" ||
+                supplier.supplier_type === typeFilter;
 
-            const matchesStatus =
-                statusFilter === "all" ||
+            const matchesStatus = statusFilter === "all" ||
                 (statusFilter === "active" && supplier.is_active) ||
                 (statusFilter === "inactive" && !supplier.is_active);
 
             const xeroStatusText = supplier.xero_status.toLowerCase();
-            const matchesXero =
-                xeroFilter === "all" ||
+            const matchesXero = xeroFilter === "all" ||
                 (xeroFilter === "synced" &&
                     xeroStatusText.includes("sync") &&
                     !xeroStatusText.includes("not") &&
                     !xeroStatusText.includes("error")) ||
                 (xeroFilter === "not-synced" &&
-                    (xeroStatusText.includes("not") || !supplier.xero_contact_id)) ||
+                    (xeroStatusText.includes("not") ||
+                        !supplier.xero_contact_id)) ||
                 (xeroFilter === "error" &&
-                    (xeroStatusText.includes("error") || Boolean(supplier.xero_sync_error)));
+                    (xeroStatusText.includes("error") ||
+                        Boolean(supplier.xero_sync_error)));
 
-            const primaryContact =
-                supplier.supplier_contacts?.find((contact) => contact.is_primary) ||
+            const primaryContact = supplier.supplier_contacts?.find((contact) =>
+                contact.is_primary
+            ) ||
                 supplier.supplier_contacts?.[0];
 
-            const matchesKeyword =
-                !keyword ||
+            const matchesKeyword = !keyword ||
                 supplier.supplier_code.toLowerCase().includes(keyword) ||
                 supplier.supplier_name.toLowerCase().includes(keyword) ||
                 (supplier.legal_name || "").toLowerCase().includes(keyword) ||
@@ -349,10 +357,15 @@ const Suppliers = () => {
                 (supplier.abn || "").toLowerCase().includes(keyword) ||
                 (supplier.phone || "").toLowerCase().includes(keyword) ||
                 (supplier.email || "").toLowerCase().includes(keyword) ||
-                (supplier.xero_contact_name || "").toLowerCase().includes(keyword) ||
-                (primaryContact?.contact_name || "").toLowerCase().includes(keyword);
+                (supplier.xero_contact_name || "").toLowerCase().includes(
+                    keyword,
+                ) ||
+                (primaryContact?.contact_name || "").toLowerCase().includes(
+                    keyword,
+                );
 
-            return matchesType && matchesStatus && matchesXero && matchesKeyword;
+            return matchesType && matchesStatus && matchesXero &&
+                matchesKeyword;
         });
     }, [suppliers, searchTerm, typeFilter, statusFilter, xeroFilter]);
 
@@ -386,7 +399,7 @@ const Suppliers = () => {
     const updateSupplierContact = (
         index: number,
         field: keyof SupplierContactDraft,
-        value: string | boolean
+        value: string | boolean,
     ) => {
         setSupplierContacts((currentContacts) =>
             currentContacts.map((contact, contactIndex) =>
@@ -415,7 +428,7 @@ const Suppliers = () => {
 
             const removedContact = currentContacts[index];
             const remainingContacts = currentContacts.filter(
-                (_, contactIndex) => contactIndex !== index
+                (_, contactIndex) => contactIndex !== index,
             );
 
             if (
@@ -445,7 +458,7 @@ const Suppliers = () => {
     const updateSupplierAddress = (
         index: number,
         field: keyof SupplierAddressDraft,
-        value: string | boolean
+        value: string | boolean,
     ) => {
         setSupplierAddresses((currentAddresses) =>
             currentAddresses.map((address, addressIndex) =>
@@ -474,7 +487,7 @@ const Suppliers = () => {
 
             const removedAddress = currentAddresses[index];
             const remainingAddresses = currentAddresses.filter(
-                (_, addressIndex) => addressIndex !== index
+                (_, addressIndex) => addressIndex !== index,
             );
 
             if (
@@ -521,14 +534,18 @@ const Suppliers = () => {
         setPaymentTermsType(supplier.payment_terms_type);
         setDefaultCurrency(supplier.default_currency);
         setDefaultTaxType(supplier.default_tax_type || "");
-        setDefaultExpenseAccountCode(supplier.default_expense_account_code || "");
+        setDefaultExpenseAccountCode(
+            supplier.default_expense_account_code || "",
+        );
         setDeliveryLeadDays(
-            supplier.delivery_lead_days === null ? "" : String(supplier.delivery_lead_days)
+            supplier.delivery_lead_days === null
+                ? ""
+                : String(supplier.delivery_lead_days),
         );
         setMinimumOrderValue(
             supplier.minimum_order_value === null
                 ? ""
-                : String(supplier.minimum_order_value)
+                : String(supplier.minimum_order_value),
         );
         setFreightNotes(supplier.freight_notes || "");
         setNotes(supplier.notes || "");
@@ -552,7 +569,7 @@ const Suppliers = () => {
                     is_primary: contact.is_primary,
                     is_active: contact.is_active,
                 }))
-                : [createEmptyContact(true)]
+                : [createEmptyContact(true)],
         );
 
         setSupplierAddresses(
@@ -570,7 +587,7 @@ const Suppliers = () => {
                     is_primary: address.is_primary,
                     is_active: address.is_active,
                 }))
-                : [createEmptyAddress(true)]
+                : [createEmptyAddress(true)],
         );
 
         setShowFormDialog(true);
@@ -606,8 +623,8 @@ const Suppliers = () => {
             payment_terms_type: paymentTermsType,
             default_currency: defaultCurrency,
             default_tax_type: defaultTaxType.trim() || null,
-            default_expense_account_code:
-                defaultExpenseAccountCode.trim() || null,
+            default_expense_account_code: defaultExpenseAccountCode.trim() ||
+                null,
             delivery_lead_days: parsedDeliveryLeadDays,
             minimum_order_value: parsedMinimumOrderValue,
             freight_notes: freightNotes.trim() || null,
@@ -627,44 +644,45 @@ const Suppliers = () => {
 
             if (formMode === "add") {
                 const validContacts = supplierContacts.filter(
-                    (contact) => contact.contact_name.trim().length > 0
+                    (contact) => contact.contact_name.trim().length > 0,
                 );
 
                 const validAddresses = supplierAddresses.filter(
-                    (address) => address.address_line1.trim().length > 0
+                    (address) => address.address_line1.trim().length > 0,
                 );
 
                 const invalidContactEmail = validContacts.find(
                     (contact) =>
                         contact.email.trim() &&
-                        !contact.email.trim().includes("@")
+                        !contact.email.trim().includes("@"),
                 );
 
                 if (invalidContactEmail) {
                     throw new Error(
-                        `Please enter a valid email address for ${invalidContactEmail.contact_name}.`
+                        `Please enter a valid email address for ${invalidContactEmail.contact_name}.`,
                     );
                 }
 
-                const { data: createdSupplier, error: supplierError } = await supabase
-                    .from("suppliers")
-                    .insert(payload)
-                    .select("supplier_id")
-                    .single();
+                const { data: createdSupplier, error: supplierError } =
+                    await supabase
+                        .from("suppliers")
+                        .insert(payload)
+                        .select("supplier_id")
+                        .single();
 
                 if (supplierError) throw supplierError;
 
                 if (!createdSupplier?.supplier_id) {
                     throw new Error(
-                        "Supplier was created but supplier ID was not returned."
+                        "Supplier was created but supplier ID was not returned.",
                     );
                 }
 
                 const supplierId = createdSupplier.supplier_id;
 
                 if (validContacts.length > 0) {
-                    const contactRows: SupplierContactInsert[] =
-                        validContacts.map((contact, index) => ({
+                    const contactRows: SupplierContactInsert[] = validContacts
+                        .map((contact, index) => ({
                             supplier_id: supplierId,
                             contact_name: contact.contact_name.trim(),
                             contact_type: contact.contact_type,
@@ -673,10 +691,11 @@ const Suppliers = () => {
                             mobile: contact.mobile.trim() || null,
                             email: contact.email.trim() || null,
                             notes: contact.notes.trim() || null,
-                            is_primary:
-                                validContacts.some((item) => item.is_primary)
-                                    ? contact.is_primary
-                                    : index === 0,
+                            is_primary: validContacts.some((item) =>
+                                    item.is_primary
+                                )
+                                ? contact.is_primary
+                                : index === 0,
                             is_active: contact.is_active,
                             is_deleted: false,
                         }));
@@ -689,8 +708,8 @@ const Suppliers = () => {
                 }
 
                 if (validAddresses.length > 0) {
-                    const addressRows: SupplierAddressInsert[] =
-                        validAddresses.map((address, index) => ({
+                    const addressRows: SupplierAddressInsert[] = validAddresses
+                        .map((address, index) => ({
                             supplier_id: supplierId,
                             address_type: address.address_type,
                             address_line1: address.address_line1.trim(),
@@ -700,10 +719,11 @@ const Suppliers = () => {
                             postcode: address.postcode.trim() || null,
                             country: address.country.trim() || "Australia",
                             notes: address.notes.trim() || null,
-                            is_primary:
-                                validAddresses.some((item) => item.is_primary)
-                                    ? address.is_primary
-                                    : index === 0,
+                            is_primary: validAddresses.some((item) =>
+                                    item.is_primary
+                                )
+                                ? address.is_primary
+                                : index === 0,
                             is_active: address.is_active,
                             is_deleted: false,
                         }));
@@ -735,7 +755,7 @@ const Suppliers = () => {
             toast.success(
                 formMode === "add"
                     ? "Supplier created successfully."
-                    : "Supplier updated successfully."
+                    : "Supplier updated successfully.",
             );
             queryClient.invalidateQueries({ queryKey: ["suppliers"] });
             setShowFormDialog(false);
@@ -745,7 +765,12 @@ const Suppliers = () => {
     });
 
     const toggleSupplierActive = useMutation({
-        mutationFn: async ({ supplierId, nextActive }: { supplierId: string; nextActive: boolean }) => {
+        mutationFn: async (
+            { supplierId, nextActive }: {
+                supplierId: string;
+                nextActive: boolean;
+            },
+        ) => {
             const { error } = await supabase
                 .from("suppliers")
                 .update({ is_active: nextActive })
@@ -757,7 +782,7 @@ const Suppliers = () => {
             toast.success(
                 variables.nextActive
                     ? "Supplier reactivated successfully."
-                    : "Supplier marked inactive successfully."
+                    : "Supplier marked inactive successfully.",
             );
             queryClient.invalidateQueries({ queryKey: ["suppliers"] });
         },
@@ -769,7 +794,11 @@ const Suppliers = () => {
             const deletedAt = new Date().toISOString();
             const { error } = await supabase
                 .from("suppliers")
-                .update({ is_active: false, is_deleted: true, deleted_at: deletedAt })
+                .update({
+                    is_active: false,
+                    is_deleted: true,
+                    deleted_at: deletedAt,
+                })
                 .eq("supplier_id", supplierId);
             if (error) throw error;
         },
@@ -790,14 +819,15 @@ const Suppliers = () => {
                 ABN: supplier.abn || "",
                 Phone: supplier.phone || "",
                 Email: supplier.email || "",
-                "Payment Terms": `${supplier.payment_terms_days} ${supplier.payment_terms_type}`,
+                "Payment Terms":
+                    `${supplier.payment_terms_days} ${supplier.payment_terms_type}`,
                 Currency: supplier.default_currency,
                 "Lead Days": String(supplier.delivery_lead_days ?? ""),
                 "Minimum Order": String(supplier.minimum_order_value ?? ""),
                 "Xero Status": supplier.xero_status,
                 Status: supplier.is_active ? "Active" : "Inactive",
             })),
-        [filteredSuppliers]
+        [filteredSuppliers],
     );
 
     const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`;
@@ -808,7 +838,11 @@ const Suppliers = () => {
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;");
 
-    const downloadFile = (content: string, fileName: string, mimeType: string) => {
+    const downloadFile = (
+        content: string,
+        fileName: string,
+        mimeType: string,
+    ) => {
         const blob = new Blob([content], { type: mimeType });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -827,30 +861,52 @@ const Suppliers = () => {
             headers.map(escapeCsv).join(","),
             ...exportRows.map((row) =>
                 headers
-                    .map((header) => escapeCsv(String(row[header as keyof typeof row])))
+                    .map((header) =>
+                        escapeCsv(String(row[header as keyof typeof row]))
+                    )
                     .join(",")
             ),
         ].join("\n");
-        downloadFile(`\uFEFF${content}`, "suppliers.csv", "text/csv;charset=utf-8;");
+        downloadFile(
+            `\uFEFF${content}`,
+            "suppliers.csv",
+            "text/csv;charset=utf-8;",
+        );
     };
 
     const handleExportExcel = () => {
         if (!exportRows.length) return toast.error("No suppliers to export.");
         const headers = Object.keys(exportRows[0]);
-        const html = `<table border="1"><thead><tr>${headers
-            .map((header) => `<th>${escapeHtml(header)}</th>`)
-            .join("")}</tr></thead><tbody>${exportRows
+        const html = `<table border="1"><thead><tr>${
+            headers
+                .map((header) => `<th>${escapeHtml(header)}</th>`)
+                .join("")
+        }</tr></thead><tbody>${
+            exportRows
                 .map(
                     (row) =>
-                        `<tr>${headers
-                            .map(
-                                (header) =>
-                                    `<td>${escapeHtml(String(row[header as keyof typeof row]))}</td>`
-                            )
-                            .join("")}</tr>`
+                        `<tr>${
+                            headers
+                                .map(
+                                    (header) =>
+                                        `<td>${
+                                            escapeHtml(
+                                                String(
+                                                    row[header as keyof typeof row],
+                                                ),
+                                            )
+                                        }</td>`,
+                                )
+                                .join("")
+                        }</tr>`,
                 )
-                .join("")}</tbody></table>`;
-        downloadFile(html, "suppliers.xls", "application/vnd.ms-excel;charset=utf-8;");
+                .join("")
+        }</tbody></table>`;
+        downloadFile(
+            html,
+            "suppliers.xls",
+            "application/vnd.ms-excel;charset=utf-8;",
+        );
     };
 
     const handlePrint = (mode: "print" | "pdf") => {
@@ -861,24 +917,40 @@ const Suppliers = () => {
         printWindow.document.write(`
       <html><head><title>REDS Suppliers</title><style>
       @page{size:A4 landscape;margin:12mm}body{font-family:Arial;color:#0f172a}table{width:100%;border-collapse:collapse;font-size:10px}th,td{border:1px solid #cbd5e1;padding:6px;text-align:left}th{background:#f1f5f9}h1{margin-bottom:4px}p{color:#64748b;font-size:11px}
-      </style></head><body><h1>REDS Suppliers</h1><p>Generated ${escapeHtml(
-            new Date().toLocaleString("en-AU")
-        )} | Records ${exportRows.length}</p><table><thead><tr>${headers
-            .map((header) => `<th>${escapeHtml(header)}</th>`)
-            .join("")}</tr></thead><tbody>${exportRows
+      </style></head><body><h1>REDS Suppliers</h1><p>Generated ${
+            escapeHtml(
+                new Date().toLocaleString("en-AU"),
+            )
+        } | Records ${exportRows.length}</p><table><thead><tr>${
+            headers
+                .map((header) => `<th>${escapeHtml(header)}</th>`)
+                .join("")
+        }</tr></thead><tbody>${
+            exportRows
                 .map(
                     (row) =>
-                        `<tr>${headers
-                            .map(
-                                (header) =>
-                                    `<td>${escapeHtml(String(row[header as keyof typeof row]))}</td>`
-                            )
-                            .join("")}</tr>`
+                        `<tr>${
+                            headers
+                                .map(
+                                    (header) =>
+                                        `<td>${
+                                            escapeHtml(
+                                                String(
+                                                    row[header as keyof typeof row],
+                                                ),
+                                            )
+                                        }</td>`,
+                                )
+                                .join("")
+                        }</tr>`,
                 )
-                .join("")}</tbody></table><script>window.onload=()=>window.print()</script></body></html>
+                .join("")
+        }</tbody></table><script>window.onload=()=>window.print()</script></body></html>
     `);
         printWindow.document.close();
-        if (mode === "pdf") toast.info("Choose Save as PDF in the print dialog.");
+        if (mode === "pdf") {
+            toast.info("Choose Save as PDF in the print dialog.");
+        }
     };
 
     const getPrimaryContact = (supplier: SupplierListRow) =>
@@ -899,7 +971,8 @@ const Suppliers = () => {
                                 Suppliers
                             </h1>
                             <p className="mt-1 text-sm text-slate-500">
-                                Supplier master data, contacts, purchasing defaults and Xero mapping.
+                                Supplier master data, contacts, purchasing
+                                defaults and Xero mapping.
                             </p>
                         </div>
                     </div>
@@ -908,7 +981,7 @@ const Suppliers = () => {
                 <Button
                     type="button"
                     onClick={openAddSupplier}
-                    className="h-11 gap-2 rounded-xl bg-[#9E4B4B] px-5 font-bold text-white hover:bg-[#873f3f]"
+                    className="flex h-11 items-center justify-center gap-2 rounded-xl bg-red-600 px-5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-red-700"
                 >
                     <Plus className="h-4 w-4" />
                     Add Supplier
@@ -954,7 +1027,9 @@ const Suppliers = () => {
                                 <p className="mt-2 text-2xl font-black text-slate-900">
                                     {card.value}
                                 </p>
-                                <p className="mt-1 text-xs text-slate-500">{card.note}</p>
+                                <p className="mt-1 text-xs text-slate-500">
+                                    {card.note}
+                                </p>
                             </div>
                             <div className="rounded-xl bg-slate-100 p-2 text-slate-600">
                                 <card.icon className="h-5 w-5" />
@@ -970,14 +1045,17 @@ const Suppliers = () => {
                         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                         <Input
                             value={searchTerm}
-                            onChange={(event) => setSearchTerm(event.target.value)}
+                            onChange={(event) =>
+                                setSearchTerm(event.target.value)}
                             placeholder="Search supplier, code, ABN, contact or Xero..."
                             className={`${supplierInputClassName} pl-9`}
                         />
                     </div>
 
                     <Select value={typeFilter} onValueChange={setTypeFilter}>
-                        <SelectTrigger className={supplierSelectTriggerClassName}>
+                        <SelectTrigger
+                            className={supplierSelectTriggerClassName}
+                        >
                             <SelectValue placeholder="Supplier type" />
                         </SelectTrigger>
                         <SelectContent>
@@ -993,32 +1071,40 @@ const Suppliers = () => {
                     <Select
                         value={statusFilter}
                         onValueChange={(value) =>
-                            setStatusFilter(value as StatusFilter)
-                        }
+                            setStatusFilter(value as StatusFilter)}
                     >
-                        <SelectTrigger className={supplierSelectTriggerClassName}>
+                        <SelectTrigger
+                            className={supplierSelectTriggerClassName}
+                        >
                             <SelectValue placeholder="Status" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">All Statuses</SelectItem>
                             <SelectItem value="active">Active Only</SelectItem>
-                            <SelectItem value="inactive">Inactive Only</SelectItem>
+                            <SelectItem value="inactive">
+                                Inactive Only
+                            </SelectItem>
                         </SelectContent>
                     </Select>
 
                     <Select
                         value={xeroFilter}
                         onValueChange={(value) =>
-                            setXeroFilter(value as XeroFilter)
-                        }
+                            setXeroFilter(value as XeroFilter)}
                     >
-                        <SelectTrigger className={supplierSelectTriggerClassName}>
+                        <SelectTrigger
+                            className={supplierSelectTriggerClassName}
+                        >
                             <SelectValue placeholder="Xero status" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">All Xero Statuses</SelectItem>
+                            <SelectItem value="all">
+                                All Xero Statuses
+                            </SelectItem>
                             <SelectItem value="synced">Synced</SelectItem>
-                            <SelectItem value="not-synced">Not Synced</SelectItem>
+                            <SelectItem value="not-synced">
+                                Not Synced
+                            </SelectItem>
                             <SelectItem value="error">Sync Error</SelectItem>
                         </SelectContent>
                     </Select>
@@ -1064,14 +1150,16 @@ const Suppliers = () => {
                 </div>
             </div>
 
-            {suppliersError ? (
-                <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-                    Supplier data could not be loaded:{" "}
-                    {suppliersError instanceof Error
-                        ? suppliersError.message
-                        : "Unknown error"}
-                </div>
-            ) : null}
+            {suppliersError
+                ? (
+                    <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+                        Supplier data could not be loaded:{" "}
+                        {suppliersError instanceof Error
+                            ? suppliersError.message
+                            : "Unknown error"}
+                    </div>
+                )
+                : null}
 
             <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:block">
                 <div className="grid grid-cols-12 border-b bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
@@ -1083,287 +1171,328 @@ const Suppliers = () => {
                     <div className="col-span-2 text-right">Actions</div>
                 </div>
 
-                {isLoading ? (
-                    <div className="p-12 text-center text-slate-500">
-                        Loading suppliers...
-                    </div>
-                ) : filteredSuppliers.length === 0 ? (
-                    <div className="p-12 text-center">
-                        <Building2 className="mx-auto h-10 w-10 text-slate-300" />
-                        <p className="mt-3 font-semibold text-slate-700">
-                            No suppliers found
-                        </p>
-                        <p className="mt-1 text-sm text-slate-500">
-                            Adjust the filters or create a new supplier.
-                        </p>
-                    </div>
-                ) : (
-                    filteredSuppliers.map((supplier) => {
-                        const contact = getPrimaryContact(supplier);
+                {isLoading
+                    ? (
+                        <div className="p-12 text-center text-slate-500">
+                            Loading suppliers...
+                        </div>
+                    )
+                    : filteredSuppliers.length === 0
+                    ? (
+                        <div className="p-12 text-center">
+                            <Building2 className="mx-auto h-10 w-10 text-slate-300" />
+                            <p className="mt-3 font-semibold text-slate-700">
+                                No suppliers found
+                            </p>
+                            <p className="mt-1 text-sm text-slate-500">
+                                Adjust the filters or create a new supplier.
+                            </p>
+                        </div>
+                    )
+                    : (
+                        filteredSuppliers.map((supplier) => {
+                            const contact = getPrimaryContact(supplier);
 
-                        return (
-                            <div
-                                key={supplier.supplier_id}
-                                className="grid grid-cols-12 border-b px-4 py-4 last:border-0 hover:bg-slate-50"
-                            >
-                                <div className="col-span-3">
-                                    <div className="flex items-start gap-3">
-                                        <div className="rounded-xl bg-[#9E4B4B]/10 p-2 text-[#9E4B4B]">
-                                            <Building2 className="h-5 w-5" />
+                            return (
+                                <div
+                                    key={supplier.supplier_id}
+                                    className="grid grid-cols-12 border-b px-4 py-4 last:border-0 hover:bg-slate-50"
+                                >
+                                    <div className="col-span-3">
+                                        <div className="flex items-start gap-3">
+                                            <div className="rounded-xl bg-[#9E4B4B]/10 p-2 text-[#9E4B4B]">
+                                                <Building2 className="h-5 w-5" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setViewingSupplier(
+                                                            supplier,
+                                                        );
+                                                        setShowViewDialog(true);
+                                                    }}
+                                                    className="block truncate text-left font-bold text-slate-900 hover:text-[#9E4B4B]"
+                                                >
+                                                    {supplier.supplier_name}
+                                                </button>
+                                                <p className="text-xs text-slate-500">
+                                                    {supplier.supplier_code} ·
+                                                    {" "}
+                                                    {supplier.supplier_type}
+                                                </p>
+                                                <p className="mt-1 text-xs text-slate-500">
+                                                    ABN: {supplier.abn || "—"}
+                                                </p>
+                                            </div>
                                         </div>
+                                    </div>
+
+                                    <div className="col-span-2 min-w-0 text-sm">
+                                        <p className="truncate font-medium text-slate-800">
+                                            {contact?.contact_name ||
+                                                "Not configured"}
+                                        </p>
+                                        <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                                            <Phone className="h-3 w-3 shrink-0" />
+                                            <span className="truncate">
+                                                {contact?.phone ||
+                                                    contact?.mobile ||
+                                                    supplier.phone ||
+                                                    "—"}
+                                            </span>
+                                        </p>
+                                        <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                                            <Mail className="h-3 w-3 shrink-0" />
+                                            <span className="truncate">
+                                                {contact?.email ||
+                                                    supplier.email || "—"}
+                                            </span>
+                                        </p>
+                                    </div>
+
+                                    <div className="col-span-2 text-sm">
+                                        <p className="font-medium text-slate-800">
+                                            {supplier.payment_terms_days}{" "}
+                                            {supplier.payment_terms_type}
+                                        </p>
+                                        <p className="text-xs text-slate-500">
+                                            {supplier.default_currency} · Lead
+                                            {" "}
+                                            {supplier.delivery_lead_days ?? "—"}
+                                            {" "}
+                                            days
+                                        </p>
+                                        <p className="text-xs text-slate-500">
+                                            Min. order{" "}
+                                            {supplier.minimum_order_value ===
+                                                    null
+                                                ? "—"
+                                                : supplier.minimum_order_value
+                                                    .toLocaleString(
+                                                        "en-AU",
+                                                        {
+                                                            style: "currency",
+                                                            currency:
+                                                                supplier
+                                                                    .default_currency,
+                                                        },
+                                                    )}
+                                        </p>
+                                    </div>
+
+                                    <div className="col-span-2 min-w-0 text-sm">
+                                        <p className="font-medium text-slate-800">
+                                            {supplier.xero_status}
+                                        </p>
+                                        <p className="truncate text-xs text-slate-500">
+                                            {supplier.xero_contact_name ||
+                                                "Not mapped"}
+                                        </p>
+                                        <p className="text-xs text-slate-500">
+                                            {supplier.xero_last_synced_at
+                                                ? new Date(
+                                                    supplier
+                                                        .xero_last_synced_at,
+                                                ).toLocaleString("en-AU")
+                                                : "Never synced"}
+                                        </p>
+                                    </div>
+
+                                    <div className="col-span-1">
+                                        <ActiveStatusBadge
+                                            isActive={supplier.is_active}
+                                        />
+                                    </div>
+
+                                    <div className="col-span-2">
+                                        <StandardActions
+                                            isActive={supplier.is_active}
+                                            onView={() => {
+                                                setViewingSupplier(supplier);
+                                                setShowViewDialog(true);
+                                            }}
+                                            onEdit={() =>
+                                                openEditSupplier(supplier)}
+                                            onToggleActive={() =>
+                                                toggleSupplierActive.mutate({
+                                                    supplierId:
+                                                        supplier.supplier_id,
+                                                    nextActive: !supplier
+                                                        .is_active,
+                                                })}
+                                            onDelete={() => {
+                                                if (
+                                                    window.confirm(
+                                                        `Delete supplier: ${supplier.supplier_name}?`,
+                                                    )
+                                                ) {
+                                                    deleteSupplier.mutate(
+                                                        supplier.supplier_id,
+                                                    );
+                                                }
+                                            }}
+                                            isStatusPending={toggleSupplierActive
+                                                .isPending}
+                                            isDeletePending={deleteSupplier
+                                                .isPending}
+                                            size="desktop"
+                                            align="end"
+                                        />
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+            </div>
+
+            <div className="space-y-3 lg:hidden">
+                {isLoading
+                    ? (
+                        <div className="rounded-2xl border bg-white p-8 text-center text-slate-500">
+                            Loading suppliers...
+                        </div>
+                    )
+                    : filteredSuppliers.length === 0
+                    ? (
+                        <div className="rounded-2xl border bg-white p-8 text-center text-slate-500">
+                            No suppliers found.
+                        </div>
+                    )
+                    : (
+                        filteredSuppliers.map((supplier) => {
+                            const contact = getPrimaryContact(supplier);
+                            const primaryAddress =
+                                supplier.supplier_addresses?.find(
+                                    (address) => address.is_primary,
+                                ) || supplier.supplier_addresses?.[0];
+
+                            return (
+                                <div
+                                    key={supplier.supplier_id}
+                                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                                >
+                                    <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0">
+                                            <p className="text-xs font-bold text-[#9E4B4B]">
+                                                {supplier.supplier_code}
+                                            </p>
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    setViewingSupplier(supplier);
+                                                    setViewingSupplier(
+                                                        supplier,
+                                                    );
                                                     setShowViewDialog(true);
                                                 }}
-                                                className="block truncate text-left font-bold text-slate-900 hover:text-[#9E4B4B]"
+                                                className="mt-1 block truncate text-left text-base font-bold text-slate-900"
                                             >
                                                 {supplier.supplier_name}
                                             </button>
                                             <p className="text-xs text-slate-500">
-                                                {supplier.supplier_code} · {supplier.supplier_type}
+                                                {supplier.supplier_type}
                                             </p>
-                                            <p className="mt-1 text-xs text-slate-500">
-                                                ABN: {supplier.abn || "—"}
+                                        </div>
+                                        <ActiveStatusBadge
+                                            isActive={supplier.is_active}
+                                        />
+                                    </div>
+
+                                    <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                                        <div>
+                                            <p className="text-xs text-slate-500">
+                                                Primary Contact
+                                            </p>
+                                            <p className="font-medium">
+                                                {contact?.contact_name || "—"}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-slate-500">
+                                                Xero
+                                            </p>
+                                            <p className="font-medium">
+                                                {supplier.xero_status}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-slate-500">
+                                                Phone
+                                            </p>
+                                            <p>
+                                                {contact?.phone ||
+                                                    contact?.mobile ||
+                                                    supplier.phone ||
+                                                    "—"}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-slate-500">
+                                                Payment Terms
+                                            </p>
+                                            <p>
+                                                {supplier.payment_terms_days}
+                                                {" "}
+                                                days
                                             </p>
                                         </div>
                                     </div>
-                                </div>
 
-                                <div className="col-span-2 min-w-0 text-sm">
-                                    <p className="truncate font-medium text-slate-800">
-                                        {contact?.contact_name || "Not configured"}
-                                    </p>
-                                    <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
-                                        <Phone className="h-3 w-3 shrink-0" />
-                                        <span className="truncate">
-                                            {contact?.phone ||
-                                                contact?.mobile ||
-                                                supplier.phone ||
-                                                "—"}
-                                        </span>
-                                    </p>
-                                    <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
-                                        <Mail className="h-3 w-3 shrink-0" />
-                                        <span className="truncate">
-                                            {contact?.email || supplier.email || "—"}
-                                        </span>
-                                    </p>
-                                </div>
-
-                                <div className="col-span-2 text-sm">
-                                    <p className="font-medium text-slate-800">
-                                        {supplier.payment_terms_days}{" "}
-                                        {supplier.payment_terms_type}
-                                    </p>
-                                    <p className="text-xs text-slate-500">
-                                        {supplier.default_currency} · Lead{" "}
-                                        {supplier.delivery_lead_days ?? "—"} days
-                                    </p>
-                                    <p className="text-xs text-slate-500">
-                                        Min. order{" "}
-                                        {supplier.minimum_order_value === null
-                                            ? "—"
-                                            : supplier.minimum_order_value.toLocaleString(
-                                                  "en-AU",
-                                                  {
-                                                      style: "currency",
-                                                      currency:
-                                                          supplier.default_currency,
-                                                  }
-                                              )}
-                                    </p>
-                                </div>
-
-                                <div className="col-span-2 min-w-0 text-sm">
-                                    <p className="font-medium text-slate-800">
-                                        {supplier.xero_status}
-                                    </p>
-                                    <p className="truncate text-xs text-slate-500">
-                                        {supplier.xero_contact_name || "Not mapped"}
-                                    </p>
-                                    <p className="text-xs text-slate-500">
-                                        {supplier.xero_last_synced_at
-                                            ? new Date(
-                                                  supplier.xero_last_synced_at
-                                              ).toLocaleString("en-AU")
-                                            : "Never synced"}
-                                    </p>
-                                </div>
-
-                                <div className="col-span-1">
-                                    <ActiveStatusBadge isActive={supplier.is_active} />
-                                </div>
-
-                                <div className="col-span-2">
-                                    <StandardActions
-                                        isActive={supplier.is_active}
-                                        onView={() => {
-                                            setViewingSupplier(supplier);
-                                            setShowViewDialog(true);
-                                        }}
-                                        onEdit={() => openEditSupplier(supplier)}
-                                        onToggleActive={() =>
-                                            toggleSupplierActive.mutate({
-                                                supplierId: supplier.supplier_id,
-                                                nextActive: !supplier.is_active,
-                                            })
-                                        }
-                                        onDelete={() => {
-                                            if (
-                                                window.confirm(
-                                                    `Delete supplier: ${supplier.supplier_name}?`
-                                                )
-                                            ) {
-                                                deleteSupplier.mutate(
-                                                    supplier.supplier_id
-                                                );
-                                            }
-                                        }}
-                                        isStatusPending={
-                                            toggleSupplierActive.isPending
-                                        }
-                                        isDeletePending={deleteSupplier.isPending}
-                                        size="desktop"
-                                        align="end"
-                                    />
-                                </div>
-                            </div>
-                        );
-                    })
-                )}
-            </div>
-
-            <div className="space-y-3 lg:hidden">
-                {isLoading ? (
-                    <div className="rounded-2xl border bg-white p-8 text-center text-slate-500">
-                        Loading suppliers...
-                    </div>
-                ) : filteredSuppliers.length === 0 ? (
-                    <div className="rounded-2xl border bg-white p-8 text-center text-slate-500">
-                        No suppliers found.
-                    </div>
-                ) : (
-                    filteredSuppliers.map((supplier) => {
-                        const contact = getPrimaryContact(supplier);
-                        const primaryAddress =
-                            supplier.supplier_addresses?.find(
-                                (address) => address.is_primary
-                            ) || supplier.supplier_addresses?.[0];
-
-                        return (
-                            <div
-                                key={supplier.supplier_id}
-                                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                            >
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0">
-                                        <p className="text-xs font-bold text-[#9E4B4B]">
-                                            {supplier.supplier_code}
+                                    {primaryAddress && (
+                                        <p className="mt-3 flex items-start gap-2 text-xs text-slate-500">
+                                            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                            <span>
+                                                {[
+                                                    primaryAddress
+                                                        .address_line1,
+                                                    primaryAddress.suburb,
+                                                    primaryAddress.state,
+                                                    primaryAddress.postcode,
+                                                ]
+                                                    .filter(Boolean)
+                                                    .join(", ")}
+                                            </span>
                                         </p>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
+                                    )}
+
+                                    <div className="mt-4 border-t pt-4">
+                                        <StandardActions
+                                            isActive={supplier.is_active}
+                                            onView={() => {
                                                 setViewingSupplier(supplier);
                                                 setShowViewDialog(true);
                                             }}
-                                            className="mt-1 block truncate text-left text-base font-bold text-slate-900"
-                                        >
-                                            {supplier.supplier_name}
-                                        </button>
-                                        <p className="text-xs text-slate-500">
-                                            {supplier.supplier_type}
-                                        </p>
-                                    </div>
-                                    <ActiveStatusBadge isActive={supplier.is_active} />
-                                </div>
-
-                                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                                    <div>
-                                        <p className="text-xs text-slate-500">
-                                            Primary Contact
-                                        </p>
-                                        <p className="font-medium">
-                                            {contact?.contact_name || "—"}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-slate-500">Xero</p>
-                                        <p className="font-medium">
-                                            {supplier.xero_status}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-slate-500">Phone</p>
-                                        <p>
-                                            {contact?.phone ||
-                                                contact?.mobile ||
-                                                supplier.phone ||
-                                                "—"}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-slate-500">
-                                            Payment Terms
-                                        </p>
-                                        <p>{supplier.payment_terms_days} days</p>
+                                            onEdit={() =>
+                                                openEditSupplier(supplier)}
+                                            onToggleActive={() =>
+                                                toggleSupplierActive.mutate({
+                                                    supplierId:
+                                                        supplier.supplier_id,
+                                                    nextActive: !supplier
+                                                        .is_active,
+                                                })}
+                                            onDelete={() => {
+                                                if (
+                                                    window.confirm(
+                                                        `Delete supplier: ${supplier.supplier_name}?`,
+                                                    )
+                                                ) {
+                                                    deleteSupplier.mutate(
+                                                        supplier.supplier_id,
+                                                    );
+                                                }
+                                            }}
+                                            isStatusPending={toggleSupplierActive
+                                                .isPending}
+                                            isDeletePending={deleteSupplier
+                                                .isPending}
+                                            size="mobile"
+                                        />
                                     </div>
                                 </div>
-
-                                {primaryAddress && (
-                                    <p className="mt-3 flex items-start gap-2 text-xs text-slate-500">
-                                        <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                                        <span>
-                                            {[
-                                                primaryAddress.address_line1,
-                                                primaryAddress.suburb,
-                                                primaryAddress.state,
-                                                primaryAddress.postcode,
-                                            ]
-                                                .filter(Boolean)
-                                                .join(", ")}
-                                        </span>
-                                    </p>
-                                )}
-
-                                <div className="mt-4 border-t pt-4">
-                                    <StandardActions
-                                        isActive={supplier.is_active}
-                                        onView={() => {
-                                            setViewingSupplier(supplier);
-                                            setShowViewDialog(true);
-                                        }}
-                                        onEdit={() => openEditSupplier(supplier)}
-                                        onToggleActive={() =>
-                                            toggleSupplierActive.mutate({
-                                                supplierId: supplier.supplier_id,
-                                                nextActive: !supplier.is_active,
-                                            })
-                                        }
-                                        onDelete={() => {
-                                            if (
-                                                window.confirm(
-                                                    `Delete supplier: ${supplier.supplier_name}?`
-                                                )
-                                            ) {
-                                                deleteSupplier.mutate(
-                                                    supplier.supplier_id
-                                                );
-                                            }
-                                        }}
-                                        isStatusPending={
-                                            toggleSupplierActive.isPending
-                                        }
-                                        isDeletePending={deleteSupplier.isPending}
-                                        size="mobile"
-                                    />
-                                </div>
-                            </div>
-                        );
-                    })
-                )}
+                            );
+                        })
+                    )}
             </div>
 
             <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
@@ -1391,7 +1520,8 @@ const Suppliers = () => {
                                             </h2>
                                             <p className="mt-1 text-sm text-slate-500">
                                                 {viewingSupplier.legal_name ||
-                                                    viewingSupplier.supplier_type}
+                                                    viewingSupplier
+                                                        .supplier_type}
                                             </p>
                                         </div>
                                     </div>
@@ -1401,7 +1531,10 @@ const Suppliers = () => {
                                 </div>
                             </div>
 
-                            <Tabs defaultValue="overview" className="min-w-0 p-3 sm:p-6">
+                            <Tabs
+                                defaultValue="overview"
+                                className="min-w-0 p-3 sm:p-6"
+                            >
                                 <TabsList className="grid h-auto w-full min-w-0 grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 sm:grid-cols-4">
                                     <TabsTrigger
                                         value="overview"
@@ -1429,7 +1562,10 @@ const Suppliers = () => {
                                     </TabsTrigger>
                                 </TabsList>
 
-                                <TabsContent value="overview" className="mt-4 min-w-0 space-y-4 sm:mt-5 sm:space-y-5">
+                                <TabsContent
+                                    value="overview"
+                                    className="mt-4 min-w-0 space-y-4 sm:mt-5 sm:space-y-5"
+                                >
                                     <div className="grid gap-4 lg:grid-cols-3">
                                         <div className="rounded-2xl border bg-white p-4">
                                             <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
@@ -1444,7 +1580,8 @@ const Suppliers = () => {
                                                 ABN
                                             </p>
                                             <p className="mt-2 font-semibold text-slate-900">
-                                                {viewingSupplier.abn || "Not configured"}
+                                                {viewingSupplier.abn ||
+                                                    "Not configured"}
                                             </p>
                                         </div>
                                         <div className="rounded-2xl border bg-white p-4">
@@ -1466,11 +1603,13 @@ const Suppliers = () => {
                                             <div className="mt-4 space-y-3 text-sm">
                                                 <p className="flex items-center gap-2">
                                                     <Phone className="h-4 w-4 text-slate-400" />
-                                                    {viewingSupplier.phone || "—"}
+                                                    {viewingSupplier.phone ||
+                                                        "—"}
                                                 </p>
                                                 <p className="flex items-center gap-2">
                                                     <Mail className="h-4 w-4 text-slate-400" />
-                                                    {viewingSupplier.email || "—"}
+                                                    {viewingSupplier.email ||
+                                                        "—"}
                                                 </p>
                                             </div>
                                         </section>
@@ -1487,7 +1626,10 @@ const Suppliers = () => {
                                     </div>
                                 </TabsContent>
 
-                                <TabsContent value="contacts" className="mt-4 min-w-0 space-y-4 sm:mt-5 sm:space-y-5">
+                                <TabsContent
+                                    value="contacts"
+                                    className="mt-4 min-w-0 space-y-4 sm:mt-5 sm:space-y-5"
+                                >
                                     <section className="rounded-2xl border bg-white p-5">
                                         <div className="flex items-center gap-2">
                                             <Phone className="h-5 w-5 text-[#9E4B4B]" />
@@ -1496,8 +1638,11 @@ const Suppliers = () => {
                                             </h3>
                                         </div>
                                         <div className="mt-4 grid gap-3 md:grid-cols-2">
-                                            {(viewingSupplier.supplier_contacts || [])
-                                                .filter((contact) => !contact.is_deleted)
+                                            {(viewingSupplier
+                                                .supplier_contacts || [])
+                                                .filter((contact) =>
+                                                    !contact.is_deleted
+                                                )
                                                 .map((contact) => (
                                                     <div
                                                         key={contact.contact_id}
@@ -1506,14 +1651,18 @@ const Suppliers = () => {
                                                         <div className="flex items-start justify-between gap-3">
                                                             <div>
                                                                 <p className="font-bold text-slate-900">
-                                                                    {contact.contact_name}
+                                                                    {contact
+                                                                        .contact_name}
                                                                 </p>
                                                                 <p className="text-xs text-slate-500">
-                                                                    {contact.position ||
-                                                                        contact.contact_type}
+                                                                    {contact
+                                                                        .position ||
+                                                                        contact
+                                                                            .contact_type}
                                                                 </p>
                                                             </div>
-                                                            {contact.is_primary && (
+                                                            {contact
+                                                                .is_primary && (
                                                                 <span className="rounded-full bg-[#9E4B4B]/10 px-2 py-1 text-xs font-bold text-[#9E4B4B]">
                                                                     Primary
                                                                 </span>
@@ -1521,12 +1670,15 @@ const Suppliers = () => {
                                                         </div>
                                                         <div className="mt-3 space-y-1 text-sm text-slate-600">
                                                             <p>
-                                                                {contact.phone ||
-                                                                    contact.mobile ||
+                                                                {contact
+                                                                    .phone ||
+                                                                    contact
+                                                                        .mobile ||
                                                                     "No phone"}
                                                             </p>
                                                             <p>
-                                                                {contact.email ||
+                                                                {contact
+                                                                    .email ||
                                                                     "No email"}
                                                             </p>
                                                         </div>
@@ -1543,8 +1695,11 @@ const Suppliers = () => {
                                             </h3>
                                         </div>
                                         <div className="mt-4 grid gap-3 md:grid-cols-2">
-                                            {(viewingSupplier.supplier_addresses || [])
-                                                .filter((address) => !address.is_deleted)
+                                            {(viewingSupplier
+                                                .supplier_addresses || [])
+                                                .filter((address) =>
+                                                    !address.is_deleted
+                                                )
                                                 .map((address) => (
                                                     <div
                                                         key={address.address_id}
@@ -1552,9 +1707,11 @@ const Suppliers = () => {
                                                     >
                                                         <div className="flex items-start justify-between gap-3">
                                                             <p className="font-bold text-slate-900">
-                                                                {address.address_type}
+                                                                {address
+                                                                    .address_type}
                                                             </p>
-                                                            {address.is_primary && (
+                                                            {address
+                                                                .is_primary && (
                                                                 <span className="rounded-full bg-[#9E4B4B]/10 px-2 py-1 text-xs font-bold text-[#9E4B4B]">
                                                                     Primary
                                                                 </span>
@@ -1562,11 +1719,14 @@ const Suppliers = () => {
                                                         </div>
                                                         <p className="mt-3 text-sm leading-6 text-slate-600">
                                                             {[
-                                                                address.address_line1,
-                                                                address.address_line2,
+                                                                address
+                                                                    .address_line1,
+                                                                address
+                                                                    .address_line2,
                                                                 address.suburb,
                                                                 address.state,
-                                                                address.postcode,
+                                                                address
+                                                                    .postcode,
                                                                 address.country,
                                                             ]
                                                                 .filter(Boolean)
@@ -1578,7 +1738,10 @@ const Suppliers = () => {
                                     </section>
                                 </TabsContent>
 
-                                <TabsContent value="purchasing" className="mt-4 min-w-0 space-y-4 sm:mt-5 sm:space-y-5">
+                                <TabsContent
+                                    value="purchasing"
+                                    className="mt-4 min-w-0 space-y-4 sm:mt-5 sm:space-y-5"
+                                >
                                     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                                         <div className="rounded-2xl border bg-white p-4">
                                             <CreditCard className="h-5 w-5 text-[#9E4B4B]" />
@@ -1586,8 +1749,10 @@ const Suppliers = () => {
                                                 Payment Terms
                                             </p>
                                             <p className="mt-1 font-bold text-slate-900">
-                                                {viewingSupplier.payment_terms_days}{" "}
-                                                {viewingSupplier.payment_terms_type}
+                                                {viewingSupplier
+                                                    .payment_terms_days}{" "}
+                                                {viewingSupplier
+                                                    .payment_terms_type}
                                             </p>
                                         </div>
                                         <div className="rounded-2xl border bg-white p-4">
@@ -1596,9 +1761,9 @@ const Suppliers = () => {
                                                 Lead Time
                                             </p>
                                             <p className="mt-1 font-bold text-slate-900">
-                                                {viewingSupplier.delivery_lead_days ??
-                                                    "—"}{" "}
-                                                days
+                                                {viewingSupplier
+                                                    .delivery_lead_days ??
+                                                    "—"} days
                                             </p>
                                         </div>
                                         <div className="rounded-2xl border bg-white p-4">
@@ -1607,17 +1772,22 @@ const Suppliers = () => {
                                                 Minimum Order
                                             </p>
                                             <p className="mt-1 font-bold text-slate-900">
-                                                {viewingSupplier.minimum_order_value ===
-                                                null
+                                                {viewingSupplier
+                                                        .minimum_order_value ===
+                                                        null
                                                     ? "—"
-                                                    : viewingSupplier.minimum_order_value.toLocaleString(
-                                                          "en-AU",
-                                                          {
-                                                              style: "currency",
-                                                              currency:
-                                                                  viewingSupplier.default_currency,
-                                                          }
-                                                      )}
+                                                    : viewingSupplier
+                                                        .minimum_order_value
+                                                        .toLocaleString(
+                                                            "en-AU",
+                                                            {
+                                                                style:
+                                                                    "currency",
+                                                                currency:
+                                                                    viewingSupplier
+                                                                        .default_currency,
+                                                            },
+                                                        )}
                                             </p>
                                         </div>
                                         <div className="rounded-2xl border bg-white p-4">
@@ -1626,7 +1796,8 @@ const Suppliers = () => {
                                                 Currency
                                             </p>
                                             <p className="mt-1 font-bold text-slate-900">
-                                                {viewingSupplier.default_currency}
+                                                {viewingSupplier
+                                                    .default_currency}
                                             </p>
                                         </div>
                                     </div>
@@ -1641,7 +1812,8 @@ const Suppliers = () => {
                                                     Default Tax Type
                                                 </dt>
                                                 <dd className="mt-1 text-sm text-slate-800">
-                                                    {viewingSupplier.default_tax_type ||
+                                                    {viewingSupplier
+                                                        .default_tax_type ||
                                                         "Not configured"}
                                                 </dd>
                                             </div>
@@ -1650,7 +1822,8 @@ const Suppliers = () => {
                                                     Expense Account Code
                                                 </dt>
                                                 <dd className="mt-1 text-sm text-slate-800">
-                                                    {viewingSupplier.default_expense_account_code ||
+                                                    {viewingSupplier
+                                                        .default_expense_account_code ||
                                                         "Not configured"}
                                                 </dd>
                                             </div>
@@ -1668,7 +1841,10 @@ const Suppliers = () => {
                                     </section>
                                 </TabsContent>
 
-                                <TabsContent value="xero" className="mt-4 min-w-0 space-y-4 sm:mt-5 sm:space-y-5">
+                                <TabsContent
+                                    value="xero"
+                                    className="mt-4 min-w-0 space-y-4 sm:mt-5 sm:space-y-5"
+                                >
                                     <section className="rounded-2xl border bg-white p-5">
                                         <div className="flex items-center gap-2">
                                             <Link2 className="h-5 w-5 text-[#9E4B4B]" />
@@ -1682,7 +1858,8 @@ const Suppliers = () => {
                                                     Status
                                                 </dt>
                                                 <dd className="mt-1 text-sm text-slate-800">
-                                                    {viewingSupplier.xero_status}
+                                                    {viewingSupplier
+                                                        .xero_status}
                                                 </dd>
                                             </div>
                                             <div>
@@ -1690,10 +1867,14 @@ const Suppliers = () => {
                                                     Last Synced
                                                 </dt>
                                                 <dd className="mt-1 text-sm text-slate-800">
-                                                    {viewingSupplier.xero_last_synced_at
+                                                    {viewingSupplier
+                                                            .xero_last_synced_at
                                                         ? new Date(
-                                                              viewingSupplier.xero_last_synced_at
-                                                          ).toLocaleString("en-AU")
+                                                            viewingSupplier
+                                                                .xero_last_synced_at,
+                                                        ).toLocaleString(
+                                                            "en-AU",
+                                                        )
                                                         : "Never"}
                                                 </dd>
                                             </div>
@@ -1702,7 +1883,8 @@ const Suppliers = () => {
                                                     Contact ID
                                                 </dt>
                                                 <dd className="mt-1 break-all text-sm text-slate-800">
-                                                    {viewingSupplier.xero_contact_id ||
+                                                    {viewingSupplier
+                                                        .xero_contact_id ||
                                                         "Not mapped"}
                                                 </dd>
                                             </div>
@@ -1711,7 +1893,8 @@ const Suppliers = () => {
                                                     Contact Number
                                                 </dt>
                                                 <dd className="mt-1 text-sm text-slate-800">
-                                                    {viewingSupplier.xero_contact_number ||
+                                                    {viewingSupplier
+                                                        .xero_contact_number ||
                                                         "Not mapped"}
                                                 </dd>
                                             </div>
@@ -1719,7 +1902,8 @@ const Suppliers = () => {
 
                                         {viewingSupplier.xero_sync_error && (
                                             <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                                                {viewingSupplier.xero_sync_error}
+                                                {viewingSupplier
+                                                    .xero_sync_error}
                                             </div>
                                         )}
                                     </section>
@@ -1741,7 +1925,8 @@ const Suppliers = () => {
                             </DialogTitle>
                         </DialogHeader>
                         <p className="mt-1 text-sm text-slate-500">
-                            Complete supplier identity, contacts, addresses and purchasing defaults.
+                            Complete supplier identity, contacts, addresses and
+                            purchasing defaults.
                         </p>
                     </div>
 
@@ -1757,8 +1942,7 @@ const Suppliers = () => {
                                     <Input
                                         value={supplierName}
                                         onChange={(event) =>
-                                            setSupplierName(event.target.value)
-                                        }
+                                            setSupplierName(event.target.value)}
                                         className={supplierInputClassName}
                                     />
                                 </div>
@@ -1767,8 +1951,7 @@ const Suppliers = () => {
                                     <Input
                                         value={legalName}
                                         onChange={(event) =>
-                                            setLegalName(event.target.value)
-                                        }
+                                            setLegalName(event.target.value)}
                                         className={supplierInputClassName}
                                     />
                                 </div>
@@ -1777,8 +1960,7 @@ const Suppliers = () => {
                                     <Input
                                         value={supplierType}
                                         onChange={(event) =>
-                                            setSupplierType(event.target.value)
-                                        }
+                                            setSupplierType(event.target.value)}
                                         className={supplierInputClassName}
                                     />
                                 </div>
@@ -1787,8 +1969,7 @@ const Suppliers = () => {
                                     <Input
                                         value={abn}
                                         onChange={(event) =>
-                                            setAbn(event.target.value)
-                                        }
+                                            setAbn(event.target.value)}
                                         className={supplierInputClassName}
                                     />
                                 </div>
@@ -1797,8 +1978,7 @@ const Suppliers = () => {
                                     <Input
                                         value={phone}
                                         onChange={(event) =>
-                                            setPhone(event.target.value)
-                                        }
+                                            setPhone(event.target.value)}
                                         className={supplierInputClassName}
                                     />
                                 </div>
@@ -1808,8 +1988,7 @@ const Suppliers = () => {
                                         type="email"
                                         value={email}
                                         onChange={(event) =>
-                                            setEmail(event.target.value)
-                                        }
+                                            setEmail(event.target.value)}
                                         className={supplierInputClassName}
                                     />
                                 </div>
@@ -1818,8 +1997,7 @@ const Suppliers = () => {
                                     <Input
                                         value={website}
                                         onChange={(event) =>
-                                            setWebsite(event.target.value)
-                                        }
+                                            setWebsite(event.target.value)}
                                         className={supplierInputClassName}
                                     />
                                 </div>
@@ -1846,10 +2024,8 @@ const Suppliers = () => {
                             <div className="mt-4 space-y-4">
                                 {supplierContacts.map((contact, index) => (
                                     <div
-                                        key={
-                                            contact.contact_id ??
-                                            `new-contact-${index}`
-                                        }
+                                        key={contact.contact_id ??
+                                            `new-contact-${index}`}
                                         className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                                     >
                                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1872,9 +2048,8 @@ const Suppliers = () => {
                                                         size="sm"
                                                         onClick={() =>
                                                             setPrimarySupplierContact(
-                                                                index
-                                                            )
-                                                        }
+                                                                index,
+                                                            )}
                                                     >
                                                         Set as Primary
                                                     </Button>
@@ -1884,8 +2059,9 @@ const Suppliers = () => {
                                                     variant="outline"
                                                     size="sm"
                                                     onClick={() =>
-                                                        removeSupplierContact(index)
-                                                    }
+                                                        removeSupplierContact(
+                                                            index,
+                                                        )}
                                                     className="text-[#9E4B4B]"
                                                 >
                                                     Remove
@@ -1902,12 +2078,9 @@ const Suppliers = () => {
                                                         updateSupplierContact(
                                                             index,
                                                             "contact_name",
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                    className={
-                                                        supplierInputClassName
-                                                    }
+                                                            event.target.value,
+                                                        )}
+                                                    className={supplierInputClassName}
                                                 />
                                             </div>
                                             <div>
@@ -1918,14 +2091,11 @@ const Suppliers = () => {
                                                         updateSupplierContact(
                                                             index,
                                                             "contact_type",
-                                                            value
-                                                        )
-                                                    }
+                                                            value,
+                                                        )}
                                                 >
                                                     <SelectTrigger
-                                                        className={
-                                                            supplierSelectTriggerClassName
-                                                        }
+                                                        className={supplierSelectTriggerClassName}
                                                     >
                                                         <SelectValue />
                                                     </SelectTrigger>
@@ -1956,12 +2126,9 @@ const Suppliers = () => {
                                                         updateSupplierContact(
                                                             index,
                                                             "position",
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                    className={
-                                                        supplierInputClassName
-                                                    }
+                                                            event.target.value,
+                                                        )}
+                                                    className={supplierInputClassName}
                                                 />
                                             </div>
                                             <div>
@@ -1973,12 +2140,9 @@ const Suppliers = () => {
                                                         updateSupplierContact(
                                                             index,
                                                             "email",
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                    className={
-                                                        supplierInputClassName
-                                                    }
+                                                            event.target.value,
+                                                        )}
+                                                    className={supplierInputClassName}
                                                 />
                                             </div>
                                             <div>
@@ -1989,12 +2153,9 @@ const Suppliers = () => {
                                                         updateSupplierContact(
                                                             index,
                                                             "phone",
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                    className={
-                                                        supplierInputClassName
-                                                    }
+                                                            event.target.value,
+                                                        )}
+                                                    className={supplierInputClassName}
                                                 />
                                             </div>
                                             <div>
@@ -2005,12 +2166,9 @@ const Suppliers = () => {
                                                         updateSupplierContact(
                                                             index,
                                                             "mobile",
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                    className={
-                                                        supplierInputClassName
-                                                    }
+                                                            event.target.value,
+                                                        )}
+                                                    className={supplierInputClassName}
                                                 />
                                             </div>
                                             <div className="md:col-span-2">
@@ -2021,12 +2179,9 @@ const Suppliers = () => {
                                                         updateSupplierContact(
                                                             index,
                                                             "notes",
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                    className={
-                                                        supplierTextareaClassName
-                                                    }
+                                                            event.target.value,
+                                                        )}
+                                                    className={supplierTextareaClassName}
                                                 />
                                             </div>
                                         </div>
@@ -2055,10 +2210,8 @@ const Suppliers = () => {
                             <div className="mt-4 space-y-4">
                                 {supplierAddresses.map((address, index) => (
                                     <div
-                                        key={
-                                            address.address_id ??
-                                            `new-address-${index}`
-                                        }
+                                        key={address.address_id ??
+                                            `new-address-${index}`}
                                         className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                                     >
                                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -2080,9 +2233,8 @@ const Suppliers = () => {
                                                         size="sm"
                                                         onClick={() =>
                                                             setPrimarySupplierAddress(
-                                                                index
-                                                            )
-                                                        }
+                                                                index,
+                                                            )}
                                                     >
                                                         Set as Primary
                                                     </Button>
@@ -2092,8 +2244,9 @@ const Suppliers = () => {
                                                     variant="outline"
                                                     size="sm"
                                                     onClick={() =>
-                                                        removeSupplierAddress(index)
-                                                    }
+                                                        removeSupplierAddress(
+                                                            index,
+                                                        )}
                                                     className="text-[#9E4B4B]"
                                                 >
                                                     Remove
@@ -2110,14 +2263,11 @@ const Suppliers = () => {
                                                         updateSupplierAddress(
                                                             index,
                                                             "address_type",
-                                                            value
-                                                        )
-                                                    }
+                                                            value,
+                                                        )}
                                                 >
                                                     <SelectTrigger
-                                                        className={
-                                                            supplierSelectTriggerClassName
-                                                        }
+                                                        className={supplierSelectTriggerClassName}
                                                     >
                                                         <SelectValue />
                                                     </SelectTrigger>
@@ -2141,33 +2291,29 @@ const Suppliers = () => {
                                             <div>
                                                 <Label>Address Line 1</Label>
                                                 <Input
-                                                    value={address.address_line1}
+                                                    value={address
+                                                        .address_line1}
                                                     onChange={(event) =>
                                                         updateSupplierAddress(
                                                             index,
                                                             "address_line1",
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                    className={
-                                                        supplierInputClassName
-                                                    }
+                                                            event.target.value,
+                                                        )}
+                                                    className={supplierInputClassName}
                                                 />
                                             </div>
                                             <div className="md:col-span-2">
                                                 <Label>Address Line 2</Label>
                                                 <Input
-                                                    value={address.address_line2}
+                                                    value={address
+                                                        .address_line2}
                                                     onChange={(event) =>
                                                         updateSupplierAddress(
                                                             index,
                                                             "address_line2",
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                    className={
-                                                        supplierInputClassName
-                                                    }
+                                                            event.target.value,
+                                                        )}
+                                                    className={supplierInputClassName}
                                                 />
                                             </div>
                                             <div>
@@ -2178,34 +2324,27 @@ const Suppliers = () => {
                                                         updateSupplierAddress(
                                                             index,
                                                             "suburb",
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                    className={
-                                                        supplierInputClassName
-                                                    }
+                                                            event.target.value,
+                                                        )}
+                                                    className={supplierInputClassName}
                                                 />
                                             </div>
                                             <div>
                                                 <Label>State</Label>
                                                 <Select
-                                                    value={
-                                                        address.state || "not-set"
-                                                    }
+                                                    value={address.state ||
+                                                        "not-set"}
                                                     onValueChange={(value) =>
                                                         updateSupplierAddress(
                                                             index,
                                                             "state",
                                                             value === "not-set"
                                                                 ? ""
-                                                                : value
-                                                        )
-                                                    }
+                                                                : value,
+                                                        )}
                                                 >
                                                     <SelectTrigger
-                                                        className={
-                                                            supplierSelectTriggerClassName
-                                                        }
+                                                        className={supplierSelectTriggerClassName}
                                                     >
                                                         <SelectValue />
                                                     </SelectTrigger>
@@ -2241,12 +2380,9 @@ const Suppliers = () => {
                                                         updateSupplierAddress(
                                                             index,
                                                             "postcode",
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                    className={
-                                                        supplierInputClassName
-                                                    }
+                                                            event.target.value,
+                                                        )}
+                                                    className={supplierInputClassName}
                                                 />
                                             </div>
                                             <div>
@@ -2257,12 +2393,9 @@ const Suppliers = () => {
                                                         updateSupplierAddress(
                                                             index,
                                                             "country",
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                    className={
-                                                        supplierInputClassName
-                                                    }
+                                                            event.target.value,
+                                                        )}
+                                                    className={supplierInputClassName}
                                                 />
                                             </div>
                                             <div className="md:col-span-2">
@@ -2273,12 +2406,9 @@ const Suppliers = () => {
                                                         updateSupplierAddress(
                                                             index,
                                                             "notes",
-                                                            event.target.value
-                                                        )
-                                                    }
-                                                    className={
-                                                        supplierTextareaClassName
-                                                    }
+                                                            event.target.value,
+                                                        )}
+                                                    className={supplierTextareaClassName}
                                                 />
                                             </div>
                                         </div>
@@ -2301,9 +2431,8 @@ const Suppliers = () => {
                                         value={paymentTermsDays}
                                         onChange={(event) =>
                                             setPaymentTermsDays(
-                                                event.target.value
-                                            )
-                                        }
+                                                event.target.value,
+                                            )}
                                         className={supplierInputClassName}
                                     />
                                 </div>
@@ -2313,9 +2442,8 @@ const Suppliers = () => {
                                         value={paymentTermsType}
                                         onChange={(event) =>
                                             setPaymentTermsType(
-                                                event.target.value
-                                            )
-                                        }
+                                                event.target.value,
+                                            )}
                                         className={supplierInputClassName}
                                     />
                                 </div>
@@ -2323,11 +2451,9 @@ const Suppliers = () => {
                                     <Label>Currency</Label>
                                     <Input
                                         value={defaultCurrency}
-                                        onChange={(event) =>
-                                            setDefaultCurrency(
-                                                event.target.value.toUpperCase()
-                                            )
-                                        }
+                                        onChange={(event) => setDefaultCurrency(
+                                            event.target.value.toUpperCase(),
+                                        )}
                                         className={supplierInputClassName}
                                     />
                                 </div>
@@ -2336,8 +2462,9 @@ const Suppliers = () => {
                                     <Input
                                         value={defaultTaxType}
                                         onChange={(event) =>
-                                            setDefaultTaxType(event.target.value)
-                                        }
+                                            setDefaultTaxType(
+                                                event.target.value,
+                                            )}
                                         className={supplierInputClassName}
                                     />
                                 </div>
@@ -2347,9 +2474,8 @@ const Suppliers = () => {
                                         value={defaultExpenseAccountCode}
                                         onChange={(event) =>
                                             setDefaultExpenseAccountCode(
-                                                event.target.value
-                                            )
-                                        }
+                                                event.target.value,
+                                            )}
                                         className={supplierInputClassName}
                                     />
                                 </div>
@@ -2361,9 +2487,8 @@ const Suppliers = () => {
                                         value={deliveryLeadDays}
                                         onChange={(event) =>
                                             setDeliveryLeadDays(
-                                                event.target.value
-                                            )
-                                        }
+                                                event.target.value,
+                                            )}
                                         className={supplierInputClassName}
                                     />
                                 </div>
@@ -2376,9 +2501,8 @@ const Suppliers = () => {
                                         value={minimumOrderValue}
                                         onChange={(event) =>
                                             setMinimumOrderValue(
-                                                event.target.value
-                                            )
-                                        }
+                                                event.target.value,
+                                            )}
                                         className={supplierInputClassName}
                                     />
                                 </div>
@@ -2387,8 +2511,7 @@ const Suppliers = () => {
                                     <Input
                                         value={freightNotes}
                                         onChange={(event) =>
-                                            setFreightNotes(event.target.value)
-                                        }
+                                            setFreightNotes(event.target.value)}
                                         className={supplierInputClassName}
                                     />
                                 </div>
@@ -2406,8 +2529,9 @@ const Suppliers = () => {
                                     <Input
                                         value={xeroContactId}
                                         onChange={(event) =>
-                                            setXeroContactId(event.target.value)
-                                        }
+                                            setXeroContactId(
+                                                event.target.value,
+                                            )}
                                         className={supplierInputClassName}
                                     />
                                 </div>
@@ -2416,8 +2540,9 @@ const Suppliers = () => {
                                     <Input
                                         value={xeroContactName}
                                         onChange={(event) =>
-                                            setXeroContactName(event.target.value)
-                                        }
+                                            setXeroContactName(
+                                                event.target.value,
+                                            )}
                                         className={supplierInputClassName}
                                     />
                                 </div>
@@ -2427,9 +2552,8 @@ const Suppliers = () => {
                                         value={xeroContactNumber}
                                         onChange={(event) =>
                                             setXeroContactNumber(
-                                                event.target.value
-                                            )
-                                        }
+                                                event.target.value,
+                                            )}
                                         className={supplierInputClassName}
                                     />
                                 </div>
@@ -2438,8 +2562,7 @@ const Suppliers = () => {
                                     <Input
                                         value={xeroStatus}
                                         onChange={(event) =>
-                                            setXeroStatus(event.target.value)
-                                        }
+                                            setXeroStatus(event.target.value)}
                                         className={supplierInputClassName}
                                     />
                                 </div>
@@ -2457,13 +2580,10 @@ const Suppliers = () => {
                                     <Select
                                         value={isActive ? "active" : "inactive"}
                                         onValueChange={(value) =>
-                                            setIsActive(value === "active")
-                                        }
+                                            setIsActive(value === "active")}
                                     >
                                         <SelectTrigger
-                                            className={
-                                                supplierSelectTriggerClassName
-                                            }
+                                            className={supplierSelectTriggerClassName}
                                         >
                                             <SelectValue />
                                         </SelectTrigger>
@@ -2482,8 +2602,7 @@ const Suppliers = () => {
                                     <Textarea
                                         value={notes}
                                         onChange={(event) =>
-                                            setNotes(event.target.value)
-                                        }
+                                            setNotes(event.target.value)}
                                         className={supplierTextareaClassName}
                                     />
                                 </div>
@@ -2508,8 +2627,8 @@ const Suppliers = () => {
                                 {saveSupplier.isPending
                                     ? "Saving..."
                                     : formMode === "add"
-                                      ? "Create Supplier"
-                                      : "Save Changes"}
+                                    ? "Create Supplier"
+                                    : "Save Changes"}
                             </Button>
                         </div>
                     </div>

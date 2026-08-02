@@ -1,0 +1,33 @@
+--- a/src/pages/CustomerDatabase.tsx
++++ b/src/pages/CustomerDatabase.tsx
+@@ -1103,7 +1103,7 @@
+ 
+   const openEditCustomer = (customer: Customer) => {
+     const primaryContact = getPrimaryContact(customer);
+-    const billingAddress = getBillingAddress(customer);
++    const primaryAddress = getPrimaryAddress(customer);
+ 
+     setEditingCustomer(customer);
+     setCustomerFormMode("edit");
+@@ -1147,9 +1147,7 @@
+             state: address.state || "",
+             postcode: address.postcode || "",
+             country: address.country || "Australia",
+-            is_primary: address.address_id === billingAddress?.address_id
+-              ? true
+-              : address.is_primary,
++            is_primary: address.address_id === primaryAddress?.address_id,
+           }))
+         : [createEmptyCustomerAddress(true)]
+     );
+@@ -1699,7 +1697,9 @@
+         : "",
+       !viewingCustomer.price_book_id ? "Missing price book" : "",
+       !contactSummary.contact ? "Missing primary contact" : "",
+-      !preferredAddress || preferredAddress.address_type !== "Billing"
++      !(viewingCustomer.customer_addresses ?? []).some(
++        (address) => address.address_type === "Billing"
++      )
+         ? "Missing billing address"
+         : "",
+       !viewingCustomer.is_active ? "Inactive customer" : "",

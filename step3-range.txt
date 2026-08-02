@@ -1,0 +1,371 @@
+1901:                                     </div>
+1902: 
+1903:                                     {productCodeIdentity ? (
+1904:                                         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+1905:                                             <div className="rounded-xl bg-slate-50 p-3">
+1906:                                                 <p className="text-xs text-slate-500">Family</p>
+1907:                                                 <p className="mt-1 font-semibold">
+1908:                                                     {productCodeIdentity.familyCode} —{" "}
+1909:                                                     {productCodeIdentity.familyName}
+1910:                                                 </p>
+1911:                                             </div>
+1912: 
+1913:                                             <div className="rounded-xl bg-slate-50 p-3">
+1914:                                                 <p className="text-xs text-slate-500">
+1915:                                                     Category Variant
+1916:                                                 </p>
+1917:                                                 <p className="mt-1 font-semibold">
+1918:                                                     {productCodeIdentity.fullCategoryCode} —{" "}
+1919:                                                     {productCodeIdentity.categoryVariantName}
+1920:                                                 </p>
+1921:                                             </div>
+1922: 
+1923:                                             <div className="rounded-xl bg-slate-50 p-3">
+1924:                                                 <p className="text-xs text-slate-500">Code Type</p>
+1925:                                                 <p className="mt-1 font-semibold">
+1926:                                                     {productCodeIdentity.typeCode} —{" "}
+1927:                                                     {productCodeIdentity.typeName}
+1928:                                                 </p>
+1929:                                             </div>
+1930: 
+1931:                                             <div className="rounded-xl bg-slate-50 p-3">
+1932:                                                 <p className="text-xs text-slate-500">Size</p>
+1933:                                                 <p className="mt-1 font-semibold">
+1934:                                                     {productCodeIdentity.sizeToken}
+1935:                                                 </p>
+1936:                                                 <p className="mt-1 text-xs text-slate-500">
+1937:                                                     {productCodeIdentity.sizeRuleName}
+1938:                                                 </p>
+1939:                                             </div>
+1940: 
+1941:                                             <div className="rounded-xl bg-slate-50 p-3">
+1942:                                                 <p className="text-xs text-slate-500">Colour</p>
+1943:                                                 <p className="mt-1 font-semibold">
+1944:                                                     {productCodeIdentity.colourCode} —{" "}
+1945:                                                     {productCodeIdentity.colourName}
+1946:                                                 </p>
+1947:                                             </div>
+1948: 
+1949:                                             <div className="rounded-xl bg-slate-50 p-3">
+1950:                                                 <p className="text-xs text-slate-500">Variant Code</p>
+1951:                                                 <p className="mt-1 font-semibold">
+1952:                                                     {productCodeIdentity.variantCode}
+1953:                                                 </p>
+1954:                                             </div>
+1955:                                         </div>
+1956:                                     ) : null}
+1957: 
+1958:                                     <div className="grid gap-3 sm:grid-cols-2">
+1959:                                         <div className="rounded-xl bg-slate-50 p-3">
+1960:                                             <p className="text-xs text-slate-500">Variant Name</p>
+1961:                                             <p className="mt-1 font-semibold">
+1962:                                                 {productCodeIdentity?.variantName ?? "-"}
+1963:                                             </p>
+1964:                                         </div>
+1965: 
+1966:                                         <div className="rounded-xl bg-slate-50 p-3">
+1967:                                             <p className="text-xs text-slate-500">
+1968:                                                 Variant Description
+1969:                                             </p>
+1970:                                             <p className="mt-1 whitespace-pre-wrap text-sm">
+1971:                                                 {productCodeIdentity?.variantDescription ?? "-"}
+1972:                                             </p>
+1973:                                         </div>
+1974:                                     </div>
+1975: 
+1976:                                     <p className="text-xs text-amber-700">
+1977:                                         Product Code identity becomes permanent after Product
+1978:                                         creation.
+1979:                                     </p>
+1980:                                 </div>
+1981:                             )}
+1982:                         </section>
+1983:                         <section className="rounded-2xl border border-[#E5E7EB] bg-[#FCFAFA] p-4">
+1984:                             <SectionHeading number={3} title="Units and UOM" helper="Select the base unit and default transaction units." />
+1985:                             <div className="mt-4 grid gap-4 md:grid-cols-4">
+1986:                                 <div className="space-y-2">
+1987:                                     <Label>Base UOM *</Label>
+1988:                                     <SearchablePicker
+1989:                                         value={baseUom}
+1990:                                         onChange={(value) => {
+1991:                                             setBaseUom(value);
+1992:                                             setUomConversions((current) =>
+1993:                                                 current.map((conversion) => ({ ...conversion, toUom: value })),
+1994:                                             );
+1995:                                             if (!coverageForm.coverageUom) {
+1996:                                                 setCoverageForm((current) => ({ ...current, coverageUom: value }));
+1997:                                             }
+1998:                                         }}
+1999:                                         options={uomOptions.filter((option) => units.find((unit) => unit.uom_code === option.value)?.is_active || option.value === baseUom)}
+2000:                                         placeholder={loadingUnits ? "Loading UOM..." : "Select Base UOM"}
+2001:                                         searchPlaceholder="Search UOM code, name, symbol or category..."
+2002:                                         emptyText="No active Units of Measure configured."
+2003:                                     />
+2004:                                 </div>
+2005:                                 <div className="space-y-2">
+2006:                                     <Label>Purchase UOM</Label>
+2007:                                     <SearchablePicker
+2008:                                         value={purchaseUom}
+2009:                                         onChange={(value) => {
+2010:                                             setPurchaseUom(value);
+2011:                                             if (value && !coverageForm.sourceUom) {
+2012:                                                 setCoverageForm((current) => ({ ...current, sourceUom: value }));
+2013:                                             }
+2014:                                         }}
+2015:                                         options={uomOptions.filter((option) => units.find((unit) => unit.uom_code === option.value)?.is_active || option.value === purchaseUom)}
+2016:                                         placeholder="Select Purchase UOM"
+2017:                                         searchPlaceholder="Search UOM code, name, symbol or category..."
+2018:                                         emptyText="No active Units of Measure configured."
+2019:                                         allowClear
+2020:                                     />
+2021:                                 </div>
+2022:                                 <div className="space-y-2">
+2023:                                     <Label>Request UOM</Label>
+2024:                                     <SearchablePicker
+2025:                                         value={requestUom}
+2026:                                         onChange={setRequestUom}
+2027:                                         options={uomOptions.filter((option) => units.find((unit) => unit.uom_code === option.value)?.is_active || option.value === requestUom)}
+2028:                                         placeholder="Select Request UOM"
+2029:                                         searchPlaceholder="Search UOM code, name, symbol or category..."
+2030:                                         emptyText="No active Units of Measure configured."
+2031:                                         allowClear
+2032:                                     />
+2033:                                 </div>
+2034:                                 <div className="space-y-2">
+2035:                                     <Label>Sales UOM</Label>
+2036:                                     <SearchablePicker
+2037:                                         value={salesUom}
+2038:                                         onChange={setSalesUom}
+2039:                                         options={uomOptions.filter((option) => units.find((unit) => unit.uom_code === option.value)?.is_active || option.value === salesUom)}
+2040:                                         placeholder="Select Sales UOM"
+2041:                                         searchPlaceholder="Search UOM code, name, symbol or category..."
+2042:                                         emptyText="No active Units of Measure configured."
+2043:                                         allowClear
+2044:                                     />
+2045:                                 </div>
+2046: 
+2047:                                 <div className="space-y-2">
+2048:                                     <Label>Default Waste %</Label>
+2049:                                     <Input
+2050:                                         className={FIELD_CLASS}
+2051:                                         type="number"
+2052:                                         min="0"
+2053:                                         step="0.01"
+2054:                                         value={wastePercent}
+2055:                                         onChange={(event) => setWastePercent(event.target.value)}
+2056:                                     />
+2057:                                 </div>
+2058: 
+2059:                                 <div className="space-y-2">
+2060:                                     <Label>Status</Label>
+2061:                                     <Select
+2062:                                         value={isActive ? "active" : "inactive"}
+2063:                                         onValueChange={(value) => setIsActive(value === "active")}
+2064:                                     >
+2065:                                         <SelectTrigger className={FIELD_CLASS}>
+2066:                                             <SelectValue />
+2067:                                         </SelectTrigger>
+2068:                                         <SelectContent>
+2069:                                             <SelectItem value="active">Active</SelectItem>
+2070:                                             <SelectItem value="inactive">Inactive</SelectItem>
+2071:                                         </SelectContent>
+2072:                                     </Select>
+2073:                                 </div>
+2074:                             </div>
+2075: 
+2076:                             <div className="mt-4 grid gap-3 sm:grid-cols-3">
+2077:                                 <div className="rounded-xl border border-[#E5E7EB] bg-white p-3">
+2078:                                     <p className="text-xs font-medium text-slate-500">Stock Item</p>
+2079:                                     <p className="mt-1 font-bold text-slate-900">{productType === "Service" ? "No" : "Yes"}</p>
+2080:                                     <p className="mt-1 text-xs text-slate-500">Derived automatically from Product Type.</p>
+2081:                                 </div>
+2082:                                 <div className="rounded-xl border border-[#E5E7EB] bg-white p-3">
+2083:                                     <p className="text-xs font-medium text-slate-500">Service Item</p>
+2084:                                     <p className="mt-1 font-bold text-slate-900">{productType === "Service" ? "Yes" : "No"}</p>
+2085:                                     <p className="mt-1 text-xs text-slate-500">Derived automatically from Product Type.</p>
+2086:                                 </div>
+2087:                                 <label className="flex items-center gap-3 rounded-xl border border-[#E5E7EB] bg-white p-3 text-sm font-semibold">
+2088:                                     <input
+2089:                                         type="checkbox"
+2090:                                         checked={usesCoverage}
+2091:                                         onChange={(event) => setUsesCoverage(event.target.checked)}
+2092:                                         className="h-4 w-4 rounded border-slate-300 text-red-600"
+2093:                                     />
+2094:                                     <span>
+2095:                                         <span className="block">Uses Coverage / Yield</span>
+2096:                                         <span className="mt-1 block text-xs font-normal text-slate-500">Enable structured coverage information for this Product.</span>
+2097:                                     </span>
+2098:                                 </label>
+2099:                             </div>
+2100:                         </section>
+2101: 
+2102:                         <section className="rounded-2xl border border-[#E5E7EB] bg-[#FCFAFA] p-4">
+2103:                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+2104:                                 <div>
+2105:                                     <SectionHeading number={4} title="UOM Conversions" helper="Define how purchasing, requesting or selling units convert to the Base UOM." />
+2106:                                 </div>
+2107: 
+2108:                                 <Button
+2109:                                     type="button"
+2110:                                     variant="outline"
+2111:                                     onClick={() =>
+2112:                                         setUomConversions((current) => [
+2113:                                             ...current,
+2114:                                             createEmptyUomConversion(),
+2115:                                         ])
+2116:                                     }
+2117:                                     className="h-10 w-full rounded-xl sm:w-auto"
+2118:                                 >
+2119:                                     <Plus className="mr-2 h-4 w-4" />
+2120:                                     Add Conversion
+2121:                                 </Button>
+2122:                             </div>
+2123: 
+2124:                             {uomConversions.length === 0 ? (
+2125:                                 <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
+2126:                                     No UOM Conversions added. Add a conversion when one unit
+2127:                                     represents a quantity of another unit.
+2128:                                 </div>
+2129:                             ) : (
+2130:                                 <div className="mt-4 space-y-3">
+2131:                                     {uomConversions.map((conversion, index) => (
+2132:                                         <div
+2133:                                             key={conversion.id}
+2134:                                             className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+2135:                                         >
+2136:                                             <div className="mb-4 flex items-center justify-between gap-3">
+2137:                                                 <p className="text-sm font-bold text-slate-800">
+2138:                                                     Conversion {index + 1}
+2139:                                                 </p>
+2140: 
+2141:                                                 <Button
+2142:                                                     type="button"
+2143:                                                     variant="ghost"
+2144:                                                     size="sm"
+2145:                                                     onClick={() =>
+2146:                                                         setUomConversions((current) =>
+2147:                                                             current.filter(
+2148:                                                                 (item) => item.id !== conversion.id,
+2149:                                                             ),
+2150:                                                         )
+2151:                                                     }
+2152:                                                     className="text-red-600 hover:bg-red-50 hover:text-red-700"
+2153:                                                 >
+2154:                                                     Remove
+2155:                                                 </Button>
+2156:                                             </div>
+2157: 
+2158:                                             <div className="grid gap-4 md:grid-cols-4">
+2159:                                                 <div className="space-y-2">
+2160:                                                     <Label>From UOM *</Label>
+2161:                                                     <SearchablePicker
+2162:                                                         value={conversion.fromUom}
+2163:                                                         onChange={(value) =>
+2164:                                                             setUomConversions((current) =>
+2165:                                                                 current.map((item) =>
+2166:                                                                     item.id === conversion.id
+2167:                                                                         ? { ...item, fromUom: value, toUom: baseUom }
+2168:                                                                         : item,
+2169:                                                                 ),
+2170:                                                             )
+2171:                                                         }
+2172:                                                         options={uomOptions.filter((option) => {
+2173:                                                             const unit = units.find((item) => item.uom_code === option.value);
+2174:                                                             const usedByAnother = uomConversions.some(
+2175:                                                                 (item) => item.id !== conversion.id && item.fromUom === option.value,
+2176:                                                             );
+2177:                                                             return Boolean(unit?.is_active) && option.value !== baseUom && !usedByAnother;
+2178:                                                         })}
+2179:                                                         placeholder="Select From UOM"
+2180:                                                         searchPlaceholder="Search UOM code, name, symbol or category..."
+2181:                                                         emptyText="No available Units of Measure found."
+2182:                                                     />
+2183:                                                 </div>
+2184: 
+2185:                                                 <div className="space-y-2">
+2186:                                                     <Label>Conversion Factor *</Label>
+2187:                                                     <Input
+2188:                                                         className={FIELD_CLASS}
+2189:                                                         type="number"
+2190:                                                         min="0"
+2191:                                                         step="0.0001"
+2192:                                                         value={conversion.conversionFactor}
+2193:                                                         onChange={(event) =>
+2194:                                                             setUomConversions((current) =>
+2195:                                                                 current.map((item) =>
+2196:                                                                     item.id === conversion.id
+2197:                                                                         ? {
+2198:                                                                             ...item,
+2199:                                                                             conversionFactor: event.target.value,
+2200:                                                                         }
+2201:                                                                         : item,
+2202:                                                                 ),
+2203:                                                             )
+2204:                                                         }
+2205:                                                         placeholder="Example: 20"
+2206:                                                     />
+2207:                                                 </div>
+2208: 
+2209:                                                 <div className="space-y-2">
+2210:                                                     <Label>To Base UOM *</Label>
+2211:                                                     <Input
+2212:                                                         value={baseUom || "Select Base UOM first"}
+2213:                                                         readOnly
+2214:                                                         className="h-11 cursor-not-allowed rounded-xl border-[#E5E7EB] bg-[#F1F3F5] font-semibold text-[#6B7280]"
+2215:                                                     />
+2216:                                                     <p className="text-xs text-slate-500">To UOM is controlled by the selected Base UOM.</p>
+2217:                                                 </div>
+2218: 
+2219:                                                 <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold md:self-end">
+2220:                                                     <input
+2221:                                                         type="checkbox"
+2222:                                                         checked={conversion.allowFractionalQuantity}
+2223:                                                         onChange={(event) =>
+2224:                                                             setUomConversions((current) =>
+2225:                                                                 current.map((item) =>
+2226:                                                                     item.id === conversion.id
+2227:                                                                         ? {
+2228:                                                                             ...item,
+2229:                                                                             allowFractionalQuantity:
+2230:                                                                                 event.target.checked,
+2231:                                                                         }
+2232:                                                                         : item,
+2233:                                                                 ),
+2234:                                                             )
+2235:                                                         }
+2236:                                                         className="h-4 w-4 rounded border-slate-300 text-red-600"
+2237:                                                     />
+2238:                                                     Allow fractional quantity
+2239:                                                 </label>
+2240:                                             </div>
+2241: 
+2242:                                             <p className="mt-3 text-xs text-slate-500">
+2243:                                                 Example: 1 bag × 20 = 20 kg. Enter From UOM = bag,
+2244:                                                 Conversion Factor = 20, To UOM = kg.
+2245:                                             </p>
+2246:                                         </div>
+2247:                                     ))}
+2248:                                 </div>
+2249:                             )}
+2250:                         </section>
+2251: 
+2252:                         {usesCoverage ? (
+2253:                             <section className="rounded-2xl border border-[#E5E7EB] bg-[#FCFAFA] p-4">
+2254:                                 <SectionHeading number={5} title="Coverage / Yield" helper="Store structured estimated coverage per source unit." />
+2255:                                 <p className="mt-1 text-sm text-slate-500">
+2256:                                     Example: 1 box covers approximately 1.8 sqm.
+2257:                                 </p>
+2258:                                 <div className="mt-4 grid gap-4 md:grid-cols-4">
+2259:                                     <div className="space-y-2">
+2260:                                         <Label>Source Quantity *</Label>
+2261:                                         <Input
+2262:                                             className={FIELD_CLASS}
+2263:                                             type="number"
+2264:                                             min="0"
+2265:                                             value={coverageForm.sourceQuantity}
+2266:                                             onChange={(event) =>
+2267:                                                 setCoverageForm({
+2268:                                                     ...coverageForm,
+2269:                                                     sourceQuantity: event.target.value,
+2270:                                                 })
+2271:                                             }
