@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     AlertTriangle,
@@ -31,12 +31,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     Dialog,
     DialogContent,
@@ -78,6 +73,15 @@ type PermissionMap = Record<string, boolean>;
 
 type PageMode = "list" | "form" | "detail";
 
+type InvoiceSourceReference = {
+    invoice_source_id: string;
+    source_type: string;
+    source_id: string;
+    source_reference: string | null;
+    source_amount: number;
+    is_deleted: boolean;
+};
+
 type InvoiceRow = {
     customer_invoice_id: string;
     invoice_no: string;
@@ -85,30 +89,49 @@ type InvoiceRow = {
     document_status: string;
     payment_status: string;
     due_status: string;
+
     customer_id: string;
     customer_code: string;
     customer_name: string;
+
     project_id: string | null;
     project_no: string | null;
     project_name: string | null;
+
     project_site_id: string | null;
     site_code: string | null;
     site_name: string | null;
+
     invoice_date: string;
     due_date: string;
+
     subtotal_amount: number;
-    discount_amount?: number;
+    line_discount_amount: number;
+    overall_discount_amount: number;
+    discount_amount: number;
     tax_amount: number;
     total_amount: number;
     paid_amount: number;
     balance_amount: number;
+
     currency_code: string;
+    line_amount_type: "Exclusive" | "Inclusive" | "No Tax";
     customer_reference: string | null;
+
     active_line_count: number;
     active_source_count: number;
-    source_types: unknown[];
+
+    source_types: string[];
+    source_references: InvoiceSourceReference[];
+
+    modified_source_line_count: number;
+    excluded_source_line_count: number;
+    manual_line_count: number;
+    archived_manual_line_count: number;
+
     days_overdue: number;
     aging_bucket: string;
+
     total_row_count: number;
 };
 
@@ -178,24 +201,80 @@ type PriceBook = {
     price_book_code: string;
     price_book_name: string;
     is_default: boolean;
+    effective_from?: string | null;
+    effective_to?: string | null;
 };
 
 type PriceBookLine = {
     price_book_line_id: string;
     price_book_id: string;
     product_id: string;
+    price_uom_code?: string | null;
     unit_price: number;
     minimum_price: number | null;
+    effective_from?: string | null;
+    effective_to?: string | null;
 };
 
 type SourceOption = {
-    source_type: "Quotation" | "Variation";
+    source_type: "Quotation" | "Quotation Revision" | "Variation";
     source_id: string;
     source_no: string;
     customer_id: string;
     project_id: string | null;
     project_site_id: string | null;
     total_amount: number;
+};
+
+type VariationInvoicePreviewLine = {
+    variation_line_id: string;
+    variation_id: string;
+    line_no: number;
+
+    product_id: string | null;
+    project_area_id: string | null;
+
+    description: string;
+
+    sales_uom_code: string | null;
+    base_uom_code: string | null;
+
+    quantity: number;
+    conversion_factor: number;
+    base_quantity: number;
+    allow_fractional_quantity: boolean;
+
+    unit_price: number;
+    discount_percent: number;
+    discount_amount: number;
+
+    tax_rate: number;
+    tax_amount: number;
+    line_total: number;
+
+    notes: string | null;
+    is_optional: boolean;
+};
+
+type VariationInvoicePreview = {
+    variation_id: string;
+    variation_no: string;
+
+    customer_id: string;
+    project_id: string | null;
+    project_site_id: string | null;
+
+    quotation_id: string | null;
+    accepted_revision_id: string | null;
+
+    variation_status: string;
+
+    subtotal: number;
+    discount_amount: number;
+    tax_amount: number;
+    total_amount: number;
+
+    lines: VariationInvoicePreviewLine[];
 };
 
 type InvoiceLineDraft = {
@@ -210,9 +289,11 @@ type InvoiceLineDraft = {
     conversion_factor: number;
     base_quantity: number;
     allow_fractional_quantity: boolean;
+    price_book_id: string;
     price_book_line_id: string;
     price_source: string;
     original_unit_price: number | null;
+    standard_reference_price: number | null;
     quantity: string;
     unit_price: string;
     discount_percent: string;
@@ -222,17 +303,176 @@ type InvoiceLineDraft = {
 
 type InvoiceSourceDraft = {
     key: string;
-    source_type: "Quotation" | "Variation";
+    source_type: "Quotation" | "Quotation Revision" | "Variation";
     source_id: string;
     source_amount: string;
 };
 
+type InvoiceSourceMapping = {
+    invoice_item_source_id: string;
+    invoice_source_id: string;
+    source_type: string;
+    source_header_id: string;
+    source_revision_id: string | null;
+    source_line_id: string | null;
+    source_line_no: number | null;
+
+    original_product_id: string | null;
+    original_product_code: string | null;
+    original_product_name: string | null;
+    original_description: string | null;
+    original_quantity: number | null;
+    original_uom_code: string | null;
+    original_base_uom_code: string | null;
+    original_conversion_factor: number | null;
+    original_base_quantity: number | null;
+    original_unit_price: number | null;
+    original_line_amount: number | null;
+
+    invoiced_quantity: number | null;
+    invoiced_base_quantity: number | null;
+    invoiced_amount: number | null;
+
+    is_excluded: boolean;
+    exclusion_reason: string | null;
+
+    source_snapshot: Record<string, unknown> | null;
+};
+
+type InvoiceDetailLine = {
+    customer_invoice_item_id: string;
+    line_no: number;
+    line_type: string;
+
+    product_id: string | null;
+    product_code: string | null;
+    product_name: string | null;
+    project_area_id: string | null;
+    project_area_name?: string | null;
+    area_name?: string | null;
+
+    description: string;
+    quantity: number;
+    price_book_id?: string | null;
+    sales_uom_code: string;
+    base_uom_code: string;
+    conversion_factor: number;
+    base_quantity: number;
+    allow_fractional_quantity: boolean;
+
+    unit_price: number;
+    line_subtotal: number;
+    discount_percent: number;
+    discount_amount: number;
+    tax_rate: number;
+    tax_amount: number;
+    line_total: number;
+
+    price_source: string;
+    price_book_line_id?: string | null;
+    original_unit_price: number | null;
+    notes: string | null;
+
+    is_source_line: boolean;
+    is_source_modified: boolean;
+    original_description: string | null;
+    original_quantity: number | null;
+    original_sales_uom_code: string | null;
+    override_reason: string | null;
+
+    source_mappings: InvoiceSourceMapping[];
+
+    created_at: string;
+    created_by: string | null;
+    updated_at: string;
+    updated_by: string | null;
+};
+
+type InvoiceDetailSource = {
+    invoice_source_id: string;
+    source_type: string;
+    source_id: string;
+    source_no?: string | null;
+    source_reference: string | null;
+    source_amount: number;
+    is_deleted: boolean;
+    created_at: string;
+    created_by: string | null;
+    deleted_at?: string | null;
+};
+
+type ArchivedManualLine = {
+    invoice_item_source_id: string;
+    customer_invoice_item_id: string | null;
+    invoice_source_id: string;
+    source_header_id: string;
+    source_line_no: number | null;
+
+    line_no: number | null;
+    line_type: string | null;
+    product_id: string | null;
+    product_code: string | null;
+    product_name: string | null;
+    description: string | null;
+
+    quantity: number | null;
+    sales_uom_code: string | null;
+    base_uom_code: string | null;
+    conversion_factor: number | null;
+    base_quantity: number | null;
+
+    unit_price: number | null;
+    line_subtotal: number | null;
+    tax_amount: number | null;
+    line_total: number | null;
+    notes: string | null;
+
+    is_excluded: boolean;
+    exclusion_reason: string | null;
+    source_snapshot: Record<string, unknown> | null;
+
+    is_deleted: boolean;
+    deleted_at: string | null;
+};
+
+type InvoicePayment = {
+    customer_payment_allocation_id: string;
+    customer_payment_id: string;
+    payment_no: string;
+    payment_date: string;
+    payment_method: string;
+    reference_no: string | null;
+    allocated_amount: number;
+    currency_code: string;
+    payment_status: string;
+};
+
+type InvoiceDetailPermissions = {
+    can_view_internal_audit: boolean;
+    can_update_draft: boolean;
+    can_add_manual_line: boolean;
+    can_remove_manual_line: boolean;
+    can_exclude_source_line: boolean;
+    can_restore_source_line: boolean;
+    can_override_source_line: boolean;
+    can_override_discount: boolean;
+};
+
 type InvoiceDetail = {
-    invoice?: Record<string, unknown>;
-    lines?: Array<Record<string, unknown>>;
-    sources?: Array<Record<string, unknown>>;
-    allocations?: Array<Record<string, unknown>>;
-    status_history?: Array<Record<string, unknown>>;
+    invoice: Record<string, unknown>;
+
+    active_lines: InvoiceDetailLine[];
+    excluded_source_lines: InvoiceSourceMapping[];
+    archived_manual_lines: ArchivedManualLine[];
+
+    active_sources: InvoiceDetailSource[];
+    archived_sources: InvoiceDetailSource[];
+
+    payments: InvoicePayment[];
+    retention_ledger: Array<Record<string, unknown>>;
+    audit: Array<Record<string, unknown>>;
+
+    permissions: InvoiceDetailPermissions;
 };
 
 const PAGE_SIZE = 25;
@@ -260,6 +500,7 @@ const permissionCodes = [
     "invoices.override_price_book",
     "invoices.override_unit_price",
     "invoices.override_discount",
+    "products.manage_sales_prices",
 ] as const;
 
 const callRpc = async <T,>(
@@ -295,15 +536,12 @@ const money = (value: unknown) =>
 const numberText = (
     value: unknown,
     maximumFractionDigits = 6,
-) =>
-    new Intl.NumberFormat("en-AU", {
-        maximumFractionDigits,
-    }).format(Number(value || 0));
+) => new Intl.NumberFormat("en-AU", {
+    maximumFractionDigits,
+}).format(Number(value || 0));
 
 const dateText = (value: unknown) =>
-    value
-        ? new Date(String(value)).toLocaleDateString("en-AU")
-        : "—";
+    value ? new Date(String(value)).toLocaleDateString("en-AU") : "—";
 
 const csvCell = (value: unknown) =>
     `"${String(value ?? "").replace(/"/g, '""')}"`;
@@ -339,9 +577,11 @@ const createBlankLine = (
     conversion_factor: 1,
     base_quantity: 0,
     allow_fractional_quantity: true,
+    price_book_id: "",
     price_book_line_id: "",
     price_source: "Manual",
     original_unit_price: null,
+    standard_reference_price: null,
     quantity: "1",
     unit_price: "",
     discount_percent: "0",
@@ -418,11 +658,9 @@ const Invoices = () => {
     );
 
     const [search, setSearch] = useState("");
-    const [documentStatus, setDocumentStatus] =
-        useState("All");
+    const [documentStatus, setDocumentStatus] = useState("All");
     const [paymentStatus, setPaymentStatus] = useState("All");
-    const [invoiceTypeFilter, setInvoiceTypeFilter] =
-        useState("All");
+    const [invoiceTypeFilter, setInvoiceTypeFilter] = useState("All");
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
     const [page, setPage] = useState(1);
@@ -431,19 +669,15 @@ const Invoices = () => {
     const [projectId, setProjectId] = useState("");
     const [siteId, setSiteId] = useState("");
     const [priceBookId, setPriceBookId] = useState("");
-    const [invoiceType, setInvoiceType] =
-        useState("Standard");
+    const [invoiceType, setInvoiceType] = useState("Standard");
     const [invoiceDate, setInvoiceDate] = useState(today());
     const [dueDate, setDueDate] = useState(
         addDays(today(), 14),
     );
-    const [customerReference, setCustomerReference] =
-        useState("");
+    const [customerReference, setCustomerReference] = useState("");
     const [notes, setNotes] = useState("");
-    const [lineAmountType, setLineAmountType] =
-        useState("Exclusive");
-    const [customerDiscount, setCustomerDiscount] =
-        useState(0);
+    const [lineAmountType, setLineAmountType] = useState("Exclusive");
+    const [customerDiscount, setCustomerDiscount] = useState(0);
 
     const [lines, setLines] = useState<InvoiceLineDraft[]>([
         createBlankLine(1),
@@ -453,14 +687,39 @@ const Invoices = () => {
         InvoiceSourceDraft[]
     >([]);
 
-    const [showReasonDialog, setShowReasonDialog] =
-        useState(false);
+    const [showReasonDialog, setShowReasonDialog] = useState(false);
 
     const [reasonAction, setReasonAction] = useState<
         "cancel" | "void" | null
     >(null);
 
     const [reason, setReason] = useState("");
+
+    // Selling price dialog state (Step 9A)
+    const [showSellingPriceDialog, setShowSellingPriceDialog] = useState(false);
+    const [sellingDialogTargetKey, setSellingDialogTargetKey] = useState<
+        string | null
+    >(null);
+    const [sellingProductId, setSellingProductId] = useState<string | null>(
+        null,
+    );
+    const [sellingProductCode, setSellingProductCode] = useState<string | null>(
+        null,
+    );
+    const [sellingProductName, setSellingProductName] = useState<string | null>(
+        null,
+    );
+    const [sellingUom, setSellingUom] = useState<string | null>(null);
+    const [sellingPricesByBook, setSellingPricesByBook] = useState<
+        Record<string, string>
+    >({});
+    const [sellingMinimumPricesByBook, setSellingMinimumPricesByBook] =
+        useState<
+            Record<string, string>
+        >({});
+    const [sellingEffectiveFrom, setSellingEffectiveFrom] = useState<string>(
+        invoiceDate || today(),
+    );
 
     const permissions = useQuery({
         queryKey: ["invoice-ui-permissions-v2"],
@@ -653,7 +912,7 @@ const Invoices = () => {
             const { data, error } = await (supabase as any)
                 .from("price_books")
                 .select(
-                    "price_book_id, price_book_code, price_book_name, is_default",
+                    "price_book_id, price_book_code, price_book_name, is_default, effective_from, effective_to",
                 )
                 .eq("is_deleted", false)
                 .eq("is_active", true)
@@ -677,8 +936,11 @@ const Invoices = () => {
                         "price_book_line_id",
                         "price_book_id",
                         "product_id",
+                        "price_uom_code",
                         "unit_price",
                         "minimum_price",
+                        "effective_from",
+                        "effective_to",
                     ].join(", "),
                 )
                 .eq("is_deleted", false)
@@ -727,12 +989,11 @@ const Invoices = () => {
                     source_id: String(row.quotation_id),
                     source_no: String(row.quotation_no),
                     customer_id: String(row.customer_id),
-                    project_id:
-                        row.project_sites?.project_id
-                            ? String(
-                                  row.project_sites.project_id,
-                              )
-                            : null,
+                    project_id: row.project_sites?.project_id
+                        ? String(
+                            row.project_sites.project_id,
+                        )
+                        : null,
                     project_site_id: row.project_site_id
                         ? String(row.project_site_id)
                         : null,
@@ -772,9 +1033,7 @@ const Invoices = () => {
                     source_id: String(row.variation_id),
                     source_no: String(row.variation_no),
                     customer_id: String(row.customer_id),
-                    project_id: row.project_id
-                        ? String(row.project_id)
-                        : null,
+                    project_id: row.project_id ? String(row.project_id) : null,
                     project_site_id: row.project_site_id
                         ? String(row.project_site_id)
                         : null,
@@ -804,18 +1063,15 @@ const Invoices = () => {
                 "list_customer_invoices",
                 {
                     p_search: search.trim() || null,
-                    p_document_status:
-                        documentStatus === "All"
-                            ? null
-                            : documentStatus,
-                    p_payment_status:
-                        paymentStatus === "All"
-                            ? null
-                            : paymentStatus,
-                    p_invoice_type:
-                        invoiceTypeFilter === "All"
-                            ? null
-                            : invoiceTypeFilter,
+                    p_document_status: documentStatus === "All"
+                        ? null
+                        : documentStatus,
+                    p_payment_status: paymentStatus === "All"
+                        ? null
+                        : paymentStatus,
+                    p_invoice_type: invoiceTypeFilter === "All"
+                        ? null
+                        : invoiceTypeFilter,
                     p_customer_id: null,
                     p_project_id: null,
                     p_project_site_id: null,
@@ -854,8 +1110,7 @@ const Invoices = () => {
     const selectedCustomer = useMemo(
         () =>
             (customers.data ?? []).find(
-                (customer) =>
-                    customer.customer_id === customerId,
+                (customer) => customer.customer_id === customerId,
             ) ?? null,
         [customerId, customers.data],
     );
@@ -871,17 +1126,51 @@ const Invoices = () => {
     const selectedPriceBook = useMemo(
         () =>
             (priceBooks.data ?? []).find(
-                (book) =>
-                    book.price_book_id === priceBookId,
+                (book) => book.price_book_id === priceBookId,
             ) ?? null,
         [priceBookId, priceBooks.data],
     );
 
+    const defaultPriceBook = useMemo(
+        () =>
+            (priceBooks.data ?? []).find(
+                (book) => book.is_default,
+            ) ?? null,
+        [priceBooks.data],
+    );
+
+    const hasCommercialSource = (sources ?? []).some(
+        (source) =>
+            Boolean(source.source_id) &&
+            (source.source_type === "Quotation" ||
+                source.source_type === "Quotation Revision" ||
+                source.source_type === "Variation"),
+    );
+
+    useEffect(() => {
+        if (
+            !hasCommercialSource &&
+            !priceBookId &&
+            defaultPriceBook?.price_book_id
+        ) {
+            setPriceBookId(defaultPriceBook.price_book_id);
+            setLines((current) =>
+                current.map((line) => ({
+                    ...line,
+                    price_book_id: defaultPriceBook.price_book_id,
+                }))
+            );
+        }
+    }, [
+        defaultPriceBook?.price_book_id,
+        hasCommercialSource,
+        priceBookId,
+    ]);
+
     const filteredProjects = useMemo(
         () =>
             (projects.data ?? []).filter(
-                (project) =>
-                    project.customer_id === customerId,
+                (project) => project.customer_id === customerId,
             ),
         [customerId, projects.data],
     );
@@ -944,8 +1233,7 @@ const Invoices = () => {
             ),
             overdue: rows
                 .filter(
-                    (row) =>
-                        Number(row.days_overdue || 0) > 0,
+                    (row) => Number(row.days_overdue || 0) > 0,
                 )
                 .reduce(
                     (total, row) =>
@@ -970,26 +1258,20 @@ const Invoices = () => {
                     line.discount_percent || 0,
                 );
 
-                const taxRate =
-                    lineAmountType === "No Tax"
-                        ? 0
-                        : Number(line.tax_rate || 0);
+                const taxRate = lineAmountType === "No Tax"
+                    ? 0
+                    : Number(line.tax_rate || 0);
 
                 const subtotal = quantity * unitPrice;
 
-                const discountAmount =
-                    (subtotal * discountPercent) / 100;
+                const discountAmount = (subtotal * discountPercent) / 100;
 
-                const taxable =
-                    subtotal - discountAmount;
+                const taxable = subtotal - discountAmount;
 
                 if (lineAmountType === "Inclusive") {
-                    const taxAmount =
-                        taxRate === 0
-                            ? 0
-                            : taxable -
-                              taxable /
-                                  (1 + taxRate / 100);
+                    const taxAmount = taxRate === 0 ? 0 : taxable -
+                        taxable /
+                            (1 + taxRate / 100);
 
                     return {
                         subtotal,
@@ -999,10 +1281,9 @@ const Invoices = () => {
                     };
                 }
 
-                const taxAmount =
-                    lineAmountType === "No Tax"
-                        ? 0
-                        : (taxable * taxRate) / 100;
+                const taxAmount = lineAmountType === "No Tax"
+                    ? 0
+                    : (taxable * taxRate) / 100;
 
                 return {
                     subtotal,
@@ -1018,14 +1299,11 @@ const Invoices = () => {
         () =>
             lineCalculations.reduce(
                 (total, line) => ({
-                    subtotal:
-                        total.subtotal + line.subtotal,
-                    discount:
-                        total.discount +
+                    subtotal: total.subtotal + line.subtotal,
+                    discount: total.discount +
                         line.discountAmount,
                     tax: total.tax + line.taxAmount,
-                    grandTotal:
-                        total.grandTotal + line.total,
+                    grandTotal: total.grandTotal + line.total,
                 }),
                 {
                     subtotal: 0,
@@ -1042,7 +1320,7 @@ const Invoices = () => {
         setCustomerId("");
         setProjectId("");
         setSiteId("");
-        setPriceBookId("");
+        setPriceBookId(defaultPriceBook?.price_book_id ?? "");
         setInvoiceType("Standard");
         setInvoiceDate(today());
         setDueDate(addDays(today(), 14));
@@ -1078,24 +1356,32 @@ const Invoices = () => {
         setSiteId("");
         setSources([]);
 
-        const customer = (customers.data ?? []).find(
-            (item) =>
-                item.customer_id === nextCustomerId,
-        );
-
         const financial = (
             customerFinancials.data ?? []
         ).find(
-            (item) =>
-                item.customer_id === nextCustomerId,
+            (item) => item.customer_id === nextCustomerId,
+        );
+
+        const customer = (
+            customers.data ?? []
+        ).find(
+            (item) => item.customer_id === nextCustomerId,
         );
 
         const defaultBook = (
             priceBooks.data ?? []
         ).find((book) => book.is_default);
 
+        const customerPriceBook = customer?.price_book_id
+            ? (priceBooks.data ?? []).find(
+                (book) =>
+                    book.price_book_id ===
+                        customer.price_book_id,
+            )
+            : null;
+
         setPriceBookId(
-            customer?.price_book_id ||
+            customerPriceBook?.price_book_id ||
                 defaultBook?.price_book_id ||
                 "",
         );
@@ -1123,9 +1409,8 @@ const Invoices = () => {
         setLines((current) =>
             current.map((line) => ({
                 ...line,
-                discount_percent:
-                    String(nextDiscount),
-            })),
+                discount_percent: String(nextDiscount),
+            }))
         );
     };
 
@@ -1174,8 +1459,7 @@ const Invoices = () => {
                         factor: Number(
                             conversion.conversion_factor,
                         ),
-                        allowFractional:
-                            conversion.allow_fractional_quantity,
+                        allowFractional: conversion.allow_fractional_quantity,
                     },
                 );
             }
@@ -1189,18 +1473,170 @@ const Invoices = () => {
         );
     };
 
+    const sellingProduct = sellingProductId
+        ? (products.data ?? []).find(
+            (item) => item.product_id === sellingProductId,
+        ) ?? null
+        : null;
+
+    const sellingProductUoms = sellingProduct
+        ? getProductUoms(sellingProduct)
+        : [];
+
+    const isDateWithinEffectiveRange = (
+        value: string,
+        effectiveFrom?: string | null,
+        effectiveTo?: string | null,
+    ) => {
+        if (!value) return true;
+
+        const date = new Date(`${value}T00:00:00`);
+        const from = effectiveFrom
+            ? new Date(`${effectiveFrom}T00:00:00`)
+            : null;
+        const to = effectiveTo ? new Date(`${effectiveTo}T23:59:59`) : null;
+
+        if (from && date < from) return false;
+        if (to && date > to) return false;
+        return true;
+    };
+
+    const effectivePriceBooks = (priceBooks.data ?? []).filter(
+        (book) =>
+            isDateWithinEffectiveRange(
+                invoiceDate,
+                book.effective_from,
+                book.effective_to,
+            ),
+    );
+
+    const sellingPriceBooks = [...effectivePriceBooks].sort((a, b) => {
+        if (a.is_default !== b.is_default) {
+            return a.is_default ? -1 : 1;
+        }
+
+        return a.price_book_name.localeCompare(b.price_book_name);
+    });
+
     const resolvePrice = (
         productId: string,
-        selectedBookId: string,
+        sellingUom: string,
+        pricingDate: string,
+        targetPriceBookId = priceBookId,
     ): PriceBookLine | null => {
-        return (
-            (priceBookLines.data ?? []).find(
-                (line) =>
-                    line.product_id === productId &&
-                    line.price_book_id ===
-                        selectedBookId,
-            ) ?? null
+        if (!targetPriceBookId) return null;
+
+        const candidates = (priceBookLines.data ?? []).filter(
+            (line) =>
+                line.price_book_id === targetPriceBookId &&
+                line.product_id === productId &&
+                (line.price_uom_code ?? "") === (sellingUom ?? "") &&
+                isDateWithinEffectiveRange(
+                    pricingDate,
+                    line.effective_from,
+                    line.effective_to,
+                ),
         );
+
+        return candidates[0] ?? null;
+    };
+
+    const resolveStandardReference = (
+        productId: string,
+        sellingUom: string,
+        pricingDate: string,
+    ): PriceBookLine | null => {
+        if (!defaultPriceBook?.price_book_id) return null;
+
+        return resolvePrice(
+            productId,
+            sellingUom,
+            pricingDate,
+            defaultPriceBook.price_book_id,
+        );
+    };
+
+    const loadSellingPriceMatrix = (
+        productId: string,
+        sellingUom: string,
+        pricingDate: string,
+    ) => {
+        const nextPrices: Record<string, string> = {};
+        const nextMinimums: Record<string, string> = {};
+
+        for (const book of sellingPriceBooks) {
+            const existing = resolvePrice(
+                productId,
+                sellingUom,
+                pricingDate,
+                book.price_book_id,
+            );
+
+            nextPrices[book.price_book_id] = existing
+                ? String(existing.unit_price)
+                : "";
+            nextMinimums[book.price_book_id] = existing?.minimum_price == null
+                ? ""
+                : String(existing.minimum_price);
+        }
+
+        setSellingPricesByBook(nextPrices);
+        setSellingMinimumPricesByBook(nextMinimums);
+    };
+
+    const repriceDirectLines = (
+        nextPriceBookId: string,
+        pricingDate = invoiceDate,
+    ) => {
+        setLines((current) =>
+            current.map((line) => {
+                if (!line.product_id || !line.sales_uom_code) {
+                    return {
+                        ...line,
+                        price_book_id: nextPriceBookId,
+                    };
+                }
+
+                const price = resolvePrice(
+                    line.product_id,
+                    line.sales_uom_code,
+                    pricingDate,
+                    nextPriceBookId,
+                );
+
+                const standardReference = nextPriceBookId ===
+                        defaultPriceBook?.price_book_id
+                    ? null
+                    : resolveStandardReference(
+                        line.product_id,
+                        line.sales_uom_code,
+                        pricingDate,
+                    );
+
+                return {
+                    ...line,
+                    price_book_id: nextPriceBookId,
+                    price_book_line_id: price?.price_book_line_id ?? "",
+                    price_source: price
+                        ? "Price Book"
+                        : "Selling Price Missing",
+                    original_unit_price: price
+                        ? Number(price.unit_price)
+                        : null,
+                    unit_price: price ? String(price.unit_price) : "",
+                    standard_reference_price: standardReference
+                        ? Number(standardReference.unit_price)
+                        : null,
+                };
+            })
+        );
+    };
+
+    const changeDirectPriceBook = (nextPriceBookId: string) => {
+        if (hasCommercialSource) return;
+
+        setPriceBookId(nextPriceBookId);
+        repriceDirectLines(nextPriceBookId);
     };
 
     const updateLine = (
@@ -1211,11 +1647,11 @@ const Invoices = () => {
             current.map((line) =>
                 line.key === key
                     ? {
-                          ...line,
-                          ...changes,
-                      }
-                    : line,
-            ),
+                        ...line,
+                        ...changes,
+                    }
+                    : line
+            )
         );
     };
 
@@ -1224,8 +1660,7 @@ const Invoices = () => {
         productId: string,
     ) => {
         const product = (products.data ?? []).find(
-            (item) =>
-                item.product_id === productId,
+            (item) => item.product_id === productId,
         );
 
         if (!product) {
@@ -1237,33 +1672,45 @@ const Invoices = () => {
                 conversion_factor: 1,
                 base_quantity: 0,
                 unit_price: "",
+                price_book_id: priceBookId,
                 price_book_line_id: "",
                 price_source: "Manual",
                 original_unit_price: null,
+                standard_reference_price: null,
             });
 
             return;
         }
 
-        const productUoms =
-            getProductUoms(product);
+        const productUoms = getProductUoms(product);
 
-        const preferredUom =
-            productUoms.find(
-                (item) =>
-                    item.uomCode ===
+        const preferredUom = productUoms.find(
+            (item) =>
+                item.uomCode ===
                     product.default_sales_uom_code,
-            ) ?? productUoms[0];
+        ) ?? productUoms[0];
+
+        const preferredUomCode = preferredUom?.uomCode || product.base_uom_code;
 
         const price = resolvePrice(
             product.product_id,
+            preferredUomCode,
+            invoiceDate,
             priceBookId,
         );
 
-        const currentLine =
-            lines.find(
-                (line) => line.key === lineKey,
-            ) ?? createBlankLine(lines.length + 1);
+        const standardReference = priceBookId ===
+                defaultPriceBook?.price_book_id
+            ? null
+            : resolveStandardReference(
+                product.product_id,
+                preferredUomCode,
+                invoiceDate,
+            );
+
+        const currentLine = lines.find(
+            (line) => line.key === lineKey,
+        ) ?? createBlankLine(lines.length + 1);
 
         const quantity = Number(
             currentLine.quantity || 0,
@@ -1271,42 +1718,31 @@ const Invoices = () => {
 
         updateLine(lineKey, {
             product_id: product.product_id,
-            line_type:
-                product.is_service_item ||
-                product.product_type === "Service"
-                    ? "Service"
-                    : product.product_type ===
+            line_type: product.is_service_item ||
+                    product.product_type === "Service"
+                ? "Service"
+                : product.product_type ===
                         "Material"
-                      ? "Material"
-                      : "Product",
+                ? "Material"
+                : "Product",
             description: product.product_name,
-            sales_uom_code:
-                preferredUom?.uomCode ||
+            sales_uom_code: preferredUom?.uomCode ||
                 product.base_uom_code,
-            base_uom_code:
-                product.base_uom_code,
-            conversion_factor:
-                preferredUom?.factor ?? 1,
-            base_quantity:
-                quantity *
+            base_uom_code: product.base_uom_code,
+            conversion_factor: preferredUom?.factor ?? 1,
+            base_quantity: quantity *
                 (preferredUom?.factor ?? 1),
-            allow_fractional_quantity:
-                preferredUom?.allowFractional ??
+            allow_fractional_quantity: preferredUom?.allowFractional ??
                 true,
-            price_book_line_id:
-                price?.price_book_line_id || "",
-            price_source:
-                price ? "Price Book" : "Manual",
-            original_unit_price:
-                price
-                    ? Number(price.unit_price)
-                    : null,
-            unit_price:
-                price
-                    ? String(price.unit_price)
-                    : "",
-            discount_percent:
-                String(customerDiscount),
+            price_book_id: priceBookId,
+            price_book_line_id: price?.price_book_line_id || "",
+            price_source: price ? "Price Book" : "Selling Price Missing",
+            original_unit_price: price ? Number(price.unit_price) : null,
+            standard_reference_price: standardReference
+                ? Number(standardReference.unit_price)
+                : null,
+            unit_price: price ? String(price.unit_price) : "",
+            discount_percent: String(customerDiscount),
         });
     };
 
@@ -1323,7 +1759,7 @@ const Invoices = () => {
         ).find(
             (item) =>
                 item.product_id ===
-                line?.product_id,
+                    line?.product_id,
         );
 
         if (!line || !product) {
@@ -1333,8 +1769,7 @@ const Invoices = () => {
         const uom = getProductUoms(
             product,
         ).find(
-            (item) =>
-                item.uomCode === uomCode,
+            (item) => item.uomCode === uomCode,
         );
 
         if (!uom) {
@@ -1344,11 +1779,38 @@ const Invoices = () => {
         updateLine(lineKey, {
             sales_uom_code: uomCode,
             conversion_factor: uom.factor,
-            allow_fractional_quantity:
-                uom.allowFractional,
-            base_quantity:
-                Number(line.quantity || 0) *
+            allow_fractional_quantity: uom.allowFractional,
+            base_quantity: Number(line.quantity || 0) *
                 uom.factor,
+        });
+        // Re-resolve the exact selected Price Book + Product + UOM price.
+        const priceForUom = resolvePrice(
+            String(product.product_id),
+            uomCode,
+            invoiceDate,
+            priceBookId,
+        );
+
+        const standardReference = priceBookId ===
+                defaultPriceBook?.price_book_id
+            ? null
+            : resolveStandardReference(
+                String(product.product_id),
+                uomCode,
+                invoiceDate,
+            );
+
+        updateLine(lineKey, {
+            price_book_id: priceBookId,
+            price_book_line_id: priceForUom?.price_book_line_id || "",
+            price_source: priceForUom ? "Price Book" : "Selling Price Missing",
+            original_unit_price: priceForUom
+                ? Number(priceForUom.unit_price)
+                : null,
+            standard_reference_price: standardReference
+                ? Number(standardReference.unit_price)
+                : null,
+            unit_price: priceForUom ? String(priceForUom.unit_price) : "",
         });
     };
 
@@ -1362,8 +1824,7 @@ const Invoices = () => {
 
         updateLine(lineKey, {
             quantity: value,
-            base_quantity:
-                Number(value || 0) *
+            base_quantity: Number(value || 0) *
                 Number(
                     line?.conversion_factor || 1,
                 ),
@@ -1388,7 +1849,71 @@ const Invoices = () => {
                 .map((line, index) => ({
                     ...line,
                     line_no: index + 1,
-                })),
+                }))
+        );
+    };
+
+    const loadVariationSourceLines = async (
+        variationId: string,
+    ) => {
+        const preview = await callRpc<VariationInvoicePreview>(
+            "preview_accepted_variation_for_invoice",
+            {
+                p_variation_id: variationId,
+            },
+        );
+
+        if (!preview?.lines?.length) {
+            throw new Error(
+                "The Accepted Variation has no Invoice lines.",
+            );
+        }
+
+        setLines(
+            preview.lines.map((line, index) => ({
+                key: uniqueKey(),
+                line_no: index + 1,
+
+                line_type: line.product_id ? "Material" : "Manual",
+
+                product_id: line.product_id ?? "",
+                project_area_id: line.project_area_id ?? "",
+
+                description: line.description ?? "",
+
+                sales_uom_code: line.sales_uom_code ?? "",
+
+                base_uom_code: line.base_uom_code ?? "",
+
+                conversion_factor: Number(line.conversion_factor ?? 1),
+
+                base_quantity: Number(line.base_quantity ?? 0),
+
+                allow_fractional_quantity: Boolean(
+                    line.allow_fractional_quantity ??
+                        true,
+                ),
+
+                price_book_id: "",
+                price_book_line_id: "",
+                price_source: "Source Snapshot",
+
+                original_unit_price: Number(line.unit_price ?? 0),
+
+                standard_reference_price: null,
+
+                quantity: String(line.quantity ?? 0),
+
+                unit_price: String(line.unit_price ?? 0),
+
+                discount_percent: String(
+                    line.discount_percent ?? 0,
+                ),
+
+                tax_rate: String(line.tax_rate ?? 0),
+
+                notes: line.notes ?? "",
+            })),
         );
     };
 
@@ -1412,11 +1937,11 @@ const Invoices = () => {
             current.map((source) =>
                 source.key === key
                     ? {
-                          ...source,
-                          ...changes,
-                      }
-                    : source,
-            ),
+                        ...source,
+                        ...changes,
+                    }
+                    : source
+            )
         );
     };
 
@@ -1424,12 +1949,12 @@ const Invoices = () => {
         setSources((current) =>
             current.filter(
                 (source) => source.key !== key,
-            ),
+            )
         );
     };
 
     // ===== ตอนที่ 1 จบตรงนี้ =====
-        const saveInvoice = useMutation({
+    const saveInvoice = useMutation({
         mutationFn: async () => {
             if (!customerId) {
                 throw new Error("Customer is required.");
@@ -1445,7 +1970,7 @@ const Invoices = () => {
 
             if (
                 new Date(dueDate) <
-                new Date(invoiceDate)
+                    new Date(invoiceDate)
             ) {
                 throw new Error(
                     "Due date cannot be before Invoice date.",
@@ -1474,7 +1999,7 @@ const Invoices = () => {
                     ).find(
                         (item) =>
                             item.product_id ===
-                            line.product_id,
+                                line.product_id,
                     );
 
                     const quantity = Number(
@@ -1485,17 +2010,13 @@ const Invoices = () => {
                         line.unit_price,
                     );
 
-                    const discountPercent =
-                        Number(
-                            line.discount_percent,
-                        );
+                    const discountPercent = Number(
+                        line.discount_percent,
+                    );
 
-                    const taxRate =
-                        lineAmountType === "No Tax"
-                            ? 0
-                            : Number(
-                                  line.tax_rate,
-                              );
+                    const taxRate = lineAmountType === "No Tax" ? 0 : Number(
+                        line.tax_rate,
+                    );
 
                     if (
                         !line.product_id ||
@@ -1535,9 +2056,7 @@ const Invoices = () => {
                         throw new Error(
                             `Line ${
                                 index + 1
-                            }: ${
-                                line.sales_uom_code
-                            } does not allow fractional quantity.`,
+                            }: ${line.sales_uom_code} does not allow fractional quantity.`,
                         );
                     }
 
@@ -1570,24 +2089,17 @@ const Invoices = () => {
 
                     return {
                         line_no: index + 1,
-                        line_type:
-                            line.line_type,
-                        product_id:
-                            line.product_id,
-                        project_area_id:
-                            line.project_area_id ||
+                        line_type: line.line_type,
+                        product_id: line.product_id,
+                        project_area_id: line.project_area_id ||
                             null,
-                        description:
-                            line.description.trim(),
-                        sales_uom_code:
-                            line.sales_uom_code,
+                        description: line.description.trim(),
+                        sales_uom_code: line.sales_uom_code,
                         quantity,
                         unit_price: unitPrice,
-                        discount_percent:
-                            discountPercent,
+                        discount_percent: discountPercent,
                         tax_rate: taxRate,
-                        notes:
-                            line.notes.trim() ||
+                        notes: line.notes.trim() ||
                             null,
                     };
                 },
@@ -1619,10 +2131,8 @@ const Invoices = () => {
                     }
 
                     return {
-                        source_type:
-                            source.source_type,
-                        source_id:
-                            source.source_id,
+                        source_type: source.source_type,
+                        source_id: source.source_id,
                         source_amount: amount,
                     };
                 },
@@ -1630,47 +2140,127 @@ const Invoices = () => {
 
             const header = {
                 customer_id: customerId,
-                project_id:
-                    projectId || null,
-                project_site_id:
-                    siteId || null,
-                price_book_id:
-                    priceBookId || null,
-                invoice_type:
-                    invoiceType,
-                invoice_date:
-                    invoiceDate,
+                project_id: projectId || null,
+                project_site_id: siteId || null,
+                price_book_id: priceBookId || null,
+                invoice_type: invoiceType,
+                invoice_date: invoiceDate,
                 due_date: dueDate,
-                customer_reference:
-                    customerReference.trim() ||
+                customer_reference: customerReference.trim() ||
                     null,
-                notes:
-                    notes.trim() || null,
+                notes: notes.trim() || null,
             };
 
             if (editingId) {
+                if (hasCommercialSource) {
+                    return callRpc<string>(
+                        "update_draft_invoice_atomic",
+                        {
+                            p_invoice_id: editingId,
+                            p_invoice: header,
+                            p_lines: cleanLines,
+                            p_sources: cleanSources,
+                        },
+                    );
+                }
+
+                if (!priceBookId) {
+                    throw new Error(
+                        "Price Book is required for a Direct Invoice.",
+                    );
+                }
+
                 return callRpc<string>(
-                    "update_draft_invoice_atomic",
+                    "update_direct_invoice_draft_with_price_book_atomic",
                     {
-                        p_invoice_id:
-                            editingId,
+                        p_invoice_id: editingId,
                         p_invoice: header,
                         p_lines: cleanLines,
-                        p_sources:
-                            cleanSources,
+                        p_sources: cleanSources,
+                        p_price_book_id: priceBookId,
                     },
                 );
             }
 
-            return callRpc<string>(
-                "create_invoice_atomic",
+            // New Invoice creation
+            if (hasCommercialSource) {
+                // Preserve existing commercial-source creation flow
+                return callRpc<string>(
+                    "create_invoice_atomic",
+                    {
+                        p_invoice: header,
+                        p_lines: cleanLines,
+                        p_sources: cleanSources,
+                    },
+                );
+            }
+
+            // Direct Invoice workflow (no commercial source).
+            if (!priceBookId) {
+                throw new Error(
+                    "Price Book is required for a Direct Invoice.",
+                );
+            }
+
+            // Every Product/UOM must have an exact price in the selected
+            // Price Book. Standard is reference-only for other books.
+            const missingPriceIndex = lines.findIndex(
+                (line) =>
+                    Boolean(line.product_id) &&
+                    (!line.price_book_line_id ||
+                        line.price_source === "Selling Price Missing"),
+            );
+
+            if (missingPriceIndex !== -1) {
+                throw new Error(
+                    `Line ${
+                        missingPriceIndex + 1
+                    }: Selling Price is missing in the selected Price Book. Please configure it before creating a Direct Invoice.`,
+                );
+            }
+
+            const invoiceId = await callRpc<string>(
+                "create_direct_invoice_draft_with_price_book_atomic",
                 {
                     p_invoice: header,
-                    p_lines: cleanLines,
-                    p_sources:
-                        cleanSources,
+                    p_price_book_id: priceBookId,
                 },
             );
+
+            const failures: { index: number; error: unknown }[] = [];
+
+            for (let i = 0; i < cleanLines.length; i++) {
+                const l = cleanLines[i];
+
+                try {
+                    await callRpc<string>(
+                        "add_direct_invoice_price_book_product_line_atomic",
+                        {
+                            p_customer_invoice_id: invoiceId,
+                            p_product_id: l.product_id,
+                            p_quantity: l.quantity,
+                            p_sales_uom_code: l.sales_uom_code,
+                            p_project_area_id: l.project_area_id || null,
+                            p_description: l.description,
+                            p_notes: l.notes,
+                        },
+                    );
+                } catch (err) {
+                    failures.push({ index: i, error: err });
+                }
+            }
+
+            if (failures.length > 0) {
+                // Do not attempt rollback. Preserve form and surface error.
+                const firstErr: any = failures[0].error ?? {};
+                throw new Error(
+                    `Draft Invoice ${invoiceId} created but ${failures.length} product line(s) failed to add: ${
+                        firstErr.message || String(firstErr)
+                    }. Your form has been preserved.`,
+                );
+            }
+
+            return invoiceId;
         },
 
         onSuccess: async (invoiceId) => {
@@ -1744,27 +2334,132 @@ const Invoices = () => {
         },
     });
 
+    const setSellingPrices = useMutation({
+        mutationFn: async ({
+            productId,
+            priceUom,
+            effectiveFrom,
+            entries,
+        }: {
+            productId: string;
+            priceUom: string;
+            effectiveFrom: string;
+            entries: Array<{
+                price_book_id: string;
+                unit_price: number;
+                minimum_price: number | null;
+            }>;
+        }) => {
+            return callRpc<
+                Array<{
+                    price_book_id: string;
+                    price_book_line_id: string;
+                    unit_price: number;
+                    minimum_price: number | null;
+                }>
+            >(
+                "set_product_selling_price_matrix_atomic",
+                {
+                    p_product_id: productId,
+                    p_price_uom_code: priceUom,
+                    p_effective_from: effectiveFrom,
+                    p_prices: entries,
+                },
+            );
+        },
+
+        onSuccess: async (savedRows, variables) => {
+            toast.success("Selling prices saved.");
+
+            await queryClient.invalidateQueries({
+                queryKey: ["invoice-price-book-lines-v2"],
+            });
+
+            // Apply only the selected Direct Invoice Price Book back to the
+            // target line. Other Price Books are saved for future use only.
+            if (sellingDialogTargetKey && !hasCommercialSource) {
+                const invoicePrice = savedRows.find(
+                    (row) => row.price_book_id === priceBookId,
+                );
+
+                if (invoicePrice) {
+                    const selectedUom = sellingProductUoms.find(
+                        (item) => item.uomCode === variables.priceUom,
+                    );
+
+                    const standardEntry = defaultPriceBook
+                        ? variables.entries.find(
+                            (entry) =>
+                                entry.price_book_id ===
+                                    defaultPriceBook.price_book_id,
+                        )
+                        : null;
+
+                    setLines((current) =>
+                        current.map((line) =>
+                            line.key === sellingDialogTargetKey
+                                ? {
+                                    ...line,
+                                    sales_uom_code: variables.priceUom,
+                                    conversion_factor: selectedUom?.factor ??
+                                        line.conversion_factor,
+                                    allow_fractional_quantity:
+                                        selectedUom?.allowFractional ??
+                                            line.allow_fractional_quantity,
+                                    base_quantity: Number(line.quantity || 0) *
+                                        (selectedUom?.factor ??
+                                            line.conversion_factor),
+                                    price_book_id: priceBookId,
+                                    price_book_line_id:
+                                        invoicePrice.price_book_line_id,
+                                    price_source: "Price Book",
+                                    original_unit_price: Number(
+                                        invoicePrice.unit_price,
+                                    ),
+                                    standard_reference_price: priceBookId ===
+                                            defaultPriceBook?.price_book_id
+                                        ? null
+                                        : standardEntry
+                                        ? Number(standardEntry.unit_price)
+                                        : line.standard_reference_price,
+                                    unit_price: String(invoicePrice.unit_price),
+                                }
+                                : line
+                        )
+                    );
+                }
+            }
+
+            setShowSellingPriceDialog(false);
+            setSellingDialogTargetKey(null);
+            setSellingProductId(null);
+            setSellingProductCode(null);
+            setSellingProductName(null);
+            setSellingPricesByBook({});
+            setSellingMinimumPricesByBook({});
+        },
+
+        onError: (error: Error) => {
+            toast.error(error.message);
+        },
+    });
+
     const openEdit = async (
         invoiceId: string,
     ) => {
         try {
-            const data =
-                await callRpc<InvoiceDetail>(
-                    "get_customer_invoice_detail",
-                    {
-                        p_invoice_id:
-                            invoiceId,
-                    },
-                );
+            const data = await callRpc<InvoiceDetail>(
+                "get_customer_invoice_detail",
+                {
+                    p_invoice_id: invoiceId,
+                },
+            );
 
-            const invoice =
-                data.invoice ?? {};
+            const invoice = data.invoice ?? {};
 
-            const detailLines =
-                data.lines ?? [];
+            const detailLines = data.active_lines ?? [];
 
-            const detailSources =
-                data.sources ?? [];
+            const detailSources = data.active_sources ?? [];
 
             const nextCustomerId = String(
                 invoice.customer_id ?? "",
@@ -1775,7 +2470,7 @@ const Invoices = () => {
             ).find(
                 (item) =>
                     item.customer_id ===
-                    nextCustomerId,
+                        nextCustomerId,
             );
 
             setEditingId(invoiceId);
@@ -1859,121 +2554,92 @@ const Invoices = () => {
 
             setLines(
                 detailLines.length
-                    ? detailLines
-                          .filter(
-                              (line) =>
-                                  !Boolean(
-                                      line.is_deleted,
-                                  ),
-                          )
-                          .map(
-                              (
-                                  line,
-                                  index,
-                              ) => ({
-                                  key: uniqueKey(),
-                                  line_no:
-                                      Number(
-                                          line.line_no ??
-                                              index +
-                                                  1,
-                                      ),
-                                  line_type:
-                                      String(
-                                          line.line_type ??
-                                              "Product",
-                                      ),
-                                  product_id:
-                                      String(
-                                          line.product_id ??
-                                              "",
-                                      ),
-                                  project_area_id:
-                                      String(
-                                          line.project_area_id ??
-                                              "",
-                                      ),
-                                  description:
-                                      String(
-                                          line.description ??
-                                              "",
-                                      ),
-                                  sales_uom_code:
-                                      String(
-                                          line.sales_uom_code ??
-                                              "",
-                                      ),
-                                  base_uom_code:
-                                      String(
-                                          line.base_uom_code ??
-                                              "",
-                                      ),
-                                  conversion_factor:
-                                      Number(
-                                          line.conversion_factor ??
-                                              1,
-                                      ),
-                                  base_quantity:
-                                      Number(
-                                          line.base_quantity ??
-                                              0,
-                                      ),
-                                  allow_fractional_quantity:
-                                      Boolean(
-                                          line.allow_fractional_quantity ??
-                                              true,
-                                      ),
-                                  price_book_line_id:
-                                      String(
-                                          line.price_book_line_id ??
-                                              "",
-                                      ),
-                                  price_source:
-                                      String(
-                                          line.price_source ??
-                                              "Manual",
-                                      ),
-                                  original_unit_price:
-                                      line.original_unit_price ===
-                                          null ||
-                                      line.original_unit_price ===
-                                          undefined
-                                          ? null
-                                          : Number(
-                                                line.original_unit_price,
-                                            ),
-                                  quantity:
-                                      String(
-                                          line.quantity ??
-                                              "1",
-                                      ),
-                                  unit_price:
-                                      String(
-                                          line.unit_price ??
-                                              "0",
-                                      ),
-                                  discount_percent:
-                                      String(
-                                          line.discount_percent ??
-                                              financial?.discount_percent ??
-                                              0,
-                                      ),
-                                  tax_rate:
-                                      String(
-                                          line.tax_rate ??
-                                              "0",
-                                      ),
-                                  notes: String(
-                                      line.notes ??
-                                          "",
-                                  ),
-                              }),
-                          )
+                    ? detailLines.map((line, index) => ({
+                        key: uniqueKey(),
+
+                        line_no: Number(
+                            line.line_no ?? index + 1,
+                        ),
+
+                        line_type: String(
+                            line.line_type ?? "Product",
+                        ),
+
+                        product_id: String(
+                            line.product_id ?? "",
+                        ),
+
+                        project_area_id: String(
+                            line.project_area_id ?? "",
+                        ),
+
+                        description: String(
+                            line.description ?? "",
+                        ),
+
+                        sales_uom_code: String(
+                            line.sales_uom_code ?? "",
+                        ),
+
+                        base_uom_code: String(
+                            line.base_uom_code ?? "",
+                        ),
+
+                        conversion_factor: Number(
+                            line.conversion_factor ?? 1,
+                        ),
+
+                        base_quantity: Number(
+                            line.base_quantity ?? 0,
+                        ),
+
+                        allow_fractional_quantity: Boolean(
+                            line.allow_fractional_quantity ?? true,
+                        ),
+
+                        price_book_id: String(
+                            line.price_book_id ?? "",
+                        ),
+
+                        standard_reference_price: null,
+
+                        price_book_line_id: String(
+                            line.price_book_line_id ?? "",
+                        ),
+
+                        price_source: String(
+                            line.price_source ?? "Manual",
+                        ),
+
+                        original_unit_price: line.original_unit_price == null
+                            ? null
+                            : Number(
+                                line.original_unit_price,
+                            ),
+
+                        quantity: String(
+                            line.quantity ?? "1",
+                        ),
+
+                        unit_price: String(
+                            line.unit_price ?? "0",
+                        ),
+
+                        discount_percent: String(
+                            line.discount_percent ?? "0",
+                        ),
+
+                        tax_rate: String(
+                            line.tax_rate ?? "0",
+                        ),
+
+                        notes: String(
+                            line.notes ?? "",
+                        ),
+                    }))
                     : [
-                          createBlankLine(
-                              1,
-                          ),
-                      ],
+                        createBlankLine(1),
+                    ],
             );
 
             setSources(
@@ -1986,23 +2652,21 @@ const Invoices = () => {
                     )
                     .map((source) => ({
                         key: uniqueKey(),
-                        source_type:
-                            String(
-                                source.source_type ??
-                                    "Quotation",
-                            ) as
-                                | "Quotation"
-                                | "Variation",
-                        source_id:
-                            String(
-                                source.source_id ??
-                                    "",
-                            ),
-                        source_amount:
-                            String(
-                                source.source_amount ??
-                                    "0",
-                            ),
+                        source_type: String(
+                            source.source_type ??
+                                "Quotation",
+                        ) as
+                            | "Quotation"
+                            | "Quotation Revision"
+                            | "Variation",
+                        source_id: String(
+                            source.source_id ??
+                                "",
+                        ),
+                        source_amount: String(
+                            source.source_amount ??
+                                "0",
+                        ),
                     })),
             );
 
@@ -2014,6 +2678,103 @@ const Invoices = () => {
                     : "Unable to load Invoice.",
             );
         }
+    };
+
+    const handleSaveSellingPrice = () => {
+        if (!sellingProductId) {
+            toast.error("Product must be selected.");
+            return;
+        }
+
+        if (!sellingUom) {
+            toast.error("Selling UOM must be selected.");
+            return;
+        }
+
+        const product = (products.data ?? []).find(
+            (item) => item.product_id === sellingProductId,
+        );
+
+        if (!product) {
+            toast.error("Selected Product is invalid.");
+            return;
+        }
+
+        const validUom = getProductUoms(product).find(
+            (item) => item.uomCode === sellingUom,
+        );
+
+        if (!validUom) {
+            toast.error("Selected Selling UOM is not valid for this Product.");
+            return;
+        }
+
+        if (!sellingEffectiveFrom) {
+            toast.error("Effective From date is required.");
+            return;
+        }
+
+        const entries: Array<{
+            price_book_id: string;
+            unit_price: number;
+            minimum_price: number | null;
+        }> = [];
+
+        for (const book of sellingPriceBooks) {
+            const priceText = sellingPricesByBook[book.price_book_id] ?? "";
+            const minimumText =
+                sellingMinimumPricesByBook[book.price_book_id] ?? "";
+
+            // Blank means this Price Book remains Not Set.
+            if (!priceText.trim()) continue;
+
+            const unitPrice = Number(priceText);
+            if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+                toast.error(
+                    `${book.price_book_name} Selling Price must be >= 0.`,
+                );
+                return;
+            }
+
+            const minimumPrice = minimumText.trim()
+                ? Number(minimumText)
+                : null;
+
+            if (
+                minimumPrice !== null &&
+                (!Number.isFinite(minimumPrice) || minimumPrice < 0)
+            ) {
+                toast.error(
+                    `${book.price_book_name} Minimum Selling Price must be >= 0.`,
+                );
+                return;
+            }
+
+            if (minimumPrice !== null && minimumPrice > unitPrice) {
+                toast.error(
+                    `${book.price_book_name} Minimum Selling Price cannot exceed its Selling Price.`,
+                );
+                return;
+            }
+
+            entries.push({
+                price_book_id: book.price_book_id,
+                unit_price: unitPrice,
+                minimum_price: minimumPrice,
+            });
+        }
+
+        if (entries.length === 0) {
+            toast.error("Enter at least one Selling Price before saving.");
+            return;
+        }
+
+        setSellingPrices.mutate({
+            productId: sellingProductId,
+            priceUom: sellingUom,
+            effectiveFrom: sellingEffectiveFrom,
+            entries,
+        });
     };
 
     const exportCsv = () => {
@@ -2041,14 +2802,10 @@ const Invoices = () => {
                 row.invoice_type,
                 `${row.customer_code} - ${row.customer_name}`,
                 row.project_no
-                    ? `${row.project_no} - ${
-                          row.project_name ?? ""
-                      }`
+                    ? `${row.project_no} - ${row.project_name ?? ""}`
                     : "",
                 row.site_code
-                    ? `${row.site_code} - ${
-                          row.site_name ?? ""
-                      }`
+                    ? `${row.site_code} - ${row.site_name ?? ""}`
                     : "",
                 row.invoice_date,
                 row.due_date,
@@ -2062,7 +2819,7 @@ const Invoices = () => {
                 row.balance_amount,
             ]
                 .map(csvCell)
-                .join(","),
+                .join(",")
         );
 
         const blob = new Blob(
@@ -2079,16 +2836,13 @@ const Invoices = () => {
             },
         );
 
-        const url =
-            URL.createObjectURL(blob);
+        const url = URL.createObjectURL(blob);
 
-        const anchor =
-            document.createElement("a");
+        const anchor = document.createElement("a");
 
         anchor.href = url;
 
-        anchor.download =
-            `REDS-Invoices-${today()}.csv`;
+        anchor.download = `REDS-Invoices-${today()}.csv`;
 
         anchor.click();
 
@@ -2097,6 +2851,696 @@ const Invoices = () => {
 
     const printPage = () => {
         window.print();
+    };
+
+    const printCustomerInvoice = async (
+        invoice: Record<string, unknown>,
+        detailLines: InvoiceDetailLine[],
+    ) => {
+        const printWindow = window.open("", "_blank");
+
+        if (!printWindow) {
+            toast.error(
+                "Unable to open the Invoice print window. Please allow pop-ups and try again.",
+            );
+            return;
+        }
+
+        printWindow.document.write(
+            "<!doctype html><html><head><title>Preparing Invoice…</title></head><body style='font-family:Arial,sans-serif;padding:32px'>Preparing Invoice…</body></html>",
+        );
+        printWindow.document.close();
+
+        const escapeHtml = (value: unknown) =>
+            String(value ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+
+        const formatMoney = (value: unknown) =>
+            new Intl.NumberFormat("en-AU", {
+                style: "currency",
+                currency: "AUD",
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+            }).format(Number(value || 0));
+
+        const formatNumber = (value: unknown) =>
+            new Intl.NumberFormat("en-AU", {
+                maximumFractionDigits: 6,
+            }).format(Number(value || 0));
+
+        const formatDate = (value: unknown) =>
+            value ? new Date(String(value)).toLocaleDateString("en-AU") : "—";
+
+        const customerId = String(invoice.customer_id ?? "");
+        const projectSiteId = String(invoice.project_site_id ?? "");
+
+        let customerAddress:
+            | {
+                address_line1?: string | null;
+                address_line2?: string | null;
+                suburb?: string | null;
+                state?: string | null;
+                postcode?: string | null;
+                country?: string | null;
+            }
+            | null = null;
+
+        let projectSite:
+            | {
+                address_line_1?: string | null;
+                address_line_2?: string | null;
+                suburb?: string | null;
+                state?: string | null;
+                postcode?: string | null;
+                country?: string | null;
+            }
+            | null = null;
+
+        try {
+            if (customerId) {
+                const { data, error } = await (supabase as any)
+                    .from("customer_addresses")
+                    .select(
+                        "address_line1, address_line2, suburb, state, postcode, country, address_type, is_primary",
+                    )
+                    .eq("customer_id", customerId)
+                    .eq("is_deleted", false)
+                    .eq("is_active", true)
+                    .order("is_primary", {
+                        ascending: false,
+                    });
+
+                if (error) {
+                    throw error;
+                }
+
+                const addresses = data ?? [];
+                customerAddress = addresses.find(
+                    (address: any) =>
+                        String(address.address_type ?? "").toLowerCase() ===
+                            "billing",
+                ) ??
+                    addresses.find(
+                        (address: any) => Boolean(address.is_primary),
+                    ) ??
+                    addresses[0] ??
+                    null;
+            }
+
+            if (projectSiteId) {
+                const { data, error } = await (supabase as any)
+                    .from("project_sites")
+                    .select(
+                        "address_line_1, address_line_2, suburb, state, postcode, country",
+                    )
+                    .eq("site_id", projectSiteId)
+                    .eq("is_deleted", false)
+                    .maybeSingle();
+
+                if (error) {
+                    throw error;
+                }
+
+                projectSite = data ?? null;
+            }
+        } catch (error) {
+            printWindow.close();
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Unable to load Invoice address details.",
+            );
+            return;
+        }
+
+        const addressLines = (
+            address:
+                | {
+                    address_line1?: string | null;
+                    address_line2?: string | null;
+                    address_line_1?: string | null;
+                    address_line_2?: string | null;
+                    suburb?: string | null;
+                    state?: string | null;
+                    postcode?: string | null;
+                    country?: string | null;
+                }
+                | null,
+        ) => {
+            if (!address) return ["—"];
+
+            const firstLine = address.address_line1 ??
+                address.address_line_1 ??
+                "";
+            const secondLine = address.address_line2 ??
+                address.address_line_2 ??
+                "";
+            const locality = [
+                address.suburb,
+                address.state,
+                address.postcode,
+            ]
+                .filter(Boolean)
+                .join(" ");
+
+            return [
+                firstLine,
+                secondLine,
+                locality,
+                address.country,
+            ].filter(
+                (line): line is string => Boolean(String(line ?? "").trim()),
+            );
+        };
+
+        const billingAddressLines = addressLines(customerAddress);
+        const projectAddressLines = addressLines(projectSite);
+
+        const lineAmountType = normalizeLineAmountType(
+            String(invoice.line_amount_type ?? "Exclusive"),
+        );
+
+        const discountAmount = Number(invoice.discount_amount || 0);
+        const taxAmount = Number(invoice.tax_amount || 0);
+        const paidAmount = Number(invoice.paid_amount || 0);
+        const balanceAmount = Number(invoice.balance_amount || 0);
+
+        const lineRows = detailLines
+            .map((line) => {
+                const lineAmount = lineAmountType === "Exclusive"
+                    ? Number(line.line_subtotal || 0) -
+                        Number(line.discount_amount || 0)
+                    : Number(line.line_total || 0);
+
+                const productLabel = [
+                    line.product_code,
+                    line.description,
+                ]
+                    .filter(Boolean)
+                    .join(" — ");
+
+                return `
+                    <tr>
+                        <td class="description">${
+                    escapeHtml(
+                        productLabel || line.product_name || "Item",
+                    )
+                }</td>
+                        <td class="num">${
+                    escapeHtml(
+                        formatNumber(line.quantity),
+                    )
+                }</td>
+                        <td>${escapeHtml(line.sales_uom_code || "—")}</td>
+                        <td class="num">${
+                    escapeHtml(
+                        formatMoney(line.unit_price),
+                    )
+                }</td>
+                        <td class="num">${
+                    escapeHtml(
+                        formatMoney(lineAmount),
+                    )
+                }</td>
+                    </tr>
+                `;
+            })
+            .join("");
+
+        const discountRow = discountAmount > 0
+            ? `
+                    <tr>
+                        <td>Discount</td>
+                        <td>${escapeHtml(formatMoney(discountAmount))}</td>
+                    </tr>
+                `
+            : "";
+
+        const summaryRows = lineAmountType === "Exclusive"
+            ? `
+                    <tr>
+                        <td>Subtotal</td>
+                        <td>${
+                escapeHtml(
+                    formatMoney(invoice.subtotal_amount),
+                )
+            }</td>
+                    </tr>
+                    ${discountRow}
+                    <tr>
+                        <td>GST</td>
+                        <td>${escapeHtml(formatMoney(taxAmount))}</td>
+                    </tr>
+                    <tr class="invoice-total">
+                        <td>Invoice Total</td>
+                        <td>${
+                escapeHtml(
+                    formatMoney(invoice.total_amount),
+                )
+            }</td>
+                    </tr>
+                `
+            : lineAmountType === "Inclusive"
+            ? `
+                    ${discountRow}
+                    <tr class="invoice-total">
+                        <td>Invoice Total incl GST</td>
+                        <td>${
+                escapeHtml(
+                    formatMoney(invoice.total_amount),
+                )
+            }</td>
+                    </tr>
+                `
+            : `
+                    <tr>
+                        <td>Subtotal</td>
+                        <td>${
+                escapeHtml(
+                    formatMoney(invoice.subtotal_amount),
+                )
+            }</td>
+                    </tr>
+                    ${discountRow}
+                    <tr class="invoice-total">
+                        <td>Invoice Total</td>
+                        <td>${
+                escapeHtml(
+                    formatMoney(invoice.total_amount),
+                )
+            }</td>
+                    </tr>
+                `;
+
+        const projectName = String(invoice.project_name ?? "").trim();
+        const siteName = String(invoice.site_name ?? "").trim();
+        const projectDisplay = [projectName, siteName]
+            .filter(Boolean)
+            .join(" — ");
+
+        const invoiceNo = String(invoice.invoice_no ?? "Invoice");
+        const customerName = String(invoice.customer_name ?? "Customer");
+        const customerCode = String(invoice.customer_code ?? "").trim();
+        const customerReference = String(
+            invoice.customer_reference ?? "",
+        ).trim();
+
+        const html = `
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>${escapeHtml(invoiceNo)} — REDS Invoice</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 13mm 14mm 14mm;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            color: #171717;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 11px;
+            line-height: 1.45;
+            background: #fff;
+        }
+
+        .invoice {
+            width: 100%;
+            max-width: 100%;
+        }
+
+        .header {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 28px;
+            padding-bottom: 18px;
+            border-bottom: 2px solid #8B3F3F;
+        }
+
+        .brand {
+            font-size: 42px;
+            line-height: 0.9;
+            font-weight: 900;
+            letter-spacing: -2px;
+            color: #B4232B;
+        }
+
+        .tagline {
+            margin-top: 5px;
+            color: #8B3F3F;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1.1px;
+        }
+
+        .company {
+            margin-top: 15px;
+            color: #333;
+        }
+
+        .invoice-title {
+            text-align: right;
+        }
+
+        .invoice-title h1 {
+            margin: 0 0 12px;
+            font-size: 28px;
+            letter-spacing: 0.8px;
+            color: #222;
+        }
+
+        .meta {
+            margin-left: auto;
+            border-collapse: collapse;
+        }
+
+        .meta td {
+            padding: 2px 0 2px 16px;
+            vertical-align: top;
+        }
+
+        .meta td:first-child {
+            color: #666;
+            font-weight: 700;
+        }
+
+        .parties {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 28px;
+            margin: 22px 0;
+        }
+
+        .label {
+            margin-bottom: 5px;
+            color: #8B3F3F;
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+        }
+
+        .name {
+            margin-bottom: 3px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .muted {
+            color: #666;
+        }
+
+        .lines {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .lines thead {
+            display: table-header-group;
+        }
+
+        .lines th {
+            padding: 8px 7px;
+            color: #fff;
+            background: #8B3F3F;
+            font-size: 10px;
+            text-align: left;
+        }
+
+        .lines th:nth-child(1) { width: 48%; }
+        .lines th:nth-child(2) { width: 10%; }
+        .lines th:nth-child(3) { width: 10%; }
+        .lines th:nth-child(4) { width: 16%; }
+        .lines th:nth-child(5) { width: 16%; }
+
+        .lines td {
+            padding: 9px 7px;
+            vertical-align: top;
+            border-bottom: 1px solid #dedede;
+        }
+
+        .lines tr {
+            break-inside: avoid;
+        }
+
+        .description {
+            overflow-wrap: anywhere;
+        }
+
+        .num {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .summary-wrap {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 16px;
+            break-inside: avoid;
+        }
+
+        .summary {
+            width: 290px;
+            border-collapse: collapse;
+        }
+
+        .summary td {
+            padding: 4px 0 4px 18px;
+        }
+
+        .summary td:first-child {
+            color: #555;
+        }
+
+        .summary td:last-child {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .invoice-total td {
+            padding-top: 8px;
+            border-top: 1px solid #bbb;
+            font-weight: 700;
+        }
+
+        .amount-due td {
+            padding-top: 9px;
+            border-top: 2px solid #8B3F3F;
+            color: #8B3F3F !important;
+            font-size: 15px;
+            font-weight: 800;
+        }
+
+        .footer {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 26px;
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px solid #bbb;
+            break-inside: avoid;
+        }
+
+        .footer h3 {
+            margin: 0 0 6px;
+            color: #8B3F3F;
+            font-size: 11px;
+        }
+
+        .footer p {
+            margin: 2px 0;
+        }
+
+        .print-note {
+            margin-top: 22px;
+            color: #777;
+            font-size: 9px;
+            text-align: center;
+        }
+
+        @media print {
+            .print-note {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="invoice">
+        <section class="header">
+            <div>
+                <div class="brand">REDS</div>
+                <div class="tagline">TIMBER FLOORING SPECIALISTS</div>
+
+                <div class="company">
+                    <strong>REDS FLOORING PTY LTD</strong><br />
+                    Unit 27 70 Norma Road Myaree WA 6154<br />
+                    ABN: 61 621 645 949<br />
+                    Ph: 0498 072 147<br />
+                    projects@redstimberflooring.com<br />
+                    accounts@redstimberflooring.com<br />
+                    www.redstimberflooring.com
+                </div>
+            </div>
+
+            <div class="invoice-title">
+                <h1>TAX INVOICE</h1>
+
+                <table class="meta">
+                    <tr>
+                        <td>Invoice No.</td>
+                        <td>${escapeHtml(invoiceNo)}</td>
+                    </tr>
+                    <tr>
+                        <td>Invoice Date</td>
+                        <td>${
+            escapeHtml(
+                formatDate(invoice.invoice_date),
+            )
+        }</td>
+                    </tr>
+                    <tr>
+                        <td>Due Date</td>
+                        <td>${
+            escapeHtml(
+                formatDate(invoice.due_date),
+            )
+        }</td>
+                    </tr>
+                    ${
+            customerReference
+                ? `<tr><td>Reference</td><td>${
+                    escapeHtml(
+                        customerReference,
+                    )
+                }</td></tr>`
+                : ""
+        }
+                </table>
+            </div>
+        </section>
+
+        <section class="parties">
+            <div>
+                <div class="label">Bill To</div>
+                <div class="name">${escapeHtml(customerName)}</div>
+                ${
+            customerCode
+                ? `<div class="muted">${
+                    escapeHtml(
+                        customerCode,
+                    )
+                }</div>`
+                : ""
+        }
+                ${
+            billingAddressLines
+                .map((line) => `<div>${escapeHtml(line)}</div>`)
+                .join("")
+        }
+            </div>
+
+            <div>
+                <div class="label">Project / Site</div>
+                <div class="name">${
+            escapeHtml(
+                projectDisplay || "—",
+            )
+        }</div>
+                ${
+            projectAddressLines
+                .map((line) => `<div>${escapeHtml(line)}</div>`)
+                .join("")
+        }
+            </div>
+        </section>
+
+        <table class="lines">
+            <thead>
+                <tr>
+                    <th>Product Code / Description</th>
+                    <th class="num">Qty</th>
+                    <th>UOM</th>
+                    <th class="num">Unit Price</th>
+                    <th class="num">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${
+            lineRows ||
+            `<tr><td colspan="5" style="text-align:center;color:#777;padding:20px">No invoice lines.</td></tr>`
+        }
+            </tbody>
+        </table>
+
+        <div class="summary-wrap">
+            <table class="summary">
+                ${summaryRows}
+                <tr>
+                    <td>Paid</td>
+                    <td>${escapeHtml(formatMoney(paidAmount))}</td>
+                </tr>
+                <tr class="amount-due">
+                    <td>AMOUNT DUE</td>
+                    <td>${escapeHtml(formatMoney(balanceAmount))}</td>
+                </tr>
+            </table>
+        </div>
+
+        <section class="footer">
+            <div>
+                <h3>Electronic Funds Transfer</h3>
+                <p><strong>Account Name:</strong> Reds Flooring Pty Ltd</p>
+                <p><strong>Account BSB:</strong> 016-267</p>
+                <p><strong>Account Number:</strong> 466752247</p>
+                <p><strong>Reference:</strong> ${escapeHtml(invoiceNo)}</p>
+            </div>
+
+            <div>
+                <h3>Defect Claims</h3>
+                <p>
+                    All claims of defect or dispute must be made in writing
+                    within 14 days of the invoice date.
+                </p>
+                <p>
+                    Failure to provide this notice will result in the Invoice
+                    being due and payable as per the original terms.
+                </p>
+            </div>
+        </section>
+
+        <div class="print-note">
+            Use your browser Print dialog to print this Invoice or choose
+            “Save as PDF”.
+        </div>
+    </main>
+
+    <script>
+        window.addEventListener("load", function () {
+            setTimeout(function () {
+                window.focus();
+                window.print();
+            }, 250);
+        });
+    </script>
+</body>
+</html>
+        `;
+
+        printWindow.document.open();
+        printWindow.document.write(html);
+        printWindow.document.close();
     };
 
     const renderList = () => (
@@ -2112,8 +3556,7 @@ const Invoices = () => {
                     </div>
 
                     <p className="mt-1 text-sm text-slate-500">
-                        Create, review, issue and
-                        monitor REDS customer
+                        Create, review, issue and monitor REDS customer
                         invoices.
                     </p>
                 </div>
@@ -2141,12 +3584,8 @@ const Invoices = () => {
                         "invoices.create"
                     ] && (
                         <Button
-                            className={
-                                RED_BUTTON
-                            }
-                            onClick={
-                                openCreate
-                            }
+                            className={RED_BUTTON}
+                            onClick={openCreate}
                         >
                             <Plus className="mr-2 h-4 w-4" />
                             New Invoice
@@ -2159,8 +3598,7 @@ const Invoices = () => {
                 {[
                     {
                         label: "Invoiced",
-                        value:
-                            summary.invoiced,
+                        value: summary.invoiced,
                         icon: FileText,
                     },
                     {
@@ -2169,19 +3607,14 @@ const Invoices = () => {
                         icon: CheckCircle2,
                     },
                     {
-                        label:
-                            "Outstanding",
-                        value:
-                            summary.outstanding,
-                        icon:
-                            CircleDollarSign,
+                        label: "Outstanding",
+                        value: summary.outstanding,
+                        icon: CircleDollarSign,
                     },
                     {
                         label: "Overdue",
-                        value:
-                            summary.overdue,
-                        icon:
-                            AlertTriangle,
+                        value: summary.overdue,
+                        icon: AlertTriangle,
                     },
                 ].map((item) => (
                     <Card
@@ -2191,9 +3624,7 @@ const Invoices = () => {
                         <CardContent className="flex items-center justify-between p-5">
                             <div>
                                 <p className="text-sm text-slate-500">
-                                    {
-                                        item.label
-                                    }
+                                    {item.label}
                                 </p>
 
                                 <p className="mt-1 text-2xl font-bold text-slate-900">
@@ -2237,9 +3668,7 @@ const Invoices = () => {
                         </div>
 
                         <Select
-                            value={
-                                documentStatus
-                            }
+                            value={documentStatus}
                             onValueChange={(
                                 value,
                             ) => {
@@ -2250,9 +3679,7 @@ const Invoices = () => {
                             }}
                         >
                             <SelectTrigger
-                                className={
-                                    INPUT_CLASS
-                                }
+                                className={INPUT_CLASS}
                             >
                                 <SelectValue placeholder="Document Status" />
                             </SelectTrigger>
@@ -2270,15 +3697,11 @@ const Invoices = () => {
                                         status,
                                     ) => (
                                         <SelectItem
-                                            key={
-                                                status
-                                            }
-                                            value={
-                                                status
-                                            }
+                                            key={status}
+                                            value={status}
                                         >
                                             {status ===
-                                            "All"
+                                                    "All"
                                                 ? "All Document Statuses"
                                                 : status}
                                         </SelectItem>
@@ -2288,9 +3711,7 @@ const Invoices = () => {
                         </Select>
 
                         <Select
-                            value={
-                                paymentStatus
-                            }
+                            value={paymentStatus}
                             onValueChange={(
                                 value,
                             ) => {
@@ -2301,9 +3722,7 @@ const Invoices = () => {
                             }}
                         >
                             <SelectTrigger
-                                className={
-                                    INPUT_CLASS
-                                }
+                                className={INPUT_CLASS}
                             >
                                 <SelectValue placeholder="Payment Status" />
                             </SelectTrigger>
@@ -2320,15 +3739,11 @@ const Invoices = () => {
                                         status,
                                     ) => (
                                         <SelectItem
-                                            key={
-                                                status
-                                            }
-                                            value={
-                                                status
-                                            }
+                                            key={status}
+                                            value={status}
                                         >
                                             {status ===
-                                            "All"
+                                                    "All"
                                                 ? "All Payment Statuses"
                                                 : status}
                                         </SelectItem>
@@ -2338,9 +3753,7 @@ const Invoices = () => {
                         </Select>
 
                         <Select
-                            value={
-                                invoiceTypeFilter
-                            }
+                            value={invoiceTypeFilter}
                             onValueChange={(
                                 value,
                             ) => {
@@ -2351,9 +3764,7 @@ const Invoices = () => {
                             }}
                         >
                             <SelectTrigger
-                                className={
-                                    INPUT_CLASS
-                                }
+                                className={INPUT_CLASS}
                             >
                                 <SelectValue placeholder="Invoice Type" />
                             </SelectTrigger>
@@ -2371,15 +3782,11 @@ const Invoices = () => {
                                 ].map(
                                     (type) => (
                                         <SelectItem
-                                            key={
-                                                type
-                                            }
-                                            value={
-                                                type
-                                            }
+                                            key={type}
+                                            value={type}
                                         >
                                             {type ===
-                                            "All"
+                                                    "All"
                                                 ? "All Invoice Types"
                                                 : type}
                                         </SelectItem>
@@ -2391,9 +3798,7 @@ const Invoices = () => {
                         <Button
                             variant="outline"
                             className="h-11 rounded-xl"
-                            onClick={() =>
-                                invoiceList.refetch()
-                            }
+                            onClick={() => invoiceList.refetch()}
                         >
                             <RefreshCw className="mr-2 h-4 w-4" />
                             Refresh
@@ -2403,18 +3808,13 @@ const Invoices = () => {
                     <div className="grid gap-3 sm:grid-cols-2 md:max-w-xl">
                         <div>
                             <Label className="text-xs text-slate-500">
-                                Invoice
-                                date from
+                                Invoice date from
                             </Label>
 
                             <Input
                                 type="date"
-                                className={
-                                    INPUT_CLASS
-                                }
-                                value={
-                                    dateFrom
-                                }
+                                className={INPUT_CLASS}
+                                value={dateFrom}
                                 onChange={(
                                     event,
                                 ) => {
@@ -2432,18 +3832,13 @@ const Invoices = () => {
 
                         <div>
                             <Label className="text-xs text-slate-500">
-                                Invoice
-                                date to
+                                Invoice date to
                             </Label>
 
                             <Input
                                 type="date"
-                                className={
-                                    INPUT_CLASS
-                                }
-                                value={
-                                    dateTo
-                                }
+                                className={INPUT_CLASS}
+                                value={dateTo}
                                 onChange={(
                                     event,
                                 ) => {
@@ -2473,8 +3868,7 @@ const Invoices = () => {
                                     </TableHead>
 
                                     <TableHead>
-                                        Customer
-                                        / Project
+                                        Customer / Project
                                     </TableHead>
 
                                     <TableHead>
@@ -2504,183 +3898,171 @@ const Invoices = () => {
                             </TableHeader>
 
                             <TableBody>
-                                {invoiceList.isLoading ? (
-                                    <TableRow>
-                                        <TableCell
-                                            colSpan={
-                                                8
-                                            }
-                                            className="h-32 text-center"
-                                        >
-                                            <Loader2 className="mx-auto h-6 w-6 animate-spin text-[#8B3F3F]" />
-                                        </TableCell>
-                                    </TableRow>
-                                ) : rows.length ===
-                                  0 ? (
-                                    <TableRow>
-                                        <TableCell
-                                            colSpan={
-                                                8
-                                            }
-                                            className="h-32 text-center"
-                                        >
-                                            <FileText className="mx-auto h-8 w-8 text-slate-300" />
-
-                                            <p className="mt-2 font-medium text-slate-600">
-                                                No
-                                                Invoices
-                                                found
-                                            </p>
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    rows.map(
-                                        (
-                                            row,
-                                        ) => (
-                                            <TableRow
-                                                key={
-                                                    row.customer_invoice_id
-                                                }
-                                                className="cursor-pointer hover:bg-slate-50"
-                                                onClick={() =>
-                                                    openDetail(
-                                                        row.customer_invoice_id,
-                                                    )
-                                                }
+                                {invoiceList.isLoading
+                                    ? (
+                                        <TableRow>
+                                            <TableCell
+                                                colSpan={8}
+                                                className="h-32 text-center"
                                             >
-                                                <TableCell>
-                                                    <p className="font-semibold text-slate-900">
-                                                        {
-                                                            row.invoice_no
-                                                        }
-                                                    </p>
-
-                                                    <p className="text-xs text-slate-500">
-                                                        {
-                                                            row.invoice_type
-                                                        }
-                                                    </p>
-                                                </TableCell>
-
-                                                <TableCell>
-                                                    <p className="font-medium text-slate-900">
-                                                        {
-                                                            row.customer_code
-                                                        }{" "}
-                                                        —{" "}
-                                                        {
-                                                            row.customer_name
-                                                        }
-                                                    </p>
-
-                                                    <p className="text-xs text-slate-500">
-                                                        {row.project_no
-                                                            ? `${row.project_no} — ${row.project_name ?? ""}`
-                                                            : "No Project"}
-
-                                                        {row.site_code
-                                                            ? ` / ${row.site_code} — ${row.site_name ?? ""}`
-                                                            : ""}
-                                                    </p>
-                                                </TableCell>
-
-                                                <TableCell>
-                                                    <p className="text-sm">
-                                                        Invoice:{" "}
-                                                        {dateText(
-                                                            row.invoice_date,
-                                                        )}
-                                                    </p>
-
-                                                    <p className="text-xs text-slate-500">
-                                                        Due:{" "}
-                                                        {dateText(
-                                                            row.due_date,
-                                                        )}
-                                                    </p>
-                                                </TableCell>
-
-                                                <TableCell>
-                                                    <div className="flex flex-wrap gap-1">
-                                                        <Badge
-                                                            variant="outline"
-                                                            className={statusBadgeClass(
-                                                                row.document_status,
-                                                            )}
-                                                        >
-                                                            {
-                                                                row.document_status
-                                                            }
-                                                        </Badge>
-
-                                                        <Badge
-                                                            variant="outline"
-                                                            className={statusBadgeClass(
-                                                                row.payment_status,
-                                                            )}
-                                                        >
-                                                            {
-                                                                row.payment_status
-                                                            }
-                                                        </Badge>
-                                                    </div>
-
-                                                    {Number(
-                                                        row.days_overdue ||
-                                                            0,
-                                                    ) >
-                                                        0 && (
-                                                        <p className="mt-1 text-xs font-medium text-orange-600">
-                                                            {
-                                                                row.days_overdue
-                                                            }{" "}
-                                                            days
-                                                            overdue
-                                                        </p>
-                                                    )}
-                                                </TableCell>
-
-                                                <TableCell className="text-right font-semibold">
-                                                    {money(
-                                                        row.total_amount,
-                                                    )}
-                                                </TableCell>
-
-                                                <TableCell className="text-right">
-                                                    {money(
-                                                        row.paid_amount,
-                                                    )}
-                                                </TableCell>
-
-                                                <TableCell className="text-right font-semibold">
-                                                    {money(
-                                                        row.balance_amount,
-                                                    )}
-                                                </TableCell>
-
-                                                <TableCell className="text-right">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="rounded-xl"
-                                                        onClick={(
-                                                            event,
-                                                        ) => {
-                                                            event.stopPropagation();
-
-                                                            openDetail(
-                                                                row.customer_invoice_id,
-                                                            );
-                                                        }}
-                                                    >
-                                                        <Eye className="h-4 w-4" />
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        ),
+                                                <Loader2 className="mx-auto h-6 w-6 animate-spin text-[#8B3F3F]" />
+                                            </TableCell>
+                                        </TableRow>
                                     )
-                                )}
+                                    : rows.length ===
+                                            0
+                                    ? (
+                                        <TableRow>
+                                            <TableCell
+                                                colSpan={8}
+                                                className="h-32 text-center"
+                                            >
+                                                <FileText className="mx-auto h-8 w-8 text-slate-300" />
+
+                                                <p className="mt-2 font-medium text-slate-600">
+                                                    No Invoices found
+                                                </p>
+                                            </TableCell>
+                                        </TableRow>
+                                    )
+                                    : (
+                                        rows.map(
+                                            (
+                                                row,
+                                            ) => (
+                                                <TableRow
+                                                    key={row
+                                                        .customer_invoice_id}
+                                                    className="cursor-pointer hover:bg-slate-50"
+                                                    onClick={() =>
+                                                        openDetail(
+                                                            row.customer_invoice_id,
+                                                        )}
+                                                >
+                                                    <TableCell>
+                                                        <p className="font-semibold text-slate-900">
+                                                            {row.invoice_no}
+                                                        </p>
+
+                                                        <p className="text-xs text-slate-500">
+                                                            {row.invoice_type}
+                                                        </p>
+                                                    </TableCell>
+
+                                                    <TableCell>
+                                                        <p className="font-medium text-slate-900">
+                                                            {row.customer_code}
+                                                            {" "}
+                                                            —{" "}
+                                                            {row.customer_name}
+                                                        </p>
+
+                                                        <p className="text-xs text-slate-500">
+                                                            {row.project_no
+                                                                ? `${row.project_no} — ${
+                                                                    row.project_name ??
+                                                                        ""
+                                                                }`
+                                                                : "No Project"}
+
+                                                            {row.site_code
+                                                                ? ` / ${row.site_code} — ${
+                                                                    row.site_name ??
+                                                                        ""
+                                                                }`
+                                                                : ""}
+                                                        </p>
+                                                    </TableCell>
+
+                                                    <TableCell>
+                                                        <p className="text-sm">
+                                                            Invoice: {dateText(
+                                                                row.invoice_date,
+                                                            )}
+                                                        </p>
+
+                                                        <p className="text-xs text-slate-500">
+                                                            Due: {dateText(
+                                                                row.due_date,
+                                                            )}
+                                                        </p>
+                                                    </TableCell>
+
+                                                    <TableCell>
+                                                        <div className="flex flex-wrap gap-1">
+                                                            <Badge
+                                                                variant="outline"
+                                                                className={statusBadgeClass(
+                                                                    row.document_status,
+                                                                )}
+                                                            >
+                                                                {row.document_status}
+                                                            </Badge>
+
+                                                            <Badge
+                                                                variant="outline"
+                                                                className={statusBadgeClass(
+                                                                    row.payment_status,
+                                                                )}
+                                                            >
+                                                                {row.payment_status}
+                                                            </Badge>
+                                                        </div>
+
+                                                        {Number(
+                                                                    row.days_overdue ||
+                                                                        0,
+                                                                ) >
+                                                                0 && (
+                                                            <p className="mt-1 text-xs font-medium text-orange-600">
+                                                                {row.days_overdue}
+                                                                {" "}
+                                                                days overdue
+                                                            </p>
+                                                        )}
+                                                    </TableCell>
+
+                                                    <TableCell className="text-right font-semibold">
+                                                        {money(
+                                                            row.total_amount,
+                                                        )}
+                                                    </TableCell>
+
+                                                    <TableCell className="text-right">
+                                                        {money(
+                                                            row.paid_amount,
+                                                        )}
+                                                    </TableCell>
+
+                                                    <TableCell className="text-right font-semibold">
+                                                        {money(
+                                                            row.balance_amount,
+                                                        )}
+                                                    </TableCell>
+
+                                                    <TableCell className="text-right">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="rounded-xl"
+                                                            onClick={(
+                                                                event,
+                                                            ) => {
+                                                                event
+                                                                    .stopPropagation();
+
+                                                                openDetail(
+                                                                    row.customer_invoice_id,
+                                                                );
+                                                            }}
+                                                        >
+                                                            <Eye className="h-4 w-4" />
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ),
+                                        )
+                                    )}
                             </TableBody>
                         </Table>
                     </div>
@@ -2689,11 +4071,13 @@ const Invoices = () => {
                         <p className="text-sm text-slate-500">
                             {totalRows === 0
                                 ? "0 records"
-                                : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(
-                                      page *
-                                          PAGE_SIZE,
-                                      totalRows,
-                                  )} of ${totalRows}`}
+                                : `${(page - 1) * PAGE_SIZE + 1}–${
+                                    Math.min(
+                                        page *
+                                            PAGE_SIZE,
+                                        totalRows,
+                                    )
+                                } of ${totalRows}`}
                         </p>
 
                         <div className="flex items-center gap-2">
@@ -2701,47 +4085,35 @@ const Invoices = () => {
                                 variant="outline"
                                 size="icon"
                                 className="rounded-xl"
-                                disabled={
-                                    page <= 1
-                                }
+                                disabled={page <= 1}
                                 onClick={() =>
                                     setPage(
                                         (
                                             current,
-                                        ) =>
-                                            current -
+                                        ) => current -
                                             1,
-                                    )
-                                }
+                                    )}
                             >
                                 <ChevronLeft className="h-4 w-4" />
                             </Button>
 
                             <span className="text-sm text-slate-600">
-                                Page {page}{" "}
-                                of{" "}
-                                {
-                                    totalPages
-                                }
+                                Page {page} of {totalPages}
                             </span>
 
                             <Button
                                 variant="outline"
                                 size="icon"
                                 className="rounded-xl"
-                                disabled={
-                                    page >=
-                                    totalPages
-                                }
+                                disabled={page >=
+                                    totalPages}
                                 onClick={() =>
                                     setPage(
                                         (
                                             current,
-                                        ) =>
-                                            current +
+                                        ) => current +
                                             1,
-                                    )
-                                }
+                                    )}
                             >
                                 <ChevronRight className="h-4 w-4" />
                             </Button>
@@ -2760,26 +4132,19 @@ const Invoices = () => {
                         variant="outline"
                         size="icon"
                         className="mt-1 rounded-xl"
-                        onClick={
-                            closeToList
-                        }
+                        onClick={closeToList}
                     >
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
 
                     <div>
                         <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">
-                            {editingId
-                                ? "Edit Draft Invoice"
-                                : "New Invoice"}
+                            {editingId ? "Edit Draft Invoice" : "New Invoice"}
                         </h1>
 
                         <p className="mt-1 text-sm text-slate-500">
-                            Invoice number
-                            is generated
-                            automatically
-                            when the Draft is
-                            saved.
+                            Invoice number is generated automatically when the
+                            Draft is saved.
                         </p>
                     </div>
                 </div>
@@ -2788,33 +4153,21 @@ const Invoices = () => {
                     <Button
                         variant="outline"
                         className="rounded-xl"
-                        onClick={
-                            closeToList
-                        }
+                        onClick={closeToList}
                     >
                         Cancel
                     </Button>
 
                     <Button
-                        className={
-                            RED_BUTTON
-                        }
-                        disabled={
-                            saveInvoice.isPending
-                        }
-                        onClick={() =>
-                            saveInvoice.mutate()
-                        }
+                        className={RED_BUTTON}
+                        disabled={saveInvoice.isPending}
+                        onClick={() => saveInvoice.mutate()}
                     >
-                        {saveInvoice.isPending ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                            <FilePlus2 className="mr-2 h-4 w-4" />
-                        )}
+                        {saveInvoice.isPending
+                            ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            : <FilePlus2 className="mr-2 h-4 w-4" />}
 
-                        {editingId
-                            ? "Update Draft"
-                            : "Save Draft"}
+                        {editingId ? "Update Draft" : "Save Draft"}
                     </Button>
                 </div>
             </div>
@@ -2826,9 +4179,7 @@ const Invoices = () => {
 
                         <div>
                             <p className="font-semibold">
-                                Customer
-                                account is on
-                                hold
+                                Customer account is on hold
                             </p>
 
                             <p className="mt-1 text-sm">
@@ -2858,20 +4209,14 @@ const Invoices = () => {
                             </Label>
 
                             <Select
-                                value={
-                                    customerId
-                                }
-                                onValueChange={
-                                    applyCustomerDefaults
-                                }
+                                value={customerId}
+                                onValueChange={applyCustomerDefaults}
                                 disabled={Boolean(
                                     editingId,
                                 )}
                             >
                                 <SelectTrigger
-                                    className={
-                                        INPUT_CLASS
-                                    }
+                                    className={INPUT_CLASS}
                                 >
                                     <SelectValue placeholder="Select Customer" />
                                 </SelectTrigger>
@@ -2879,26 +4224,17 @@ const Invoices = () => {
                                 <SelectContent>
                                     {(
                                         customers.data ??
-                                        []
+                                            []
                                     ).map(
                                         (
                                             customer,
                                         ) => (
                                             <SelectItem
-                                                key={
-                                                    customer.customer_id
-                                                }
-                                                value={
-                                                    customer.customer_id
-                                                }
+                                                key={customer.customer_id}
+                                                value={customer.customer_id}
                                             >
-                                                {
-                                                    customer.customer_code
-                                                }{" "}
-                                                —{" "}
-                                                {
-                                                    customer.customer_name
-                                                }
+                                                {customer.customer_code} —{" "}
+                                                {customer.customer_name}
                                             </SelectItem>
                                         ),
                                     )}
@@ -2912,16 +4248,14 @@ const Invoices = () => {
                             </Label>
 
                             <Select
-                                value={
-                                    projectId ||
-                                    "none"
-                                }
+                                value={projectId ||
+                                    "none"}
                                 onValueChange={(
                                     value,
                                 ) => {
                                     setProjectId(
                                         value ===
-                                            "none"
+                                                "none"
                                             ? ""
                                             : value,
                                     );
@@ -2934,25 +4268,20 @@ const Invoices = () => {
                                         [],
                                     );
                                 }}
-                                disabled={
-                                    !customerId ||
+                                disabled={!customerId ||
                                     Boolean(
                                         editingId,
-                                    )
-                                }
+                                    )}
                             >
                                 <SelectTrigger
-                                    className={
-                                        INPUT_CLASS
-                                    }
+                                    className={INPUT_CLASS}
                                 >
                                     <SelectValue placeholder="Select Project" />
                                 </SelectTrigger>
 
                                 <SelectContent>
                                     <SelectItem value="none">
-                                        No
-                                        Project
+                                        No Project
                                     </SelectItem>
 
                                     {filteredProjects.map(
@@ -2960,20 +4289,11 @@ const Invoices = () => {
                                             project,
                                         ) => (
                                             <SelectItem
-                                                key={
-                                                    project.project_id
-                                                }
-                                                value={
-                                                    project.project_id
-                                                }
+                                                key={project.project_id}
+                                                value={project.project_id}
                                             >
-                                                {
-                                                    project.project_no
-                                                }{" "}
-                                                —{" "}
-                                                {
-                                                    project.project_name
-                                                }
+                                                {project.project_no} —{" "}
+                                                {project.project_name}
                                             </SelectItem>
                                         ),
                                     )}
@@ -2987,16 +4307,14 @@ const Invoices = () => {
                             </Label>
 
                             <Select
-                                value={
-                                    siteId ||
-                                    "none"
-                                }
+                                value={siteId ||
+                                    "none"}
                                 onValueChange={(
                                     value,
                                 ) => {
                                     setSiteId(
                                         value ===
-                                            "none"
+                                                "none"
                                             ? ""
                                             : value,
                                     );
@@ -3005,17 +4323,13 @@ const Invoices = () => {
                                         [],
                                     );
                                 }}
-                                disabled={
-                                    !projectId ||
+                                disabled={!projectId ||
                                     Boolean(
                                         editingId,
-                                    )
-                                }
+                                    )}
                             >
                                 <SelectTrigger
-                                    className={
-                                        INPUT_CLASS
-                                    }
+                                    className={INPUT_CLASS}
                                 >
                                     <SelectValue placeholder="Select Site" />
                                 </SelectTrigger>
@@ -3030,20 +4344,11 @@ const Invoices = () => {
                                             site,
                                         ) => (
                                             <SelectItem
-                                                key={
-                                                    site.site_id
-                                                }
-                                                value={
-                                                    site.site_id
-                                                }
+                                                key={site.site_id}
+                                                value={site.site_id}
                                             >
-                                                {
-                                                    site.site_code
-                                                }{" "}
-                                                —{" "}
-                                                {
-                                                    site.site_name
-                                                }
+                                                {site.site_code} —{" "}
+                                                {site.site_name}
                                             </SelectItem>
                                         ),
                                     )}
@@ -3051,79 +4356,48 @@ const Invoices = () => {
                             </Select>
                         </div>
 
-                        <div className="space-y-2">
-                            <Label>
-                                Price Book
-                            </Label>
+                        {!hasCommercialSource && (
+                            <div className="space-y-2">
+                                <Label>
+                                    Price Book *
+                                </Label>
 
-                            <Select
-                                value={
-                                    priceBookId ||
-                                    "none"
-                                }
-                                onValueChange={(
-                                    value,
-                                ) =>
-                                    setPriceBookId(
-                                        value ===
-                                            "none"
-                                            ? ""
-                                            : value,
-                                    )
-                                }
-                                disabled={
-                                    !permission[
+                                <Select
+                                    value={priceBookId}
+                                    onValueChange={changeDirectPriceBook}
+                                    disabled={!permission[
                                         "invoices.override_price_book"
-                                    ] ||
-                                    !customerId
-                                }
-                            >
-                                <SelectTrigger
-                                    className={
-                                        INPUT_CLASS
-                                    }
+                                    ]}
                                 >
-                                    <SelectValue placeholder="No Price Book" />
-                                </SelectTrigger>
+                                    <SelectTrigger className={INPUT_CLASS}>
+                                        <SelectValue placeholder="Select Price Book" />
+                                    </SelectTrigger>
 
-                                <SelectContent>
-                                    <SelectItem value="none">
-                                        No Price
-                                        Book
-                                    </SelectItem>
-
-                                    {(
-                                        priceBooks.data ??
-                                        []
-                                    ).map(
-                                        (
-                                            book,
-                                        ) => (
+                                    <SelectContent>
+                                        {effectivePriceBooks.map((book) => (
                                             <SelectItem
-                                                key={
-                                                    book.price_book_id
-                                                }
-                                                value={
-                                                    book.price_book_id
-                                                }
+                                                key={book.price_book_id}
+                                                value={book.price_book_id}
                                             >
-                                                {
-                                                    book.price_book_code
-                                                }{" "}
-                                                —{" "}
-                                                {
-                                                    book.price_book_name
-                                                }
-
+                                                {book.price_book_name}
                                                 {book.is_default
                                                     ? " (Default)"
                                                     : ""}
                                             </SelectItem>
-                                        ),
-                                    )}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+
+                                {!permission[
+                                    "invoices.override_price_book"
+                                ] && (
+                                    <p className="text-xs text-slate-500">
+                                        Standard is used by default. Changing
+                                        Price Book requires permission.
+                                    </p>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {customerId && (
@@ -3142,8 +4416,7 @@ const Invoices = () => {
 
                             <div>
                                 <p className="text-xs text-slate-500">
-                                    Price
-                                    Book
+                                    Price Book
                                 </p>
 
                                 <p className="font-medium text-slate-900">
@@ -3155,8 +4428,7 @@ const Invoices = () => {
 
                             <div>
                                 <p className="text-xs text-slate-500">
-                                    Payment
-                                    Terms
+                                    Payment Terms
                                 </p>
 
                                 <p className="font-medium text-slate-900">
@@ -3168,22 +4440,17 @@ const Invoices = () => {
 
                             <div>
                                 <p className="text-xs text-slate-500">
-                                    Line
-                                    Amount
-                                    Type
+                                    Line Amount Type
                                 </p>
 
                                 <p className="font-medium text-slate-900">
-                                    {
-                                        lineAmountType
-                                    }
+                                    {lineAmountType}
                                 </p>
                             </div>
 
                             <div>
                                 <p className="text-xs text-slate-500">
-                                    Default
-                                    Discount
+                                    Default Discount
                                 </p>
 
                                 <p className="font-medium text-slate-900">
@@ -3201,19 +4468,12 @@ const Invoices = () => {
                         <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
                             <div>
                                 <p className="font-medium text-slate-900">
-                                    Accepted
-                                    Commercial
-                                    Sources
+                                    Accepted Commercial Sources
                                 </p>
 
                                 <p className="text-xs text-slate-500">
-                                    Optional.
-                                    Sources
-                                    must match
-                                    the selected
-                                    Customer,
-                                    Project and
-                                    Site.
+                                    Optional. Sources must match the selected
+                                    Customer, Project and Site.
                                 </p>
                             </div>
 
@@ -3221,12 +4481,8 @@ const Invoices = () => {
                                 type="button"
                                 variant="outline"
                                 className="rounded-xl"
-                                disabled={
-                                    !customerId
-                                }
-                                onClick={
-                                    addSource
-                                }
+                                disabled={!customerId}
+                                onClick={addSource}
                             >
                                 <Plus className="mr-2 h-4 w-4" />
                                 Add Source
@@ -3234,174 +4490,178 @@ const Invoices = () => {
                         </div>
 
                         {sources.length ===
-                        0 ? (
-                            <div className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">
-                                No commercial
-                                source linked.
-                                This Invoice
-                                will be treated
-                                as a direct or
-                                manual
-                                commercial
-                                Invoice.
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                {sources.map(
-                                    (
-                                        source,
-                                        index,
-                                    ) => {
-                                        const options =
-                                            availableSources.filter(
-                                                (
-                                                    option,
-                                                ) =>
-                                                    option.source_type ===
-                                                    source.source_type,
-                                            );
+                                0
+                            ? (
+                                <div className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+                                    No commercial source linked. This Invoice
+                                    will be treated as a direct or manual
+                                    commercial Invoice.
+                                </div>
+                            )
+                            : (
+                                <div className="space-y-3">
+                                    {sources.map(
+                                        (
+                                            source,
+                                            index,
+                                        ) => {
+                                            const options = availableSources
+                                                .filter(
+                                                    (
+                                                        option,
+                                                    ) => option.source_type ===
+                                                        source.source_type,
+                                                );
 
-                                        return (
-                                            <div
-                                                key={
-                                                    source.key
-                                                }
-                                                className="grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-[160px_1fr_180px_44px]"
-                                            >
-                                                <Select
-                                                    value={
-                                                        source.source_type
-                                                    }
-                                                    onValueChange={(
-                                                        value,
-                                                    ) =>
-                                                        updateSource(
+                                            return (
+                                                <div
+                                                    key={source.key}
+                                                    className="grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-[160px_1fr_180px_44px]"
+                                                >
+                                                    <Select
+                                                        value={source
+                                                            .source_type}
+                                                        onValueChange={(
+                                                            value,
+                                                        ) => updateSource(
                                                             source.key,
                                                             {
                                                                 source_type:
                                                                     value as
                                                                         | "Quotation"
                                                                         | "Variation",
-                                                                source_id:
-                                                                    "",
+                                                                source_id: "",
                                                                 source_amount:
                                                                     "0",
                                                             },
-                                                        )
-                                                    }
-                                                >
-                                                    <SelectTrigger
-                                                        className={
-                                                            INPUT_CLASS
-                                                        }
+                                                        )}
                                                     >
-                                                        <SelectValue />
-                                                    </SelectTrigger>
+                                                        <SelectTrigger
+                                                            className={INPUT_CLASS}
+                                                        >
+                                                            <SelectValue />
+                                                        </SelectTrigger>
 
-                                                    <SelectContent>
-                                                        <SelectItem value="Quotation">
-                                                            Quotation
-                                                        </SelectItem>
+                                                        <SelectContent>
+                                                            <SelectItem value="Quotation">
+                                                                Quotation
+                                                            </SelectItem>
 
-                                                        <SelectItem value="Variation">
-                                                            Variation
-                                                        </SelectItem>
-                                                    </SelectContent>
-                                                </Select>
+                                                            <SelectItem value="Variation">
+                                                                Variation
+                                                            </SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
 
-                                                <Select
-                                                    value={
-                                                        source.source_id ||
-                                                        "none"
-                                                    }
-                                                    onValueChange={(
-                                                        value,
-                                                    ) => {
-                                                        const option =
-                                                            options.find(
-                                                                (
-                                                                    item,
-                                                                ) =>
-                                                                    item.source_id ===
-                                                                    value,
+                                                    <Select
+                                                        value={source
+                                                            .source_id ||
+                                                            "none"}
+                                                        onValueChange={async (
+                                                            value,
+                                                        ) => {
+                                                            const option =
+                                                                options.find(
+                                                                    (item) =>
+                                                                        item.source_id ===
+                                                                            value,
+                                                                );
+
+                                                            updateSource(
+                                                                source.key,
+                                                                {
+                                                                    source_id:
+                                                                        value ===
+                                                                                "none"
+                                                                            ? ""
+                                                                            : value,
+                                                                    source_amount:
+                                                                        option
+                                                                            ? String(
+                                                                                option
+                                                                                    .total_amount,
+                                                                            )
+                                                                            : "0",
+                                                                },
                                                             );
 
-                                                        updateSource(
-                                                            source.key,
-                                                            {
-                                                                source_id:
-                                                                    value ===
-                                                                    "none"
-                                                                        ? ""
-                                                                        : value,
-                                                                source_amount:
-                                                                    option
-                                                                        ? String(
-                                                                              option.total_amount,
-                                                                          )
-                                                                        : "0",
-                                                            },
-                                                        );
-                                                    }}
-                                                >
-                                                    <SelectTrigger
-                                                        className={
-                                                            INPUT_CLASS
-                                                        }
-                                                    >
-                                                        <SelectValue
-                                                            placeholder={`Select accepted ${source.source_type}`}
-                                                        />
-                                                    </SelectTrigger>
-
-                                                    <SelectContent>
-                                                        <SelectItem value="none">
-                                                            Select
-                                                            accepted{" "}
-                                                            {
-                                                                source.source_type
+                                                            if (
+                                                                value === "none"
+                                                            ) {
+                                                                return;
                                                             }
-                                                        </SelectItem>
 
-                                                        {options.map(
-                                                            (
-                                                                option,
-                                                            ) => (
-                                                                <SelectItem
-                                                                    key={
-                                                                        option.source_id
-                                                                    }
-                                                                    value={
-                                                                        option.source_id
-                                                                    }
-                                                                >
-                                                                    {
-                                                                        option.source_no
-                                                                    }{" "}
-                                                                    —{" "}
-                                                                    {money(
-                                                                        option.total_amount,
-                                                                    )}
-                                                                </SelectItem>
-                                                            ),
-                                                        )}
-                                                    </SelectContent>
-                                                </Select>
+                                                            if (
+                                                                source
+                                                                    .source_type ===
+                                                                    "Variation"
+                                                            ) {
+                                                                try {
+                                                                    await loadVariationSourceLines(
+                                                                        value,
+                                                                    );
+                                                                } catch (error) {
+                                                                    toast.error(
+                                                                        error instanceof
+                                                                                Error
+                                                                            ? error
+                                                                                .message
+                                                                            : "Variation lines could not be loaded.",
+                                                                    );
+                                                                }
+                                                            }
+                                                        }}
+                                                    >
+                                                        <SelectTrigger
+                                                            className={INPUT_CLASS}
+                                                        >
+                                                            <SelectValue
+                                                                placeholder={`Select accepted ${source.source_type}`}
+                                                            />
+                                                        </SelectTrigger>
 
-                                                <Input
-                                                    type="number"
-                                                    min="0"
-                                                    step="0.01"
-                                                    className={
-                                                        INPUT_CLASS
-                                                    }
-                                                    value={
-                                                        source.source_amount
-                                                    }
-                                                    onChange={(
-                                                        event,
-                                                    ) =>
-                                                        updateSource(
+                                                        <SelectContent>
+                                                            <SelectItem value="none">
+                                                                Select accepted
+                                                                {" "}
+                                                                {source
+                                                                    .source_type}
+                                                            </SelectItem>
+
+                                                            {options.map(
+                                                                (
+                                                                    option,
+                                                                ) => (
+                                                                    <SelectItem
+                                                                        key={option
+                                                                            .source_id}
+                                                                        value={option
+                                                                            .source_id}
+                                                                    >
+                                                                        {option
+                                                                            .source_no}
+                                                                        {" "}
+                                                                        —{" "}
+                                                                        {money(
+                                                                            option
+                                                                                .total_amount,
+                                                                        )}
+                                                                    </SelectItem>
+                                                                ),
+                                                            )}
+                                                        </SelectContent>
+                                                    </Select>
+
+                                                    <Input
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        className={INPUT_CLASS}
+                                                        value={source
+                                                            .source_amount}
+                                                        onChange={(
+                                                            event,
+                                                        ) => updateSource(
                                                             source.key,
                                                             {
                                                                 source_amount:
@@ -3409,36 +4669,33 @@ const Invoices = () => {
                                                                         .target
                                                                         .value,
                                                             },
-                                                        )
-                                                    }
-                                                    placeholder="Source Amount"
-                                                />
+                                                        )}
+                                                        placeholder="Source Amount"
+                                                    />
 
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-11 rounded-xl text-red-600"
-                                                    onClick={() =>
-                                                        removeSource(
-                                                            source.key,
-                                                        )
-                                                    }
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-11 rounded-xl text-red-600"
+                                                        onClick={() =>
+                                                            removeSource(
+                                                                source.key,
+                                                            )}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
 
-                                                <p className="text-xs text-slate-400 md:col-span-4">
-                                                    Source{" "}
-                                                    {index +
-                                                        1}
-                                                </p>
-                                            </div>
-                                        );
-                                    },
-                                )}
-                            </div>
-                        )}
+                                                    <p className="text-xs text-slate-400 md:col-span-4">
+                                                        Source {index +
+                                                            1}
+                                                    </p>
+                                                </div>
+                                            );
+                                        },
+                                    )}
+                                </div>
+                            )}
                     </div>
                 </CardContent>
             </Card>
@@ -3454,39 +4711,29 @@ const Invoices = () => {
                     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                         <div className="space-y-2">
                             <Label>
-                                Invoice
-                                Number
+                                Invoice Number
                             </Label>
 
                             <Input
                                 className={`${INPUT_CLASS} text-slate-500`}
-                                value={
-                                    editingId
-                                        ? "Existing system-generated number"
-                                        : "Generated after Save Draft"
-                                }
+                                value={editingId
+                                    ? "Existing system-generated number"
+                                    : "Generated after Save Draft"}
                                 readOnly
                             />
                         </div>
 
                         <div className="space-y-2">
                             <Label>
-                                Invoice
-                                Type
+                                Invoice Type
                             </Label>
 
                             <Select
-                                value={
-                                    invoiceType
-                                }
-                                onValueChange={
-                                    setInvoiceType
-                                }
+                                value={invoiceType}
+                                onValueChange={setInvoiceType}
                             >
                                 <SelectTrigger
-                                    className={
-                                        INPUT_CLASS
-                                    }
+                                    className={INPUT_CLASS}
                                 >
                                     <SelectValue />
                                 </SelectTrigger>
@@ -3503,16 +4750,10 @@ const Invoices = () => {
                                             type,
                                         ) => (
                                             <SelectItem
-                                                key={
-                                                    type
-                                                }
-                                                value={
-                                                    type
-                                                }
+                                                key={type}
+                                                value={type}
                                             >
-                                                {
-                                                    type
-                                                }
+                                                {type}
                                             </SelectItem>
                                         ),
                                     )}
@@ -3530,21 +4771,15 @@ const Invoices = () => {
 
                             <Input
                                 type="date"
-                                className={
-                                    INPUT_CLASS
-                                }
-                                value={
-                                    invoiceDate
-                                }
+                                className={INPUT_CLASS}
+                                value={invoiceDate}
                                 onChange={(
                                     event,
-                                ) =>
-                                    applyInvoiceDate(
-                                        event
-                                            .target
-                                            .value,
-                                    )
-                                }
+                                ) => applyInvoiceDate(
+                                    event
+                                        .target
+                                        .value,
+                                )}
                             />
                         </div>
 
@@ -3558,72 +4793,52 @@ const Invoices = () => {
 
                             <Input
                                 type="date"
-                                className={
-                                    INPUT_CLASS
-                                }
-                                value={
-                                    dueDate
-                                }
+                                className={INPUT_CLASS}
+                                value={dueDate}
                                 onChange={(
                                     event,
-                                ) =>
-                                    setDueDate(
-                                        event
-                                            .target
-                                            .value,
-                                    )
-                                }
+                                ) => setDueDate(
+                                    event
+                                        .target
+                                        .value,
+                                )}
                             />
                         </div>
 
                         <div className="space-y-2 md:col-span-2">
                             <Label>
-                                Customer
-                                Reference
+                                Customer Reference
                             </Label>
 
                             <Input
-                                className={
-                                    INPUT_CLASS
-                                }
-                                value={
-                                    customerReference
-                                }
+                                className={INPUT_CLASS}
+                                value={customerReference}
                                 onChange={(
                                     event,
-                                ) =>
-                                    setCustomerReference(
-                                        event
-                                            .target
-                                            .value,
-                                    )
-                                }
+                                ) => setCustomerReference(
+                                    event
+                                        .target
+                                        .value,
+                                )}
                                 placeholder="Customer purchase order or reference"
                             />
                         </div>
 
                         <div className="space-y-2 md:col-span-2">
                             <Label>
-                                Internal /
-                                Invoice Notes
+                                Internal / Invoice Notes
                             </Label>
 
                             <Textarea
-                                className={
-                                    TEXTAREA_CLASS
-                                }
-                                value={
-                                    notes
-                                }
+                                className={TEXTAREA_CLASS}
+                                value={notes}
                                 onChange={(
                                     event,
-                                ) =>
-                                    setNotes(
-                                        event
-                                            .target
-                                            .value,
-                                    )
-                                }
+                                ) => setNotes(
+                                    event
+                                        .target
+                                        .value,
+                                )}
                                 placeholder="Notes to retain with this Invoice"
                             />
                         </div>
@@ -3640,17 +4855,27 @@ const Invoices = () => {
                             description="Product, Sales UOM, Base UOM, conversion, pricing and discount snapshots are validated by the Backend."
                         />
 
-                        <Button
-                            type="button"
-                            variant="outline"
-                            className="shrink-0 rounded-xl"
-                            onClick={
-                                addLine
-                            }
-                        >
-                            <Plus className="mr-2 h-4 w-4" />
-                            Add Line
-                        </Button>
+                        <div>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="shrink-0 rounded-xl"
+                                onClick={addLine}
+                                disabled={hasCommercialSource}
+                            >
+                                <Plus className="mr-2 h-4 w-4" />
+                                Add Line
+                            </Button>
+
+                            {hasCommercialSource && (
+                                <p className="mt-2 text-sm text-amber-600">
+                                    This Invoice is based on an approved
+                                    commercial source. Additional Products
+                                    cannot be added here. Create a new Invoice
+                                    for any additional sale.
+                                </p>
+                            )}
+                        </div>
                     </div>
 
                     <div className="space-y-4">
@@ -3659,35 +4884,29 @@ const Invoices = () => {
                                 line,
                                 index,
                             ) => {
-                                const product =
-                                    (
-                                        products.data ??
+                                const product = (
+                                    products.data ??
                                         []
-                                    ).find(
-                                        (
-                                            item,
-                                        ) =>
-                                            item.product_id ===
-                                            line.product_id,
-                                    );
+                                ).find(
+                                    (
+                                        item,
+                                    ) => item.product_id ===
+                                        line.product_id,
+                                );
 
-                                const productUoms =
-                                    product
-                                        ? getProductUoms(
-                                              product,
-                                          )
-                                        : [];
+                                const productUoms = product
+                                    ? getProductUoms(
+                                        product,
+                                    )
+                                    : [];
 
-                                const calculation =
-                                    lineCalculations[
-                                        index
-                                    ];
+                                const calculation = lineCalculations[
+                                    index
+                                ];
 
                                 return (
                                     <div
-                                        key={
-                                            line.key
-                                        }
+                                        key={line.key}
                                         className="rounded-2xl border border-slate-200 bg-white p-4"
                                     >
                                         <div className="mb-4 flex items-center justify-between">
@@ -3695,20 +4914,17 @@ const Invoices = () => {
                                                 <PackageSearch className="h-5 w-5 text-[#8B3F3F]" />
 
                                                 <p className="font-semibold text-slate-900">
-                                                    Line{" "}
-                                                    {index +
+                                                    Line {index +
                                                         1}
                                                 </p>
 
                                                 <Badge variant="outline">
-                                                    {
-                                                        line.price_source
-                                                    }
+                                                    {line.price_source}
                                                 </Badge>
                                             </div>
 
                                             {lines.length >
-                                                1 && (
+                                                    1 && (
                                                 <Button
                                                     type="button"
                                                     variant="ghost"
@@ -3717,8 +4933,7 @@ const Invoices = () => {
                                                     onClick={() =>
                                                         removeLine(
                                                             line.key,
-                                                        )
-                                                    }
+                                                        )}
                                                 >
                                                     <X className="h-4 w-4" />
                                                 </Button>
@@ -3728,67 +4943,54 @@ const Invoices = () => {
                                         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-12">
                                             <div className="space-y-2 xl:col-span-4">
                                                 <Label>
-                                                    Product
-                                                    /
-                                                    Service{" "}
+                                                    Product / Service{" "}
                                                     <span className="text-red-600">
                                                         *
                                                     </span>
                                                 </Label>
 
                                                 <Select
-                                                    value={
-                                                        line.product_id ||
-                                                        "none"
-                                                    }
+                                                    value={line.product_id ||
+                                                        "none"}
                                                     onValueChange={(
                                                         value,
-                                                    ) =>
-                                                        selectProduct(
-                                                            line.key,
-                                                            value ===
+                                                    ) => selectProduct(
+                                                        line.key,
+                                                        value ===
                                                                 "none"
-                                                                ? ""
-                                                                : value,
-                                                        )
-                                                    }
+                                                            ? ""
+                                                            : value,
+                                                    )}
                                                 >
                                                     <SelectTrigger
-                                                        className={
-                                                            INPUT_CLASS
-                                                        }
+                                                        className={INPUT_CLASS}
                                                     >
                                                         <SelectValue placeholder="Select Product" />
                                                     </SelectTrigger>
 
                                                     <SelectContent>
                                                         <SelectItem value="none">
-                                                            Select
-                                                            Product
+                                                            Select Product
                                                         </SelectItem>
 
                                                         {(
                                                             products.data ??
-                                                            []
+                                                                []
                                                         ).map(
                                                             (
                                                                 item,
                                                             ) => (
                                                                 <SelectItem
-                                                                    key={
-                                                                        item.product_id
-                                                                    }
-                                                                    value={
-                                                                        item.product_id
-                                                                    }
+                                                                    key={item
+                                                                        .product_id}
+                                                                    value={item
+                                                                        .product_id}
                                                                 >
-                                                                    {
-                                                                        item.product_code
-                                                                    }{" "}
-                                                                    —{" "}
-                                                                    {
-                                                                        item.product_name
-                                                                    }
+                                                                    {item
+                                                                        .product_code}
+                                                                    {" "}
+                                                                    — {item
+                                                                        .product_name}
                                                                 </SelectItem>
                                                             ),
                                                         )}
@@ -3798,45 +5000,36 @@ const Invoices = () => {
 
                                             <div className="space-y-2 xl:col-span-3">
                                                 <Label>
-                                                    Project
-                                                    Area
+                                                    Project Area
                                                 </Label>
 
                                                 <Select
-                                                    value={
-                                                        line.project_area_id ||
-                                                        "none"
-                                                    }
+                                                    value={line
+                                                        .project_area_id ||
+                                                        "none"}
                                                     onValueChange={(
                                                         value,
-                                                    ) =>
-                                                        updateLine(
-                                                            line.key,
-                                                            {
-                                                                project_area_id:
-                                                                    value ===
-                                                                    "none"
-                                                                        ? ""
-                                                                        : value,
-                                                            },
-                                                        )
-                                                    }
-                                                    disabled={
-                                                        !siteId
-                                                    }
+                                                    ) => updateLine(
+                                                        line.key,
+                                                        {
+                                                            project_area_id:
+                                                                value ===
+                                                                        "none"
+                                                                    ? ""
+                                                                    : value,
+                                                        },
+                                                    )}
+                                                    disabled={!siteId}
                                                 >
                                                     <SelectTrigger
-                                                        className={
-                                                            INPUT_CLASS
-                                                        }
+                                                        className={INPUT_CLASS}
                                                     >
                                                         <SelectValue placeholder="No Area" />
                                                     </SelectTrigger>
 
                                                     <SelectContent>
                                                         <SelectItem value="none">
-                                                            No
-                                                            Area
+                                                            No Area
                                                         </SelectItem>
 
                                                         {filteredAreas.map(
@@ -3844,20 +5037,16 @@ const Invoices = () => {
                                                                 area,
                                                             ) => (
                                                                 <SelectItem
-                                                                    key={
-                                                                        area.area_id
-                                                                    }
-                                                                    value={
-                                                                        area.area_id
-                                                                    }
+                                                                    key={area
+                                                                        .area_id}
+                                                                    value={area
+                                                                        .area_id}
                                                                 >
-                                                                    {
-                                                                        area.area_code
-                                                                    }{" "}
-                                                                    —{" "}
-                                                                    {
-                                                                        area.area_name
-                                                                    }
+                                                                    {area
+                                                                        .area_code}
+                                                                    {" "}
+                                                                    — {area
+                                                                        .area_name}
                                                                 </SelectItem>
                                                             ),
                                                         )}
@@ -3867,45 +5056,36 @@ const Invoices = () => {
 
                                             <div className="space-y-2 xl:col-span-2">
                                                 <Label>
-                                                    Sales
-                                                    UOM{" "}
+                                                    Sales UOM{" "}
                                                     <span className="text-red-600">
                                                         *
                                                     </span>
                                                 </Label>
 
                                                 <Select
-                                                    value={
-                                                        line.sales_uom_code ||
-                                                        "none"
-                                                    }
+                                                    value={line
+                                                        .sales_uom_code ||
+                                                        "none"}
                                                     onValueChange={(
                                                         value,
-                                                    ) =>
-                                                        selectLineUom(
-                                                            line.key,
-                                                            value ===
+                                                    ) => selectLineUom(
+                                                        line.key,
+                                                        value ===
                                                                 "none"
-                                                                ? ""
-                                                                : value,
-                                                        )
-                                                    }
-                                                    disabled={
-                                                        !product
-                                                    }
+                                                            ? ""
+                                                            : value,
+                                                    )}
+                                                    disabled={!product}
                                                 >
                                                     <SelectTrigger
-                                                        className={
-                                                            INPUT_CLASS
-                                                        }
+                                                        className={INPUT_CLASS}
                                                     >
                                                         <SelectValue placeholder="Select UOM" />
                                                     </SelectTrigger>
 
                                                     <SelectContent>
                                                         <SelectItem value="none">
-                                                            Select
-                                                            UOM
+                                                            Select UOM
                                                         </SelectItem>
 
                                                         {productUoms.map(
@@ -3913,19 +5093,15 @@ const Invoices = () => {
                                                                 uom,
                                                             ) => (
                                                                 <SelectItem
-                                                                    key={
-                                                                        uom.uomCode
-                                                                    }
-                                                                    value={
-                                                                        uom.uomCode
-                                                                    }
+                                                                    key={uom
+                                                                        .uomCode}
+                                                                    value={uom
+                                                                        .uomCode}
                                                                 >
-                                                                    {
-                                                                        uom.uomCode
-                                                                    }
+                                                                    {uom.uomCode}
 
                                                                     {uom.factor !==
-                                                                    1
+                                                                            1
                                                                         ? ` → ${uom.factor} ${product?.base_uom_code}`
                                                                         : ""}
                                                                 </SelectItem>
@@ -3937,92 +5113,202 @@ const Invoices = () => {
 
                                             <div className="space-y-2 xl:col-span-1">
                                                 <Label>
-                                                    Qty
-                                                    *
+                                                    Qty *
                                                 </Label>
 
                                                 <Input
                                                     type="number"
                                                     min="0"
-                                                    step={
-                                                        line.allow_fractional_quantity
-                                                            ? "0.000001"
-                                                            : "1"
-                                                    }
-                                                    className={
-                                                        INPUT_CLASS
-                                                    }
-                                                    value={
-                                                        line.quantity
-                                                    }
+                                                    step={line
+                                                            .allow_fractional_quantity
+                                                        ? "0.000001"
+                                                        : "1"}
+                                                    className={INPUT_CLASS}
+                                                    value={line.quantity}
                                                     onChange={(
                                                         event,
-                                                    ) =>
-                                                        changeQuantity(
-                                                            line.key,
-                                                            event
-                                                                .target
-                                                                .value,
-                                                        )
-                                                    }
+                                                    ) => changeQuantity(
+                                                        line.key,
+                                                        event
+                                                            .target
+                                                            .value,
+                                                    )}
                                                 />
                                             </div>
 
                                             <div className="space-y-2 xl:col-span-2">
                                                 <Label>
-                                                    Unit
-                                                    Price
-                                                    *
+                                                    Unit Price *
                                                 </Label>
 
                                                 <Input
                                                     type="number"
                                                     min="0"
                                                     step="0.01"
-                                                    className={
-                                                        INPUT_CLASS
-                                                    }
-                                                    value={
-                                                        line.unit_price
-                                                    }
-                                                    readOnly={
-                                                        Boolean(
+                                                    className={INPUT_CLASS}
+                                                    value={line.unit_price}
+                                                    readOnly={line
+                                                                .price_source ===
+                                                            "Selling Price Missing" ||
+                                                        (Boolean(
                                                             line.price_book_line_id,
                                                         ) &&
-                                                        !permission[
-                                                            "invoices.override_unit_price"
-                                                        ]
-                                                    }
-                                                    onChange={(
-                                                        event,
-                                                    ) =>
-                                                        updateLine(
-                                                            line.key,
-                                                            {
-                                                                unit_price:
-                                                                    event
-                                                                        .target
-                                                                        .value,
-                                                                price_source:
-                                                                    line.original_unit_price !==
+                                                            !permission[
+                                                                "invoices.override_unit_price"
+                                                            ])}
+                                                    onChange={(event) => {
+                                                        // Block manual edits when the selected Price Book price is missing
+                                                        if (
+                                                            line.price_source ===
+                                                                "Selling Price Missing"
+                                                        ) return;
+
+                                                        updateLine(line.key, {
+                                                            unit_price:
+                                                                event.target
+                                                                    .value,
+                                                            price_source:
+                                                                line.original_unit_price !==
                                                                         null &&
                                                                     Number(
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                    ) !==
+                                                                            event
+                                                                                .target
+                                                                                .value,
+                                                                        ) !==
                                                                         Number(
                                                                             line.original_unit_price,
                                                                         )
-                                                                        ? "Manual"
-                                                                        : line.price_book_line_id
-                                                                          ? "Price Book"
-                                                                          : "Manual",
-                                                            },
-                                                        )
-                                                    }
+                                                                    ? "Manual"
+                                                                    : line
+                                                                            .price_book_line_id
+                                                                    ? "Price Book"
+                                                                    : "Manual",
+                                                        });
+                                                    }}
                                                 />
                                             </div>
+
+                                            {/* Missing selected Price Book price warning + action */}
+                                            {product && line.sales_uom_code &&
+                                                !line.price_book_line_id &&
+                                                line.price_source ===
+                                                    "Selling Price Missing" &&
+                                                (
+                                                    <div className="xl:col-span-12 mt-2 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-800">
+                                                        <div className="text-sm">
+                                                            <p>
+                                                                No{" "}
+                                                                {selectedPriceBook
+                                                                    ?.price_book_name ??
+                                                                    "selected Price Book"}
+                                                                {" "}
+                                                                selling price is
+                                                                configured for
+                                                                this Product /
+                                                                UOM.
+                                                            </p>
+                                                            {line
+                                                                        .standard_reference_price !==
+                                                                    null &&
+                                                                priceBookId !==
+                                                                    defaultPriceBook
+                                                                        ?.price_book_id &&
+                                                                (
+                                                                    <p className="mt-1 font-medium">
+                                                                        Standard
+                                                                        Reference:
+                                                                        {" "}
+                                                                        {money(
+                                                                            line.standard_reference_price,
+                                                                        )} /
+                                                                        {" "}
+                                                                        {line
+                                                                            .sales_uom_code}
+                                                                    </p>
+                                                                )}
+                                                        </div>
+
+                                                        {permission[
+                                                                "products.manage_sales_prices"
+                                                            ]
+                                                            ? (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    className="ml-auto rounded-xl"
+                                                                    onClick={() => {
+                                                                        setSellingDialogTargetKey(
+                                                                            line.key,
+                                                                        );
+                                                                        setSellingProductId(
+                                                                            line.product_id ??
+                                                                                null,
+                                                                        );
+                                                                        setSellingProductCode(
+                                                                            product
+                                                                                .product_code ??
+                                                                                null,
+                                                                        );
+                                                                        setSellingProductName(
+                                                                            product
+                                                                                .product_name ??
+                                                                                null,
+                                                                        );
+                                                                        const dialogDate =
+                                                                            invoiceDate ||
+                                                                            today();
+                                                                        const dialogUom =
+                                                                            line.sales_uom_code ??
+                                                                                "";
+
+                                                                        setSellingUom(
+                                                                            dialogUom ||
+                                                                                null,
+                                                                        );
+                                                                        setSellingEffectiveFrom(
+                                                                            dialogDate,
+                                                                        );
+
+                                                                        if (
+                                                                            line.product_id &&
+                                                                            dialogUom
+                                                                        ) {
+                                                                            loadSellingPriceMatrix(
+                                                                                line.product_id,
+                                                                                dialogUom,
+                                                                                dialogDate,
+                                                                            );
+                                                                        } else {
+                                                                            setSellingPricesByBook(
+                                                                                {},
+                                                                            );
+                                                                            setSellingMinimumPricesByBook(
+                                                                                {},
+                                                                            );
+                                                                        }
+
+                                                                        setShowSellingPriceDialog(
+                                                                            true,
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    Set Selling
+                                                                    Price
+                                                                </Button>
+                                                            )
+                                                            : (
+                                                                <div className="ml-auto text-sm">
+                                                                    Ask an
+                                                                    authorised
+                                                                    user to
+                                                                    configure
+                                                                    the selected
+                                                                    Price Book
+                                                                    selling
+                                                                    price.
+                                                                </div>
+                                                            )}
+                                                    </div>
+                                                )}
 
                                             <div className="space-y-2 xl:col-span-5">
                                                 <Label>
@@ -4030,39 +5316,29 @@ const Invoices = () => {
                                                 </Label>
 
                                                 <Input
-                                                    className={
-                                                        INPUT_CLASS
-                                                    }
-                                                    value={
-                                                        line.description
-                                                    }
+                                                    className={INPUT_CLASS}
+                                                    value={line.description}
                                                     onChange={(
                                                         event,
-                                                    ) =>
-                                                        updateLine(
-                                                            line.key,
-                                                            {
-                                                                description:
-                                                                    event
-                                                                        .target
-                                                                        .value,
-                                                            },
-                                                        )
-                                                    }
+                                                    ) => updateLine(
+                                                        line.key,
+                                                        {
+                                                            description: event
+                                                                .target
+                                                                .value,
+                                                        },
+                                                    )}
                                                 />
                                             </div>
 
                                             <div className="space-y-2 xl:col-span-2">
                                                 <Label>
-                                                    Base
-                                                    UOM
+                                                    Base UOM
                                                 </Label>
 
                                                 <Input
                                                     className={`${INPUT_CLASS} text-slate-500`}
-                                                    value={
-                                                        line.base_uom_code
-                                                    }
+                                                    value={line.base_uom_code}
                                                     readOnly
                                                 />
                                             </div>
@@ -4084,8 +5360,7 @@ const Invoices = () => {
 
                                             <div className="space-y-2 xl:col-span-2">
                                                 <Label>
-                                                    Base
-                                                    Quantity
+                                                    Base Quantity
                                                 </Label>
 
                                                 <Input
@@ -4100,8 +5375,7 @@ const Invoices = () => {
 
                                             <div className="space-y-2 xl:col-span-1">
                                                 <Label>
-                                                    Discount
-                                                    %
+                                                    Discount %
                                                 </Label>
 
                                                 <Input
@@ -4109,37 +5383,29 @@ const Invoices = () => {
                                                     min="0"
                                                     max="100"
                                                     step="0.0001"
-                                                    className={
-                                                        INPUT_CLASS
-                                                    }
-                                                    value={
-                                                        line.discount_percent
-                                                    }
-                                                    readOnly={
-                                                        !permission[
-                                                            "invoices.override_discount"
-                                                        ]
-                                                    }
+                                                    className={INPUT_CLASS}
+                                                    value={line
+                                                        .discount_percent}
+                                                    readOnly={!permission[
+                                                        "invoices.override_discount"
+                                                    ]}
                                                     onChange={(
                                                         event,
-                                                    ) =>
-                                                        updateLine(
-                                                            line.key,
-                                                            {
-                                                                discount_percent:
-                                                                    event
-                                                                        .target
-                                                                        .value,
-                                                            },
-                                                        )
-                                                    }
+                                                    ) => updateLine(
+                                                        line.key,
+                                                        {
+                                                            discount_percent:
+                                                                event
+                                                                    .target
+                                                                    .value,
+                                                        },
+                                                    )}
                                                 />
                                             </div>
 
                                             <div className="space-y-2 xl:col-span-1">
                                                 <Label>
-                                                    GST
-                                                    %
+                                                    GST %
                                                 </Label>
 
                                                 <Input
@@ -4147,61 +5413,44 @@ const Invoices = () => {
                                                     min="0"
                                                     max="100"
                                                     step="0.0001"
-                                                    className={
-                                                        INPUT_CLASS
-                                                    }
-                                                    value={
-                                                        lineAmountType ===
-                                                        "No Tax"
-                                                            ? "0"
-                                                            : line.tax_rate
-                                                    }
-                                                    readOnly={
-                                                        lineAmountType ===
-                                                        "No Tax"
-                                                    }
+                                                    className={INPUT_CLASS}
+                                                    value={lineAmountType ===
+                                                            "No Tax"
+                                                        ? "0"
+                                                        : line.tax_rate}
+                                                    readOnly={lineAmountType ===
+                                                        "No Tax"}
                                                     onChange={(
                                                         event,
-                                                    ) =>
-                                                        updateLine(
-                                                            line.key,
-                                                            {
-                                                                tax_rate:
-                                                                    event
-                                                                        .target
-                                                                        .value,
-                                                            },
-                                                        )
-                                                    }
+                                                    ) => updateLine(
+                                                        line.key,
+                                                        {
+                                                            tax_rate: event
+                                                                .target
+                                                                .value,
+                                                        },
+                                                    )}
                                                 />
                                             </div>
 
                                             <div className="space-y-2 xl:col-span-6">
                                                 <Label>
-                                                    Line
-                                                    Notes
+                                                    Line Notes
                                                 </Label>
 
                                                 <Input
-                                                    className={
-                                                        INPUT_CLASS
-                                                    }
-                                                    value={
-                                                        line.notes
-                                                    }
+                                                    className={INPUT_CLASS}
+                                                    value={line.notes}
                                                     onChange={(
                                                         event,
-                                                    ) =>
-                                                        updateLine(
-                                                            line.key,
-                                                            {
-                                                                notes:
-                                                                    event
-                                                                        .target
-                                                                        .value,
-                                                            },
-                                                        )
-                                                    }
+                                                    ) => updateLine(
+                                                        line.key,
+                                                        {
+                                                            notes: event
+                                                                .target
+                                                                .value,
+                                                        },
+                                                    )}
                                                 />
                                             </div>
 
@@ -4209,13 +5458,13 @@ const Invoices = () => {
                                                 <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3 text-sm sm:grid-cols-4">
                                                     <div>
                                                         <p className="text-xs text-slate-500">
-                                                            Line
-                                                            Subtotal
+                                                            Line Subtotal
                                                         </p>
 
                                                         <p className="font-semibold">
                                                             {money(
-                                                                calculation?.subtotal,
+                                                                calculation
+                                                                    ?.subtotal,
                                                             )}
                                                         </p>
                                                     </div>
@@ -4227,7 +5476,8 @@ const Invoices = () => {
 
                                                         <p className="font-semibold">
                                                             {money(
-                                                                calculation?.discountAmount,
+                                                                calculation
+                                                                    ?.discountAmount,
                                                             )}
                                                         </p>
                                                     </div>
@@ -4239,20 +5489,21 @@ const Invoices = () => {
 
                                                         <p className="font-semibold">
                                                             {money(
-                                                                calculation?.taxAmount,
+                                                                calculation
+                                                                    ?.taxAmount,
                                                             )}
                                                         </p>
                                                     </div>
 
                                                     <div>
                                                         <p className="text-xs text-slate-500">
-                                                            Line
-                                                            Total
+                                                            Line Total
                                                         </p>
 
                                                         <p className="font-bold text-[#8B3F3F]">
                                                             {money(
-                                                                calculation?.total,
+                                                                calculation
+                                                                    ?.total,
                                                             )}
                                                         </p>
                                                     </div>
@@ -4278,9 +5529,7 @@ const Invoices = () => {
                     <div className="ml-auto grid max-w-2xl gap-3 sm:grid-cols-2">
                         <div className="rounded-xl border border-slate-200 p-4">
                             <p className="text-sm text-slate-500">
-                                Subtotal
-                                before
-                                discount
+                                Subtotal before discount
                             </p>
 
                             <p className="mt-1 text-xl font-semibold">
@@ -4292,13 +5541,11 @@ const Invoices = () => {
 
                         <div className="rounded-xl border border-slate-200 p-4">
                             <p className="text-sm text-slate-500">
-                                Line
-                                Discounts
+                                Line Discounts
                             </p>
 
                             <p className="mt-1 text-xl font-semibold text-red-700">
-                                −{" "}
-                                {money(
+                                − {money(
                                     formTotals.discount,
                                 )}
                             </p>
@@ -4307,9 +5554,7 @@ const Invoices = () => {
                         <div className="rounded-xl border border-slate-200 p-4">
                             <p className="text-sm text-slate-500">
                                 GST (
-                                {
-                                    lineAmountType
-                                }
+                                {lineAmountType}
                                 )
                             </p>
 
@@ -4322,8 +5567,7 @@ const Invoices = () => {
 
                         <div className="rounded-xl border border-[#8B3F3F] bg-red-50 p-4">
                             <p className="text-sm text-[#8B3F3F]">
-                                Invoice
-                                Total
+                                Invoice Total
                             </p>
 
                             <p className="mt-1 text-2xl font-bold text-[#8B3F3F]">
@@ -4347,8 +5591,7 @@ const Invoices = () => {
                     <div className="grid gap-4 md:grid-cols-3">
                         <div className="rounded-xl border border-slate-200 p-4">
                             <p className="text-xs text-slate-500">
-                                Document
-                                Status
+                                Document Status
                             </p>
 
                             <p className="mt-1 font-semibold text-slate-900">
@@ -4358,8 +5601,7 @@ const Invoices = () => {
 
                         <div className="rounded-xl border border-slate-200 p-4">
                             <p className="text-xs text-slate-500">
-                                Payment
-                                Status
+                                Payment Status
                             </p>
 
                             <p className="mt-1 font-semibold text-slate-900">
@@ -4373,9 +5615,7 @@ const Invoices = () => {
                             </p>
 
                             <p className="mt-1 font-semibold text-slate-900">
-                                AUD —
-                                stored by
-                                Backend
+                                AUD — stored by Backend
                             </p>
                         </div>
                     </div>
@@ -4384,33 +5624,23 @@ const Invoices = () => {
                         <Button
                             variant="outline"
                             className="rounded-xl"
-                            onClick={
-                                closeToList
-                            }
+                            onClick={closeToList}
                         >
                             Cancel
                         </Button>
 
                         <Button
-                            className={
-                                RED_BUTTON
-                            }
-                            disabled={
-                                saveInvoice.isPending
-                            }
-                            onClick={() =>
-                                saveInvoice.mutate()
-                            }
+                            className={RED_BUTTON}
+                            disabled={saveInvoice.isPending}
+                            onClick={() => saveInvoice.mutate()}
                         >
-                            {saveInvoice.isPending ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                                <FilePlus2 className="mr-2 h-4 w-4" />
-                            )}
+                            {saveInvoice.isPending
+                                ? (
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                )
+                                : <FilePlus2 className="mr-2 h-4 w-4" />}
 
-                            {editingId
-                                ? "Update Draft"
-                                : "Save Draft"}
+                            {editingId ? "Update Draft" : "Save Draft"}
                         </Button>
                     </div>
                 </CardContent>
@@ -4419,18 +5649,12 @@ const Invoices = () => {
     );
 
     const renderDetail = () => {
-        const invoice =
-            detail.data?.invoice ?? {};
+        const invoice = detail.data?.invoice ?? {};
 
-        const detailLines = (
-            detail.data?.lines ?? []
-        ).filter(
-            (line) =>
-                !Boolean(line.is_deleted),
-        );
+        const detailLines = detail.data?.active_lines ?? [];
 
         const detailSources = (
-            detail.data?.sources ?? []
+            detail.data?.active_sources ?? []
         ).filter(
             (source) =>
                 !Boolean(
@@ -4438,8 +5662,7 @@ const Invoices = () => {
                 ),
         );
 
-        const allocations =
-            detail.data?.allocations ?? [];
+        const allocations = detail.data?.payments ?? [];
 
         const status = String(
             invoice.document_status ?? "",
@@ -4459,9 +5682,7 @@ const Invoices = () => {
                             variant="outline"
                             size="icon"
                             className="mt-1 rounded-xl"
-                            onClick={
-                                closeToList
-                            }
+                            onClick={closeToList}
                         >
                             <ArrowLeft className="h-4 w-4" />
                         </Button>
@@ -4505,8 +5726,7 @@ const Invoices = () => {
                                 {String(
                                     invoice.invoice_type ??
                                         "Standard",
-                                )}{" "}
-                                Invoice
+                                )} Invoice
                             </p>
                         </div>
                     </div>
@@ -4515,597 +5735,586 @@ const Invoices = () => {
                         <Button
                             variant="outline"
                             className="rounded-xl"
-                            onClick={
-                                printPage
-                            }
+                            onClick={() =>
+                                printCustomerInvoice(
+                                    invoice,
+                                    detailLines,
+                                )}
                         >
                             <Printer className="mr-2 h-4 w-4" />
-                            Print
+                            Print / PDF
                         </Button>
 
                         {status ===
-                            "Draft" &&
+                                "Draft" &&
                             permission[
                                 "invoices.update_draft"
                             ] && (
-                                <Button
-                                    variant="outline"
-                                    className="rounded-xl"
-                                    onClick={() =>
-                                        openEdit(
-                                            invoiceId,
-                                        )
-                                    }
-                                >
-                                    <Pencil className="mr-2 h-4 w-4" />
-                                    Edit
-                                </Button>
-                            )}
+                            <Button
+                                variant="outline"
+                                className="rounded-xl"
+                                onClick={() =>
+                                    openEdit(
+                                        invoiceId,
+                                    )}
+                            >
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Edit
+                            </Button>
+                        )}
 
                         {status ===
-                            "Draft" &&
+                                "Draft" &&
                             permission[
                                 "invoices.approve"
                             ] && (
-                                <Button
-                                    className={
-                                        RED_BUTTON
-                                    }
-                                    disabled={
-                                        workflowAction.isPending
-                                    }
-                                    onClick={() =>
-                                        workflowAction.mutate(
-                                            {
-                                                rpcName:
-                                                    "approve_invoice_atomic",
-                                                invoiceId,
-                                            },
-                                        )
-                                    }
-                                >
-                                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                                    Approve
-                                </Button>
-                            )}
+                            <Button
+                                className={RED_BUTTON}
+                                disabled={workflowAction.isPending}
+                                onClick={() =>
+                                    workflowAction.mutate(
+                                        {
+                                            rpcName: "approve_invoice_atomic",
+                                            invoiceId,
+                                        },
+                                    )}
+                            >
+                                <CheckCircle2 className="mr-2 h-4 w-4" />
+                                Approve
+                            </Button>
+                        )}
 
                         {status ===
-                            "Approved" &&
+                                "Approved" &&
                             permission[
                                 "invoices.issue"
                             ] && (
-                                <Button
-                                    className={
-                                        RED_BUTTON
-                                    }
-                                    disabled={
-                                        workflowAction.isPending
-                                    }
-                                    onClick={() =>
-                                        workflowAction.mutate(
-                                            {
-                                                rpcName:
-                                                    "issue_invoice_atomic",
-                                                invoiceId,
-                                            },
-                                        )
-                                    }
-                                >
-                                    <Send className="mr-2 h-4 w-4" />
-                                    Issue
-                                </Button>
-                            )}
+                            <Button
+                                className={RED_BUTTON}
+                                disabled={workflowAction.isPending}
+                                onClick={() =>
+                                    workflowAction.mutate(
+                                        {
+                                            rpcName: "issue_invoice_atomic",
+                                            invoiceId,
+                                        },
+                                    )}
+                            >
+                                <Send className="mr-2 h-4 w-4" />
+                                Issue
+                            </Button>
+                        )}
                     </div>
                 </div>
 
-                {detail.isLoading ? (
-                    <Card className="rounded-2xl">
-                        <CardContent className="flex h-48 items-center justify-center">
-                            <Loader2 className="h-7 w-7 animate-spin text-[#8B3F3F]" />
-                        </CardContent>
-                    </Card>
-                ) : (
-                    <>
-                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                            <Card className="rounded-2xl">
-                                <CardContent className="p-5">
-                                    <p className="text-sm text-slate-500">
-                                        Invoice
-                                        Total
-                                    </p>
-
-                                    <p className="mt-1 text-2xl font-bold">
-                                        {money(
-                                            invoice.total_amount,
-                                        )}
-                                    </p>
-                                </CardContent>
-                            </Card>
-
-                            <Card className="rounded-2xl">
-                                <CardContent className="p-5">
-                                    <p className="text-sm text-slate-500">
-                                        Paid
-                                    </p>
-
-                                    <p className="mt-1 text-2xl font-bold text-green-700">
-                                        {money(
-                                            invoice.paid_amount,
-                                        )}
-                                    </p>
-                                </CardContent>
-                            </Card>
-
-                            <Card className="rounded-2xl">
-                                <CardContent className="p-5">
-                                    <p className="text-sm text-slate-500">
-                                        Balance
-                                    </p>
-
-                                    <p className="mt-1 text-2xl font-bold text-[#8B3F3F]">
-                                        {money(
-                                            invoice.balance_amount,
-                                        )}
-                                    </p>
-                                </CardContent>
-                            </Card>
-
-                            <Card className="rounded-2xl">
-                                <CardContent className="p-5">
-                                    <p className="text-sm text-slate-500">
-                                        Due
-                                        Date
-                                    </p>
-
-                                    <p className="mt-1 text-xl font-bold">
-                                        {dateText(
-                                            invoice.due_date,
-                                        )}
-                                    </p>
-                                </CardContent>
-                            </Card>
-                        </div>
-
+                {detail.isLoading
+                    ? (
                         <Card className="rounded-2xl">
-                            <CardHeader>
-                                <CardTitle className="text-lg">
-                                    Invoice
-                                    Information
-                                </CardTitle>
-                            </CardHeader>
+                            <CardContent className="flex h-48 items-center justify-center">
+                                <Loader2 className="h-7 w-7 animate-spin text-[#8B3F3F]" />
+                            </CardContent>
+                        </Card>
+                    )
+                    : (
+                        <>
+                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                                <Card className="rounded-2xl">
+                                    <CardContent className="p-5">
+                                        <p className="text-sm text-slate-500">
+                                            Invoice Total
+                                        </p>
 
-                            <CardContent className="grid gap-4 text-sm md:grid-cols-2 xl:grid-cols-4">
-                                {[
-                                    [
-                                        "Customer",
-                                        invoice.customer_name,
-                                    ],
-                                    [
-                                        "Customer Code",
-                                        invoice.customer_code,
-                                    ],
-                                    [
-                                        "Project",
-                                        invoice.project_name,
-                                    ],
-                                    [
-                                        "Project Site",
-                                        invoice.site_name,
-                                    ],
-                                    [
-                                        "Invoice Date",
-                                        dateText(
-                                            invoice.invoice_date,
-                                        ),
-                                    ],
-                                    [
-                                        "Due Date",
-                                        dateText(
-                                            invoice.due_date,
-                                        ),
-                                    ],
-                                    [
-                                        "Customer Reference",
-                                        invoice.customer_reference,
-                                    ],
-                                    [
-                                        "Price Book",
-                                        invoice.price_book_name,
-                                    ],
-                                    [
-                                        "Line Amount Type",
-                                        invoice.line_amount_type,
-                                    ],
-                                    [
-                                        "Payment Terms",
-                                        `${invoice.payment_terms_type ?? "—"} ${invoice.payment_terms_days ?? ""}`,
-                                    ],
-                                    [
-                                        "Subtotal",
-                                        money(
-                                            invoice.subtotal_amount,
-                                        ),
-                                    ],
-                                    [
-                                        "Discount",
-                                        money(
-                                            invoice.discount_amount,
-                                        ),
-                                    ],
-                                    [
-                                        "GST",
-                                        money(
-                                            invoice.tax_amount,
-                                        ),
-                                    ],
-                                    [
-                                        "Total",
-                                        money(
-                                            invoice.total_amount,
-                                        ),
-                                    ],
-                                    [
-                                        "Notes",
-                                        invoice.notes,
-                                    ],
-                                ].map(
-                                    ([
-                                        label,
-                                        value,
-                                    ]) => (
-                                        <div
-                                            key={String(
-                                                label,
+                                        <p className="mt-1 text-2xl font-bold">
+                                            {money(
+                                                invoice.total_amount,
                                             )}
-                                        >
-                                            <p className="text-xs text-slate-500">
-                                                {String(
+                                        </p>
+                                    </CardContent>
+                                </Card>
+
+                                <Card className="rounded-2xl">
+                                    <CardContent className="p-5">
+                                        <p className="text-sm text-slate-500">
+                                            Paid
+                                        </p>
+
+                                        <p className="mt-1 text-2xl font-bold text-green-700">
+                                            {money(
+                                                invoice.paid_amount,
+                                            )}
+                                        </p>
+                                    </CardContent>
+                                </Card>
+
+                                <Card className="rounded-2xl">
+                                    <CardContent className="p-5">
+                                        <p className="text-sm text-slate-500">
+                                            Balance
+                                        </p>
+
+                                        <p className="mt-1 text-2xl font-bold text-[#8B3F3F]">
+                                            {money(
+                                                invoice.balance_amount,
+                                            )}
+                                        </p>
+                                    </CardContent>
+                                </Card>
+
+                                <Card className="rounded-2xl">
+                                    <CardContent className="p-5">
+                                        <p className="text-sm text-slate-500">
+                                            Due Date
+                                        </p>
+
+                                        <p className="mt-1 text-xl font-bold">
+                                            {dateText(
+                                                invoice.due_date,
+                                            )}
+                                        </p>
+                                    </CardContent>
+                                </Card>
+                            </div>
+
+                            <Card className="rounded-2xl">
+                                <CardHeader>
+                                    <CardTitle className="text-lg">
+                                        Invoice Information
+                                    </CardTitle>
+                                </CardHeader>
+
+                                <CardContent className="grid gap-4 text-sm md:grid-cols-2 xl:grid-cols-4">
+                                    {[
+                                        [
+                                            "Customer",
+                                            invoice.customer_name,
+                                        ],
+                                        [
+                                            "Customer Code",
+                                            invoice.customer_code,
+                                        ],
+                                        [
+                                            "Project",
+                                            invoice.project_name,
+                                        ],
+                                        [
+                                            "Project Site",
+                                            invoice.site_name,
+                                        ],
+                                        [
+                                            "Invoice Date",
+                                            dateText(
+                                                invoice.invoice_date,
+                                            ),
+                                        ],
+                                        [
+                                            "Due Date",
+                                            dateText(
+                                                invoice.due_date,
+                                            ),
+                                        ],
+                                        [
+                                            "Customer Reference",
+                                            invoice.customer_reference,
+                                        ],
+                                        [
+                                            "Price Book",
+                                            invoice.price_book_name,
+                                        ],
+                                        [
+                                            "Line Amount Type",
+                                            invoice.line_amount_type,
+                                        ],
+                                        [
+                                            "Payment Terms",
+                                            `${
+                                                invoice.payment_terms_type ??
+                                                    "—"
+                                            } ${
+                                                invoice.payment_terms_days ?? ""
+                                            }`,
+                                        ],
+                                        [
+                                            "Subtotal",
+                                            money(
+                                                invoice.subtotal_amount,
+                                            ),
+                                        ],
+                                        [
+                                            "Discount",
+                                            money(
+                                                invoice.discount_amount,
+                                            ),
+                                        ],
+                                        [
+                                            "GST",
+                                            money(
+                                                invoice.tax_amount,
+                                            ),
+                                        ],
+                                        [
+                                            "Total",
+                                            money(
+                                                invoice.total_amount,
+                                            ),
+                                        ],
+                                        [
+                                            "Notes",
+                                            invoice.notes,
+                                        ],
+                                    ].map(
+                                        ([
+                                            label,
+                                            value,
+                                        ]) => (
+                                            <div
+                                                key={String(
                                                     label,
                                                 )}
-                                            </p>
+                                            >
+                                                <p className="text-xs text-slate-500">
+                                                    {String(
+                                                        label,
+                                                    )}
+                                                </p>
 
-                                            <p className="mt-1 font-medium text-slate-900">
-                                                {String(
-                                                    value ??
-                                                        "—",
-                                                )}
-                                            </p>
-                                        </div>
-                                    ),
-                                )}
-                            </CardContent>
-                        </Card>
+                                                <p className="mt-1 font-medium text-slate-900">
+                                                    {String(
+                                                        value ??
+                                                            "—",
+                                                    )}
+                                                </p>
+                                            </div>
+                                        ),
+                                    )}
+                                </CardContent>
+                            </Card>
 
-                        <Card className="overflow-hidden rounded-2xl">
-                            <CardHeader>
-                                <CardTitle className="text-lg">
-                                    Products
-                                    &
-                                    Services
-                                </CardTitle>
-                            </CardHeader>
+                            <Card className="overflow-hidden rounded-2xl">
+                                <CardHeader>
+                                    <CardTitle className="text-lg">
+                                        Products & Services
+                                    </CardTitle>
+                                </CardHeader>
 
-                            <CardContent className="p-0">
-                                <div className="overflow-x-auto">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>
-                                                    #
-                                                </TableHead>
+                                <CardContent className="p-0">
+                                    <div className="overflow-x-auto">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>
+                                                        #
+                                                    </TableHead>
 
-                                                <TableHead>
-                                                    Product
-                                                    /
-                                                    Description
-                                                </TableHead>
+                                                    <TableHead>
+                                                        Product / Description
+                                                    </TableHead>
 
-                                                <TableHead>
-                                                    Area
-                                                </TableHead>
+                                                    <TableHead>
+                                                        Area
+                                                    </TableHead>
 
-                                                <TableHead>
-                                                    UOM
-                                                    Conversion
-                                                </TableHead>
+                                                    <TableHead>
+                                                        UOM Conversion
+                                                    </TableHead>
 
-                                                <TableHead className="text-right">
-                                                    Qty
-                                                </TableHead>
+                                                    <TableHead className="text-right">
+                                                        Qty
+                                                    </TableHead>
 
-                                                <TableHead className="text-right">
-                                                    Unit
-                                                    Price
-                                                </TableHead>
+                                                    <TableHead className="text-right">
+                                                        Unit Price
+                                                    </TableHead>
 
-                                                <TableHead className="text-right">
-                                                    Discount
-                                                </TableHead>
+                                                    <TableHead className="text-right">
+                                                        Discount
+                                                    </TableHead>
 
-                                                <TableHead className="text-right">
-                                                    GST
-                                                </TableHead>
+                                                    <TableHead className="text-right">
+                                                        GST
+                                                    </TableHead>
 
-                                                <TableHead className="text-right">
-                                                    Total
-                                                </TableHead>
-                                            </TableRow>
-                                        </TableHeader>
+                                                    <TableHead className="text-right">
+                                                        Total
+                                                    </TableHead>
+                                                </TableRow>
+                                            </TableHeader>
 
-                                        <TableBody>
-                                            {detailLines.map(
-                                                (
-                                                    line,
-                                                    index,
-                                                ) => (
-                                                    <TableRow
-                                                        key={String(
-                                                            line.customer_invoice_item_id ??
-                                                                index,
-                                                        )}
-                                                    >
-                                                        <TableCell>
-                                                            {String(
-                                                                line.line_no ??
-                                                                    index +
-                                                                        1,
+                                            <TableBody>
+                                                {detailLines.map(
+                                                    (
+                                                        line,
+                                                        index,
+                                                    ) => (
+                                                        <TableRow
+                                                            key={String(
+                                                                line.customer_invoice_item_id ??
+                                                                    index,
                                                             )}
-                                                        </TableCell>
-
-                                                        <TableCell>
-                                                            <p className="font-semibold text-slate-900">
+                                                        >
+                                                            <TableCell>
                                                                 {String(
-                                                                    line.product_code_snapshot ??
-                                                                        "Manual",
+                                                                    line.line_no ??
+                                                                        index +
+                                                                            1,
                                                                 )}
-                                                            </p>
+                                                            </TableCell>
 
-                                                            <p className="text-sm">
+                                                            <TableCell>
+                                                                <p className="font-semibold text-slate-900">
+                                                                    {String(
+                                                                        line.product_code ??
+                                                                            "Manual",
+                                                                    )}
+                                                                </p>
+
+                                                                <p className="text-sm">
+                                                                    {String(
+                                                                        line.description ??
+                                                                            "—",
+                                                                    )}
+                                                                </p>
+
+                                                                <p className="text-xs text-slate-500">
+                                                                    {String(
+                                                                        line.product_name ??
+                                                                            "",
+                                                                    )}
+                                                                </p>
+                                                            </TableCell>
+
+                                                            <TableCell>
                                                                 {String(
-                                                                    line.description ??
+                                                                    line.project_area_name ??
+                                                                        line.area_name ??
                                                                         "—",
                                                                 )}
-                                                            </p>
+                                                            </TableCell>
 
-                                                            <p className="text-xs text-slate-500">
-                                                                {String(
-                                                                    line.product_name_snapshot ??
-                                                                        "",
-                                                                )}
-                                                            </p>
-                                                        </TableCell>
+                                                            <TableCell>
+                                                                <p>
+                                                                    {String(
+                                                                        line.sales_uom_code ??
+                                                                            "—",
+                                                                    )} →{" "}
+                                                                    {String(
+                                                                        line.base_uom_code ??
+                                                                            "—",
+                                                                    )}
+                                                                </p>
 
-                                                        <TableCell>
-                                                            {String(
-                                                                line.project_area_name ??
-                                                                    line.area_name ??
-                                                                    "—",
-                                                            )}
-                                                        </TableCell>
+                                                                <p className="text-xs text-slate-500">
+                                                                    Factor{" "}
+                                                                    {numberText(
+                                                                        line.conversion_factor,
+                                                                        6,
+                                                                    )}{" "}
+                                                                    / Base Qty
+                                                                    {" "}
+                                                                    {numberText(
+                                                                        line.base_quantity,
+                                                                        6,
+                                                                    )}
+                                                                </p>
+                                                            </TableCell>
 
-                                                        <TableCell>
-                                                            <p>
-                                                                {String(
-                                                                    line.sales_uom_code ??
-                                                                        "—",
-                                                                )}{" "}
-                                                                →{" "}
-                                                                {String(
-                                                                    line.base_uom_code ??
-                                                                        "—",
-                                                                )}
-                                                            </p>
-
-                                                            <p className="text-xs text-slate-500">
-                                                                Factor{" "}
+                                                            <TableCell className="text-right">
                                                                 {numberText(
-                                                                    line.conversion_factor,
-                                                                    6,
-                                                                )}{" "}
-                                                                /
-                                                                Base
-                                                                Qty{" "}
-                                                                {numberText(
-                                                                    line.base_quantity,
+                                                                    line.quantity,
                                                                     6,
                                                                 )}
-                                                            </p>
-                                                        </TableCell>
+                                                            </TableCell>
 
-                                                        <TableCell className="text-right">
-                                                            {numberText(
-                                                                line.quantity,
-                                                                6,
-                                                            )}
-                                                        </TableCell>
-
-                                                        <TableCell className="text-right">
-                                                            {money(
-                                                                line.unit_price,
-                                                            )}
-
-                                                            <p className="text-xs text-slate-500">
-                                                                {String(
-                                                                    line.price_source ??
-                                                                        "",
-                                                                )}
-                                                            </p>
-                                                        </TableCell>
-
-                                                        <TableCell className="text-right">
-                                                            {numberText(
-                                                                line.discount_percent,
-                                                                4,
-                                                            )}
-                                                            %
-
-                                                            <p className="text-xs text-slate-500">
+                                                            <TableCell className="text-right">
                                                                 {money(
-                                                                    line.discount_amount,
+                                                                    line.unit_price,
                                                                 )}
-                                                            </p>
-                                                        </TableCell>
 
-                                                        <TableCell className="text-right">
-                                                            {money(
-                                                                line.tax_amount,
-                                                            )}
-                                                        </TableCell>
+                                                                <p className="text-xs text-slate-500">
+                                                                    {String(
+                                                                        line.price_source ??
+                                                                            "",
+                                                                    )}
+                                                                </p>
+                                                            </TableCell>
 
-                                                        <TableCell className="text-right font-semibold">
-                                                            {money(
-                                                                line.line_total,
-                                                            )}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ),
-                                            )}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        <div className="grid gap-4 lg:grid-cols-2">
-                            <Card className="rounded-2xl">
-                                <CardHeader>
-                                    <CardTitle className="text-lg">
-                                        Commercial
-                                        Sources
-                                    </CardTitle>
-                                </CardHeader>
-
-                                <CardContent>
-                                    {detailSources.length ===
-                                    0 ? (
-                                        <p className="text-sm text-slate-500">
-                                            No linked
-                                            Quotation
-                                            or
-                                            Variation
-                                            source.
-                                        </p>
-                                    ) : (
-                                        <div className="space-y-3">
-                                            {detailSources.map(
-                                                (
-                                                    source,
-                                                    index,
-                                                ) => (
-                                                    <div
-                                                        key={String(
-                                                            source.invoice_source_id ??
-                                                                index,
-                                                        )}
-                                                        className="flex items-center justify-between rounded-xl border border-slate-200 p-3"
-                                                    >
-                                                        <div>
-                                                            <p className="font-medium">
-                                                                {String(
-                                                                    source.source_type ??
-                                                                        "Source",
+                                                            <TableCell className="text-right">
+                                                                {numberText(
+                                                                    line.discount_percent,
+                                                                    4,
                                                                 )}
-                                                            </p>
+                                                                %
 
-                                                            <p className="text-xs text-slate-500">
-                                                                {String(
-                                                                    source.source_no ??
-                                                                        source.source_id ??
-                                                                        "—",
+                                                                <p className="text-xs text-slate-500">
+                                                                    {money(
+                                                                        line.discount_amount,
+                                                                    )}
+                                                                </p>
+                                                            </TableCell>
+
+                                                            <TableCell className="text-right">
+                                                                {money(
+                                                                    line.tax_amount,
                                                                 )}
-                                                            </p>
-                                                        </div>
+                                                            </TableCell>
 
-                                                        <p className="font-semibold">
-                                                            {money(
-                                                                source.source_amount,
-                                                            )}
-                                                        </p>
-                                                    </div>
-                                                ),
-                                            )}
-                                        </div>
-                                    )}
+                                                            <TableCell className="text-right font-semibold">
+                                                                {money(
+                                                                    line.line_total,
+                                                                )}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ),
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
                                 </CardContent>
                             </Card>
 
+                            <div className="grid gap-4 lg:grid-cols-2">
+                                <Card className="rounded-2xl">
+                                    <CardHeader>
+                                        <CardTitle className="text-lg">
+                                            Commercial Sources
+                                        </CardTitle>
+                                    </CardHeader>
+
+                                    <CardContent>
+                                        {detailSources.length ===
+                                                0
+                                            ? (
+                                                <p className="text-sm text-slate-500">
+                                                    No linked Quotation or
+                                                    Variation source.
+                                                </p>
+                                            )
+                                            : (
+                                                <div className="space-y-3">
+                                                    {detailSources.map(
+                                                        (
+                                                            source,
+                                                            index,
+                                                        ) => (
+                                                            <div
+                                                                key={String(
+                                                                    source
+                                                                        .invoice_source_id ??
+                                                                        index,
+                                                                )}
+                                                                className="flex items-center justify-between rounded-xl border border-slate-200 p-3"
+                                                            >
+                                                                <div>
+                                                                    <p className="font-medium">
+                                                                        {String(
+                                                                            source
+                                                                                .source_type ??
+                                                                                "Source",
+                                                                        )}
+                                                                    </p>
+
+                                                                    <p className="text-xs text-slate-500">
+                                                                        {String(
+                                                                            source
+                                                                                .source_reference ??
+                                                                                source
+                                                                                    .source_id ??
+                                                                                "—",
+                                                                        )}
+                                                                    </p>
+                                                                </div>
+
+                                                                <p className="font-semibold">
+                                                                    {money(
+                                                                        source
+                                                                            .source_amount,
+                                                                    )}
+                                                                </p>
+                                                            </div>
+                                                        ),
+                                                    )}
+                                                </div>
+                                            )}
+                                    </CardContent>
+                                </Card>
+
+                                <Card className="rounded-2xl">
+                                    <CardHeader>
+                                        <CardTitle className="text-lg">
+                                            Payment Allocations
+                                        </CardTitle>
+                                    </CardHeader>
+
+                                    <CardContent>
+                                        {allocations.length ===
+                                                0
+                                            ? (
+                                                <p className="text-sm text-slate-500">
+                                                    No payments allocated to
+                                                    this Invoice.
+                                                </p>
+                                            )
+                                            : (
+                                                <div className="space-y-3">
+                                                    {allocations.map(
+                                                        (
+                                                            allocation,
+                                                            index,
+                                                        ) => (
+                                                            <div
+                                                                key={String(
+                                                                    allocation
+                                                                        .customer_payment_allocation_id ??
+                                                                        index,
+                                                                )}
+                                                                className="flex items-center justify-between rounded-xl border border-slate-200 p-3"
+                                                            >
+                                                                <div>
+                                                                    <p className="font-medium">
+                                                                        {String(
+                                                                            allocation
+                                                                                .payment_no ??
+                                                                                "Payment",
+                                                                        )}
+                                                                    </p>
+
+                                                                    <p className="text-xs text-slate-500">
+                                                                        {dateText(
+                                                                            allocation
+                                                                                .payment_date,
+                                                                        )}
+                                                                    </p>
+                                                                </div>
+
+                                                                <p className="font-semibold text-green-700">
+                                                                    {money(
+                                                                        allocation
+                                                                            .allocated_amount,
+                                                                    )}
+                                                                </p>
+                                                            </div>
+                                                        ),
+                                                    )}
+                                                </div>
+                                            )}
+                                    </CardContent>
+                                </Card>
+                            </div>
+
                             <Card className="rounded-2xl">
                                 <CardHeader>
                                     <CardTitle className="text-lg">
-                                        Payment
-                                        Allocations
+                                        Workflow Actions
                                     </CardTitle>
                                 </CardHeader>
 
-                                <CardContent>
-                                    {allocations.length ===
-                                    0 ? (
-                                        <p className="text-sm text-slate-500">
-                                            No
-                                            payments
-                                            allocated
-                                            to this
-                                            Invoice.
-                                        </p>
-                                    ) : (
-                                        <div className="space-y-3">
-                                            {allocations.map(
-                                                (
-                                                    allocation,
-                                                    index,
-                                                ) => (
-                                                    <div
-                                                        key={String(
-                                                            allocation.customer_payment_allocation_id ??
-                                                                index,
-                                                        )}
-                                                        className="flex items-center justify-between rounded-xl border border-slate-200 p-3"
-                                                    >
-                                                        <div>
-                                                            <p className="font-medium">
-                                                                {String(
-                                                                    allocation.payment_no ??
-                                                                        "Payment",
-                                                                )}
-                                                            </p>
-
-                                                            <p className="text-xs text-slate-500">
-                                                                {dateText(
-                                                                    allocation.payment_date,
-                                                                )}
-                                                            </p>
-                                                        </div>
-
-                                                        <p className="font-semibold text-green-700">
-                                                            {money(
-                                                                allocation.allocated_amount,
-                                                            )}
-                                                        </p>
-                                                    </div>
-                                                ),
-                                            )}
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
-                        </div>
-
-                        <Card className="rounded-2xl">
-                            <CardHeader>
-                                <CardTitle className="text-lg">
-                                    Workflow
-                                    Actions
-                                </CardTitle>
-                            </CardHeader>
-
-                            <CardContent className="flex flex-wrap gap-2">
-                                {(status ===
-                                    "Draft" ||
-                                    status ===
-                                        "Approved") &&
-                                    permission[
-                                        "invoices.cancel"
-                                    ] && (
+                                <CardContent className="flex flex-wrap gap-2">
+                                    {(status ===
+                                            "Draft" ||
+                                        status ===
+                                            "Approved") &&
+                                        permission[
+                                            "invoices.cancel"
+                                        ] && (
                                         <Button
                                             variant="outline"
                                             className="rounded-xl border-red-200 text-red-700 hover:bg-red-50"
@@ -5122,20 +6331,19 @@ const Invoices = () => {
                                             }}
                                         >
                                             <XCircle className="mr-2 h-4 w-4" />
-                                            Cancel
-                                            Invoice
+                                            Cancel Invoice
                                         </Button>
                                     )}
 
-                                {status ===
-                                    "Issued" &&
-                                    Number(
-                                        invoice.paid_amount ||
-                                            0,
-                                    ) === 0 &&
-                                    permission[
-                                        "invoices.void"
-                                    ] && (
+                                    {status ===
+                                            "Issued" &&
+                                        Number(
+                                                invoice.paid_amount ||
+                                                    0,
+                                            ) === 0 &&
+                                        permission[
+                                            "invoices.void"
+                                        ] && (
                                         <Button
                                             variant="outline"
                                             className="rounded-xl border-red-200 text-red-700 hover:bg-red-50"
@@ -5152,24 +6360,21 @@ const Invoices = () => {
                                             }}
                                         >
                                             <FileMinus2 className="mr-2 h-4 w-4" />
-                                            Void
-                                            Invoice
+                                            Void Invoice
                                         </Button>
                                     )}
 
-                                {(status ===
-                                    "Draft" ||
-                                    status ===
-                                        "Cancelled") &&
-                                    permission[
-                                        "invoices.soft_delete"
-                                    ] && (
+                                    {(status ===
+                                            "Draft" ||
+                                        status ===
+                                            "Cancelled") &&
+                                        permission[
+                                            "invoices.soft_delete"
+                                        ] && (
                                         <Button
                                             variant="outline"
                                             className="rounded-xl"
-                                            disabled={
-                                                workflowAction.isPending
-                                            }
+                                            disabled={workflowAction.isPending}
                                             onClick={() =>
                                                 workflowAction.mutate(
                                                     {
@@ -5177,48 +6382,36 @@ const Invoices = () => {
                                                             "soft_delete_invoice_atomic",
                                                         invoiceId,
                                                     },
-                                                )
-                                            }
+                                                )}
                                         >
                                             <Archive className="mr-2 h-4 w-4" />
                                             Archive
                                         </Button>
                                     )}
 
-                                {status ===
-                                    "Issued" &&
-                                    permission[
-                                        "invoices.create_credit_note"
-                                    ] && (
+                                    {status ===
+                                            "Issued" &&
+                                        permission[
+                                            "invoices.create_credit_note"
+                                        ] && (
                                         <div className="rounded-xl border border-dashed border-slate-300 px-4 py-2 text-sm text-slate-500">
-                                            Credit
-                                            Note
-                                            uses
-                                            the
-                                            dedicated
-                                            Credit
-                                            Note
-                                            workflow.
+                                            Credit Note uses the dedicated
+                                            Credit Note workflow.
                                         </div>
                                     )}
 
-                                {permission[
-                                    "invoices.release_retention"
-                                ] && (
-                                    <div className="rounded-xl border border-dashed border-slate-300 px-4 py-2 text-sm text-slate-500">
-                                        Retention
-                                        Release
-                                        uses the
-                                        dedicated
-                                        Site
-                                        Retention
-                                        workflow.
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </>
-                )}
+                                    {permission[
+                                        "invoices.release_retention"
+                                    ] && (
+                                        <div className="rounded-xl border border-dashed border-slate-300 px-4 py-2 text-sm text-slate-500">
+                                            Retention Release uses the dedicated
+                                            Site Retention workflow.
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </>
+                    )}
             </div>
         );
     };
@@ -5236,15 +6429,13 @@ const Invoices = () => {
 
             <Dialog
                 open={showReasonDialog}
-                onOpenChange={
-                    setShowReasonDialog
-                }
+                onOpenChange={setShowReasonDialog}
             >
                 <DialogContent className="rounded-2xl">
                     <DialogHeader>
                         <DialogTitle>
                             {reasonAction ===
-                            "cancel"
+                                    "cancel"
                                 ? "Cancel Invoice"
                                 : "Void Invoice"}
                         </DialogTitle>
@@ -5260,21 +6451,15 @@ const Invoices = () => {
                             </Label>
 
                             <Textarea
-                                className={
-                                    TEXTAREA_CLASS
-                                }
-                                value={
-                                    reason
-                                }
+                                className={TEXTAREA_CLASS}
+                                value={reason}
                                 onChange={(
                                     event,
-                                ) =>
-                                    setReason(
-                                        event
-                                            .target
-                                            .value,
-                                    )
-                                }
+                                ) => setReason(
+                                    event
+                                        .target
+                                        .value,
+                                )}
                                 placeholder="Enter the required reason"
                             />
                         </div>
@@ -5286,21 +6471,16 @@ const Invoices = () => {
                                 onClick={() =>
                                     setShowReasonDialog(
                                         false,
-                                    )
-                                }
+                                    )}
                             >
                                 Close
                             </Button>
 
                             <Button
-                                className={
-                                    RED_BUTTON
-                                }
-                                disabled={
-                                    !reason.trim() ||
+                                className={RED_BUTTON}
+                                disabled={!reason.trim() ||
                                     workflowAction.isPending ||
-                                    !selectedId
-                                }
+                                    !selectedId}
                                 onClick={() => {
                                     if (
                                         !selectedId ||
@@ -5311,16 +6491,13 @@ const Invoices = () => {
 
                                     workflowAction.mutate(
                                         {
-                                            rpcName:
-                                                reasonAction ===
-                                                "cancel"
-                                                    ? "cancel_invoice_atomic"
-                                                    : "void_invoice_atomic",
-                                            invoiceId:
-                                                selectedId,
+                                            rpcName: reasonAction ===
+                                                    "cancel"
+                                                ? "cancel_invoice_atomic"
+                                                : "void_invoice_atomic",
+                                            invoiceId: selectedId,
                                             args: {
-                                                p_reason:
-                                                    reason.trim(),
+                                                p_reason: reason.trim(),
                                             },
                                         },
                                     );
@@ -5331,6 +6508,190 @@ const Invoices = () => {
                                 )}
 
                                 Confirm
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={showSellingPriceDialog}
+                onOpenChange={setShowSellingPriceDialog}
+            >
+                <DialogContent className="rounded-2xl max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>Set Selling Price</DialogTitle>
+                    </DialogHeader>
+
+                    <div className="grid gap-3">
+                        <div>
+                            <p className="text-xs text-slate-500">
+                                Product Code
+                            </p>
+                            <p className="font-medium">
+                                {sellingProductCode ?? "—"}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-xs text-slate-500">
+                                Product Name
+                            </p>
+                            <p className="font-medium">
+                                {sellingProductName ?? "—"}
+                            </p>
+                        </div>
+
+                        <div>
+                            <Label>Selling UOM *</Label>
+                            <Select
+                                value={sellingUom || "none"}
+                                onValueChange={(value) => {
+                                    const nextUom = value === "none"
+                                        ? null
+                                        : value;
+                                    setSellingUom(nextUom);
+
+                                    if (sellingProductId && nextUom) {
+                                        loadSellingPriceMatrix(
+                                            sellingProductId,
+                                            nextUom,
+                                            sellingEffectiveFrom ||
+                                                invoiceDate || today(),
+                                        );
+                                    } else {
+                                        setSellingPricesByBook({});
+                                        setSellingMinimumPricesByBook({});
+                                    }
+                                }}
+                                disabled={!sellingProduct}
+                            >
+                                <SelectTrigger className={INPUT_CLASS}>
+                                    <SelectValue placeholder="Select UOM" />
+                                </SelectTrigger>
+
+                                <SelectContent>
+                                    <SelectItem value="none">
+                                        Select UOM
+                                    </SelectItem>
+                                    {sellingProductUoms.map((uom) => (
+                                        <SelectItem
+                                            key={uom.uomCode}
+                                            value={uom.uomCode}
+                                        >
+                                            {uom.uomCode}
+                                            {uom.factor !== 1
+                                                ? ` → ${uom.factor} ${sellingProduct?.base_uom_code}`
+                                                : ""}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <div className="grid grid-cols-[minmax(120px,1fr)_minmax(120px,1fr)_minmax(120px,1fr)] gap-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                <div>Price Book</div>
+                                <div>Selling Price</div>
+                                <div>Minimum Price</div>
+                            </div>
+
+                            <div className="mt-3 space-y-3">
+                                {sellingPriceBooks.map((book) => (
+                                    <div
+                                        key={book.price_book_id}
+                                        className="grid grid-cols-[minmax(120px,1fr)_minmax(120px,1fr)_minmax(120px,1fr)] items-center gap-3"
+                                    >
+                                        <div className="min-w-0">
+                                            <p className="truncate text-sm font-semibold text-slate-900">
+                                                {book.price_book_name}
+                                                {book.is_default
+                                                    ? " (Default)"
+                                                    : ""}
+                                            </p>
+                                            {!hasCommercialSource &&
+                                                book.price_book_id ===
+                                                    priceBookId &&
+                                                (
+                                                    <p className="mt-0.5 text-xs text-[#8B3F3F]">
+                                                        Current Invoice Price
+                                                        Book
+                                                    </p>
+                                                )}
+                                        </div>
+
+                                        <Input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            className={INPUT_CLASS}
+                                            value={sellingPricesByBook[
+                                                book.price_book_id
+                                            ] ?? ""}
+                                            onChange={(event) =>
+                                                setSellingPricesByBook((
+                                                    current,
+                                                ) => ({
+                                                    ...current,
+                                                    [book.price_book_id]:
+                                                        event.target.value,
+                                                }))}
+                                            placeholder="Not Set"
+                                        />
+
+                                        <Input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            className={INPUT_CLASS}
+                                            value={sellingMinimumPricesByBook[
+                                                book.price_book_id
+                                            ] ?? ""}
+                                            onChange={(event) =>
+                                                setSellingMinimumPricesByBook(
+                                                    (current) => ({
+                                                        ...current,
+                                                        [book.price_book_id]:
+                                                            event.target.value,
+                                                    }),
+                                                )}
+                                            placeholder="Optional"
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+
+                            <p className="mt-3 text-xs text-slate-500">
+                                Blank prices remain Not Set. Prices are saved
+                                separately for each Price Book and are never
+                                silently replaced by Standard.
+                            </p>
+                        </div>
+
+                        <div>
+                            <Label>Effective From</Label>
+                            <Input
+                                type="date"
+                                className={INPUT_CLASS}
+                                value={sellingEffectiveFrom}
+                                onChange={(e) =>
+                                    setSellingEffectiveFrom(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => setShowSellingPriceDialog(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                className={RED_BUTTON}
+                                onClick={handleSaveSellingPrice}
+                                disabled={setSellingPrices.isPending}
+                            >
+                                Save Selling Prices
                             </Button>
                         </div>
                     </div>
