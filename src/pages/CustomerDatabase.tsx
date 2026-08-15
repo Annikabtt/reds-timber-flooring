@@ -236,6 +236,32 @@ type PriceBook = {
   price_book_name?: string | null;
 };
 
+const isPriceBookForCustomerType = (
+  priceBook: PriceBook,
+  customerType: string
+) => {
+  const code = priceBook.price_book_code.trim().toUpperCase();
+  const name = (priceBook.price_book_name ?? "").trim().toUpperCase();
+
+  if (customerType === "Residential") {
+    return (
+      code === "PB-RES" ||
+      code.includes("RES") ||
+      name.includes("RESIDENT")
+    );
+  }
+
+  if (customerType === "Commercial") {
+    return (
+      code === "PB-COM" ||
+      code.includes("COM") ||
+      name.includes("COMMERCIAL")
+    );
+  }
+
+  return false;
+};
+
 type Customer = {
   customer_id: string;
   customer_code: string;
@@ -442,6 +468,35 @@ export default function CustomerDatabase() {
     },
   });
 
+  const eligiblePriceBooks = useMemo(
+    () =>
+      priceBooks.filter((priceBook) =>
+        isPriceBookForCustomerType(priceBook, customerType)
+      ),
+    [priceBooks, customerType]
+  );
+
+  useEffect(() => {
+    if (!showAddDialog || priceBooks.length === 0) return;
+
+    const selectedPriceBook = priceBooks.find(
+      (priceBook) => priceBook.price_book_id === priceBookId
+    );
+
+    if (
+      selectedPriceBook &&
+      isPriceBookForCustomerType(selectedPriceBook, customerType)
+    ) {
+      return;
+    }
+
+    const matchingPriceBook = priceBooks.find((priceBook) =>
+      isPriceBookForCustomerType(priceBook, customerType)
+    );
+
+    setPriceBookId(matchingPriceBook?.price_book_id ?? "");
+  }, [showAddDialog, customerType, priceBooks, priceBookId]);
+
   const {
     data: customers = [],
     isLoading,
@@ -496,6 +551,24 @@ export default function CustomerDatabase() {
       return data as Customer[];
     },
   });
+
+  useEffect(() => {
+    if (!viewingCustomer) return;
+
+    const refreshedCustomer = customers.find(
+      (customer) => customer.customer_id === viewingCustomer.customer_id
+    );
+
+    if (!refreshedCustomer) return;
+
+    setViewingCustomer((current) => {
+      if (!current || current.customer_id !== refreshedCustomer.customer_id) {
+        return current;
+      }
+
+      return refreshedCustomer;
+    });
+  }, [customers, viewingCustomer?.customer_id]);
 
   const selectedCustomerId = viewingCustomer?.customer_id ?? "";
 
@@ -890,7 +963,21 @@ export default function CustomerDatabase() {
       return;
     }
 
-    const customerCode = "CUS-" + Date.now().toString().slice(-6);
+    const selectedPriceBook = priceBooks.find(
+      (priceBook) => priceBook.price_book_id === priceBookId
+    );
+
+    if (
+      !selectedPriceBook ||
+      !isPriceBookForCustomerType(selectedPriceBook, customerType)
+    ) {
+      alert(
+        customerType === "Residential"
+          ? "Residential customers must use a Residential Price Book."
+          : "Commercial customers must use a Commercial Price Book."
+      );
+      return;
+    }
 
     setCustomerFormSaving(true);
 
@@ -898,7 +985,6 @@ export default function CustomerDatabase() {
       const { data: createdCustomer, error: customerError } = await supabase
         .from("customers")
         .insert({
-          customer_code: customerCode,
           customer_name: trimmedCustomerName,
           customer_type: customerType,
           phone: trimmedPhone || null,
@@ -909,7 +995,7 @@ export default function CustomerDatabase() {
           is_active: true,
           is_deleted: false,
         })
-        .select("customer_id")
+        .select("customer_id, customer_code")
         .single();
 
       if (customerError) throw customerError;
@@ -1228,6 +1314,22 @@ export default function CustomerDatabase() {
       return;
     }
 
+    const selectedPriceBook = priceBooks.find(
+      (priceBook) => priceBook.price_book_id === priceBookId
+    );
+
+    if (
+      !selectedPriceBook ||
+      !isPriceBookForCustomerType(selectedPriceBook, customerType)
+    ) {
+      alert(
+        customerType === "Residential"
+          ? "Residential customers must use a Residential Price Book."
+          : "Commercial customers must use a Commercial Price Book."
+      );
+      return;
+    }
+
     setCustomerFormSaving(true);
 
     try {
@@ -1367,12 +1469,16 @@ export default function CustomerDatabase() {
         if (addressDeleteError) throw addressDeleteError;
       }
 
-      setShowAddDialog(false);
-      resetCustomerForm();
-
-      queryClient.invalidateQueries({
+      await queryClient.invalidateQueries({
         queryKey: ["customers"],
       });
+      await queryClient.refetchQueries({
+        queryKey: ["customers"],
+        type: "active",
+      });
+
+      setShowAddDialog(false);
+      resetCustomerForm();
     } catch (error) {
       alert(error instanceof Error ? error.message : "Customer could not be saved.");
     } finally {
@@ -2849,6 +2955,25 @@ export default function CustomerDatabase() {
               >
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
+                    <Label>Customer Code</Label>
+                    <Input
+                      className={`${customerInputClassName} font-semibold text-slate-700`}
+                      value={
+                        customerFormMode === "edit"
+                          ? editingCustomer?.customer_code ?? ""
+                          : "Auto-generated on save"
+                      }
+                      readOnly
+                      aria-readonly="true"
+                    />
+                    <p className="mt-1 text-xs text-slate-500">
+                      {customerFormMode === "edit"
+                        ? "Permanent system identifier. Customer Code is not changed when the customer profile is edited."
+                        : "A unique Customer Code is assigned when the customer is created."}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
                     <Label>Customer Type</Label>
                     <Select
                       value={customerType}
@@ -2927,20 +3052,30 @@ export default function CustomerDatabase() {
                     <Label>Price Book</Label>
                     <Select value={priceBookId} onValueChange={setPriceBookId}>
                       <SelectTrigger className={customerInputClassName}>
-                        <SelectValue placeholder="Select default price book" />
+                        <SelectValue
+                          placeholder={
+                            customerType === "Residential"
+                              ? "Select Residential Price Book"
+                              : "Select Commercial Price Book"
+                          }
+                        />
                       </SelectTrigger>
                       <SelectContent>
-                        {priceBooks.length === 0 ? (
+                        {eligiblePriceBooks.length === 0 ? (
                           <SelectItem value="no-price-book" disabled>
-                            No active price books found
+                            {customerType === "Residential"
+                              ? "No active Residential Price Book found"
+                              : "No active Commercial Price Book found"}
                           </SelectItem>
                         ) : (
-                          priceBooks.map((priceBook) => (
+                          eligiblePriceBooks.map((priceBook) => (
                             <SelectItem
                               key={priceBook.price_book_id}
                               value={priceBook.price_book_id}
                             >
-                              {priceBook.price_book_code}
+                              {priceBook.price_book_name
+                                ? `${priceBook.price_book_code} · ${priceBook.price_book_name}`
+                                : priceBook.price_book_code}
                             </SelectItem>
                           ))
                         )}
@@ -2948,7 +3083,7 @@ export default function CustomerDatabase() {
                     </Select>
 
                     <p className="mt-1 text-xs text-slate-500">
-                      Used later for customer material selection, estimates, proposals, and invoices.
+                      Automatically matched to Customer Type. Residential uses a Residential Price Book; Commercial uses a Commercial Price Book.
                     </p>
                   </div>
                 </div>
