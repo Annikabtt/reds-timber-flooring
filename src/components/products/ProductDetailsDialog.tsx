@@ -255,6 +255,7 @@ export function ProductDetailsDialog({
                         product_type,
                         description,
                         base_uom_code,
+                        pricing_uom_code,
                         default_purchase_uom_code,
                         default_request_uom_code,
                         default_sales_uom_code,
@@ -414,6 +415,114 @@ export function ProductDetailsDialog({
             ),
         [unitComparisonQuery.data],
     );
+
+    const derivedTransactionPrices = useMemo(() => {
+        const pricingUom =
+            typeof product?.pricing_uom_code === "string"
+                ? product.pricing_uom_code.trim()
+                : "";
+
+        if (!pricingUom || unitRows.length === 0) {
+            return [];
+        }
+
+        const pricingUnit = unitRows.find(
+            (unit) => unit.uom_code === pricingUom,
+        );
+
+        const pricingFactor = Number(pricingUnit?.conversion_to_base ?? 0);
+
+        if (!Number.isFinite(pricingFactor) || pricingFactor <= 0) {
+            return [];
+        }
+
+        const currentPriceByBook = new Map<
+            string,
+            {
+                code: string;
+                name: string;
+                currencyCode: string;
+                unitPrice: number | null;
+                minimumPrice: number | null;
+            }
+        >();
+
+        for (const entry of pricing?.sales_prices ?? []) {
+            const priceBook = entry.price_book ?? {};
+            const priceLine = entry.price_book_line ?? {};
+            const rowUom = readText(priceLine, "price_uom_code");
+
+            if (rowUom !== pricingUom) continue;
+
+            const code =
+                readText(priceBook, "price_book_code") ??
+                readText(priceBook, "price_book_name");
+
+            if (!code) continue;
+
+            currentPriceByBook.set(code, {
+                code,
+                name:
+                    readText(priceBook, "price_book_name") ??
+                    readText(priceBook, "price_book_code") ??
+                    code,
+                currencyCode:
+                    readText(priceBook, "currency_code") ??
+                    readText(priceLine, "currency_code") ??
+                    "AUD",
+                unitPrice: readNumber(priceLine, "unit_price"),
+                minimumPrice: readNumber(priceLine, "minimum_price"),
+            });
+        }
+
+        const orderedBooks = ["PB-STD", "PB-COM", "PB-RES", "PB-VIP"];
+
+        return unitRows
+            .filter((unit) => unit.uom_code !== pricingUom)
+            .map((unit) => {
+                const transactionFactor = Number(
+                    unit.conversion_to_base ?? 0,
+                );
+
+                const prices = orderedBooks.map((bookCode) => {
+                    const source = currentPriceByBook.get(bookCode);
+
+                    if (
+                        !source ||
+                        !Number.isFinite(transactionFactor) ||
+                        transactionFactor <= 0
+                    ) {
+                        return {
+                            bookCode,
+                            currencyCode: source?.currencyCode ?? "AUD",
+                            unitPrice: null,
+                            minimumPrice: null,
+                        };
+                    }
+
+                    return {
+                        bookCode,
+                        currencyCode: source.currencyCode,
+                        unitPrice:
+                            source.unitPrice === null
+                                ? null
+                                : (source.unitPrice * transactionFactor) /
+                                  pricingFactor,
+                        minimumPrice:
+                            source.minimumPrice === null
+                                ? null
+                                : (source.minimumPrice * transactionFactor) /
+                                  pricingFactor,
+                    };
+                });
+
+                return {
+                    uomCode: unit.uom_code,
+                    conversionToBase: transactionFactor,
+                    prices,
+                };
+            });
+    }, [pricing?.sales_prices, product?.pricing_uom_code, unitRows]);
 
     const getAttributeValue = (row: any) => {
         const definition = row.product_attribute_definitions;
@@ -1221,6 +1330,94 @@ export function ProductDetailsDialog({
                             ) : (
                                 <PermissionNotice text="Sales pricing is hidden because this user does not have Product Sales Price permission." />
                             )}
+
+                            {pricingPermissions.can_view_sales_prices &&
+                            derivedTransactionPrices.length > 0 ? (
+                                <Section
+                                    icon={Ruler}
+                                    title="Derived Transaction Prices"
+                                    helper={`Calculated from the current ${product.pricing_uom_code ?? "Pricing"} UOM Price Matrix and Factor-to-Base. These are derived values, not independent Price Book rows.`}
+                                >
+                                    <div className="mb-3 rounded-xl border border-[#E5E7EB] bg-[#F7F9FB] px-4 py-3 text-xs leading-5 text-slate-600">
+                                        Formula: Pricing UOM Price × Transaction
+                                        Factor-to-Base ÷ Pricing UOM
+                                        Factor-to-Base.
+                                    </div>
+
+                                    <div className="overflow-x-auto rounded-xl border border-[#E5E7EB]">
+                                        <table className="min-w-[980px] w-full text-left text-sm">
+                                            <thead className="bg-slate-100 text-slate-700">
+                                                <tr>
+                                                    <th className="px-3 py-2">
+                                                        Transaction UOM
+                                                    </th>
+                                                    <th className="px-3 py-2 text-right">
+                                                        Factor to Base
+                                                    </th>
+                                                    <th className="px-3 py-2 text-right">
+                                                        Standard
+                                                    </th>
+                                                    <th className="px-3 py-2 text-right">
+                                                        Commercial
+                                                    </th>
+                                                    <th className="px-3 py-2 text-right">
+                                                        Residential
+                                                    </th>
+                                                    <th className="px-3 py-2 text-right">
+                                                        VIP
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {derivedTransactionPrices.map(
+                                                    (row) => (
+                                                        <tr
+                                                            key={row.uomCode}
+                                                            className="border-t border-[#E5E7EB] bg-white"
+                                                        >
+                                                            <td className="px-3 py-3 font-mono font-semibold text-slate-900">
+                                                                {row.uomCode}
+                                                            </td>
+                                                            <td className="px-3 py-3 text-right font-mono text-slate-700">
+                                                                {formatNumber(
+                                                                    row.conversionToBase,
+                                                                    6,
+                                                                )}
+                                                            </td>
+                                                            {row.prices.map(
+                                                                (price) => (
+                                                                    <td
+                                                                        key={
+                                                                            price.bookCode
+                                                                        }
+                                                                        className="px-3 py-3 text-right"
+                                                                    >
+                                                                        <div className="font-semibold text-slate-900">
+                                                                            {formatCurrency(
+                                                                                price.unitPrice,
+                                                                                price.currencyCode,
+                                                                                row.uomCode,
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="mt-0.5 text-xs text-slate-500">
+                                                                            Min{" "}
+                                                                            {formatCurrency(
+                                                                                price.minimumPrice,
+                                                                                price.currencyCode,
+                                                                                row.uomCode,
+                                                                            )}
+                                                                        </div>
+                                                                    </td>
+                                                                ),
+                                                            )}
+                                                        </tr>
+                                                    ),
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </Section>
+                            ) : null}
 
                             {pricingPermissions.can_view_average_cost ? (
                                 <Section

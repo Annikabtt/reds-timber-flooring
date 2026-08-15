@@ -57,14 +57,17 @@ type Lookup = {
   uoms: UomRow[];
   conversions: ConversionRow[];
   priceBooks: PriceBookRow[];
-  priceBookLines: PriceBookLineRow[];
   areaTypes: AreaTypeRow[];
 };
 
 type PermissionMap = Record<string, boolean>;
 
+type BillingMethod = "Quantity" | "WorkUnit" | "Percentage";
+type PriceMode = "Standard" | "Manual";
+
 type LineForm = {
   clientId: string;
+  lineUid: string;
   productId: string;
   projectAreaId: string;
   description: string;
@@ -79,6 +82,31 @@ type LineForm = {
   notes: string;
   isOptional: boolean;
   allowFractionalQuantity: boolean;
+  billingMethod: BillingMethod;
+  priceMode: PriceMode;
+  priceSource: string;
+  originalUnitPrice: number | null;
+  minimumPriceSnapshot: number | null;
+  manualPriceReason: string;
+  priceError: string;
+  priceLoading: boolean;
+};
+
+type BillingUnitForm = {
+  clientId: string;
+  billingUnitUid: string;
+  code: string;
+  name: string;
+  allocations: Record<string, string>;
+};
+
+type ResolvedQuotationPrice = {
+  resolved_unit_price: number;
+  original_unit_price: number | null;
+  minimum_price_snapshot: number | null;
+  price_book_line_id: string | null;
+  price_source: string;
+  manual_price_reason: string | null;
 };
 
 type AreaForm = {
@@ -91,6 +119,7 @@ type AreaForm = {
 
 type HeaderForm = {
   customerId: string;
+  projectId: string;
   projectSiteId: string;
   priceBookId: string;
   quotationSegment: string;
@@ -116,6 +145,7 @@ const PERMISSIONS = [
   "quotations.view_margin",
   "quotations.create",
   "quotations.update_draft",
+  "quotations.override_unit_price",
   "quotations.send",
   "quotations.create_revision",
   "quotations.accept",
@@ -123,6 +153,7 @@ const PERMISSIONS = [
   "quotations.cancel",
   "quotations.soft_delete",
   "project_areas.create",
+  "products.manage_sales_prices",
 ] as const;
 
 const DISABLED_SITE_VALUE_PREFIX = "disabled-site:";
@@ -158,6 +189,7 @@ function SelectItem(
 
 const emptyHeader = (): HeaderForm => ({
   customerId: "",
+  projectId: "",
   projectSiteId: "",
   priceBookId: "",
   quotationSegment: "Retail",
@@ -168,7 +200,7 @@ const emptyHeader = (): HeaderForm => ({
   internalNotes: "",
 });
 
-const createClientId = () => {
+const createStableUuid = () => {
   if (
     typeof globalThis.crypto !== "undefined" &&
     typeof globalThis.crypto.randomUUID === "function"
@@ -176,15 +208,18 @@ const createClientId = () => {
     return globalThis.crypto.randomUUID();
   }
 
-  return `quotation-line-${Date.now()}-${
-    Math.random()
-      .toString(36)
-      .slice(2, 10)
-  }`;
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (character) => {
+    const random = Math.floor(Math.random() * 16);
+    const value = character === "x" ? random : (random & 0x3) | 0x8;
+    return value.toString(16);
+  });
 };
+
+const createClientId = () => createStableUuid();
 
 const emptyLine = (): LineForm => ({
   clientId: createClientId(),
+  lineUid: createStableUuid(),
   productId: "",
   projectAreaId: "",
   description: "",
@@ -192,13 +227,29 @@ const emptyLine = (): LineForm => ({
   baseUomCode: "",
   conversionFactor: "1",
   quantity: "1",
-  unitPrice: "0",
+  unitPrice: "",
   discountPercent: "0",
   taxRate: "10",
   costPrice: "0",
   notes: "",
   isOptional: false,
   allowFractionalQuantity: true,
+  billingMethod: "Quantity",
+  priceMode: "Standard",
+  priceSource: "",
+  originalUnitPrice: null,
+  minimumPriceSnapshot: null,
+  manualPriceReason: "",
+  priceError: "",
+  priceLoading: false,
+});
+
+const emptyBillingUnit = (): BillingUnitForm => ({
+  clientId: createClientId(),
+  billingUnitUid: createStableUuid(),
+  code: "",
+  name: "",
+  allocations: {},
 });
 
 const money = (value: number | null | undefined) =>
@@ -211,6 +262,11 @@ const textOrDash = (value: string | null | undefined) => value?.trim() || "-";
 const safeNumber = (value: string) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const formatQuantityValue = (value: number) => {
+  if (!Number.isFinite(value)) return "";
+  return Number(value.toFixed(6)).toString();
 };
 
 const statusClass = (status: string) => {
@@ -234,6 +290,7 @@ export default function Quotations() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [header, setHeader] = useState<HeaderForm>(emptyHeader());
   const [lines, setLines] = useState<LineForm[]>([emptyLine()]);
+  const [billingUnits, setBillingUnits] = useState<BillingUnitForm[]>([]);
   const [actionDialog, setActionDialog] = useState<
     { type: string; quotation: QuotationRow } | null
   >(null);
@@ -241,6 +298,17 @@ export default function Quotations() {
   const [acceptRequiredBy, setAcceptRequiredBy] = useState("");
   const [areaDialog, setAreaDialog] = useState<{ lineId: string } | null>(null);
   const [areaForm, setAreaForm] = useState<AreaForm>(emptyAreaForm());
+  const [showSellingPriceDialog, setShowSellingPriceDialog] = useState(false);
+  const [sellingDialogTargetLineId, setSellingDialogTargetLineId] = useState<string | null>(null);
+  const [sellingProductId, setSellingProductId] = useState<string | null>(null);
+  const [sellingProductCode, setSellingProductCode] = useState<string | null>(null);
+  const [sellingProductName, setSellingProductName] = useState<string | null>(null);
+  const [sellingUom, setSellingUom] = useState<string | null>(null);
+  const [sellingEffectiveFrom, setSellingEffectiveFrom] = useState(
+    new Date().toISOString().slice(0, 10),
+  );
+  const [sellingPricesByBook, setSellingPricesByBook] = useState<Record<string, string>>({});
+  const [sellingMinimumPricesByBook, setSellingMinimumPricesByBook] = useState<Record<string, string>>({});
 
   const permissionsQuery = useQuery({
     queryKey: ["quotation-permissions"],
@@ -271,7 +339,6 @@ export default function Quotations() {
         uoms,
         conversions,
         priceBooks,
-        priceBookLines,
         areaTypes,
       ] = await Promise.all([
         supabase.from("customers").select("*").eq("is_deleted", false).eq(
@@ -304,8 +371,6 @@ export default function Quotations() {
           "is_active",
           true,
         ).order("price_book_name"),
-        supabase.from("price_book_lines").select("*").eq("is_deleted", false)
-          .eq("is_active", true),
         supabase.from("project_area_types").select("*").eq("is_deleted", false)
           .eq("is_active", true).order("sort_order"),
       ]);
@@ -319,8 +384,7 @@ export default function Quotations() {
           uoms,
           conversions,
           priceBooks,
-          priceBookLines,
-          areaTypes,
+            areaTypes,
         ]
       ) {
         if (result.error) throw result.error;
@@ -334,9 +398,21 @@ export default function Quotations() {
         uoms: uoms.data ?? [],
         conversions: conversions.data ?? [],
         priceBooks: priceBooks.data ?? [],
-        priceBookLines: priceBookLines.data ?? [],
         areaTypes: areaTypes.data ?? [],
       };
+    },
+  });
+
+  const priceBookLinesQuery = useQuery({
+    queryKey: ["quotation-price-book-lines-v1"],
+    queryFn: async (): Promise<PriceBookLineRow[]> => {
+      const { data, error } = await supabase
+        .from("price_book_lines")
+        .select("*")
+        .eq("is_deleted", false)
+        .eq("is_active", true);
+      if (error) throw error;
+      return data ?? [];
     },
   });
 
@@ -438,18 +514,15 @@ export default function Quotations() {
     });
   }, [listQuery.data, search, customerById, siteById, projectById]);
 
+  const filteredProjects = useMemo(() =>
+    (lookupQuery.data?.projects ?? []).filter((project) =>
+      project.customer_id === header.customerId
+    ), [lookupQuery.data?.projects, header.customerId]);
+
   const filteredSites = useMemo(() => {
-    const customer = lookupQuery.data?.customers.find((x) =>
-      x.customer_id === header.customerId
-    );
-    if (!customer) return [];
-    const projectIds = new Set(
-      (lookupQuery.data?.projects ?? []).filter((project) =>
-        project.customer_id === customer.customer_id
-      ).map((project) => project.project_id),
-    );
+    if (!header.projectId) return [];
     return (lookupQuery.data?.sites ?? [])
-      .filter((site) => projectIds.has(site.project_id))
+      .filter((site) => site.project_id === header.projectId)
       .map((site) =>
         site.site_status === "Active"
           ? {
@@ -459,7 +532,11 @@ export default function Quotations() {
           }
           : site
       );
-  }, [lookupQuery.data, header.customerId]);
+  }, [lookupQuery.data?.sites, header.projectId]);
+
+  const selectedProject = lookupQuery.data?.projects.find((project) =>
+    project.project_id === header.projectId
+  );
 
   const selectedSite = lookupQuery.data?.sites.find((site) =>
     site.site_id === header.projectSiteId
@@ -474,6 +551,7 @@ export default function Quotations() {
     setEditingId(null);
     setHeader(emptyHeader());
     setLines([emptyLine()]);
+    setBillingUnits([]);
   };
 
   const openCreate = () => {
@@ -482,16 +560,37 @@ export default function Quotations() {
   };
 
   const openEdit = async (quotation: QuotationRow) => {
-    const { data: existingLines, error } = await supabase.from(
-      "quotation_lines",
-    ).select("*").eq("quotation_id", quotation.quotation_id).eq(
-      "is_deleted",
-      false,
-    ).order("line_no");
-    if (error) return toast.error(error.message);
+    const [
+      { data: existingLines, error: linesError },
+      { data: existingUnits, error: unitsError },
+      { data: existingAllocations, error: allocationsError },
+    ] = await Promise.all([
+      supabase.from("quotation_lines").select("*").eq(
+        "quotation_id",
+        quotation.quotation_id,
+      ).eq("is_deleted", false).order("line_no"),
+      (supabase as any).from("quotation_billing_units").select("*").eq(
+        "quotation_id",
+        quotation.quotation_id,
+      ).eq("is_deleted", false).eq("is_active", true).order("sort_order"),
+      (supabase as any).from("quotation_line_billing_allocations").select("*").eq(
+        "quotation_id",
+        quotation.quotation_id,
+      ).eq("is_deleted", false).eq("is_active", true).order("sort_order"),
+    ]);
+
+    if (linesError) return toast.error(linesError.message);
+    if (unitsError) return toast.error(unitsError.message);
+    if (allocationsError) return toast.error(allocationsError.message);
+
     setEditingId(quotation.quotation_id);
+    const existingSite = quotation.project_site_id
+      ? lookupQuery.data?.sites.find((site) => site.site_id === quotation.project_site_id)
+      : undefined;
+
     setHeader({
       customerId: quotation.customer_id,
+      projectId: existingSite?.project_id ?? "",
       projectSiteId: quotation.project_site_id ?? "",
       priceBookId: quotation.price_book_id ?? "",
       quotationSegment: quotation.quotation_segment,
@@ -501,8 +600,10 @@ export default function Quotations() {
       notes: quotation.notes ?? "",
       internalNotes: quotation.internal_notes ?? "",
     });
-    setLines((existingLines ?? []).map((line) => ({
+
+    setLines((existingLines ?? []).map((line: any) => ({
       clientId: line.quotation_line_id,
+      lineUid: line.line_uid ?? createStableUuid(),
       productId: line.product_id ?? "",
       projectAreaId: line.project_area_id ?? "",
       description: line.description,
@@ -517,13 +618,90 @@ export default function Quotations() {
       notes: line.notes ?? "",
       isOptional: line.is_optional,
       allowFractionalQuantity: line.allow_fractional_quantity,
+      billingMethod: (line.billing_method ?? "Quantity") as BillingMethod,
+      priceMode: line.price_source === "Manual" && Boolean(line.product_id)
+        ? "Manual"
+        : "Standard",
+      priceSource: line.price_source ?? "",
+      originalUnitPrice: line.original_unit_price === null ||
+          line.original_unit_price === undefined
+        ? null
+        : Number(line.original_unit_price),
+      minimumPriceSnapshot: line.minimum_price_snapshot === null ||
+          line.minimum_price_snapshot === undefined
+        ? null
+        : Number(line.minimum_price_snapshot),
+      manualPriceReason: line.manual_price_reason ?? "",
+      priceError: "",
+      priceLoading: false,
     })));
+
+    const allocationRows = (existingAllocations ?? []) as any[];
+    setBillingUnits(((existingUnits ?? []) as any[]).map((unit) => {
+      const allocations: Record<string, string> = {};
+      allocationRows.filter((allocation) =>
+        allocation.billing_unit_uid === unit.billing_unit_uid
+      ).forEach((allocation) => {
+        allocations[allocation.line_uid] = String(allocation.allocated_quantity);
+      });
+
+      return {
+        clientId: unit.quotation_billing_unit_id ??
+          unit.billing_unit_uid ??
+          createClientId(),
+        billingUnitUid: unit.billing_unit_uid,
+        code: unit.billing_unit_code ?? "",
+        name: unit.billing_unit_name ?? "",
+        allocations,
+      };
+    }));
+
     setEditorOpen(true);
   };
 
   const updateLine = (id: string, patch: Partial<LineForm>) =>
     setLines((current) =>
       current.map((line) => line.clientId === id ? { ...line, ...patch } : line)
+    );
+
+  const removeLine = (line: LineForm) => {
+    setLines((current) => current.filter((item) => item.clientId !== line.clientId));
+    setBillingUnits((current) =>
+      current.map((unit) => {
+        const allocations = { ...unit.allocations };
+        delete allocations[line.lineUid];
+        return { ...unit, allocations };
+      })
+    );
+  };
+
+  const updateBillingUnit = (
+    clientId: string,
+    patch: Partial<BillingUnitForm>,
+  ) =>
+    setBillingUnits((current) =>
+      current.map((unit) => unit.clientId === clientId
+        ? { ...unit, ...patch }
+        : unit)
+    );
+
+  const updateBillingAllocation = (
+    billingUnitClientId: string,
+    lineUid: string,
+    value: string,
+  ) =>
+    setBillingUnits((current) =>
+      current.map((unit) =>
+        unit.clientId === billingUnitClientId
+          ? {
+            ...unit,
+            allocations: {
+              ...unit.allocations,
+              [lineUid]: value,
+            },
+          }
+          : unit
+      )
     );
 
   const findConversion = (
@@ -541,6 +719,32 @@ export default function Quotations() {
         conversion.to_uom_code === baseUomCode &&
         conversion.is_active &&
         !conversion.is_deleted,
+    );
+  };
+
+  const supportedSalesUoms = (line: LineForm) => {
+    const product = lookupQuery.data?.products.find(
+      (item) => item.product_id === line.productId,
+    );
+    const baseUomCode = line.baseUomCode || product?.base_uom_code || "";
+
+    if (!line.productId || !baseUomCode) return [];
+
+    const supportedCodes = new Set<string>([baseUomCode]);
+
+    lookupQuery.data?.conversions.forEach((conversion) => {
+      if (
+        conversion.product_id === line.productId &&
+        conversion.to_uom_code === baseUomCode &&
+        conversion.is_active &&
+        !conversion.is_deleted
+      ) {
+        supportedCodes.add(conversion.from_uom_code);
+      }
+    });
+
+    return (lookupQuery.data?.uoms ?? []).filter(
+      (uom) => supportedCodes.has(uom.uom_code),
     );
   };
 
@@ -576,7 +780,276 @@ export default function Quotations() {
     };
   };
 
-  const chooseProduct = (lineId: string, productId: string) => {
+  const isDateWithinRange = (
+    dateValue: string,
+    fromValue: string | null | undefined,
+    toValue: string | null | undefined,
+  ) => {
+    if (!dateValue) return false;
+    if (fromValue && dateValue < fromValue) return false;
+    if (toValue && dateValue > toValue) return false;
+    return true;
+  };
+
+  const sellingPriceBooks = lookupQuery.data?.priceBooks ?? [];
+
+  const resolveExistingSellingPrice = (
+    productId: string,
+    priceUom: string,
+    pricingDate: string,
+    priceBookId: string,
+  ) =>
+    (priceBookLinesQuery.data ?? []).find((row) =>
+      row.price_book_id === priceBookId &&
+      row.product_id === productId &&
+      (row.price_uom_code ?? "") === priceUom &&
+      isDateWithinRange(pricingDate, row.effective_from, row.effective_to)
+    ) ?? null;
+
+  const loadSellingPriceMatrix = (
+    productId: string,
+    priceUom: string,
+    pricingDate: string,
+  ) => {
+    const prices: Record<string, string> = {};
+    const minimums: Record<string, string> = {};
+
+    for (const book of sellingPriceBooks) {
+      const existing = resolveExistingSellingPrice(
+        productId,
+        priceUom,
+        pricingDate,
+        book.price_book_id,
+      );
+      prices[book.price_book_id] = existing ? String(existing.unit_price) : "";
+      minimums[book.price_book_id] = existing?.minimum_price == null
+        ? ""
+        : String(existing.minimum_price);
+    }
+
+    setSellingPricesByBook(prices);
+    setSellingMinimumPricesByBook(minimums);
+  };
+
+  const openSellingPriceDialogForLine = (line: LineForm) => {
+    if (!line.productId || !line.salesUomCode) {
+      toast.error("Select a Product and Sales UOM first.");
+      return;
+    }
+
+    const product = lookupQuery.data?.products.find(
+      (item) => item.product_id === line.productId,
+    );
+    if (!product) {
+      toast.error("Selected Product is invalid.");
+      return;
+    }
+
+    const pricingDate = header.issueDate || new Date().toISOString().slice(0, 10);
+    setSellingDialogTargetLineId(line.clientId);
+    setSellingProductId(product.product_id);
+    setSellingProductCode(product.product_code ?? null);
+    setSellingProductName(product.product_name ?? null);
+    setSellingUom(line.salesUomCode);
+    setSellingEffectiveFrom(pricingDate);
+    loadSellingPriceMatrix(product.product_id, line.salesUomCode, pricingDate);
+    setShowSellingPriceDialog(true);
+  };
+
+  const resolveStandardPrice = async (
+    lineId: string,
+    productId: string,
+    salesUomCode: string,
+    pricingDate = header.issueDate,
+    priceBookId = header.priceBookId,
+  ) => {
+    if (!productId || !salesUomCode || !pricingDate || !priceBookId) {
+      updateLine(lineId, {
+        unitPrice: "",
+        priceSource: "",
+        originalUnitPrice: null,
+        minimumPriceSnapshot: null,
+        priceError: !priceBookId
+          ? "The selected Customer does not have a Price Book."
+          : "",
+        priceLoading: false,
+      });
+      return;
+    }
+
+    updateLine(lineId, { priceLoading: true, priceError: "" });
+
+    const { data, error } = await (supabase as any).rpc(
+      "resolve_quotation_line_price",
+      {
+        p_price_book_id: priceBookId,
+        p_product_id: productId,
+        p_sales_uom_code: salesUomCode,
+        p_pricing_date: pricingDate,
+        p_requested_unit_price: null,
+        p_manual_price_reason: null,
+      },
+    );
+
+    if (error) {
+      updateLine(lineId, {
+        unitPrice: "",
+        priceSource: "",
+        originalUnitPrice: null,
+        minimumPriceSnapshot: null,
+        priceError: error.message,
+        priceLoading: false,
+      });
+      return;
+    }
+
+    const row = (Array.isArray(data) ? data[0] : data) as
+      | ResolvedQuotationPrice
+      | null;
+
+    if (!row) {
+      updateLine(lineId, {
+        unitPrice: "",
+        priceSource: "",
+        originalUnitPrice: null,
+        minimumPriceSnapshot: null,
+        priceError: "The server did not return a selling price.",
+        priceLoading: false,
+      });
+      return;
+    }
+
+    updateLine(lineId, {
+      unitPrice: String(row.resolved_unit_price),
+      priceMode: "Standard",
+      priceSource: row.price_source,
+      originalUnitPrice: row.original_unit_price === null
+        ? null
+        : Number(row.original_unit_price),
+      minimumPriceSnapshot: row.minimum_price_snapshot === null
+        ? null
+        : Number(row.minimum_price_snapshot),
+      manualPriceReason: "",
+      priceError: "",
+      priceLoading: false,
+    });
+  };
+
+  const setSellingPrices = useMutation({
+    mutationFn: async ({
+      productId,
+      priceUom,
+      effectiveFrom,
+      entries,
+    }: {
+      productId: string;
+      priceUom: string;
+      effectiveFrom: string;
+      entries: Array<{
+        price_book_id: string;
+        unit_price: number;
+        minimum_price: number | null;
+      }>;
+    }) => {
+      const { data, error } = await (supabase as any).rpc(
+        "set_product_selling_price_matrix_atomic",
+        {
+          p_product_id: productId,
+          p_price_uom_code: priceUom,
+          p_effective_from: effectiveFrom,
+          p_prices: entries,
+        },
+      );
+      if (error) throw error;
+      return data as Array<{
+        price_book_id: string;
+        price_book_line_id: string;
+        unit_price: number;
+        minimum_price: number | null;
+      }>;
+    },
+    onSuccess: async (_savedRows, variables) => {
+      toast.success("Selling prices saved.");
+      await priceBookLinesQuery.refetch();
+
+      if (sellingDialogTargetLineId && sellingProductId && sellingUom) {
+        await resolveStandardPrice(
+          sellingDialogTargetLineId,
+          sellingProductId,
+          sellingUom,
+          header.issueDate || variables.effectiveFrom,
+          header.priceBookId,
+        );
+      }
+
+      setShowSellingPriceDialog(false);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const handleSaveSellingPrice = () => {
+    if (!sellingProductId || !sellingUom) {
+      toast.error("Product and Selling UOM are required.");
+      return;
+    }
+    if (!sellingEffectiveFrom) {
+      toast.error("Effective From date is required.");
+      return;
+    }
+
+    const entries: Array<{
+      price_book_id: string;
+      unit_price: number;
+      minimum_price: number | null;
+    }> = [];
+
+    for (const book of sellingPriceBooks) {
+      const priceText = sellingPricesByBook[book.price_book_id] ?? "";
+      const minimumText = sellingMinimumPricesByBook[book.price_book_id] ?? "";
+      if (!priceText.trim()) continue;
+
+      const unitPrice = Number(priceText);
+      if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+        toast.error(`${book.price_book_name} Selling Price must be >= 0.`);
+        return;
+      }
+
+      const minimumPrice = minimumText.trim() ? Number(minimumText) : null;
+      if (
+        minimumPrice !== null &&
+        (!Number.isFinite(minimumPrice) || minimumPrice < 0)
+      ) {
+        toast.error(`${book.price_book_name} Minimum Selling Price must be >= 0.`);
+        return;
+      }
+      if (minimumPrice !== null && minimumPrice > unitPrice) {
+        toast.error(
+          `${book.price_book_name} Minimum Selling Price cannot exceed its Selling Price.`,
+        );
+        return;
+      }
+
+      entries.push({
+        price_book_id: book.price_book_id,
+        unit_price: unitPrice,
+        minimum_price: minimumPrice,
+      });
+    }
+
+    if (!entries.length) {
+      toast.error("Enter at least one Selling Price before saving.");
+      return;
+    }
+
+    setSellingPrices.mutate({
+      productId: sellingProductId,
+      priceUom: sellingUom,
+      effectiveFrom: sellingEffectiveFrom,
+      entries,
+    });
+  };
+
+  const chooseProduct = async (lineId: string, productId: string) => {
     const product = lookupQuery.data?.products.find(
       (item) => item.product_id === productId,
     );
@@ -584,59 +1057,110 @@ export default function Quotations() {
     if (!product) return;
 
     const baseUomCode = product.base_uom_code ?? "";
-    const salesUomCode = product.default_sales_uom_code ??
-      baseUomCode;
-
-    const conversion = findConversion(
-      productId,
-      salesUomCode,
-      baseUomCode,
-    );
-
-    const price = lookupQuery.data?.priceBookLines.find(
-      (item) =>
-        item.product_id === productId &&
-        item.price_book_id === header.priceBookId,
-    );
+    const salesUomCode = product.default_sales_uom_code ?? baseUomCode;
+    const conversion = findConversion(productId, salesUomCode, baseUomCode);
 
     updateLine(lineId, {
       productId,
-      description: product.description?.trim() ||
-        product.product_name,
+      description: product.description?.trim() || product.product_name,
       salesUomCode,
       baseUomCode,
       conversionFactor: String(
         salesUomCode === baseUomCode ? 1 : conversion?.conversion_factor ?? 0,
       ),
-      unitPrice: String(price?.unit_price ?? 0),
+      unitPrice: "",
       allowFractionalQuantity: conversion?.allow_fractional_quantity ?? true,
+      priceMode: "Standard",
+      priceSource: "",
+      originalUnitPrice: null,
+      minimumPriceSnapshot: null,
+      manualPriceReason: "",
+      priceError: "",
     });
+
+    await resolveStandardPrice(lineId, productId, salesUomCode);
   };
 
-  const chooseSalesUom = (line: LineForm, salesUomCode: string) => {
+  const chooseSalesUom = async (line: LineForm, salesUomCode: string) => {
     const product = lookupQuery.data?.products.find(
       (item) => item.product_id === line.productId,
     );
 
-    const baseUomCode = line.baseUomCode ||
-      product?.base_uom_code ||
-      "";
+    const baseUomCode = line.baseUomCode || product?.base_uom_code || "";
+    const currentResolvedUom = resolveLineUom(line);
 
-    const conversion = findConversion(
+    const nextConversion = findConversion(
       line.productId,
       salesUomCode,
       baseUomCode,
     );
+    const nextConversionFactor = salesUomCode === baseUomCode
+      ? 1
+      : Number(nextConversion?.conversion_factor ?? 0);
+
+    if (
+      !baseUomCode ||
+      !Number.isFinite(nextConversionFactor) ||
+      nextConversionFactor <= 0
+    ) {
+      toast.error(
+        `No active conversion exists from ${salesUomCode} to the Product Base UOM.`,
+      );
+      return;
+    }
+
+    const currentQuantity = safeNumber(line.quantity);
+    const currentConversionFactor =
+      Number(currentResolvedUom.conversionFactor);
+
+    const currentBaseQuantity =
+      Number.isFinite(currentConversionFactor) &&
+        currentConversionFactor > 0
+        ? currentQuantity * currentConversionFactor
+        : 0;
+
+    const convertedQuantity =
+      currentBaseQuantity > 0
+        ? currentBaseQuantity / nextConversionFactor
+        : currentQuantity;
 
     updateLine(line.clientId, {
       salesUomCode,
       baseUomCode,
-      conversionFactor: String(
-        salesUomCode === baseUomCode ? 1 : conversion?.conversion_factor ?? 0,
-      ),
-      allowFractionalQuantity: conversion?.allow_fractional_quantity ??
+      conversionFactor: String(nextConversionFactor),
+      quantity: formatQuantityValue(convertedQuantity),
+      allowFractionalQuantity: nextConversion?.allow_fractional_quantity ??
         line.allowFractionalQuantity,
+      priceMode: line.productId ? "Standard" : "Manual",
+      unitPrice: line.productId ? "" : line.unitPrice,
+      priceSource: "",
+      originalUnitPrice: null,
+      minimumPriceSnapshot: null,
+      manualPriceReason: "",
+      priceError: "",
     });
+
+    if (line.productId) {
+      await resolveStandardPrice(line.clientId, line.productId, salesUomCode);
+    }
+  };
+
+  const refreshAllStandardPrices = async (
+    pricingDate: string,
+    priceBookId: string,
+  ) => {
+    await Promise.all(
+      lines.filter((line) => line.productId && line.priceMode === "Standard")
+        .map((line) =>
+          resolveStandardPrice(
+            line.clientId,
+            line.productId,
+            line.salesUomCode,
+            pricingDate,
+            priceBookId,
+          )
+        ),
+    );
   };
 
   const buildPayloadLines = () =>
@@ -645,8 +1169,10 @@ export default function Quotations() {
       const quantity = safeNumber(line.quantity);
       const conversionFactor = resolvedUom.conversionFactor;
 
-      return {
+      const payload: Record<string, unknown> = {
         line_no: index + 1,
+        line_uid: line.lineUid,
+        billing_method: line.billingMethod,
         product_id: line.productId || null,
         project_area_id: line.projectAreaId || null,
         description: line.description.trim(),
@@ -656,7 +1182,6 @@ export default function Quotations() {
         conversion_factor: conversionFactor,
         base_quantity: quantity * conversionFactor,
         quantity,
-        unit_price: safeNumber(line.unitPrice),
         discount_percent: safeNumber(line.discountPercent),
         tax_rate: safeNumber(line.taxRate),
         cost_price: can("quotations.view_cost")
@@ -666,17 +1191,84 @@ export default function Quotations() {
         is_optional: line.isOptional,
         allow_fractional_quantity: resolvedUom.allowFractionalQuantity,
       };
+
+      if (!line.productId || line.priceMode === "Manual") {
+        payload.unit_price = safeNumber(line.unitPrice);
+      }
+
+      if (line.productId && line.priceMode === "Manual") {
+        payload.manual_price_reason = line.manualPriceReason.trim() || null;
+      }
+
+      return payload;
     });
 
   const payloadLines = (): Json => buildPayloadLines() as Json;
+
+  const buildBillingPayload = () => {
+    const workUnitLines = lines.filter((line) => line.billingMethod === "WorkUnit");
+
+    if (!workUnitLines.length) {
+      return {
+        units: [] as Record<string, unknown>[],
+        allocations: [] as Record<string, unknown>[],
+      };
+    }
+
+    const units = billingUnits.map((unit, index) => ({
+      billing_unit_uid: unit.billingUnitUid,
+      billing_unit_code: unit.code.trim(),
+      billing_unit_name: unit.name.trim(),
+      sort_order: index + 1,
+    }));
+
+    const allocations: Record<string, unknown>[] = [];
+
+    billingUnits.forEach((unit) => {
+      workUnitLines.forEach((line) => {
+        const raw = unit.allocations[line.lineUid] ?? "";
+        if (!raw.trim()) return;
+
+        const allocatedQuantity = Number(raw);
+        if (!Number.isFinite(allocatedQuantity) || allocatedQuantity <= 0) return;
+
+        allocations.push({
+          line_uid: line.lineUid,
+          billing_unit_uid: unit.billingUnitUid,
+          allocated_quantity: allocatedQuantity,
+          sort_order: allocations.length + 1,
+        });
+      });
+    });
+
+    return { units, allocations };
+  };
 
   const validateEditor = () => {
     if (!header.customerId) {
       throw new Error("Please select a customer.");
     }
 
+    if (!header.priceBookId) {
+      throw new Error(
+        "The selected Customer must have a Price Book before creating a Quotation.",
+      );
+    }
+
+    if (!header.projectId) {
+      throw new Error("Please select a project.");
+    }
+
+    if (selectedProject?.customer_id !== header.customerId) {
+      throw new Error("The selected Project does not belong to the selected Customer.");
+    }
+
     if (!header.projectSiteId) {
       throw new Error("Please select a project site.");
+    }
+
+    if (selectedSite?.project_id !== header.projectId) {
+      throw new Error("The selected Project Site does not belong to the selected Project.");
     }
 
     if (selectedSite?.site_status !== "Quotation") {
@@ -694,28 +1286,24 @@ export default function Quotations() {
     lines.forEach((line, index) => {
       const resolvedUom = resolveLineUom(line);
 
+      if (!line.lineUid) {
+        throw new Error(`Line ${index + 1}: stable line identity is missing.`);
+      }
+
       if (!line.description.trim()) {
-        throw new Error(
-          `Line ${index + 1}: description is required.`,
-        );
+        throw new Error(`Line ${index + 1}: description is required.`);
       }
 
       if (safeNumber(line.quantity) <= 0) {
-        throw new Error(
-          `Line ${index + 1}: quantity must be greater than zero.`,
-        );
+        throw new Error(`Line ${index + 1}: quantity must be greater than zero.`);
       }
 
       if (!resolvedUom.salesUomCode) {
-        throw new Error(
-          `Line ${index + 1}: Sales UOM is required.`,
-        );
+        throw new Error(`Line ${index + 1}: Sales UOM is required.`);
       }
 
       if (!resolvedUom.baseUomCode) {
-        throw new Error(
-          `Line ${index + 1}: Product Base UOM is missing.`,
-        );
+        throw new Error(`Line ${index + 1}: Product Base UOM is missing.`);
       }
 
       if (
@@ -728,16 +1316,84 @@ export default function Quotations() {
             `${resolvedUom.salesUomCode} to ${resolvedUom.baseUomCode}.`,
         );
       }
+
+      if (!line.productId) {
+        if (!line.unitPrice.trim() || safeNumber(line.unitPrice) < 0) {
+          throw new Error(`Line ${index + 1}: Manual line requires a Unit Price.`);
+        }
+      } else if (line.priceMode === "Manual") {
+        if (!can("quotations.override_unit_price")) {
+          throw new Error(
+            `Line ${index + 1}: You do not have permission to override Unit Price.`,
+          );
+        }
+        if (!line.unitPrice.trim() || safeNumber(line.unitPrice) < 0) {
+          throw new Error(`Line ${index + 1}: Manual Unit Price is required.`);
+        }
+        if (!line.manualPriceReason.trim()) {
+          throw new Error(`Line ${index + 1}: Manual Price Reason is required.`);
+        }
+      }
+
+      if (line.billingMethod === "Percentage") {
+        throw new Error(
+          `Line ${index + 1}: Percentage billing is not enabled in this UI. ` +
+            "Please keep the historical Draft unchanged or use Quantity / Work Unit.",
+        );
+      }
     });
+
+    const workUnitLines = lines.filter((line) => line.billingMethod === "WorkUnit");
+
+    if (workUnitLines.length) {
+      if (!billingUnits.length) {
+        throw new Error(
+          "Add at least one Billing Unit for Work Unit billing lines.",
+        );
+      }
+
+      billingUnits.forEach((unit, index) => {
+        if (!unit.code.trim()) {
+          throw new Error(`Billing Unit ${index + 1}: Code is required.`);
+        }
+        if (!unit.name.trim()) {
+          throw new Error(`Billing Unit ${index + 1}: Name is required.`);
+        }
+      });
+
+      workUnitLines.forEach((line) => {
+        const lineIndex = lines.findIndex((item) => item.lineUid === line.lineUid);
+        const totalAllocated = billingUnits.reduce(
+          (sum, unit) => sum + safeNumber(unit.allocations[line.lineUid] ?? ""),
+          0,
+        );
+        const quantity = safeNumber(line.quantity);
+
+        if (!line.isOptional && Math.abs(totalAllocated - quantity) > 0.000001) {
+          throw new Error(
+            `Line ${lineIndex + 1}: Work Unit allocations must total exactly ` +
+              `${quantity} ${line.salesUomCode || ""}. Current allocation: ${totalAllocated}.`,
+          );
+        }
+
+        if (line.isOptional && totalAllocated - quantity > 0.000001) {
+          throw new Error(
+            `Line ${lineIndex + 1}: Work Unit allocations cannot exceed ` +
+              `${quantity} ${line.salesUomCode || ""}.`,
+          );
+        }
+      });
+    }
   };
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       validateEditor();
+
       const p_quotation = {
         customer_id: header.customerId,
         project_site_id: header.projectSiteId,
-        price_book_id: header.priceBookId || null,
+        price_book_id: header.priceBookId,
         quotation_segment: header.quotationSegment.trim() || "Retail",
         quotation_source: header.quotationSource.trim() || null,
         issue_date: header.issueDate,
@@ -745,16 +1401,24 @@ export default function Quotations() {
         notes: header.notes.trim() || null,
         internal_notes: header.internalNotes.trim() || null,
       } as Json;
+
+      const billingPayload = buildBillingPayload();
+
       const result = editingId
-        ? await (supabase as any).rpc("update_draft_quotation_atomic", {
+        ? await (supabase as any).rpc("update_draft_quotation_progress_atomic", {
           p_quotation_id: editingId,
           p_quotation,
           p_lines: payloadLines(),
+          p_billing_units: billingPayload.units as Json,
+          p_billing_allocations: billingPayload.allocations as Json,
         })
-        : await (supabase as any).rpc("create_quotation_atomic", {
+        : await (supabase as any).rpc("create_quotation_progress_atomic", {
           p_quotation,
           p_lines: payloadLines(),
+          p_billing_units: billingPayload.units as Json,
+          p_billing_allocations: billingPayload.allocations as Json,
         });
+
       if (result.error) throw result.error;
       return result.data;
     },
@@ -765,6 +1429,7 @@ export default function Quotations() {
       setEditorOpen(false);
       resetEditor();
       queryClient.invalidateQueries({ queryKey: ["quotations"] });
+      queryClient.invalidateQueries({ queryKey: ["quotation-detail"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -1193,12 +1858,36 @@ export default function Quotations() {
                       const customer = lookupQuery.data?.customers.find((x) =>
                         x.customer_id === value
                       );
+                      const nextPriceBookId = customer?.price_book_id ?? "";
                       setHeader((x) => ({
                         ...x,
                         customerId: value,
+                        projectId: "",
                         projectSiteId: "",
-                        priceBookId: customer?.price_book_id ?? "",
+                        priceBookId: nextPriceBookId,
                       }));
+                      setLines((current) =>
+                        current.map((line) => line.productId
+                          ? {
+                            ...line,
+                            priceMode: "Standard",
+                            unitPrice: "",
+                            priceSource: "",
+                            originalUnitPrice: null,
+                            minimumPriceSnapshot: null,
+                            manualPriceReason: "",
+                            priceError: nextPriceBookId
+                              ? ""
+                              : "The selected Customer does not have a Price Book.",
+                          }
+                          : line)
+                      );
+                      if (nextPriceBookId) {
+                        void refreshAllStandardPrices(
+                          header.issueDate,
+                          nextPriceBookId,
+                        );
+                      }
                     }}
                   >
                     <SelectTrigger className="bg-[#F7F9FB]">
@@ -1213,14 +1902,47 @@ export default function Quotations() {
                     </SelectContent>
                   </Select>
                 </Field>
+                <Field label="Project *">
+                  <Select
+                    value={header.projectId}
+                    disabled={!header.customerId}
+                    onValueChange={(value) =>
+                      setHeader((current) => ({
+                        ...current,
+                        projectId: value,
+                        projectSiteId: "",
+                      }))}
+                  >
+                    <SelectTrigger className="bg-[#F7F9FB]">
+                      <SelectValue
+                        placeholder={header.customerId ? "Select project" : "Select a Customer first"}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredProjects.map((project) => (
+                        <SelectItem key={project.project_id} value={project.project_id}>
+                          {project.project_no} — {project.project_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {header.customerId && !filteredProjects.length && (
+                    <p className="mt-1 text-xs text-amber-700">
+                      No active Project is available for this Customer.
+                    </p>
+                  )}
+                </Field>
                 <Field label="Project site *">
                   <Select
                     value={header.projectSiteId}
+                    disabled={!header.projectId}
                     onValueChange={(value) =>
                       setHeader((x) => ({ ...x, projectSiteId: value }))}
                   >
                     <SelectTrigger className="bg-[#F7F9FB]">
-                      <SelectValue placeholder="Select project site" />
+                      <SelectValue
+                        placeholder={header.projectId ? "Select project site" : "Select a Project first"}
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {filteredSites.map((x) => (
@@ -1230,31 +1952,28 @@ export default function Quotations() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {header.projectId && !filteredSites.length && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      No Project Site is available for this Project.
+                    </p>
+                  )}
                 </Field>
-                <Field label="Price book">
-                  <Select
-                    value={header.priceBookId || "none"}
-                    onValueChange={(value) =>
-                      setHeader((x) => ({
-                        ...x,
-                        priceBookId: value === "none" ? "" : value,
-                      }))}
-                  >
-                    <SelectTrigger className="bg-[#F7F9FB]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No price book</SelectItem>
-                      {lookupQuery.data?.priceBooks.map((x) => (
-                        <SelectItem
-                          key={x.price_book_id}
-                          value={x.price_book_id}
-                        >
-                          {x.price_book_code} — {x.price_book_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <Field label="Customer Price Book *">
+                  <div className="rounded-md border border-[#E5E7EB] bg-[#F7F9FB] px-3 py-2.5 text-sm">
+                    {(() => {
+                      const priceBook = lookupQuery.data?.priceBooks.find(
+                        (item) => item.price_book_id === header.priceBookId,
+                      );
+                      return priceBook
+                        ? `${priceBook.price_book_code} — ${priceBook.price_book_name}`
+                        : header.customerId
+                        ? "No Price Book assigned to this Customer"
+                        : "Select a Customer first";
+                    })()}
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Derived from Customer master data and locked for this Quotation.
+                  </p>
                 </Field>
                 <Field label="Segment">
                   <Input
@@ -1271,8 +1990,16 @@ export default function Quotations() {
                   <Input
                     type="date"
                     value={header.issueDate}
-                    onChange={(e) =>
-                      setHeader((x) => ({ ...x, issueDate: e.target.value }))}
+                    onChange={(e) => {
+                      const nextDate = e.target.value;
+                      setHeader((x) => ({ ...x, issueDate: nextDate }));
+                      if (nextDate && header.priceBookId) {
+                        void refreshAllStandardPrices(
+                          nextDate,
+                          header.priceBookId,
+                        );
+                      }
+                    }}
                     className="bg-[#F7F9FB]"
                   />
                 </Field>
@@ -1312,9 +2039,7 @@ export default function Quotations() {
                           title="Remove Quotation Line"
                           aria-label="Remove Quotation Line"
                           onClick={() =>
-                            setLines((x) =>
-                              x.filter((v) => v.clientId !== line.clientId)
-                            )}
+                            removeLine(line)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -1326,8 +2051,17 @@ export default function Quotations() {
                           value={line.productId || "none"}
                           onValueChange={(value) =>
                             value === "none"
-                              ? updateLine(line.clientId, { productId: "" })
-                              : chooseProduct(line.clientId, value)}
+                              ? updateLine(line.clientId, {
+                                productId: "",
+                                priceMode: "Manual",
+                                priceSource: "Manual",
+                                originalUnitPrice: null,
+                                minimumPriceSnapshot: null,
+                                manualPriceReason: "",
+                                unitPrice: line.productId ? "" : line.unitPrice,
+                                priceError: "",
+                              })
+                              : void chooseProduct(line.clientId, value)}
                         >
                           <SelectTrigger className="bg-[#F7F9FB]">
                             <SelectValue />
@@ -1394,13 +2128,13 @@ export default function Quotations() {
                       <Field label="Sales UOM *">
                         <Select
                           value={line.salesUomCode}
-                          onValueChange={(value) => chooseSalesUom(line, value)}
+                          onValueChange={(value) => void chooseSalesUom(line, value)}
                         >
                           <SelectTrigger className="bg-[#F7F9FB]">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {lookupQuery.data?.uoms.map((x) => (
+                            {supportedSalesUoms(line).map((x) => (
                               <SelectItem key={x.uom_code} value={x.uom_code}>
                                 {x.uom_code} — {x.uom_name}
                               </SelectItem>
@@ -1422,17 +2156,102 @@ export default function Quotations() {
                         />
                       </Field>
                       <Field label="Unit price">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="any"
-                          value={line.unitPrice}
-                          onChange={(e) =>
-                            updateLine(line.clientId, {
-                              unitPrice: e.target.value,
-                            })}
-                          className="bg-[#F7F9FB]"
-                        />
+                        <div className="space-y-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={line.unitPrice}
+                            readOnly={Boolean(line.productId) &&
+                              line.priceMode === "Standard"}
+                            onChange={(e) =>
+                              updateLine(line.clientId, {
+                                unitPrice: e.target.value,
+                              })}
+                            className="bg-[#F7F9FB]"
+                            placeholder={line.priceLoading
+                              ? "Resolving Price Book price..."
+                              : "0.00"}
+                          />
+                          {line.productId && line.priceMode === "Standard" && (
+                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                              {line.priceLoading
+                                ? <span className="text-slate-500">Checking Customer Price Book...</span>
+                                : line.priceError
+                                ? <span className="text-amber-700">{line.priceError}</span>
+                                : line.priceSource
+                                ? (
+                                  <span className="text-emerald-700">
+                                    {line.priceSource}
+                                    {line.minimumPriceSnapshot !== null
+                                      ? ` · Minimum ${money(line.minimumPriceSnapshot)}`
+                                      : ""}
+                                  </span>
+                                )
+                                : null}
+                              {line.priceError &&
+                                can("products.manage_sales_prices") && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => openSellingPriceDialogForLine(line)}
+                                  >
+                                    Set Selling Price
+                                  </Button>
+                                )}
+                              {line.priceError &&
+                                !can("products.manage_sales_prices") && (
+                                  <span className="text-slate-500">
+                                    Ask an authorised user to configure the Customer Price Book price.
+                                  </span>
+                                )}
+                              {can("quotations.override_unit_price") && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    updateLine(line.clientId, {
+                                      priceMode: "Manual",
+                                      unitPrice: line.unitPrice ||
+                                        String(line.originalUnitPrice ?? ""),
+                                      priceSource: "Manual",
+                                      priceError: "",
+                                    })}
+                                >
+                                  Manual override
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                          {line.productId && line.priceMode === "Manual" && (
+                            <div className="space-y-2">
+                              <Input
+                                value={line.manualPriceReason}
+                                onChange={(e) =>
+                                  updateLine(line.clientId, {
+                                    manualPriceReason: e.target.value,
+                                  })}
+                                placeholder="Manual Price Reason *"
+                                className="bg-[#F7F9FB]"
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  void resolveStandardPrice(
+                                    line.clientId,
+                                    line.productId,
+                                    line.salesUomCode,
+                                  )}
+                              >
+                                Use Customer Price Book price
+                              </Button>
+                            </div>
+                          )}
+                        </div>
                       </Field>
                       <Field label="Discount %">
                         <Input
@@ -1473,6 +2292,40 @@ export default function Quotations() {
                           />
                         </Field>
                       )}
+                      <Field label="Billing basis">
+                        {line.billingMethod === "Percentage"
+                          ? (
+                            <Input
+                              readOnly
+                              value="Percentage (legacy — not editable here)"
+                              className="bg-slate-100"
+                            />
+                          )
+                          : (
+                            <Select
+                              value={line.billingMethod}
+                              onValueChange={(value) =>
+                                updateLine(line.clientId, {
+                                  billingMethod: value as BillingMethod,
+                                })}
+                            >
+                              <SelectTrigger className="bg-[#F7F9FB]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Quantity">
+                                  Quantity
+                                </SelectItem>
+                                <SelectItem value="WorkUnit">
+                                  Work Unit
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
+                        <p className="mt-1 text-xs text-slate-500">
+                          Work Unit is for rooms / stages / scope units. It is not a Product UOM conversion.
+                        </p>
+                      </Field>
                       <Field label="Preview total">
                         <Input readOnly value={money(linePreview(line))} />
                       </Field>
@@ -1500,7 +2353,172 @@ export default function Quotations() {
                 </Button>
               </div>
             </Section>
-            <Section number="3" title="Notes">
+            <Section number="3" title="Billing breakdown">
+              {lines.some((line) => line.billingMethod === "WorkUnit")
+                ? (
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-[#B98A8A] bg-[#FBF1F1] p-4 text-sm text-slate-700">
+                      Work Units describe claimable scope such as Room 001, Room 002,
+                      Level 1 or Stage A. Allocated quantities remain in each
+                      quotation line&apos;s Sales UOM and must not exceed the source quantity.
+                    </div>
+
+                    {billingUnits.map((unit, unitIndex) => (
+                      <div
+                        key={unit.clientId}
+                        className="rounded-xl border border-slate-200 p-4"
+                      >
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                          <strong>Billing Unit {unitIndex + 1}</strong>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() =>
+                              setBillingUnits((current) =>
+                                current.filter((item) =>
+                                  item.clientId !== unit.clientId
+                                )
+                              )}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <Field label="Unit code *">
+                            <Input
+                              value={unit.code}
+                              onChange={(e) =>
+                                updateBillingUnit(unit.clientId, {
+                                  code: e.target.value,
+                                })}
+                              placeholder="ROOM-001"
+                              className="bg-[#F7F9FB]"
+                            />
+                          </Field>
+                          <Field label="Unit name *">
+                            <Input
+                              value={unit.name}
+                              onChange={(e) =>
+                                updateBillingUnit(unit.clientId, {
+                                  name: e.target.value,
+                                })}
+                              placeholder="Room 001"
+                              className="bg-[#F7F9FB]"
+                            />
+                          </Field>
+                        </div>
+
+                        <div className="mt-4 overflow-x-auto rounded-lg border">
+                          <table className="w-full min-w-[620px] text-sm">
+                            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-600">
+                              <tr>
+                                <th className="px-3 py-2">Quotation line</th>
+                                <th className="px-3 py-2">Sales UOM</th>
+                                <th className="px-3 py-2 text-right">Source Qty</th>
+                                <th className="px-3 py-2 text-right">Allocated Qty</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {lines.filter((line) =>
+                                line.billingMethod === "WorkUnit"
+                              ).map((line) => {
+                                const lineIndex = lines.findIndex((item) =>
+                                  item.lineUid === line.lineUid
+                                );
+                                return (
+                                  <tr key={line.lineUid} className="border-t">
+                                    <td className="px-3 py-2">
+                                      <div className="font-medium">
+                                        Line {lineIndex + 1}
+                                      </div>
+                                      <div className="max-w-[280px] truncate text-xs text-slate-500">
+                                        {line.description || "No description"}
+                                      </div>
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      {line.salesUomCode || "-"}
+                                    </td>
+                                    <td className="px-3 py-2 text-right">
+                                      {line.quantity || "0"}
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="any"
+                                        value={unit.allocations[line.lineUid] ?? ""}
+                                        onChange={(e) =>
+                                          updateBillingAllocation(
+                                            unit.clientId,
+                                            line.lineUid,
+                                            e.target.value,
+                                          )}
+                                        className="ml-auto w-36 bg-[#F7F9FB] text-right"
+                                      />
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ))}
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        setBillingUnits((current) => [
+                          ...current,
+                          emptyBillingUnit(),
+                        ])}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Billing Unit
+                    </Button>
+
+                    {lines.filter((line) =>
+                      line.billingMethod === "WorkUnit" && !line.isOptional
+                    ).map((line) => {
+                      const allocated = billingUnits.reduce(
+                        (sum, unit) =>
+                          sum + safeNumber(unit.allocations[line.lineUid] ?? ""),
+                        0,
+                      );
+                      const quantity = safeNumber(line.quantity);
+                      const remaining = quantity - allocated;
+                      const lineIndex = lines.findIndex((item) =>
+                        item.lineUid === line.lineUid
+                      );
+
+                      return (
+                        <div
+                          key={`billing-summary-${line.lineUid}`}
+                          className={`rounded-lg border px-3 py-2 text-sm ${
+                            Math.abs(remaining) <= 0.000001
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                              : "border-amber-200 bg-amber-50 text-amber-800"
+                          }`}
+                        >
+                          Line {lineIndex + 1}: Allocated {allocated} / {quantity}{" "}
+                          {line.salesUomCode || ""} · Remaining {remaining}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )
+                : (
+                  <div className="rounded-xl border border-dashed p-5 text-sm text-slate-500">
+                    No Work Unit billing lines. Quantity billing uses the quotation
+                    line quantity directly and does not require a Billing Breakdown.
+                  </div>
+                )}
+            </Section>
+
+            <Section number="4" title="Notes">
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Customer notes">
                   <Textarea
@@ -1675,6 +2693,166 @@ export default function Quotations() {
                 {createAreaMutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}Create Area
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showSellingPriceDialog}
+        onOpenChange={(open) => {
+          if (!setSellingPrices.isPending) setShowSellingPriceDialog(open);
+        }}
+      >
+        <DialogContent className="max-h-[92vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Set Selling Price</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-5">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <p className="text-xs text-slate-500">Product Code</p>
+                  <p className="font-semibold text-slate-900">
+                    {sellingProductCode ?? "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">Product Name</p>
+                  <p className="font-semibold text-slate-900">
+                    {sellingProductName ?? "—"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <Field label="Selling UOM *">
+              <Select
+                value={sellingUom ?? ""}
+                onValueChange={(value) => {
+                  setSellingUom(value);
+                  if (sellingProductId) {
+                    loadSellingPriceMatrix(
+                      sellingProductId,
+                      value,
+                      sellingEffectiveFrom || header.issueDate,
+                    );
+                  }
+                }}
+              >
+                <SelectTrigger className="bg-[#F7F9FB]">
+                  <SelectValue placeholder="Select UOM" />
+                </SelectTrigger>
+                <SelectContent>
+                  {lookupQuery.data?.uoms.map((uom) => (
+                    <SelectItem key={uom.uom_code} value={uom.uom_code}>
+                      {uom.uom_code} — {uom.uom_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="grid grid-cols-[minmax(120px,1fr)_minmax(120px,1fr)_minmax(120px,1fr)] gap-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <div>Price Book</div>
+                <div>Selling Price</div>
+                <div>Minimum Price</div>
+              </div>
+
+              <div className="mt-3 space-y-3">
+                {sellingPriceBooks.map((book) => (
+                  <div
+                    key={book.price_book_id}
+                    className="grid grid-cols-[minmax(120px,1fr)_minmax(120px,1fr)_minmax(120px,1fr)] items-center gap-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">
+                        {book.price_book_code} — {book.price_book_name}
+                      </p>
+                      {book.price_book_id === header.priceBookId && (
+                        <p className="mt-0.5 text-xs font-medium text-[#8B3F3F]">
+                          Current Customer Price Book
+                        </p>
+                      )}
+                    </div>
+
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="bg-white"
+                      value={sellingPricesByBook[book.price_book_id] ?? ""}
+                      onChange={(event) =>
+                        setSellingPricesByBook((current) => ({
+                          ...current,
+                          [book.price_book_id]: event.target.value,
+                        }))}
+                      placeholder="Not Set"
+                    />
+
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="bg-white"
+                      value={sellingMinimumPricesByBook[book.price_book_id] ?? ""}
+                      onChange={(event) =>
+                        setSellingMinimumPricesByBook((current) => ({
+                          ...current,
+                          [book.price_book_id]: event.target.value,
+                        }))}
+                      placeholder="Optional"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <p className="mt-3 text-xs text-slate-500">
+                Blank prices remain Not Set. The current Customer Price Book is highlighted.
+                Saving here updates Product selling-price master data for future Quotations and Invoices.
+              </p>
+            </div>
+
+            <Field label="Effective From *">
+              <Input
+                type="date"
+                value={sellingEffectiveFrom}
+                onChange={(event) => {
+                  setSellingEffectiveFrom(event.target.value);
+                  if (sellingProductId && sellingUom) {
+                    loadSellingPriceMatrix(
+                      sellingProductId,
+                      sellingUom,
+                      event.target.value,
+                    );
+                  }
+                }}
+                className="bg-[#F7F9FB]"
+              />
+            </Field>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={setSellingPrices.isPending}
+                onClick={() => setShowSellingPriceDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={setSellingPrices.isPending}
+                onClick={handleSaveSellingPrice}
+                className="bg-[#9E4B4B] text-white hover:bg-[#843e3e]"
+              >
+                {setSellingPrices.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Save Selling Prices
               </Button>
             </div>
           </div>

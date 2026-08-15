@@ -37,9 +37,9 @@ import {
 import { ActiveStatusBadge } from "@/components/common/ActiveStatusBadge";
 import {
     EMPTY_PRODUCT_IDENTITY,
+    ProductIdentityStep,
     type ProductCodeBuilderValue,
     type ProductIdentityFormValue,
-    ProductIdentityStep,
     type ProductIdentityValidationState,
 } from "@/components/products/ProductIdentityStep";
 
@@ -82,6 +82,8 @@ type ProductRow = {
     default_purchase_uom_code: string | null;
     default_request_uom_code: string | null;
     default_sales_uom_code: string | null;
+    pricing_uom_code: string | null;
+    maximum_discount_percent: number;
     default_waste_percent: number;
     uses_coverage: boolean;
     is_stock_item: boolean;
@@ -159,6 +161,75 @@ type ProductUnitForm = {
     barcode: string;
 };
 
+type PriceBookCode = "PB-STD" | "PB-COM" | "PB-RES" | "PB-VIP";
+
+type PriceBookOption = {
+    price_book_id: string;
+    price_book_code: PriceBookCode;
+    price_book_name: string;
+    is_default: boolean;
+};
+
+type PriceMatrixForm = Record<
+    PriceBookCode,
+    {
+        unitPrice: string;
+        minimumPrice: string;
+    }
+>;
+
+type PricingSnapshotInput = {
+    pricingUom: string;
+    maximumDiscountPercent: string;
+    effectiveFrom: string;
+    matrix: PriceMatrixForm;
+};
+
+const buildPricingSnapshot = ({
+    pricingUom,
+    maximumDiscountPercent,
+    effectiveFrom,
+    matrix,
+}: PricingSnapshotInput) =>
+    JSON.stringify({
+        pricingUom: pricingUom.trim(),
+        maximumDiscountPercent: Number(maximumDiscountPercent || 0),
+        effectiveFrom,
+        prices: PRICE_BOOK_CODES.map((code) => {
+            const unitPriceText = matrix[code].unitPrice.trim();
+            const minimumPriceText = matrix[code].minimumPrice.trim();
+
+            return {
+                code,
+                unitPrice: unitPriceText === "" ? null : Number(unitPriceText),
+                minimumPrice: minimumPriceText === ""
+                    ? null
+                    : Number(minimumPriceText),
+            };
+        }),
+    });
+
+const PRICE_BOOK_CODES: PriceBookCode[] = [
+    "PB-STD",
+    "PB-COM",
+    "PB-RES",
+    "PB-VIP",
+];
+
+const PRICE_BOOK_LABELS: Record<PriceBookCode, string> = {
+    "PB-STD": "Standard",
+    "PB-COM": "Commercial",
+    "PB-RES": "Residential",
+    "PB-VIP": "VIP",
+};
+
+const emptyPriceMatrix = (): PriceMatrixForm => ({
+    "PB-STD": { unitPrice: "", minimumPrice: "" },
+    "PB-COM": { unitPrice: "", minimumPrice: "" },
+    "PB-RES": { unitPrice: "", minimumPrice: "" },
+    "PB-VIP": { unitPrice: "", minimumPrice: "" },
+});
+
 const createEmptyProductUnit = (): ProductUnitForm => ({
     id: `product-unit-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
     uomCode: "",
@@ -167,6 +238,8 @@ const createEmptyProductUnit = (): ProductUnitForm => ({
     allowFractionalQuantity: false,
     barcode: "",
 });
+
+const MAX_PACKAGING_LEVELS = 6;
 
 const PRODUCT_TYPES: ProductType[] = [
     "Material",
@@ -194,7 +267,7 @@ const escapeCsv = (value: unknown) =>
     `"${String(value ?? "").replace(/"/g, '""')}"`;
 
 const FIELD_CLASS =
-    "h-11 rounded-xl border border-[#E5E7EB] bg-[#F7F9FB] text-[#111827] transition-colors hover:border-[#9E4B4B] focus-visible:border-[#9E4B4B] focus-visible:ring-[#9E4B4B]/20";
+    "h-11 rounded-xl border-[#E5E7EB] bg-[#F7F9FB] text-[#111827] hover:border-[#9E4B4B] focus-visible:border-[#9E4B4B] focus-visible:ring-[#9E4B4B]/20";
 const TEXTAREA_CLASS =
     "min-h-24 w-full rounded-xl border border-[#E5E7EB] bg-[#F7F9FB] px-3 py-2 text-sm text-[#111827] outline-none transition hover:border-[#9E4B4B] focus:border-[#9E4B4B] focus:ring-2 focus:ring-[#9E4B4B]/20";
 
@@ -406,6 +479,10 @@ const SectionHeading = (
 
 const Products = () => {
     const queryClient = useQueryClient();
+    // Bridge for the newly added Pricing RPCs/columns until generated Supabase
+    // TypeScript types are refreshed from the hosted schema.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
 
     const [role, setRole] = useState<AppRole>("viewer");
 
@@ -417,6 +494,7 @@ const Products = () => {
     const [typeFilter, setTypeFilter] = useState("all");
 
     const [showForm, setShowForm] = useState(false);
+    const [isHydratingProductDetails, setIsHydratingProductDetails] = useState(false);
     const [showView, setShowView] = useState(false);
     const [editingProduct, setEditingProduct] = useState<ProductRow | null>(
         null,
@@ -430,17 +508,15 @@ const Products = () => {
     const [productCodeIdentity, setProductCodeIdentity] = useState<
         ProductCodeBuilderValue | null
     >(null);
-    const [productIdentityForm, setProductIdentityForm] = useState<
-        ProductIdentityFormValue
-    >({ ...EMPTY_PRODUCT_IDENTITY });
-    const [productIdentityValidation, setProductIdentityValidation] = useState<
-        ProductIdentityValidationState
-    >({
-        status: "idle",
-        message: null,
-        preview: null,
-        identity: null,
-    });
+    const [productIdentityForm, setProductIdentityForm] =
+        useState<ProductIdentityFormValue>({ ...EMPTY_PRODUCT_IDENTITY });
+    const [productIdentityValidation, setProductIdentityValidation] =
+        useState<ProductIdentityValidationState>({
+            status: "idle",
+            message: null,
+            preview: null,
+            identity: null,
+        });
     const [productName, setProductName] = useState("");
     const [lastSuggestedName, setLastSuggestedName] = useState<
         string | null
@@ -467,6 +543,15 @@ const Products = () => {
         emptyCoverage,
     );
     const [productUnits, setProductUnits] = useState<ProductUnitForm[]>([]);
+    const [pricingUom, setPricingUom] = useState("");
+    const [maximumDiscountPercent, setMaximumDiscountPercent] = useState("0");
+    const [pricingEffectiveFrom, setPricingEffectiveFrom] = useState(
+        new Date().toISOString().slice(0, 10),
+    );
+    const [priceMatrix, setPriceMatrix] = useState<PriceMatrixForm>(
+        emptyPriceMatrix,
+    );
+    const initialPricingSnapshotRef = useRef<string | null>(null);
     const [masterDataOpen, setMasterDataOpen] = useState(false);
     const [masterDataTab, setMasterDataTab] = useState<ProductMasterTab>(
         "categories",
@@ -479,6 +564,17 @@ const Products = () => {
 
     const addSupportedProductUnit = () => {
         setProductUnits((current) => {
+            const packagingCount = current.filter(
+                (unit) => !unit.isBaseUnit,
+            ).length;
+
+            if (packagingCount >= MAX_PACKAGING_LEVELS) {
+                toast.error(
+                    `A Product can have up to ${MAX_PACKAGING_LEVELS} packaging levels.`,
+                );
+                return current;
+            }
+
             const nextUnit = createEmptyProductUnit();
             const baseIndex = current.findIndex((unit) => unit.isBaseUnit);
             if (baseIndex < 0) return [...current, nextUnit];
@@ -585,6 +681,8 @@ const Products = () => {
           default_purchase_uom_code,
           default_request_uom_code,
           default_sales_uom_code,
+          pricing_uom_code,
+          maximum_discount_percent,
           default_waste_percent,
           uses_coverage,
           is_stock_item,
@@ -645,6 +743,28 @@ const Products = () => {
 
             if (error) throw error;
             return data ?? [];
+        },
+    });
+
+    const { data: priceBooks = [], isLoading: loadingPriceBooks } = useQuery({
+        queryKey: ["products", "price-books", "commercial-pricing"],
+        queryFn: async (): Promise<PriceBookOption[]> => {
+            const { data, error } = await db
+                .from("price_books")
+                .select(
+                    "price_book_id,price_book_code,price_book_name,is_default",
+                )
+                .in("price_book_code", PRICE_BOOK_CODES)
+                .eq("is_deleted", false)
+                .eq("is_active", true);
+
+            if (error) throw error;
+
+            const rows = (data ?? []) as PriceBookOption[];
+            return PRICE_BOOK_CODES.flatMap((code) => {
+                const row = rows.find((item) => item.price_book_code === code);
+                return row ? [row] : [];
+            });
         },
     });
 
@@ -830,8 +950,8 @@ const Products = () => {
         if (!suggestedProductName) return;
 
         const trimmedName = productName.trim();
-        const isSystemGenerated = trimmedName === "" ||
-            trimmedName === lastSuggestedName;
+        const isSystemGenerated =
+            trimmedName === "" || trimmedName === lastSuggestedName;
 
         if (isSystemGenerated) {
             setProductName(suggestedProductName);
@@ -874,6 +994,51 @@ const Products = () => {
                 })),
         [units],
     );
+
+    const pricingUomOptions = useMemo<SearchableOption[]>(
+        () =>
+            productUnits
+                .filter((unit) => unit.uomCode.trim())
+                .map((unit) => {
+                    const master = units.find((item) =>
+                        item.uom_code === unit.uomCode
+                    );
+                    return {
+                        value: unit.uomCode,
+                        label: master
+                            ? `${unit.uomCode} — ${master.uom_name} (${master.uom_symbol})`
+                            : unit.uomCode,
+                        searchText: master
+                            ? `${unit.uomCode} ${master.uom_name} ${master.uom_symbol} ${master.uom_category}`
+                            : unit.uomCode,
+                        group: unit.isBaseUnit
+                            ? "Base Measurement Unit"
+                            : "Supported Product Unit",
+                        description: `1 ${unit.uomCode} = ${unit.conversionToBase || "?"} ${baseUom || "base"}`,
+                    };
+                }),
+        [baseUom, productUnits, units],
+    );
+
+    useEffect(() => {
+        /*
+         * Do not validate/clear Pricing UOM while Edit Product data is still
+         * hydrating. loadProductDetails() receives the Product header first,
+         * then product_units arrives asynchronously. Without this guard the
+         * valid stored Pricing UOM can be cleared during that short empty-units
+         * window and the UI incorrectly shows "Not selected".
+         */
+        if (isHydratingProductDetails || !pricingUom) return;
+
+        const stillSupported = productUnits.some((unit) =>
+            unit.uomCode === pricingUom
+        );
+
+        if (!stillSupported) {
+            setPricingUom("");
+            setPriceMatrix(emptyPriceMatrix());
+        }
+    }, [isHydratingProductDetails, pricingUom, productUnits]);
 
     const filteredProducts = useMemo(() => {
         const keyword = searchTerm.trim().toLowerCase();
@@ -937,6 +1102,7 @@ const Products = () => {
     }, [effectiveAttributes]);
 
     const resetForm = () => {
+        setIsHydratingProductDetails(false);
         setEditingProduct(null);
         setProductCode("");
         setProductCodeIdentity(null);
@@ -965,10 +1131,18 @@ const Products = () => {
         setDynamicValues({});
         setCoverageForm(emptyCoverage());
         setProductUnits([]);
+        setPricingUom("");
+        setMaximumDiscountPercent("0");
+        setPricingEffectiveFrom(new Date().toISOString().slice(0, 10));
+        setPriceMatrix(emptyPriceMatrix());
+        initialPricingSnapshotRef.current = null;
     };
 
     const loadProductDetails = async (product: ProductRow) => {
-        setEditingProduct(product);
+        setIsHydratingProductDetails(true);
+
+        try {
+            setEditingProduct(product);
         setProductCode(product.product_code);
         setProductCodeIdentity(null);
         setProductIdentityForm({ ...EMPTY_PRODUCT_IDENTITY });
@@ -993,13 +1167,24 @@ const Products = () => {
         setIsServiceItem(product.is_service_item);
         setSearchKeywords(product.search_keywords ?? "");
         setIsActive(product.is_active);
+        const loadedPricingUom = product.pricing_uom_code ?? "";
+        const loadedMaximumDiscountPercent = String(
+            product.maximum_discount_percent ?? 0,
+        );
 
-        const [valuesResult, coverageResult, productUnitsResult] = await Promise
-            .all([
-                supabase
-                    .from("product_attribute_values")
-                    .select(
-                        `
+        setPricingUom(loadedPricingUom);
+        setMaximumDiscountPercent(loadedMaximumDiscountPercent);
+
+        const [
+            valuesResult,
+            coverageResult,
+            productUnitsResult,
+            priceMatrixResult,
+        ] = await Promise.all([
+            supabase
+                .from("product_attribute_values")
+                .select(
+                    `
             product_attribute_value_id,
             attribute_id,
             value_text,
@@ -1011,36 +1196,20 @@ const Products = () => {
               attribute_option_id
             )
           `,
-                    )
-                    .eq("product_id", product.product_id)
-                    .eq("is_deleted", false),
-                supabase
-                    .from("product_coverages")
-                    .select("*")
-                    .eq("product_id", product.product_id)
-                    .eq("is_deleted", false)
-                    .eq("is_default", true)
-                    .maybeSingle(),
-                supabase
-                    .from("product_uom_conversions")
-                    .select(
-                        `
-              product_uom_conversion_id,
-              from_uom_code,
-              to_uom_code,
-              conversion_factor,
-              allow_fractional_quantity,
-              sort_order
-            `,
-                    )
-                    .eq("product_id", product.product_id)
-                    .eq("is_deleted", false)
-                    .eq("is_active", true)
-                    .order("sort_order"),
-                supabase
-                    .from("product_units")
-                    .select(
-                        `
+                )
+                .eq("product_id", product.product_id)
+                .eq("is_deleted", false),
+            supabase
+                .from("product_coverages")
+                .select("*")
+                .eq("product_id", product.product_id)
+                .eq("is_deleted", false)
+                .eq("is_default", true)
+                .maybeSingle(),
+            db
+                .from("product_units")
+                .select(
+                    `
         product_unit_id,
         uom_code,
         conversion_to_base,
@@ -1050,17 +1219,41 @@ const Products = () => {
         barcode,
         is_active
     `,
+                )
+                .eq("product_id", product.product_id)
+                .eq("is_deleted", false)
+                .eq("is_active", true)
+                .order("sort_order", { ascending: false })
+                .order("conversion_to_base", { ascending: false }),
+            product.pricing_uom_code
+                ? db
+                    .from("price_book_lines")
+                    .select(
+                        `
+              price_book_line_id,
+              price_book_id,
+              price_uom_code,
+              unit_price,
+              minimum_price,
+              effective_from,
+              effective_to,
+              is_active,
+              price_books (
+                price_book_code
+              )
+            `,
                     )
                     .eq("product_id", product.product_id)
+                    .eq("price_uom_code", product.pricing_uom_code)
                     .eq("is_deleted", false)
                     .eq("is_active", true)
-                    .order("sort_order", { ascending: false })
-                    .order("conversion_to_base", { ascending: false }),
-            ]);
+                : Promise.resolve({ data: [], error: null }),
+        ]);
 
         if (valuesResult.error) throw valuesResult.error;
         if (coverageResult.error) throw coverageResult.error;
         if (productUnitsResult.error) throw productUnitsResult.error;
+        if (priceMatrixResult.error) throw priceMatrixResult.error;
 
         const nextValues: Record<string, AttributeFormValue> = {};
 
@@ -1106,34 +1299,69 @@ const Products = () => {
 
         const loadedProductUnits: ProductUnitForm[] = (
             productUnitsResult.data ?? []
-        ).map((unit) => ({
-            id: unit.product_uom_conversion_id,
-            uomCode: unit.from_uom_code,
-            conversionToBase: String(unit.conversion_factor),
-            isBaseUnit: false,
-            allowFractionalQuantity: unit.allow_fractional_quantity,
-            barcode: "",
+        ).map((unit: any) => ({
+            id: unit.product_unit_id,
+            uomCode: unit.uom_code,
+            conversionToBase: String(unit.conversion_to_base),
+            isBaseUnit: Boolean(unit.is_base_unit),
+            allowFractionalQuantity: Boolean(unit.allow_fractional_quantity),
+            barcode: unit.barcode ?? "",
         }));
 
-        setProductUnits([
-            ...loadedProductUnits.filter(
-                (unit) => unit.uomCode !== product.base_uom_code,
+        setProductUnits(loadedProductUnits);
+
+        const nextMatrix = emptyPriceMatrix();
+        for (const row of priceMatrixResult.data ?? []) {
+            const relation = Array.isArray(row.price_books)
+                ? row.price_books[0]
+                : row.price_books;
+            const code = relation?.price_book_code as PriceBookCode | undefined;
+
+            if (!code || !PRICE_BOOK_CODES.includes(code)) continue;
+
+            nextMatrix[code] = {
+                unitPrice: String(row.unit_price ?? ""),
+                minimumPrice: row.minimum_price === null ||
+                        row.minimum_price === undefined
+                    ? ""
+                    : String(row.minimum_price),
+            };
+        }
+        const pricingEffectiveDates: string[] = Array.from(
+            new Set<string>(
+                (priceMatrixResult.data ?? [])
+                    .map((row: any) =>
+                        typeof row?.effective_from === "string"
+                            ? row.effective_from
+                            : ""
+                    )
+                    .filter((value: string) => value.length > 0),
             ),
-            ...(product.base_uom_code
-                ? [
-                    {
-                        id: `base-unit-${product.base_uom_code}`,
-                        uomCode: product.base_uom_code,
-                        conversionToBase: "1",
-                        isBaseUnit: true,
-                        allowFractionalQuantity: true,
-                        barcode: "",
-                    } satisfies ProductUnitForm,
-                ]
-                : []),
-        ]);
+        ).sort();
+
+        /*
+         * Existing active rows normally share one Effective From date.
+         * If legacy rows differ, use the latest active date for the editor.
+         * Merely opening/saving the Product must not create a new price version.
+         */
+        const loadedPricingEffectiveFrom =
+            pricingEffectiveDates.at(-1) ??
+            new Date().toISOString().slice(0, 10);
+
+        setPricingEffectiveFrom(loadedPricingEffectiveFrom);
+        setPriceMatrix(nextMatrix);
+
+        initialPricingSnapshotRef.current = buildPricingSnapshot({
+            pricingUom: loadedPricingUom,
+            maximumDiscountPercent: loadedMaximumDiscountPercent,
+            effectiveFrom: loadedPricingEffectiveFrom,
+            matrix: nextMatrix,
+        });
 
         setShowForm(true);
+        } finally {
+            setIsHydratingProductDetails(false);
+        }
     };
 
     const buildAttributePayload = (): Json[] =>
@@ -1194,9 +1422,16 @@ const Products = () => {
 
         const seenUoms = new Set<string>();
         const baseRows = productUnits.filter((unit) => unit.isBaseUnit);
+        const packagingRows = productUnits.filter((unit) => !unit.isBaseUnit);
 
         if (baseRows.length !== 1) {
             throw new Error("Exactly one Base Unit is required.");
+        }
+
+        if (packagingRows.length > MAX_PACKAGING_LEVELS) {
+            throw new Error(
+                `A Product can have up to ${MAX_PACKAGING_LEVELS} packaging levels.`,
+            );
         }
 
         return productUnits.map((unit, index) => {
@@ -1344,9 +1579,7 @@ const Products = () => {
 
             const name = productName.trim();
 
-            if (
-                !editingProduct && productIdentityValidation.status !== "valid"
-            ) {
+            if (!editingProduct && productIdentityValidation.status !== "valid") {
                 throw new Error(
                     productIdentityValidation.message ||
                         "Complete Product Code Identity and wait for validation.",
@@ -1369,6 +1602,108 @@ const Products = () => {
                     "Default Waste Percent must be between 0 and 100.",
                 );
             }
+
+            if (!pricingUom) {
+                throw new Error("Pricing UOM is required.");
+            }
+
+            if (
+                !productUnits.some((unit) =>
+                    unit.uomCode === pricingUom
+                )
+            ) {
+                throw new Error(
+                    "Pricing UOM must be one of this Product's configured Supported Units.",
+                );
+            }
+
+            const maxDiscount = Number(maximumDiscountPercent || 0);
+            if (
+                !Number.isFinite(maxDiscount) ||
+                maxDiscount < 0 ||
+                maxDiscount > 100
+            ) {
+                throw new Error(
+                    "Maximum Discount Percent must be between 0 and 100.",
+                );
+            }
+
+            if (!pricingEffectiveFrom) {
+                throw new Error("Pricing Effective From date is required.");
+            }
+
+            if (priceBooks.length !== PRICE_BOOK_CODES.length) {
+                throw new Error(
+                    "The four required Product Price Books are not fully configured.",
+                );
+            }
+
+            const matrixPayload = PRICE_BOOK_CODES.map((code) => {
+                const book = priceBooks.find((item) =>
+                    item.price_book_code === code
+                );
+                if (!book) {
+                    throw new Error(
+                        `Required Price Book ${code} is not available.`,
+                    );
+                }
+
+                const unitPriceText = priceMatrix[code].unitPrice.trim();
+                const minimumPriceText =
+                    priceMatrix[code].minimumPrice.trim();
+
+                if (!unitPriceText) {
+                    throw new Error(
+                        `${PRICE_BOOK_LABELS[code]} Selling Price is required.`,
+                    );
+                }
+
+                const unitPrice = Number(unitPriceText);
+                const minimumPrice = minimumPriceText
+                    ? Number(minimumPriceText)
+                    : null;
+
+                if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+                    throw new Error(
+                        `${PRICE_BOOK_LABELS[code]} Selling Price must be zero or greater.`,
+                    );
+                }
+
+                if (
+                    minimumPrice !== null &&
+                    (!Number.isFinite(minimumPrice) || minimumPrice < 0)
+                ) {
+                    throw new Error(
+                        `${PRICE_BOOK_LABELS[code]} Minimum Price must be zero or greater.`,
+                    );
+                }
+
+                if (
+                    minimumPrice !== null &&
+                    minimumPrice > unitPrice
+                ) {
+                    throw new Error(
+                        `${PRICE_BOOK_LABELS[code]} Minimum Price cannot exceed Selling Price.`,
+                    );
+                }
+
+                return {
+                    price_book_id: book.price_book_id,
+                    unit_price: unitPrice,
+                    minimum_price: minimumPrice,
+                };
+            });
+
+            const currentPricingSnapshot = buildPricingSnapshot({
+                pricingUom,
+                maximumDiscountPercent,
+                effectiveFrom: pricingEffectiveFrom,
+                matrix: priceMatrix,
+            });
+
+            const pricingChanged =
+                !editingProduct ||
+                initialPricingSnapshotRef.current !== currentPricingSnapshot;
 
             for (const attribute of effectiveAttributes) {
                 const value = dynamicValues[attribute.attribute_id];
@@ -1434,6 +1769,9 @@ const Products = () => {
                 p_attributes: buildAttributePayload() as Json,
             };
 
+            let productId = editingProduct?.product_id ?? null;
+            let productCreatedDuringThisSave = false;
+
             if (editingProduct) {
                 const { error } = await supabase.rpc(
                     "update_product_atomic",
@@ -1456,33 +1794,117 @@ const Products = () => {
                         "Product was created but no Product ID was returned.",
                     );
                 }
+
+                productId = createdProduct.product_id;
+                productCreatedDuringThisSave = true;
+            }
+
+            if (!productId) {
+                throw new Error("Product ID is required before saving Pricing.");
+            }
+
+            try {
+                /*
+                 * Preserve commercial history:
+                 * - New Product: Pricing must be written.
+                 * - Existing Product: Pricing RPCs run only when the Pricing
+                 *   policy/matrix/effective date actually changed.
+                 * This prevents an unrelated Product edit from rewriting or
+                 * appending Product Price Matrix history.
+                 */
+                if (pricingChanged) {
+                    const { error: policyError } = await db.rpc(
+                        "set_product_pricing_policy_atomic",
+                        {
+                            p_product_id: productId,
+                            p_pricing_uom_code: pricingUom,
+                            p_maximum_discount_percent: maxDiscount,
+                        },
+                    );
+
+                    if (policyError) throw policyError;
+
+                    const { error: matrixError } = await db.rpc(
+                        "set_product_selling_price_matrix_atomic",
+                        {
+                            p_product_id: productId,
+                            p_price_uom_code: pricingUom,
+                            p_effective_from: pricingEffectiveFrom,
+                            p_prices: matrixPayload,
+                        },
+                    );
+
+                    if (matrixError) throw matrixError;
+
+                    initialPricingSnapshotRef.current =
+                        currentPricingSnapshot;
+                }
+            } catch (pricingError) {
+                /*
+                 * Base Product create/update is already atomic in its own RPC.
+                 * If a newly created Product reaches this point, switch the
+                 * open form into Edit mode so retrying Pricing never attempts
+                 * to create the same immutable Product Code a second time.
+                 */
+                if (productCreatedDuringThisSave) {
+                    const { data: createdRow } = await db
+                        .from("products")
+                        .select(
+                            `
+                  product_id,
+                  product_code,
+                  product_name,
+                  category_id,
+                  product_type,
+                  description,
+                  base_uom_code,
+                  default_purchase_uom_code,
+                  default_request_uom_code,
+                  default_sales_uom_code,
+                  pricing_uom_code,
+                  maximum_discount_percent,
+                  default_waste_percent,
+                  uses_coverage,
+                  is_stock_item,
+                  is_service_item,
+                  search_keywords,
+                  variant_name,
+                  variant_description,
+                  is_active,
+                  product_categories (
+                    category_code,
+                    category_name
+                  )
+                `,
+                        )
+                        .eq("product_id", productId)
+                        .single();
+
+                    if (createdRow) {
+                        setEditingProduct(createdRow as ProductRow);
+                        setProductCode(createdRow.product_code);
+                    }
+                }
+
+                throw pricingError;
             }
         },
-        onSuccess: async () => {
+        onSuccess: () => {
             toast.success(
                 editingProduct
                     ? "Product updated successfully."
                     : "Product created successfully.",
             );
-
-            await queryClient.invalidateQueries({
-                queryKey: ["products"],
-            });
-
-            await queryClient.refetchQueries({
-                queryKey: ["products"],
-                exact: true,
-                type: "active",
-            });
-
-            void queryClient.invalidateQueries({
+            queryClient.invalidateQueries({ queryKey: ["products"] });
+            queryClient.invalidateQueries({
                 queryKey: ["products-for-stock-requests"],
             });
-
-            void queryClient.invalidateQueries({
+            queryClient.invalidateQueries({
                 queryKey: ["products-for-purchase-orders"],
             });
-
+            queryClient.invalidateQueries({
+                queryKey: ["products", "price-books", "commercial-pricing"],
+            });
             setShowForm(false);
             resetForm();
         },
@@ -1779,6 +2201,30 @@ const Products = () => {
             />
         );
     };
+
+    const coverageSourceProductUnit = productUnits.find(
+        (unit) => unit.uomCode === coverageForm.sourceUom,
+    );
+    const coverageSourceQuantityNumber = Number(
+        coverageForm.sourceQuantity || 0,
+    );
+    const coverageQuantityNumber = Number(
+        coverageForm.coverageQuantity || 0,
+    );
+    const coverageExpectedBaseQuantity =
+        coverageSourceProductUnit &&
+            Number.isFinite(Number(coverageSourceProductUnit.conversionToBase)) &&
+            coverageSourceQuantityNumber > 0
+            ? coverageSourceQuantityNumber *
+                Number(coverageSourceProductUnit.conversionToBase)
+            : null;
+    const coverageDuplicatesUnitConversion =
+        Boolean(baseUom) &&
+        coverageForm.coverageUom === baseUom &&
+        coverageExpectedBaseQuantity !== null &&
+        Number.isFinite(coverageQuantityNumber) &&
+        coverageQuantityNumber > 0 &&
+        Math.abs(coverageExpectedBaseQuantity - coverageQuantityNumber) < 0.000001;
 
     return (
         <div className="space-y-6 p-4 sm:p-6">
@@ -2099,7 +2545,7 @@ const Products = () => {
                     </article>
                 ))}
             </section>
-            <Dialog
+<Dialog
                 open={showForm}
                 onOpenChange={(open) => {
                     setShowForm(open);
@@ -2130,71 +2576,57 @@ const Products = () => {
                                         : "Select the controlled values that form the permanent Product Code."}
                                 </p>
 
-                                {editingProduct
-                                    ? (
-                                        <div className="mt-4 space-y-4">
-                                            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-                                                <p className="text-xs font-bold uppercase tracking-wide text-red-700">
-                                                    Product Code
-                                                </p>
-                                                <p className="mt-2 break-all font-mono text-lg font-black text-slate-900">
-                                                    {productCode}
-                                                </p>
-                                            </div>
+                                {editingProduct ? (
+        <div className="mt-4 space-y-4">
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-red-700">
+                    Product Code
+                </p>
+                <p className="mt-2 break-all font-mono text-lg font-black text-slate-900">
+                    {productCode}
+                </p>
+            </div>
 
-                                            <p className="text-xs text-amber-700">
-                                                Product Code identity is
-                                                immutable after Product
-                                                creation.
-                                            </p>
-                                        </div>
-                                    )
-                                    : (
-                                        <div className="mt-4">
-                                            <ProductIdentityStep
-                                                value={productIdentityForm}
-                                                onChange={setProductIdentityForm}
-                                                onNameSuggestionChange={setLiveIdentityNameSuggestion}
-                                                onValidationChange={(state) => {
-                                                    setProductIdentityValidation(
-                                                        state,
-                                                    );
-                                                    setProductCodeIdentity(
-                                                        state.identity,
-                                                    );
-                                                    setProductCode(
-                                                        state.preview
-                                                            ?.product_code_preview ??
-                                                            "",
-                                                    );
-                                                }}
-                                                onManage={() =>
-                                                    openMasterData(
-                                                        "product-code",
-                                                    )}
-                                                disabled={saveProduct.isPending}
-                                            />
-                                        </div>
-                                    )}
+            <p className="text-xs text-amber-700">
+                Product Code identity is immutable after Product creation.
+            </p>
+        </div>
+    ) : (
+        <div className="mt-4">
+            <ProductIdentityStep
+                value={productIdentityForm}
+                onChange={setProductIdentityForm}
+                onNameSuggestionChange={setLiveIdentityNameSuggestion}
+                onValidationChange={(state) => {
+                    setProductIdentityValidation(state);
+                    setProductCodeIdentity(state.identity);
+                    setProductCode(
+                        state.preview?.product_code_preview ?? "",
+                    );
+                }}
+                onManage={() => openMasterData("product-code")}
+                disabled={saveProduct.isPending}
+            />
+        </div>
+    )}
                             </div>
 
                             <div className="mt-4 grid gap-4 md:grid-cols-2">
-                                {editingProduct
-                                    ? (
-                                        <div className="space-y-2">
-                                            <Label>Product Code</Label>
-                                            <Input
-                                                value={productCode}
-                                                readOnly
-                                                className="cursor-not-allowed bg-slate-100 font-mono"
-                                            />
-                                            <p className="text-xs text-slate-500">
-                                                Product Code is permanent and
-                                                cannot be changed.
-                                            </p>
-                                        </div>
-                                    )
-                                    : null}
+                                {editingProduct ? (
+                                    <div className="space-y-2">
+                                        <Label>Product Code</Label>
+                                        <Input
+                                            value={productCode}
+                                            readOnly
+                                            className="cursor-not-allowed bg-slate-100 font-mono"
+                                        />
+                                        <p className="text-xs text-slate-500">
+                                            Product Code is permanent and cannot be changed.
+                                        </p>
+                                    </div>
+                                ) : null}
+
+
 
                                 <div className="space-y-2">
                                     <Label>Product Category *</Label>
@@ -2418,11 +2850,7 @@ const Products = () => {
                                     />
                                 </div>
 
-                                <div
-                                    className={`space-y-2 ${
-                                        editingProduct ? "" : "md:col-span-2"
-                                    }`}
-                                >
+                                <div className={`space-y-2 ${editingProduct ? "" : "md:col-span-2"}`}>
                                     <Label>Product Name *</Label>
                                     <Input
                                         className={FIELD_CLASS}
@@ -2433,34 +2861,24 @@ const Products = () => {
                                         }}
                                         placeholder="Enter the product name used throughout REDS"
                                     />
-                                    {!editingProduct && suggestedProductName
-                                        ? (
-                                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                                <p className="text-xs text-slate-500">
-                                                    Suggested from Product Code
-                                                    identity:{" "}
-                                                    <span className="font-semibold text-slate-900">
-                                                        {suggestedProductName}
-                                                    </span>
-                                                </p>
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => {
-                                                        setProductName(
-                                                            suggestedProductName,
-                                                        );
-                                                        setLastSuggestedName(
-                                                            suggestedProductName,
-                                                        );
-                                                    }}
-                                                >
-                                                    Regenerate Name
-                                                </Button>
-                                            </div>
-                                        )
-                                        : null}
+                                    {!editingProduct && suggestedProductName ? (
+                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                            <p className="text-xs text-slate-500">
+                                                Suggested from Product Code identity: <span className="font-semibold text-slate-900">{suggestedProductName}</span>
+                                            </p>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => {
+                                                    setProductName(suggestedProductName);
+                                                    setLastSuggestedName(suggestedProductName);
+                                                }}
+                                            >
+                                                Regenerate Name
+                                            </Button>
+                                        </div>
+                                    ) : null}
                                 </div>
 
                                 <div className="space-y-2 md:col-span-2">
@@ -2475,6 +2893,7 @@ const Products = () => {
                                     />
                                 </div>
                             </div>
+
                         </section>
 
                         <section className="rounded-2xl border border-[#E5E7EB] bg-[#FCFAFA] p-4">
@@ -2482,24 +2901,42 @@ const Products = () => {
                                 <SectionHeading
                                     number={2}
                                     title="Units & Packaging"
-                                    helper="Set the common Base Unit, then arrange every supported packaging level from largest to smallest."
+                                    helper="Choose the Base Measurement Unit first, then add up to 6 packaging levels. Every conversion is entered as 1 selected Unit = X Base Measurement Units."
                                 />
                                 <Button
                                     type="button"
                                     variant="outline"
                                     onClick={addSupportedProductUnit}
-                                    disabled={!baseUom}
+                                    disabled={!baseUom ||
+                                        productUnits.filter((unit) =>
+                                                !unit.isBaseUnit
+                                            ).length >= MAX_PACKAGING_LEVELS}
                                     className="h-10 w-full rounded-xl border-[#D8B4B4] text-[#7F1D1D] hover:bg-[#FBF1F1] sm:w-auto"
                                 >
                                     <Plus className="mr-2 h-4 w-4" />
-                                    Add Unit
+                                    Add Packaging Unit
                                 </Button>
                             </div>
 
-                            <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(230px,0.9fr)_minmax(170px,0.65fr)_minmax(300px,1.45fr)]">
+                            <div className="mt-4 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A8A]">
+                                <p className="font-bold">
+                                    Conversion rule
+                                </p>
+                                <p className="mt-1">
+                                    Base Measurement Unit is the common reference used for quantity conversion and reporting.
+                                    Enter each supported Unit as:
+                                    {" "}
+                                    <span className="font-bold">
+                                        1 Unit = X Base Unit
+                                    </span>.
+                                    Do not enter the reverse relationship.
+                                </p>
+                            </div>
+
+                            <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(250px,0.95fr)_minmax(180px,0.65fr)_minmax(320px,1.4fr)]">
                                 <div className="rounded-xl border border-[#DDD6FE] bg-[#F5F3FF] p-3">
                                     <p className="text-xs font-bold uppercase tracking-wide text-[#6D28D9]">
-                                        Base Unit
+                                        Base Measurement Unit
                                     </p>
                                     <div className="mt-2">
                                         <SearchablePicker
@@ -2521,49 +2958,52 @@ const Products = () => {
                                             )}
                                             placeholder={loadingUnits
                                                 ? "Loading UOM..."
-                                                : "Select Base Unit"}
+                                                : "Select Base Measurement Unit"}
                                             searchPlaceholder="Search UOM code, name or category..."
                                             emptyText="No active Units of Measure configured."
                                         />
                                     </div>
                                     <p className="mt-2 text-xs text-slate-500">
-                                        Common calculation unit for quantity,
-                                        cost and reporting.
+                                        The common physical measurement used as the conversion anchor.
+                                        It does not have to be the Purchase or Sales UOM.
                                     </p>
                                 </div>
 
                                 <div className="rounded-xl border border-[#E5E7EB] bg-white p-3">
                                     <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                                        Supported Units
+                                        Packaging Levels
                                     </p>
                                     <p className="mt-2 text-2xl font-black text-slate-900">
                                         {productUnits.filter((unit) =>
+                                            !unit.isBaseUnit &&
                                             unit.uomCode
                                         ).length}
+                                        <span className="ml-1 text-sm font-semibold text-slate-400">
+                                            / {MAX_PACKAGING_LEVELS}
+                                        </span>
                                     </p>
                                     <p className="text-xs text-slate-500">
-                                        {productUnits.filter((unit) =>
-                                                unit.uomCode
-                                            ).length === 1
-                                            ? "1 level"
-                                            : "levels"}
+                                        Optional levels, largest packaging first.
                                     </p>
                                 </div>
 
                                 <div className="rounded-xl border border-[#E5E7EB] bg-white p-3">
                                     <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                                        Hierarchy
+                                        Unit Hierarchy
                                     </p>
                                     <p className="mt-2 break-words text-base font-bold text-slate-900">
                                         {productUnits
-                                            .filter((unit) => unit.uomCode)
+                                            .filter((unit) =>
+                                                !unit.isBaseUnit && unit.uomCode
+                                            )
                                             .map((unit) => unit.uomCode)
+                                            .concat(baseUom ? [baseUom] : [])
                                             .join(" → ") ||
-                                            "Select a Base Unit to begin"}
+                                            "Select a Base Measurement Unit to begin"}
                                     </p>
                                     <p className="mt-1 text-xs text-slate-500">
-                                        Largest packaging first; Base Unit
-                                        remains last.
+                                        Packaging Level 1 is the largest configured package.
+                                        Base Measurement Unit always remains the conversion anchor.
                                     </p>
                                 </div>
                             </div>
@@ -2572,371 +3012,400 @@ const Products = () => {
                                 ? (
                                     <div className="mt-4 rounded-xl border border-dashed border-[#D8B4B4] bg-[#FFF8F8] p-5 text-center">
                                         <p className="font-semibold text-slate-900">
-                                            Select the Base Unit first
+                                            Select the Base Measurement Unit first
                                         </p>
                                         <p className="mt-1 text-sm text-slate-500">
-                                            The system will create and lock the
-                                            Base Unit row automatically.
+                                            The system will create and lock the Base Measurement Unit row automatically at a conversion of 1.
                                         </p>
                                     </div>
                                 )
                                 : (
-                                    <div className="mt-4 min-w-0 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
-                                        <div className="hidden grid-cols-[52px_minmax(175px,1.2fr)_minmax(165px,0.95fr)_112px_minmax(135px,0.75fr)_104px] gap-2 border-b border-[#E5E7EB] bg-[#F8FAFC] px-3 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 lg:grid">
-                                            <span>Level</span>
-                                            <span>Unit</span>
-                                            <span>1 Unit Equals (Base)</span>
-                                            <span>Fractional</span>
-                                            <span>Barcode</span>
-                                            <span className="text-right">
-                                                Actions
-                                            </span>
-                                        </div>
+                                    <>
+                                        <div className="mt-4 min-w-0 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
+                                            <div className="hidden grid-cols-[132px_minmax(175px,1.1fr)_minmax(245px,1.35fr)_112px_minmax(135px,0.75fr)_104px] gap-2 border-b border-[#E5E7EB] bg-[#F8FAFC] px-3 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 lg:grid">
+                                                <span>Level</span>
+                                                <span>Unit</span>
+                                                <span>Conversion to Base</span>
+                                                <span>Fractional</span>
+                                                <span>Barcode</span>
+                                                <span className="text-right">
+                                                    Actions
+                                                </span>
+                                            </div>
 
-                                        <div className="divide-y divide-[#E5E7EB]">
-                                            {productUnits.map((unit, index) => {
-                                                const selectedMasterUnit = units
-                                                    .find(
-                                                        (item) =>
-                                                            item.uom_code ===
-                                                                unit.uomCode,
-                                                    );
-                                                const nonBaseUnits =
-                                                    productUnits.filter(
-                                                        (item) =>
-                                                            !item.isBaseUnit,
-                                                    );
-                                                const nonBaseIndex =
-                                                    nonBaseUnits.findIndex(
-                                                        (item) =>
-                                                            item.id === unit.id,
-                                                    );
-                                                const canMoveUp =
-                                                    !unit.isBaseUnit &&
-                                                    nonBaseIndex > 0;
-                                                const canMoveDown =
-                                                    !unit.isBaseUnit &&
-                                                    nonBaseIndex >= 0 &&
-                                                    nonBaseIndex <
-                                                        nonBaseUnits.length - 1;
+                                            <div className="divide-y divide-[#E5E7EB]">
+                                                {productUnits.map((unit) => {
+                                                    const selectedMasterUnit = units
+                                                        .find(
+                                                            (item) =>
+                                                                item.uom_code ===
+                                                                    unit.uomCode,
+                                                        );
+                                                    const nonBaseUnits =
+                                                        productUnits.filter(
+                                                            (item) =>
+                                                                !item.isBaseUnit,
+                                                        );
+                                                    const nonBaseIndex =
+                                                        nonBaseUnits.findIndex(
+                                                            (item) =>
+                                                                item.id === unit.id,
+                                                        );
+                                                    const canMoveUp =
+                                                        !unit.isBaseUnit &&
+                                                        nonBaseIndex > 0;
+                                                    const canMoveDown =
+                                                        !unit.isBaseUnit &&
+                                                        nonBaseIndex >= 0 &&
+                                                        nonBaseIndex <
+                                                            nonBaseUnits.length - 1;
 
-                                                return (
-                                                    <div
-                                                        key={unit.id}
-                                                        className="grid min-w-0 gap-3 px-3 py-4 lg:grid-cols-[52px_minmax(175px,1.2fr)_minmax(165px,0.95fr)_112px_minmax(135px,0.75fr)_104px] lg:gap-2 lg:items-center"
-                                                    >
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="flex h-8 min-w-8 items-center justify-center rounded-lg bg-slate-100 px-2 text-sm font-bold text-slate-800">
-                                                                {index + 1}
-                                                            </span>
-                                                            {unit.isBaseUnit
-                                                                ? (
-                                                                    <span className="rounded-full bg-[#DCFCE7] px-2 py-1 text-[11px] font-bold text-[#166534]">
-                                                                        Base
-                                                                    </span>
-                                                                )
-                                                                : null}
-                                                        </div>
+                                                    return (
+                                                        <div
+                                                            key={unit.id}
+                                                            className="grid min-w-0 gap-3 px-3 py-4 lg:grid-cols-[132px_minmax(175px,1.1fr)_minmax(245px,1.35fr)_112px_minmax(135px,0.75fr)_104px] lg:items-center lg:gap-2"
+                                                        >
+                                                            <div className="flex items-center">
+                                                                {unit.isBaseUnit
+                                                                    ? (
+                                                                        <span className="rounded-lg bg-[#DCFCE7] px-2.5 py-2 text-xs font-bold text-[#166534]">
+                                                                            Base Measurement
+                                                                        </span>
+                                                                    )
+                                                                    : (
+                                                                        <span className="rounded-lg bg-slate-100 px-2.5 py-2 text-xs font-bold text-slate-800">
+                                                                            Packaging Level {nonBaseIndex + 1}
+                                                                        </span>
+                                                                    )}
+                                                            </div>
 
-                                                        <div className="space-y-2">
-                                                            <Label className="lg:hidden">
-                                                                Unit
-                                                            </Label>
-                                                            {unit.isBaseUnit
-                                                                ? (
-                                                                    <div className="rounded-xl border border-[#BBF7D0] bg-[#F0FDF4] px-3 py-2.5">
-                                                                        <p className="font-semibold text-slate-900">
-                                                                            {unit
-                                                                                .uomCode}
-                                                                            {" "}
-                                                                            —
-                                                                            {" "}
-                                                                            {selectedMasterUnit
-                                                                                ?.uom_name ??
-                                                                                "Base Unit"}
-                                                                        </p>
-                                                                        <p className="mt-0.5 text-xs text-[#166534]">
-                                                                            Base
-                                                                            Unit
-                                                                            ·
-                                                                            locked
-                                                                            in
-                                                                            this
-                                                                            hierarchy
-                                                                        </p>
-                                                                    </div>
-                                                                )
-                                                                : (
-                                                                    <SearchablePicker
-                                                                        value={unit
-                                                                            .uomCode}
-                                                                        onChange={(
-                                                                            value,
-                                                                        ) => setProductUnits(
-                                                                            (
-                                                                                current,
-                                                                            ) => current
-                                                                                .map(
-                                                                                    (
-                                                                                        item,
-                                                                                    ) => item
-                                                                                            .id ===
-                                                                                            unit.id
-                                                                                        ? {
-                                                                                            ...item,
-                                                                                            uomCode:
-                                                                                                value,
-                                                                                        }
-                                                                                        : item,
-                                                                                ),
-                                                                        )}
-                                                                        options={uomOptions
-                                                                            .filter(
-                                                                                (
-                                                                                    option,
-                                                                                ) => {
+                                                            <div className="space-y-2">
+                                                                <Label className="lg:hidden">
+                                                                    Unit
+                                                                </Label>
+                                                                {unit.isBaseUnit
+                                                                    ? (
+                                                                        <div className="rounded-xl border border-[#BBF7D0] bg-[#F0FDF4] px-3 py-2.5">
+                                                                            <p className="font-semibold text-slate-900">
+                                                                                {unit.uomCode}
+                                                                                {" — "}
+                                                                                {selectedMasterUnit?.uom_name ??
+                                                                                    "Base Measurement Unit"}
+                                                                            </p>
+                                                                            <p className="mt-0.5 text-xs text-[#166534]">
+                                                                                Conversion anchor · locked
+                                                                            </p>
+                                                                        </div>
+                                                                    )
+                                                                    : (
+                                                                        <SearchablePicker
+                                                                            value={unit.uomCode}
+                                                                            onChange={(value) =>
+                                                                                setProductUnits(
+                                                                                    (current) =>
+                                                                                        current.map(
+                                                                                            (item) =>
+                                                                                                item.id === unit.id
+                                                                                                    ? {
+                                                                                                        ...item,
+                                                                                                        uomCode: value,
+                                                                                                    }
+                                                                                                    : item,
+                                                                                        ),
+                                                                                )}
+                                                                            options={uomOptions.filter(
+                                                                                (option) => {
                                                                                     const masterUnit =
-                                                                                        units
-                                                                                            .find(
-                                                                                                (
-                                                                                                    item,
-                                                                                                ) => item
-                                                                                                    .uom_code ===
-                                                                                                    option
-                                                                                                        .value,
-                                                                                            );
+                                                                                        units.find(
+                                                                                            (item) =>
+                                                                                                item.uom_code ===
+                                                                                                    option.value,
+                                                                                        );
                                                                                     const usedElsewhere =
-                                                                                        productUnits
-                                                                                            .some(
-                                                                                                (
-                                                                                                    item,
-                                                                                                ) => item
-                                                                                                            .id !==
-                                                                                                        unit.id &&
-                                                                                                    item.uomCode ===
-                                                                                                        option
-                                                                                                            .value,
-                                                                                            );
+                                                                                        productUnits.some(
+                                                                                            (item) =>
+                                                                                                item.id !== unit.id &&
+                                                                                                item.uomCode ===
+                                                                                                    option.value,
+                                                                                        );
                                                                                     return (
                                                                                         Boolean(
-                                                                                            masterUnit
-                                                                                                ?.is_active,
+                                                                                            masterUnit?.is_active,
                                                                                         ) &&
-                                                                                        option
-                                                                                                .value !==
-                                                                                            baseUom &&
+                                                                                        option.value !== baseUom &&
                                                                                         !usedElsewhere
                                                                                     );
                                                                                 },
                                                                             )}
-                                                                        placeholder="Select supported UOM"
-                                                                        searchPlaceholder="Search UOM code, name or category..."
-                                                                        emptyText="No available Units of Measure found."
-                                                                    />
-                                                                )}
-                                                        </div>
-
-                                                        <div className="space-y-2">
-                                                            <Label className="lg:hidden">
-                                                                1 Unit Equals
-                                                                (Base Unit)
-                                                            </Label>
-                                                            <div className="flex items-center gap-2">
-                                                                <Input
-                                                                    className={unit
-                                                                            .isBaseUnit
-                                                                        ? "h-11 cursor-not-allowed rounded-xl border-[#BBF7D0] bg-[#F0FDF4] font-semibold text-[#166534]"
-                                                                        : FIELD_CLASS}
-                                                                    type="number"
-                                                                    min="0"
-                                                                    step="0.000001"
-                                                                    value={unit
-                                                                        .conversionToBase}
-                                                                    readOnly={unit
-                                                                        .isBaseUnit}
-                                                                    onChange={(
-                                                                        event,
-                                                                    ) => setProductUnits(
-                                                                        (
-                                                                            current,
-                                                                        ) => current
-                                                                            .map(
-                                                                                (
-                                                                                    item,
-                                                                                ) => item
-                                                                                        .id ===
-                                                                                        unit.id
-                                                                                    ? {
-                                                                                        ...item,
-                                                                                        conversionToBase:
-                                                                                            event
-                                                                                                .target
-                                                                                                .value,
-                                                                                    }
-                                                                                    : item,
-                                                                            ),
+                                                                            placeholder="Select packaging UOM"
+                                                                            searchPlaceholder="Search UOM code, name or category..."
+                                                                            emptyText="No available Units of Measure found."
+                                                                        />
                                                                     )}
-                                                                    placeholder="Example: 2.2"
+                                                            </div>
+
+                                                            <div className="space-y-2">
+                                                                <Label className="lg:hidden">
+                                                                    Conversion to Base Measurement Unit
+                                                                </Label>
+                                                                <div className="flex min-w-0 items-center gap-2">
+                                                                    <span className="shrink-0 text-sm font-semibold text-slate-700">
+                                                                        1 {unit.uomCode || "unit"} =
+                                                                    </span>
+                                                                    <Input
+                                                                        className={unit.isBaseUnit
+                                                                            ? "h-11 min-w-0 cursor-not-allowed rounded-xl border-[#BBF7D0] bg-[#F0FDF4] font-semibold text-[#166534]"
+                                                                            : `${FIELD_CLASS} min-w-0`}
+                                                                        type="number"
+                                                                        min="0"
+                                                                        step="0.000001"
+                                                                        value={unit.conversionToBase}
+                                                                        readOnly={unit.isBaseUnit}
+                                                                        onChange={(event) =>
+                                                                            setProductUnits(
+                                                                                (current) =>
+                                                                                    current.map(
+                                                                                        (item) =>
+                                                                                            item.id === unit.id
+                                                                                                ? {
+                                                                                                    ...item,
+                                                                                                    conversionToBase:
+                                                                                                        event.target.value,
+                                                                                                }
+                                                                                                : item,
+                                                                                    ),
+                                                                            )}
+                                                                        placeholder="Example: 2.2"
+                                                                    />
+                                                                    <span className="shrink-0 text-sm font-semibold text-slate-700">
+                                                                        {baseUom}
+                                                                    </span>
+                                                                </div>
+                                                                {!unit.isBaseUnit && (
+                                                                    <p className="text-xs text-slate-500">
+                                                                        Enter how many {baseUom} are contained in exactly 1 {unit.uomCode || "selected unit"}.
+                                                                    </p>
+                                                                )}
+                                                            </div>
+
+                                                            <div className="space-y-2">
+                                                                <Label className="lg:hidden">
+                                                                    Allow Fractional
+                                                                </Label>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        setProductUnits(
+                                                                            (current) =>
+                                                                                current.map(
+                                                                                    (item) =>
+                                                                                        item.id === unit.id
+                                                                                            ? {
+                                                                                                ...item,
+                                                                                                allowFractionalQuantity:
+                                                                                                    !item.allowFractionalQuantity,
+                                                                                            }
+                                                                                            : item,
+                                                                                ),
+                                                                        )}
+                                                                    className={`h-10 w-full rounded-xl border px-2 text-xs font-bold transition ${
+                                                                        unit.allowFractionalQuantity
+                                                                            ? "border-[#BBF7D0] bg-[#F0FDF4] text-[#166534]"
+                                                                            : "border-[#E5E7EB] bg-white text-slate-500"
+                                                                    }`}
+                                                                >
+                                                                    {unit.allowFractionalQuantity
+                                                                        ? "✓ Yes"
+                                                                        : "× No"}
+                                                                </button>
+                                                            </div>
+
+                                                            <div className="space-y-2">
+                                                                <Label className="lg:hidden">
+                                                                    Barcode
+                                                                </Label>
+                                                                <Input
+                                                                    className={FIELD_CLASS}
+                                                                    value={unit.barcode}
+                                                                    onChange={(event) =>
+                                                                        setProductUnits(
+                                                                            (current) =>
+                                                                                current.map(
+                                                                                    (item) =>
+                                                                                        item.id === unit.id
+                                                                                            ? {
+                                                                                                ...item,
+                                                                                                barcode:
+                                                                                                    event.target.value,
+                                                                                            }
+                                                                                            : item,
+                                                                                ),
+                                                                        )}
+                                                                    placeholder="Optional"
                                                                 />
-                                                                <span className="min-w-12 shrink-0 text-sm font-semibold text-slate-600">
-                                                                    {baseUom}
-                                                                </span>
+                                                            </div>
+
+                                                            <div className="flex min-w-0 items-center justify-start gap-0.5 lg:justify-end">
+                                                                {unit.isBaseUnit
+                                                                    ? (
+                                                                        <span className="whitespace-nowrap rounded-lg bg-slate-100 px-2 py-2 text-xs font-semibold text-slate-500">
+                                                                            Locked
+                                                                        </span>
+                                                                    )
+                                                                    : (
+                                                                        <>
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                disabled={!canMoveUp}
+                                                                                onClick={() =>
+                                                                                    moveProductUnit(
+                                                                                        unit.id,
+                                                                                        -1,
+                                                                                    )}
+                                                                                title="Move packaging level up"
+                                                                                className="h-8 w-8 shrink-0 rounded-lg"
+                                                                            >
+                                                                                <ArrowUp className="h-4 w-4" />
+                                                                            </Button>
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                disabled={!canMoveDown}
+                                                                                onClick={() =>
+                                                                                    moveProductUnit(
+                                                                                        unit.id,
+                                                                                        1,
+                                                                                    )}
+                                                                                title="Move packaging level down"
+                                                                                className="h-8 w-8 shrink-0 rounded-lg"
+                                                                            >
+                                                                                <ArrowDown className="h-4 w-4" />
+                                                                            </Button>
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                onClick={() =>
+                                                                                    setProductUnits(
+                                                                                        (current) =>
+                                                                                            current.filter(
+                                                                                                (item) =>
+                                                                                                    item.id !== unit.id,
+                                                                                            ),
+                                                                                    )}
+                                                                                title="Remove packaging unit"
+                                                                                className="h-8 w-8 shrink-0 rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700"
+                                                                            >
+                                                                                <Trash2 className="h-4 w-4" />
+                                                                            </Button>
+                                                                        </>
+                                                                    )}
                                                             </div>
                                                         </div>
+                                                    );
+                                                })}
+                                            </div>
 
-                                                        <div className="space-y-2">
-                                                            <Label className="lg:hidden">
-                                                                Allow Fractional
-                                                            </Label>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    setProductUnits(
-                                                                        (
-                                                                            current,
-                                                                        ) => current
-                                                                            .map(
-                                                                                (
-                                                                                    item,
-                                                                                ) => item
-                                                                                        .id ===
-                                                                                        unit.id
-                                                                                    ? {
-                                                                                        ...item,
-                                                                                        allowFractionalQuantity:
-                                                                                            !item
-                                                                                                .allowFractionalQuantity,
-                                                                                    }
-                                                                                    : item,
-                                                                            ),
-                                                                    )}
-                                                                className={`inline-flex h-10 min-w-24 items-center justify-center rounded-xl border px-3 text-sm font-bold transition ${
-                                                                    unit.allowFractionalQuantity
-                                                                        ? "border-[#BBF7D0] bg-[#F0FDF4] text-[#166534]"
-                                                                        : "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]"
-                                                                }`}
+                                            <div className="flex flex-col gap-2 border-t border-[#BFDBFE] bg-[#EFF6FF] px-3 py-3 text-xs text-[#1E3A8A] sm:flex-row sm:items-center sm:justify-between">
+                                                <span>
+                                                    Base Measurement Unit ({baseUom}) is always 1 {baseUom}.
+                                                </span>
+                                                <span className="font-semibold">
+                                                    Up to {MAX_PACKAGING_LEVELS} packaging levels · largest first
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-4 rounded-xl border border-[#E5E7EB] bg-white p-4">
+                                            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                                                Packaging & Conversion Summary
+                                            </p>
+                                            <div className="mt-3 space-y-2">
+                                                {productUnits
+                                                    .filter((unit) =>
+                                                        !unit.isBaseUnit &&
+                                                        unit.uomCode &&
+                                                        Number(unit.conversionToBase) > 0
+                                                    )
+                                                    .map((unit, index, configuredPackagingUnits) => {
+                                                        const currentFactor = Number(
+                                                            unit.conversionToBase,
+                                                        );
+                                                        const nextUnit =
+                                                            configuredPackagingUnits[index + 1];
+                                                        const nextFactor = nextUnit
+                                                            ? Number(
+                                                                nextUnit.conversionToBase,
+                                                            )
+                                                            : 1;
+                                                        const derivedRatio =
+                                                            Number.isFinite(currentFactor) &&
+                                                                Number.isFinite(nextFactor) &&
+                                                                nextFactor > 0
+                                                                ? currentFactor / nextFactor
+                                                                : null;
+                                                        const nextCode =
+                                                            nextUnit?.uomCode ||
+                                                            baseUom;
+
+                                                        return (
+                                                            <div
+                                                                key={`summary-${unit.id}`}
+                                                                className="grid gap-1 rounded-lg bg-[#F8FAFC] px-3 py-2 sm:grid-cols-2"
                                                             >
-                                                                {unit
-                                                                        .allowFractionalQuantity
-                                                                    ? "✓ Yes"
-                                                                    : "× No"}
-                                                            </button>
-                                                        </div>
+                                                                <span className="font-semibold text-slate-900">
+                                                                    1 {unit.uomCode} ={" "}
+                                                                    {currentFactor.toLocaleString(
+                                                                        "en-AU",
+                                                                        {
+                                                                            maximumFractionDigits: 6,
+                                                                        },
+                                                                    )}{" "}
+                                                                    {baseUom}
+                                                                </span>
+                                                                <span className="text-sm text-slate-500">
+                                                                    {derivedRatio !== null &&
+                                                                        nextCode !== baseUom
+                                                                        ? `Derived: 1 ${unit.uomCode} = ${
+                                                                            derivedRatio.toLocaleString(
+                                                                                "en-AU",
+                                                                                {
+                                                                                    maximumFractionDigits: 6,
+                                                                                },
+                                                                            )
+                                                                        } ${nextCode}`
+                                                                        : nextCode === baseUom
+                                                                        ? `Direct conversion to Base Measurement Unit`
+                                                                        : ""}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })}
 
-                                                        <div className="space-y-2">
-                                                            <Label className="lg:hidden">
-                                                                Barcode
-                                                            </Label>
-                                                            <Input
-                                                                className={FIELD_CLASS}
-                                                                value={unit
-                                                                    .barcode}
-                                                                onChange={(
-                                                                    event,
-                                                                ) => setProductUnits(
-                                                                    (current) =>
-                                                                        current
-                                                                            .map(
-                                                                                (
-                                                                                    item,
-                                                                                ) => item
-                                                                                        .id ===
-                                                                                        unit.id
-                                                                                    ? {
-                                                                                        ...item,
-                                                                                        barcode:
-                                                                                            event
-                                                                                                .target
-                                                                                                .value,
-                                                                                    }
-                                                                                    : item,
-                                                                            ),
-                                                                )}
-                                                                placeholder="Optional"
-                                                            />
-                                                        </div>
+                                                <div className="grid gap-1 rounded-lg border border-[#BBF7D0] bg-[#F0FDF4] px-3 py-2 sm:grid-cols-2">
+                                                    <span className="font-semibold text-[#166534]">
+                                                        1 {baseUom} = 1 {baseUom}
+                                                    </span>
+                                                    <span className="text-sm text-[#166534]">
+                                                        Base Measurement Unit
+                                                    </span>
+                                                </div>
 
-                                                        <div className="flex min-w-0 items-center justify-start gap-0.5 lg:justify-end">
-                                                            {unit.isBaseUnit
-                                                                ? (
-                                                                    <span className="whitespace-nowrap rounded-lg bg-slate-100 px-2 py-2 text-xs font-semibold text-slate-500">
-                                                                        Locked
-                                                                    </span>
-                                                                )
-                                                                : (
-                                                                    <>
-                                                                        <Button
-                                                                            type="button"
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            disabled={!canMoveUp}
-                                                                            onClick={() =>
-                                                                                moveProductUnit(
-                                                                                    unit.id,
-                                                                                    -1,
-                                                                                )}
-                                                                            title="Move up"
-                                                                            className="h-8 w-8 shrink-0 rounded-lg"
-                                                                        >
-                                                                            <ArrowUp className="h-4 w-4" />
-                                                                        </Button>
-                                                                        <Button
-                                                                            type="button"
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            disabled={!canMoveDown}
-                                                                            onClick={() =>
-                                                                                moveProductUnit(
-                                                                                    unit.id,
-                                                                                    1,
-                                                                                )}
-                                                                            title="Move down"
-                                                                            className="h-8 w-8 shrink-0 rounded-lg"
-                                                                        >
-                                                                            <ArrowDown className="h-4 w-4" />
-                                                                        </Button>
-                                                                        <Button
-                                                                            type="button"
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            onClick={() =>
-                                                                                setProductUnits(
-                                                                                    (
-                                                                                        current,
-                                                                                    ) => current
-                                                                                        .filter(
-                                                                                            (
-                                                                                                item,
-                                                                                            ) => item
-                                                                                                .id !==
-                                                                                                unit.id,
-                                                                                        ),
-                                                                                )}
-                                                                            title="Remove unit"
-                                                                            className="h-8 w-8 shrink-0 rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700"
-                                                                        >
-                                                                            <Trash2 className="h-4 w-4" />
-                                                                        </Button>
-                                                                    </>
-                                                                )}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
+                                                {productUnits.filter((unit) =>
+                                                        !unit.isBaseUnit &&
+                                                        unit.uomCode &&
+                                                        Number(unit.conversionToBase) > 0
+                                                    ).length === 0 && (
+                                                    <p className="text-sm text-slate-500">
+                                                        No packaging levels configured. This Product uses only the Base Measurement Unit.
+                                                    </p>
+                                                )}
+                                            </div>
                                         </div>
-
-                                        <div className="flex flex-col gap-2 border-t border-[#BFDBFE] bg-[#EFF6FF] px-3 py-3 text-xs text-[#1E3A8A] sm:flex-row sm:items-center sm:justify-between">
-                                            <span>
-                                                Base Unit ({baseUom}) is the
-                                                common calculation unit used
-                                                across REDS.
-                                            </span>
-                                            <span className="font-semibold">
-                                                Use arrows to arrange packaging
-                                                levels.
-                                            </span>
-                                        </div>
-                                    </div>
+                                    </>
                                 )}
 
                             <div className="mt-4 grid gap-4 md:grid-cols-3">
@@ -2976,9 +3445,8 @@ const Products = () => {
                                     <input
                                         type="checkbox"
                                         checked={usesCoverage}
-                                        onChange={(event) => setUsesCoverage(
-                                            event.target.checked,
-                                        )}
+                                        onChange={(event) =>
+                                            setUsesCoverage(event.target.checked)}
                                         className="h-4 w-4 rounded border-slate-300 text-red-600"
                                     />
                                     <span>
@@ -2986,12 +3454,213 @@ const Products = () => {
                                             Uses Coverage / Yield
                                         </span>
                                         <span className="mt-1 block text-xs font-normal text-slate-500">
-                                            Enable structured coverage
-                                            information for this Product.
+                                            Enable structured coverage information for this Product.
                                         </span>
                                     </span>
                                 </label>
                             </div>
+
+                        </section>
+
+                        <section className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
+                            <div>
+                                <h3 className="font-bold text-slate-900">
+                                    Commercial Pricing Policy
+                                </h3>
+                                <p className="mt-1 text-sm text-slate-500">
+                                    Set one authoritative Pricing UOM and the four
+                                    Product selling-price levels. Transaction UOM
+                                    prices are derived by the backend from
+                                    Factor-to-Base.
+                                </p>
+                            </div>
+
+                            <div className="mt-4 grid gap-4 lg:grid-cols-3">
+                                <div className="space-y-2">
+                                    <Label>Pricing UOM *</Label>
+                                    <SearchablePicker
+                                        value={pricingUom}
+                                        onChange={(value) => {
+                                            if (value === pricingUom) return;
+                                            setPricingUom(value);
+                                            setPriceMatrix(emptyPriceMatrix());
+                                        }}
+                                        options={pricingUomOptions}
+                                        placeholder={baseUom
+                                            ? "Select supported Product UOM"
+                                            : "Configure Units & Packaging first"}
+                                        searchPlaceholder="Search supported Product UOM..."
+                                        emptyText="No Product Units are configured. Add the Unit in Units & Packaging first."
+                                        disabled={!baseUom ||
+                                            pricingUomOptions.length === 0}
+                                    />
+                                    <p className="text-xs leading-5 text-slate-500">
+                                        Only Units configured for this Product are
+                                        available. To use another UOM, add it to
+                                        Units & Packaging first.
+                                    </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>Maximum Discount % *</Label>
+                                    <Input
+                                        className={FIELD_CLASS}
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        step="0.01"
+                                        value={maximumDiscountPercent}
+                                        onChange={(event) =>
+                                            setMaximumDiscountPercent(
+                                                event.target.value,
+                                            )}
+                                        placeholder="0"
+                                    />
+                                    <p className="text-xs leading-5 text-slate-500">
+                                        0% means no discount is allowed. The same
+                                        maximum applies regardless of Transaction
+                                        UOM.
+                                    </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>Effective From *</Label>
+                                    <Input
+                                        className={FIELD_CLASS}
+                                        type="date"
+                                        value={pricingEffectiveFrom}
+                                        onChange={(event) =>
+                                            setPricingEffectiveFrom(
+                                                event.target.value,
+                                            )}
+                                    />
+                                    <p className="text-xs leading-5 text-slate-500">
+                                        New prices affect new transactions only.
+                                        Existing Sent/Accepted commercial snapshots
+                                        remain unchanged.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="mt-5 overflow-hidden rounded-xl border border-[#E5E7EB]">
+                                <div className="hidden grid-cols-[minmax(160px,1fr)_minmax(150px,0.8fr)_minmax(150px,0.8fr)_110px] gap-3 border-b border-[#E5E7EB] bg-[#F8FAFC] px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 md:grid">
+                                    <span>Price Level</span>
+                                    <span>Selling Price</span>
+                                    <span>Minimum Price</span>
+                                    <span>Pricing UOM</span>
+                                </div>
+
+                                <div className="divide-y divide-[#E5E7EB]">
+                                    {PRICE_BOOK_CODES.map((code) => {
+                                        const book = priceBooks.find((item) =>
+                                            item.price_book_code === code
+                                        );
+
+                                        return (
+                                            <div
+                                                key={code}
+                                                className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(160px,1fr)_minmax(150px,0.8fr)_minmax(150px,0.8fr)_110px] md:items-center"
+                                            >
+                                                <div>
+                                                    <p className="font-bold text-slate-900">
+                                                        {PRICE_BOOK_LABELS[code]}
+                                                    </p>
+                                                    <p className="mt-1 font-mono text-xs text-slate-500">
+                                                        {code}
+                                                        {book?.is_default
+                                                            ? " · Default"
+                                                            : ""}
+                                                    </p>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <Label className="md:hidden">
+                                                        Selling Price *
+                                                    </Label>
+                                                    <Input
+                                                        className={FIELD_CLASS}
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        value={priceMatrix[code]
+                                                            .unitPrice}
+                                                        onChange={(event) =>
+                                                            setPriceMatrix(
+                                                                (current) => ({
+                                                                    ...current,
+                                                                    [code]: {
+                                                                        ...current[
+                                                                            code
+                                                                        ],
+                                                                        unitPrice:
+                                                                            event
+                                                                                .target
+                                                                                .value,
+                                                                    },
+                                                                }),
+                                                            )}
+                                                        placeholder="0.00"
+                                                        disabled={!pricingUom}
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <Label className="md:hidden">
+                                                        Minimum Price
+                                                    </Label>
+                                                    <Input
+                                                        className={FIELD_CLASS}
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        value={priceMatrix[code]
+                                                            .minimumPrice}
+                                                        onChange={(event) =>
+                                                            setPriceMatrix(
+                                                                (current) => ({
+                                                                    ...current,
+                                                                    [code]: {
+                                                                        ...current[
+                                                                            code
+                                                                        ],
+                                                                        minimumPrice:
+                                                                            event
+                                                                                .target
+                                                                                .value,
+                                                                    },
+                                                                }),
+                                                            )}
+                                                        placeholder="Optional"
+                                                        disabled={!pricingUom}
+                                                    />
+                                                </div>
+
+                                                <div className="rounded-xl bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-700">
+                                                    {pricingUom ||
+                                                        "Not selected"}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {loadingPriceBooks
+                                ? (
+                                    <p className="mt-3 text-sm text-slate-500">
+                                        Loading Product Price Books...
+                                    </p>
+                                )
+                                : priceBooks.length !== PRICE_BOOK_CODES.length
+                                ? (
+                                    <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                                        One or more required Product Price Books
+                                        are unavailable. Pricing cannot be saved
+                                        until PB-STD, PB-COM, PB-RES and PB-VIP
+                                        are active.
+                                    </p>
+                                )
+                                : null}
                         </section>
 
                         {usesCoverage
@@ -3000,15 +3669,59 @@ const Products = () => {
                                     <SectionHeading
                                         number={3}
                                         title="Specifications & Coverage"
-                                        helper="Store structured estimated coverage per source unit."
+                                        helper="Coverage / Yield is for operational performance, not for exact Product UOM conversion."
                                     />
-                                    <p className="mt-1 text-sm text-slate-500">
-                                        Example: 1 box covers approximately 1.8
-                                        sqm.
-                                    </p>
+
+                                    <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                                        <div className="rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A8A]">
+                                            <p className="font-bold">
+                                                Unit Conversion belongs in Step 2
+                                            </p>
+                                            <p className="mt-1">
+                                                Exact relationships such as
+                                                {" "}
+                                                <span className="font-bold">
+                                                    1 box = 2.20 sqm
+                                                </span>
+                                                {" "}
+                                                must be configured in Units & Packaging.
+                                            </p>
+                                        </div>
+
+                                        <div className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 text-sm text-slate-600">
+                                            <p className="font-bold text-slate-900">
+                                                Use Coverage / Yield for performance
+                                            </p>
+                                            <p className="mt-1">
+                                                Example: 1 bag of adhesive covers approximately 5 sqm,
+                                                while the bag itself may contain 20 kg.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {coverageDuplicatesUnitConversion && (
+                                        <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                                            <p className="font-bold">
+                                                This Coverage duplicates the Product UOM conversion.
+                                            </p>
+                                            <p className="mt-1">
+                                                The entered values match
+                                                {" "}
+                                                <span className="font-bold">
+                                                    {coverageForm.sourceQuantity || "1"} {coverageForm.sourceUom}
+                                                    {" = "}
+                                                    {coverageForm.coverageQuantity} {coverageForm.coverageUom}
+                                                </span>.
+                                                {" "}
+                                                Keep the exact relationship in Step 2 and turn off
+                                                Uses Coverage / Yield unless this record represents a separate
+                                                estimated or confirmed operational yield.
+                                            </p>
+                                        </div>
+                                    )}
                                     <div className="mt-4 grid gap-4 md:grid-cols-4">
                                         <div className="space-y-2">
-                                            <Label>Source Quantity *</Label>
+                                            <Label>Yield Source Quantity *</Label>
                                             <Input
                                                 className={FIELD_CLASS}
                                                 type="number"
@@ -3024,7 +3737,7 @@ const Products = () => {
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Source UOM *</Label>
+                                            <Label>Yield Source UOM *</Label>
                                             <SearchablePicker
                                                 value={coverageForm.sourceUom}
                                                 onChange={(value) =>
@@ -3038,13 +3751,16 @@ const Products = () => {
                                                     unit.uomCode ===
                                                         option.value
                                                 ))}
-                                                placeholder="Select UOM"
-                                                searchPlaceholder="Search UOM code, name, symbol or category..."
-                                                emptyText="No active Units of Measure configured."
+                                                placeholder="Select Product UOM"
+                                                searchPlaceholder="Search configured Product UOM..."
+                                                emptyText="No configured Product Units available."
                                             />
+                                            <p className="text-xs text-slate-500">
+                                                Source UOM must be one of this Product's configured Units.
+                                            </p>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Coverage Quantity *</Label>
+                                            <Label>Yield / Coverage Quantity *</Label>
                                             <Input
                                                 className={FIELD_CLASS}
                                                 type="number"
@@ -3061,7 +3777,7 @@ const Products = () => {
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Coverage UOM *</Label>
+                                            <Label>Yield / Coverage UOM *</Label>
                                             <SearchablePicker
                                                 value={coverageForm.coverageUom}
                                                 onChange={(value) =>
@@ -3236,9 +3952,7 @@ const Products = () => {
                                                 Product Specifications
                                             </h3>
                                             <p className="mt-1 text-sm text-slate-500">
-                                                Category-driven product details.
-                                                Required fields must be
-                                                completed before activation.
+                                                Category-driven product details. Required fields must be completed before activation.
                                             </p>
                                         </div>
                                         {isAdmin
@@ -3343,7 +4057,7 @@ const Products = () => {
                                 helper="Confirm the product flags and status before saving."
                             />
 
-                            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
                                 <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 text-sm">
                                     <span className="text-slate-500">
                                         Product Type
@@ -3359,6 +4073,24 @@ const Products = () => {
                                     </span>
                                     <p className="mt-1 font-semibold text-slate-900">
                                         {baseUom || "Not selected"}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 text-sm">
+                                    <span className="text-slate-500">
+                                        Pricing UOM
+                                    </span>
+                                    <p className="mt-1 font-semibold text-slate-900">
+                                        {pricingUom || "Not selected"}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 text-sm">
+                                    <span className="text-slate-500">
+                                        Maximum Discount
+                                    </span>
+                                    <p className="mt-1 font-semibold text-slate-900">
+                                        {maximumDiscountPercent || "0"}%
                                     </p>
                                 </div>
 
@@ -3408,7 +4140,8 @@ const Products = () => {
                             <Button
                                 onClick={() => saveProduct.mutate()}
                                 disabled={saveProduct.isPending ||
-                                    loadingAttributes}
+                                    loadingAttributes ||
+                                    loadingPriceBooks}
                                 className="h-11 rounded-xl bg-red-600 px-6 font-bold hover:bg-red-700"
                             >
                                 {saveProduct.isPending

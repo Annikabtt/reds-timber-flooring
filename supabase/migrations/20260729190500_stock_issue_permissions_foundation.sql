@@ -1,11 +1,23 @@
 -- REDS Timber Flooring
 -- Stock Issue Phase B1 — Permission Foundation
--- Local-first migration. Review before applying to Production.
+-- CORRECTED LOCAL MIGRATION
+--
+-- Reason for correction:
+-- The original installation assertion counted every active permission matching
+-- stock_issues.% and required the total to equal exactly 12.
+-- Other valid Stock Issue permissions (for example upload_photos/delete_photos)
+-- may already exist from the baseline or later foundations.
+--
+-- This migration now validates ONLY the 12 permissions owned by this migration.
+-- Existing additional Stock Issue permissions are preserved.
+--
+-- Safe to rerun after the original migration failed because the failed
+-- transaction was rolled back.
 
 begin;
 
 -- ---------------------------------------------------------------------------
--- 1. Seed database-driven Stock Issue permissions
+-- 1. Seed / normalize the 12 permissions owned by this migration
 -- ---------------------------------------------------------------------------
 
 insert into public.app_permissions (
@@ -65,7 +77,7 @@ from (
         ('stock_issues.create',          'Create Stock Issues',           'create',          'Create Draft Stock Issues from approved Stock Requests.',            110),
         ('stock_issues.update_draft',    'Update Draft Stock Issues',     'update_draft',    'Update Draft Stock Issue headers, lines and lot allocations.',       120),
         ('stock_issues.prepare',         'Prepare Stock Issues',          'prepare',         'Prepare Draft Stock Issues for issuing.',                            130),
-        ('stock_issues.issue',           'Issue Stock',                   'issue',           'Issue prepared stock and post stock movements.',                     140),
+        ('stock_issues.issue',           'Issue Stock',                   'issue',            'Issue prepared stock and post stock movements.',                     140),
         ('stock_issues.dispatch',        'Dispatch Stock Issues',         'dispatch',        'Dispatch and mark Stock Issues as delivered.',                       150),
         ('stock_issues.confirm_receipt', 'Confirm Stock Issue Receipts',  'confirm_receipt', 'Create, confirm and cancel Stock Issue receipt sessions.',           160),
         ('stock_issues.cancel',          'Cancel Stock Issues',           'cancel',          'Cancel eligible Stock Issues.',                                      170),
@@ -76,8 +88,9 @@ from (
 ) as p(permission_code, permission_name, action_code, description, sort_order)
 where ap.permission_code = p.permission_code;
 
+
 -- ---------------------------------------------------------------------------
--- 2. Grant the complete baseline to active Admin roles when present
+-- 2. Grant these 12 baseline permissions to every active Admin role
 -- ---------------------------------------------------------------------------
 
 insert into public.app_role_permissions (
@@ -91,7 +104,20 @@ select
     true
 from public.app_roles r
 join public.app_permissions p
-  on p.permission_code like 'stock_issues.%'
+  on p.permission_code = any(array[
+        'stock_issues.view',
+        'stock_issues.create',
+        'stock_issues.update_draft',
+        'stock_issues.prepare',
+        'stock_issues.issue',
+        'stock_issues.dispatch',
+        'stock_issues.confirm_receipt',
+        'stock_issues.cancel',
+        'stock_issues.print',
+        'stock_issues.export_pdf',
+        'stock_issues.export_csv',
+        'stock_issues.view_photos'
+     ]::text[])
  and p.is_active = true
 where lower(r.role_code) = 'admin'
   and r.is_active = true
@@ -108,40 +134,76 @@ set
     updated_at = now()
 from public.app_roles r
 join public.app_permissions p
-  on p.permission_code like 'stock_issues.%'
+  on p.permission_code = any(array[
+        'stock_issues.view',
+        'stock_issues.create',
+        'stock_issues.update_draft',
+        'stock_issues.prepare',
+        'stock_issues.issue',
+        'stock_issues.dispatch',
+        'stock_issues.confirm_receipt',
+        'stock_issues.cancel',
+        'stock_issues.print',
+        'stock_issues.export_pdf',
+        'stock_issues.export_csv',
+        'stock_issues.view_photos'
+     ]::text[])
  and p.is_active = true
 where rp.role_id = r.role_id
   and rp.permission_id = p.permission_id
   and lower(r.role_code) = 'admin'
   and r.is_active = true;
 
+
 -- ---------------------------------------------------------------------------
 -- 3. Installation assertions
+--
+-- IMPORTANT:
+-- Validate only the 12 permissions owned by this migration.
+-- Other valid stock_issues.* permissions must not make this migration fail.
 -- ---------------------------------------------------------------------------
 
 do $$
 declare
+    v_expected_codes constant text[] := array[
+        'stock_issues.view',
+        'stock_issues.create',
+        'stock_issues.update_draft',
+        'stock_issues.prepare',
+        'stock_issues.issue',
+        'stock_issues.dispatch',
+        'stock_issues.confirm_receipt',
+        'stock_issues.cancel',
+        'stock_issues.print',
+        'stock_issues.export_pdf',
+        'stock_issues.export_csv',
+        'stock_issues.view_photos'
+    ];
+
     v_permission_count integer;
     v_active_admin_count integer;
     v_admin_grant_count integer;
 begin
     select count(*)
     into v_permission_count
-    from public.app_permissions
-    where permission_code like 'stock_issues.%'
-      and is_active = true;
+    from public.app_permissions p
+    where p.permission_code = any(v_expected_codes)
+      and p.is_active = true;
 
-    if v_permission_count <> 12 then
+    if v_permission_count <> array_length(v_expected_codes, 1) then
         raise exception
-            'Stock Issue permission installation failed: expected 12 active permissions, found %.',
+            'Stock Issue permission installation failed: expected % active baseline permissions, found %.',
+            array_length(v_expected_codes, 1),
             v_permission_count;
     end if;
 
+
     select count(*)
     into v_active_admin_count
-    from public.app_roles
-    where lower(role_code) = 'admin'
-      and is_active = true;
+    from public.app_roles r
+    where lower(r.role_code) = 'admin'
+      and r.is_active = true;
+
 
     if v_active_admin_count > 0 then
         select count(*)
@@ -153,14 +215,15 @@ begin
           on p.permission_id = rp.permission_id
         where lower(r.role_code) = 'admin'
           and r.is_active = true
-          and p.permission_code like 'stock_issues.%'
+          and p.permission_code = any(v_expected_codes)
           and p.is_active = true
           and rp.is_allowed = true;
 
-        if v_admin_grant_count <> (12 * v_active_admin_count) then
+        if v_admin_grant_count <>
+           (array_length(v_expected_codes, 1) * v_active_admin_count) then
             raise exception
-                'Stock Issue Admin permission installation failed: expected % allowed grants, found %.',
-                12 * v_active_admin_count,
+                'Stock Issue Admin permission installation failed: expected % allowed baseline grants, found %.',
+                array_length(v_expected_codes, 1) * v_active_admin_count,
                 v_admin_grant_count;
         end if;
     end if;
