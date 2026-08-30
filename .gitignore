@@ -31,3 +31,11 @@ dist-ssr
 supabase/.branches/
 supabase/.temp/
 
+
+# Local backup and diagnostic artifacts
+*.bak
+*.backup-*
+/db-reset-debug*.txt
+/supabase-start-debug.txt
+*.backup-*
+/supabase-start-debug.txt
