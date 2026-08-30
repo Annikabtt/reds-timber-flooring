@@ -1,7 +1,8 @@
 import { ReactNode, useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { ShieldAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 
 type PermissionRouteProps = {
   children: ReactNode;
@@ -12,6 +13,7 @@ export default function PermissionRoute({
   children,
   anyOf,
 }: PermissionRouteProps) {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [allowed, setAllowed] = useState(false);
   const permissionKey = anyOf.join("|");
@@ -64,11 +66,23 @@ export default function PermissionRoute({
     return (
       <div className="flex min-h-[50vh] items-center justify-center px-4">
         <div className="w-full max-w-md rounded-xl border bg-card p-6 text-center shadow-sm">
-          <ShieldAlert className="mx-auto h-10 w-10 text-destructive" />
-          <h1 className="mt-4 text-xl font-semibold">Access denied</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Your account does not have permission to open this page.
+          <ShieldAlert className="mx-auto h-10 w-10 text-amber-600" />
+          <h1 className="mt-4 text-xl font-semibold">
+            This page is not available for your account
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            Your account is working normally. Access to this page is limited
+            by your assigned permissions. Please choose an available menu or
+            return to your home page.
           </p>
+          <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-center">
+            <Button variant="outline" onClick={() => navigate(-1)}>
+              Go back
+            </Button>
+            <Button onClick={() => navigate("/my-work", { replace: true })}>
+              Go to My Work
+            </Button>
+          </div>
         </div>
       </div>
     );

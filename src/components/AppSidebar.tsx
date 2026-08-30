@@ -24,12 +24,11 @@ import {
   Wrench,
   FileBarChart,
   ShieldCheck,
-  Images,
   ShoppingCart,
   ReceiptText,
   HandCoins,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 
 import { NavLink } from "@/components/NavLink";
@@ -52,11 +51,21 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import redsLogo from "@/assets/reds-logo.png";
 
+type NavItemPermission =
+  | "dashboard"
+  | "users"
+  | "telegram"
+  | "invoices"
+  | "payments"
+  | "stockIssues"
+  | "toolLoans"
+  | "goodsReceiving";
+
 type NavItem = {
   title: string;
   url: string;
   icon: typeof LayoutDashboard;
-  permission?: "users" | "telegram" | "invoices" | "payments" | "stockIssues" | "toolLoans";
+  permission?: NavItemPermission;
 };
 
 type NavGroup = {
@@ -70,6 +79,7 @@ const dashboardItem: NavItem = {
   title: "Dashboard",
   url: "/dashboard",
   icon: LayoutDashboard,
+  permission: "dashboard",
 };
 
 const desktopNavGroups: NavGroup[] = [
@@ -100,7 +110,7 @@ const desktopNavGroups: NavGroup[] = [
         url: "/material-requirements",
         icon: ClipboardCheck,
       },
-            {
+      {
         title: "Stock Requests",
         url: "/stock-requests",
         icon: PackagePlus,
@@ -122,6 +132,12 @@ const desktopNavGroups: NavGroup[] = [
         url: "/purchase-orders",
         icon: ShoppingCart,
       },
+      {
+        title: "Goods Receiving",
+        url: "/goods-receiving",
+        icon: PackageCheck,
+        permission: "goodsReceiving",
+      },
     ],
   },
   {
@@ -131,8 +147,18 @@ const desktopNavGroups: NavGroup[] = [
     items: [
       { title: "Quotations", url: "/quotations", icon: FileText },
       { title: "Variations", url: "/variations", icon: GitBranchPlus },
-      { title: "Invoices", url: "/invoices", icon: ReceiptText, permission: "invoices" },
-      { title: "Payments", url: "/payments", icon: HandCoins, permission: "payments" },
+      {
+        title: "Invoices",
+        url: "/invoices",
+        icon: ReceiptText,
+        permission: "invoices",
+      },
+      {
+        title: "Payments",
+        url: "/payments",
+        icon: HandCoins,
+        permission: "payments",
+      },
     ],
   },
   {
@@ -161,11 +187,6 @@ const desktopNavGroups: NavGroup[] = [
       { title: "Products", url: "/products", icon: Package },
       { title: "Suppliers", url: "/suppliers", icon: Truck },
       {
-        title: "Supplier Deliveries",
-        url: "/supplier-deliveries",
-        icon: PackageCheck,
-      },
-      {
         title: "Product Attributes",
         url: "/product-attributes",
         icon: SlidersHorizontal,
@@ -178,24 +199,22 @@ const desktopNavGroups: NavGroup[] = [
     ],
   },
   {
-  id: "customize-reports",
-  title: "Customize Reports",
-  icon: FileBarChart,
-  items: [
-    {
-      title: "Variation Record",
-      url: "/variation-records",
-      icon: FileBarChart,
-    },
-  ],
-},
+    id: "customize-reports",
+    title: "Customize Reports",
+    icon: FileBarChart,
+    items: [
+      {
+        title: "Variation Record",
+        url: "/variation-records",
+        icon: FileBarChart,
+      },
+    ],
+  },
   {
     id: "review-approval",
     title: "Review & Approval",
     icon: ShieldCheck,
-    items: [
-      { title: "Photo Approval", url: "/photos", icon: Camera },
-    ],
+    items: [{ title: "Photo Approval", url: "/photos", icon: Camera }],
   },
   {
     id: "administration",
@@ -222,6 +241,12 @@ const desktopNavGroups: NavGroup[] = [
 
 const workerNavItems: NavItem[] = [
   { title: "My Work", url: "/my-work", icon: ClipboardList },
+  {
+    title: "Goods Receiving",
+    url: "/goods-receiving",
+    icon: PackageCheck,
+    permission: "goodsReceiving",
+  },
 ];
 
 const isPathActive = (pathname: string, url: string) =>
@@ -233,6 +258,7 @@ export function AppSidebar() {
   const location = useLocation();
   const { user, signOut } = useAuth();
 
+  const [canViewDashboard, setCanViewDashboard] = useState(false);
   const [canViewUsers, setCanViewUsers] = useState(false);
   const [canViewTelegramNotifications, setCanViewTelegramNotifications] =
     useState(false);
@@ -240,6 +266,7 @@ export function AppSidebar() {
   const [canViewPayments, setCanViewPayments] = useState(false);
   const [canViewStockIssues, setCanViewStockIssues] = useState(false);
   const [canViewToolLoans, setCanViewToolLoans] = useState(false);
+  const [canViewGoodsReceiving, setCanViewGoodsReceiving] = useState(false);
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
 
   const appRole = user?.app_metadata?.app_role;
@@ -251,17 +278,20 @@ export function AppSidebar() {
     const loadPermissions = async () => {
       if (!user) {
         if (mounted) {
+          setCanViewDashboard(false);
           setCanViewUsers(false);
           setCanViewTelegramNotifications(false);
           setCanViewInvoices(false);
           setCanViewPayments(false);
           setCanViewStockIssues(false);
           setCanViewToolLoans(false);
+          setCanViewGoodsReceiving(false);
         }
         return;
       }
 
       const [
+        { data: canDashboard },
         { data: canView },
         { data: canManage },
         { data: canViewTelegram },
@@ -271,7 +301,13 @@ export function AppSidebar() {
         { data: canStockIssues },
         { data: canToolLoans },
         { data: canViewOwnToolLoans },
+        { data: canViewSupplierDeliveries },
+        { data: canViewSiteGoodsReceiving },
+        { data: canReceiveSiteGoods },
       ] = await Promise.all([
+        supabase.rpc("has_permission", {
+          p_permission_code: "dashboard.view",
+        }),
         supabase.rpc("has_permission", {
           p_permission_code: "users.view",
         }),
@@ -286,12 +322,28 @@ export function AppSidebar() {
         }),
         supabase.rpc("has_permission", { p_permission_code: "invoices.view" }),
         supabase.rpc("has_permission", { p_permission_code: "payments.view" }),
-        supabase.rpc("has_permission", { p_permission_code: "stock_issues.view" }),
-        supabase.rpc("has_permission", { p_permission_code: "tool_loans.view" }),
-        supabase.rpc("has_permission", { p_permission_code: "tool_loans.view_own" }),
+        supabase.rpc("has_permission", {
+          p_permission_code: "stock_issues.view",
+        }),
+        supabase.rpc("has_permission", {
+          p_permission_code: "tool_loans.view",
+        }),
+        supabase.rpc("has_permission", {
+          p_permission_code: "tool_loans.view_own",
+        }),
+        supabase.rpc("has_permission", {
+          p_permission_code: "supplier_deliveries.view",
+        }),
+        supabase.rpc("has_permission", {
+          p_permission_code: "site_goods_receiving.view",
+        }),
+        supabase.rpc("has_permission", {
+          p_permission_code: "site_goods_receiving.receive",
+        }),
       ]);
 
       if (mounted) {
+        setCanViewDashboard(Boolean(canDashboard));
         setCanViewUsers(Boolean(canView || canManage));
         setCanViewTelegramNotifications(
           Boolean(canViewTelegram || canManageTelegram)
@@ -300,6 +352,13 @@ export function AppSidebar() {
         setCanViewPayments(Boolean(canPayments));
         setCanViewStockIssues(Boolean(canStockIssues));
         setCanViewToolLoans(Boolean(canToolLoans || canViewOwnToolLoans));
+        setCanViewGoodsReceiving(
+          Boolean(
+            canViewSupplierDeliveries ||
+              canViewSiteGoodsReceiving ||
+              canReceiveSiteGoods
+          )
+        );
       }
     };
 
@@ -310,36 +369,49 @@ export function AppSidebar() {
     };
   }, [user]);
 
+  const canViewNavItem = useCallback(
+    (item: NavItem) => {
+      if (item.permission === "dashboard") return canViewDashboard;
+      if (item.permission === "users") return canViewUsers;
+      if (item.permission === "telegram") {
+        return canViewTelegramNotifications;
+      }
+      if (item.permission === "invoices") return canViewInvoices;
+      if (item.permission === "payments") return canViewPayments;
+      if (item.permission === "stockIssues") return canViewStockIssues;
+      if (item.permission === "toolLoans") return canViewToolLoans;
+      if (item.permission === "goodsReceiving") {
+        return canViewGoodsReceiving;
+      }
+
+      return true;
+    },
+    [
+      canViewDashboard,
+      canViewGoodsReceiving,
+      canViewInvoices,
+      canViewPayments,
+      canViewStockIssues,
+      canViewTelegramNotifications,
+      canViewToolLoans,
+      canViewUsers,
+    ]
+  );
+
   const visibleGroups = useMemo(
     () =>
       desktopNavGroups
         .map((group) => ({
           ...group,
-          items: group.items.filter((item) => {
-            if (item.permission === "users") {
-              return canViewUsers;
-            }
-
-            if (item.permission === "telegram") {
-              return canViewTelegramNotifications;
-            }
-            if (item.permission === "invoices") return canViewInvoices;
-            if (item.permission === "payments") return canViewPayments;
-            if (item.permission === "stockIssues") return canViewStockIssues;
-            if (item.permission === "toolLoans") return canViewToolLoans;
-
-            return true;
-          }),
+          items: group.items.filter(canViewNavItem),
         }))
         .filter((group) => group.items.length > 0),
-    [
-      canViewInvoices,
-      canViewPayments,
-      canViewStockIssues,
-      canViewToolLoans,
-      canViewTelegramNotifications,
-      canViewUsers,
-    ]
+    [canViewNavItem]
+  );
+
+  const visibleWorkerNavItems = useMemo(
+    () => workerNavItems.filter(canViewNavItem),
+    [canViewNavItem]
   );
 
   useEffect(() => {
@@ -422,17 +494,19 @@ export function AppSidebar() {
       </div>
 
       <SidebarContent className="px-2 py-4">
-        <SidebarGroup className="p-0">
-          <SidebarGroupContent>
-            <SidebarMenu>{renderDirectMenuItem(dashboardItem)}</SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {canViewNavItem(dashboardItem) && (
+          <SidebarGroup className="p-0">
+            <SidebarGroupContent>
+              <SidebarMenu>{renderDirectMenuItem(dashboardItem)}</SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {isWorker ? (
           <SidebarGroup className="p-0">
             <SidebarGroupContent>
               <SidebarMenu>
-                {workerNavItems.map(renderDirectMenuItem)}
+                {visibleWorkerNavItems.map(renderDirectMenuItem)}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -542,7 +616,6 @@ export function AppSidebar() {
             </button>
           )}
         </div>
-        
       </SidebarFooter>
     </Sidebar>
   );

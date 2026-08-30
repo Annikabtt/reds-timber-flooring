@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -57,7 +57,7 @@ import PayrollEntries from "./pages/PayrollEntries";
 import Employees from "./pages/Employees";
 import PayrollPeriods from "./pages/PayrollPeriods";
 import Suppliers from "./pages/Suppliers";
-import SupplierDeliveries from "./pages/SupplierDeliveries";
+import GoodsReceiving from "./pages/GoodsReceiving";
 import MasterData from "./pages/MasterData";
 import ProductAttributes from "./pages/ProductAttributes";
 import ProductCodeManagement from "./pages/ProductCodeManagement";
@@ -77,10 +77,7 @@ const protectedPage = (page: React.ReactNode) => (
   <ProtectedRoute>{page}</ProtectedRoute>
 );
 
-const permissionPage = (
-  page: React.ReactNode,
-  permissions: string[],
-) => (
+const permissionPage = (page: React.ReactNode, permissions: string[]) => (
   <ProtectedRoute>
     <PermissionRoute anyOf={permissions}>{page}</PermissionRoute>
   </ProtectedRoute>
@@ -101,11 +98,11 @@ const App = () => (
 
             <Route
               path="/portal"
-              element={protectedPage(<PortalDashboard />)}
+              element={permissionPage(<PortalDashboard />, ["dashboard.view"])}
             />
             <Route
               path="/dashboard"
-              element={protectedPage(<PortalDashboard />)}
+              element={permissionPage(<PortalDashboard />, ["dashboard.view"])}
             />
 
             <Route
@@ -152,8 +149,14 @@ const App = () => (
               element={protectedPage(<WorkTimeLogs />)}
             />
 
-            <Route path="/invoices" element={permissionPage(<Invoices />, ["invoices.view"])} />
-            <Route path="/payments" element={permissionPage(<Payments />, ["payments.view"])} />
+            <Route
+              path="/invoices"
+              element={permissionPage(<Invoices />, ["invoices.view"])}
+            />
+            <Route
+              path="/payments"
+              element={permissionPage(<Payments />, ["payments.view"])}
+            />
             <Route path="/quotations" element={protectedPage(<Quotations />)} />
             <Route path="/variations" element={protectedPage(<Variations />)} />
             <Route
@@ -188,8 +191,12 @@ const App = () => (
             <Route path="/employees" element={protectedPage(<Employees />)} />
             <Route path="/suppliers" element={protectedPage(<Suppliers />)} />
             <Route
+              path="/goods-receiving"
+              element={protectedPage(<GoodsReceiving />)}
+            />
+            <Route
               path="/supplier-deliveries"
-              element={protectedPage(<SupplierDeliveries />)}
+              element={<Navigate to="/goods-receiving" replace />}
             />
             <Route
               path="/payroll-periods"
@@ -255,10 +262,8 @@ const App = () => (
             />
             <Route path="/tech/leave" element={protectedPage(<TechLeave />)} />
 
-            {
-              /* Legacy/internal pages are also gated to prevent Pending accounts
-                from bypassing application access through a direct URL. */
-            }
+            {/* Legacy/internal pages are also gated to prevent Pending accounts
+                from bypassing application access through a direct URL. */}
             <Route
               path="/workflow"
               element={protectedPage(<SystemWorkflow />)}

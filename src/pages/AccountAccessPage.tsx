@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 
 const statusContent = {
   Pending: {
@@ -52,14 +53,56 @@ export default function AccountAccessPage() {
   } = useAuth();
 
   useEffect(() => {
-    if (!loading && !accountLoading && !user) {
-      navigate("/auth", { replace: true });
-      return;
-    }
+    let mounted = true;
 
-    if (!loading && !accountLoading && accountStatus === "Active") {
-      navigate("/dashboard", { replace: true });
-    }
+    const routeAccount = async () => {
+      if (loading || accountLoading) return;
+
+      if (!user) {
+        navigate("/auth", { replace: true });
+        return;
+      }
+
+      if (accountStatus !== "Active") return;
+
+      const [dashboard, supplierView, siteView, siteReceive] =
+        await Promise.all([
+          supabase.rpc("has_permission", {
+            p_permission_code: "dashboard.view",
+          }),
+          supabase.rpc("has_permission", {
+            p_permission_code: "supplier_deliveries.view",
+          }),
+          supabase.rpc("has_permission", {
+            p_permission_code: "site_goods_receiving.view",
+          }),
+          supabase.rpc("has_permission", {
+            p_permission_code: "site_goods_receiving.receive",
+          }),
+        ]);
+
+      if (!mounted) return;
+
+      if (!dashboard.error && dashboard.data === true) {
+        navigate("/dashboard", { replace: true });
+        return;
+      }
+
+      const canOpenGoodsReceiving =
+        (!supplierView.error && supplierView.data === true) ||
+        (!siteView.error && siteView.data === true) ||
+        (!siteReceive.error && siteReceive.data === true);
+
+      navigate(canOpenGoodsReceiving ? "/goods-receiving" : "/my-work", {
+        replace: true,
+      });
+    };
+
+    void routeAccount();
+
+    return () => {
+      mounted = false;
+    };
   }, [loading, accountLoading, user, accountStatus, navigate]);
 
   if (loading || accountLoading) {
@@ -71,9 +114,7 @@ export default function AccountAccessPage() {
   }
 
   const content =
-    statusContent[
-      accountStatus === "Active" ? "Unregistered" : accountStatus
-    ];
+    statusContent[accountStatus === "Active" ? "Unregistered" : accountStatus];
   const Icon = content.icon;
 
   const reason =
@@ -108,7 +149,9 @@ export default function AccountAccessPage() {
             Signed in as
           </div>
           <div className="mt-1 break-all text-sm font-medium text-white">
-            {appUser?.display_name || user?.user_metadata?.display_name || user?.email}
+            {appUser?.display_name ||
+              user?.user_metadata?.display_name ||
+              user?.email}
           </div>
           <div className="mt-1 break-all text-xs text-white/45">
             {user?.email}
