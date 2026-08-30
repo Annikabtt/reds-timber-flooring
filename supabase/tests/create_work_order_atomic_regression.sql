@@ -1,5 +1,7 @@
 begin;
 
+select plan(1);
+
 do $test$
 declare
     -- ========================================================
@@ -546,5 +548,11 @@ begin
     raise notice '============================================================';
 end;
 $test$;
+
+select pass(
+    'create_work_order_atomic preserves creation, rollback, and commercial-mode invariants'
+);
+
+select * from finish();
 
 rollback;

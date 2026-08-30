@@ -3,6 +3,8 @@
 
 BEGIN;
 
+SELECT plan(14);
+
 CREATE TEMP TABLE tool_loan_test_results (
     test_order integer NOT NULL,
     test_name text NOT NULL,
@@ -1164,13 +1166,13 @@ BEGIN
 END;
 $test$;
 
-SELECT test_name, test_result, detail
+SELECT ok(
+    test_result = 'PASS',
+    test_name || ': ' || detail
+)
 FROM tool_loan_test_results
 ORDER BY test_order;
 
-SELECT
-    count(*) FILTER (WHERE test_result = 'PASS') AS pass_count,
-    count(*) FILTER (WHERE test_result <> 'PASS') AS fail_count
-FROM tool_loan_test_results;
+SELECT * FROM finish();
 
 ROLLBACK;
