@@ -28,9 +28,46 @@ type DeliveryAttemptRow = {
   delivery_status: string;
 };
 
+type TelegramPhoto = {
+  url: string;
+  caption: string;
+};
+
+const RECEIVING_PHOTO_TYPES = [
+  "SupplierDocument",
+  "ReceiptEvidence",
+  "DamagedOnDelivery",
+  "RejectedOnDelivery",
+  "ShortMissingOnDelivery",
+] as const;
+
+const RECEIVING_PHOTO_LABELS: Record<string, string> = {
+  SupplierDocument: "Supplier delivery bill",
+  ReceiptEvidence: "Goods received",
+  DamagedOnDelivery: "Damaged goods",
+  RejectedOnDelivery: "Rejected / returned goods",
+  ShortMissingOnDelivery: "Short / missing goods",
+};
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
 const TELEGRAM_CRON_SECRET = Deno.env.get("TELEGRAM_CRON_SECRET");
+const REQUESTED_TELEGRAM_TIME_ZONE =
+  Deno.env.get("TELEGRAM_TIME_ZONE")?.trim() || "Australia/Perth";
+
+function resolveTelegramTimeZone(value: string): string {
+  try {
+    new Intl.DateTimeFormat("en-AU", { timeZone: value }).format(new Date());
+    return value;
+  } catch {
+    console.error(`Invalid TELEGRAM_TIME_ZONE: ${value}. Using Australia/Perth.`);
+    return "Australia/Perth";
+  }
+}
+
+const TELEGRAM_TIME_ZONE = resolveTelegramTimeZone(
+  REQUESTED_TELEGRAM_TIME_ZONE,
+);
 
 function resolveSecretKey(): string | null {
   const legacyKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -98,12 +135,12 @@ function escapeHtml(value: unknown): string {
 }
 
 function display(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "—";
+  if (value === null || value === undefined || value === "") return "-";
   return escapeHtml(value);
 }
 
 function displayDateTime(value: unknown): string {
-  if (typeof value !== "string" || value.trim() === "") return "—";
+  if (typeof value !== "string" || value.trim() === "") return "-";
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return display(value);
@@ -112,7 +149,7 @@ function displayDateTime(value: unknown): string {
     new Intl.DateTimeFormat("en-AU", {
       dateStyle: "medium",
       timeStyle: "short",
-      timeZone: "Australia/Sydney",
+      timeZone: TELEGRAM_TIME_ZONE,
     }).format(date),
   );
 }
@@ -124,12 +161,12 @@ function displayCodeAndName(code: unknown, name: unknown): string {
     name === null || name === undefined || name === "" ? "" : String(name);
 
   if (codeText && nameText) {
-    return `<code>${escapeHtml(codeText)}</code> — ${escapeHtml(nameText)}`;
+    return `<code>${escapeHtml(codeText)}</code> - ${escapeHtml(nameText)}`;
   }
 
   if (codeText) return `<code>${escapeHtml(codeText)}</code>`;
   if (nameText) return escapeHtml(nameText);
-  return "—";
+  return "-";
 }
 
 function asUuidOrNull(value: unknown): string | null {
@@ -146,7 +183,7 @@ function buildDailyReportMessage(event: NotificationEvent): string {
   const p = event.payload ?? {};
 
   return [
-    "📝 <b>Daily Report Submitted</b>",
+    "<b>Daily Report Submitted</b>",
     "",
     `<b>Report date:</b> ${display(p.report_date)}`,
     `<b>Project:</b> <code>${display(p.project_id)}</code>`,
@@ -170,10 +207,10 @@ function buildReceivingMessage(event: NotificationEvent): string {
 
   const heading =
     event.event_code === "site_goods_receiving_issue"
-      ? "🚨 <b>Site Goods Receiving Issue</b>"
+      ? "<b>Site Goods Receiving Issue</b>"
       : event.event_code === "site_goods_receiving_partial"
-      ? "⚠️ <b>Site Goods Receiving Partial</b>"
-      : "📦 <b>Site Goods Receiving Completed</b>";
+      ? "<b>Site Goods Receiving Partial</b>"
+      : "<b>Site Goods Receiving Completed</b>";
 
   const purchaseOrder = displayCodeAndName(
     p.purchase_order_no,
@@ -221,7 +258,7 @@ function buildMessage(event: NotificationEvent): string {
   }
 
   return [
-    "🔔 <b>REDS Notification</b>",
+    "<b>REDS Notification</b>",
     "",
     `<b>Event:</b> ${display(event.event_code)}`,
     `<b>Severity:</b> ${display(event.severity)}`,
@@ -262,6 +299,113 @@ async function sendTelegram(
   return result;
 }
 
+
+async function loadReceivingPhotos(
+  event: NotificationEvent,
+): Promise<TelegramPhoto[]> {
+  if (!event.event_code.startsWith("site_goods_receiving_")) return [];
+
+  const payload = event.payload ?? {};
+  const deliveryId = asUuidOrNull(payload.supplier_delivery_id) ??
+    asUuidOrNull(event.source_id);
+  if (!deliveryId) return [];
+
+  const receiptId = asUuidOrNull(payload.supplier_delivery_receipt_id) ??
+    asUuidOrNull(payload.receipt_id);
+
+  let query = supabase
+    .from("supplier_delivery_photos")
+    .select("photo_url, photo_type, caption, sort_order, created_at, supplier_delivery_receipt_id")
+    .eq("supplier_delivery_id", deliveryId)
+    .eq("is_deleted", false)
+    .in("photo_type", [...RECEIVING_PHOTO_TYPES])
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  // Photos created by the current workflow can be attached to the delivery
+  // before the receipt id exists. Keep those rows, plus rows for this receipt.
+  if (receiptId) {
+    query = query.or(
+      `supplier_delivery_receipt_id.is.null,supplier_delivery_receipt_id.eq.${receiptId}`,
+    );
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const ordered = [...(data ?? [])].sort((a, b) => {
+    const rank = (value: string) =>
+      value === "SupplierDocument" ? 0 :
+      value === "ReceiptEvidence" ? 1 : 2;
+    return rank(String(a.photo_type)) - rank(String(b.photo_type));
+  });
+
+  const photos: TelegramPhoto[] = [];
+  for (const row of ordered.slice(0, 20)) {
+    const path = String(row.photo_url ?? "").trim();
+    if (!path) continue;
+
+    const { data: signed, error: signedError } = await supabase.storage
+      .from("supplier-delivery-photos")
+      .createSignedUrl(path, 15 * 60);
+    if (signedError || !signed?.signedUrl) continue;
+
+    const label = RECEIVING_PHOTO_LABELS[String(row.photo_type)] ?? "Photo";
+    const detail = String(row.caption ?? "").trim();
+    photos.push({
+      url: signed.signedUrl,
+      caption: detail ? `${label} - ${detail}` : label,
+    });
+  }
+
+  return photos;
+}
+
+async function sendTelegramPhotos(
+  chatId: string,
+  photos: TelegramPhoto[],
+): Promise<Record<string, unknown>[]> {
+  const results: Record<string, unknown>[] = [];
+
+  for (let start = 0; start < photos.length; start += 10) {
+    const batch = photos.slice(start, start + 10);
+    const singlePhoto = batch.length === 1;
+    const method = singlePhoto ? "sendPhoto" : "sendMediaGroup";
+    const body = singlePhoto
+      ? {
+        chat_id: chatId,
+        photo: batch[0].url,
+        caption: batch[0].caption,
+      }
+      : {
+        chat_id: chatId,
+        media: batch.map((photo) => ({
+          type: "photo",
+          media: photo.url,
+          caption: photo.caption,
+        })),
+      };
+    const response = await fetch(
+      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/${method}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
+
+    const result = await response.json() as Record<string, unknown>;
+    if (!response.ok || result.ok !== true) {
+      const description = typeof result.description === "string"
+        ? result.description
+        : `Telegram HTTP ${response.status}`;
+      throw new Error(`Could not send Goods Receiving photos: ${description}`);
+    }
+    results.push(result);
+  }
+
+  return results;
+}
 async function loadRecipients(
   event: NotificationEvent,
 ): Promise<TelegramRecipient[]> {
@@ -400,6 +544,7 @@ async function processEvent(event: NotificationEvent) {
   }
 
   const message = buildMessage(event);
+  const receivingPhotos = await loadReceivingPhotos(event);
   let sent = 0;
   let failed = 0;
   const errors: string[] = [];
@@ -437,6 +582,10 @@ async function processEvent(event: NotificationEvent) {
         recipient.telegram_chat_id,
         message,
       );
+      const telegramPhotoResults = await sendTelegramPhotos(
+        recipient.telegram_chat_id,
+        receivingPhotos,
+      );
 
       const telegramMessage = telegramResult.result as
         | Record<string, unknown>
@@ -449,7 +598,11 @@ async function processEvent(event: NotificationEvent) {
           telegram_message_id: String(
             telegramMessage?.message_id ?? "",
           ),
-          response_payload: telegramResult,
+          response_payload: {
+            message: telegramResult,
+            photo_groups: telegramPhotoResults,
+            photo_count: receivingPhotos.length,
+          },
           sent_at: new Date().toISOString(),
           error_message: null,
         })
@@ -633,3 +786,4 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: errorMessage }, 500);
   }
 });
+
