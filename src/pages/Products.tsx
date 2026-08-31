@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -37,9 +38,9 @@ import {
 import { ActiveStatusBadge } from "@/components/common/ActiveStatusBadge";
 import {
     EMPTY_PRODUCT_IDENTITY,
-    ProductIdentityStep,
     type ProductCodeBuilderValue,
     type ProductIdentityFormValue,
+    ProductIdentityStep,
     type ProductIdentityValidationState,
 } from "@/components/products/ProductIdentityStep";
 
@@ -49,7 +50,6 @@ import {
     type ProductMasterTab,
 } from "@/components/products/ProductInlineMasterDataDialog";
 
-import { type AppRole, normalizeAppRole } from "@/lib/roles";
 import { toast } from "sonner";
 
 type Json =
@@ -95,6 +95,7 @@ type ProductRow = {
     product_categories: {
         category_code: string;
         category_name: string;
+        product_specification_type: string | null;
     } | null;
 };
 
@@ -103,6 +104,7 @@ type Category = {
     parent_category_id: string | null;
     category_code: string;
     category_name: string;
+    product_specification_type: string | null;
     is_active: boolean;
 };
 
@@ -132,6 +134,10 @@ type AttributeOption = {
 
 type AttributeFormValue = string | boolean | string[];
 
+type ProductUnitRow = Database["public"]["Tables"]["product_units"]["Row"];
+type ProductFlooringSpecRow =
+    Database["public"]["Tables"]["product_flooring_specs"]["Row"];
+
 type UnitOption = {
     uom_code: string;
     uom_name: string;
@@ -157,9 +163,52 @@ type ProductUnitForm = {
     uomCode: string;
     conversionToBase: string;
     isBaseUnit: boolean;
+    isPurchaseUnit: boolean;
+    isRequestUnit: boolean;
+    isSalesUnit: boolean;
+    isStockUnit: boolean;
     allowFractionalQuantity: boolean;
     barcode: string;
+    coverageBasisQuantity: number | null;
+    coverageQuantity: number | null;
+    coverageUomCode: string | null;
+    coverageNotes: string | null;
 };
+
+type FlooringDimensionType = "Fixed Size" | "Random Length" | "Mixed Sizes";
+type FlooringCoverageMethod =
+    | "Calculated from Dimensions"
+    | "Manufacturer Declared";
+
+type FlooringSpecForm = {
+    dimensionType: FlooringDimensionType;
+    plankWidthMm: string;
+    plankLengthMm: string;
+    plankThicknessMm: string;
+    minimumLengthMm: string;
+    maximumLengthMm: string;
+    planksPerBox: string;
+    declaredSqmPerBox: string;
+    coverageMethod: FlooringCoverageMethod;
+    manufacturerName: string;
+    manufacturerProductCode: string;
+    manufacturerNotes: string;
+};
+
+const emptyFlooringSpec = (): FlooringSpecForm => ({
+    dimensionType: "Fixed Size",
+    plankWidthMm: "",
+    plankLengthMm: "",
+    plankThicknessMm: "",
+    minimumLengthMm: "",
+    maximumLengthMm: "",
+    planksPerBox: "",
+    declaredSqmPerBox: "",
+    coverageMethod: "Manufacturer Declared",
+    manufacturerName: "",
+    manufacturerProductCode: "",
+    manufacturerNotes: "",
+});
 
 type PriceBookCode = "PB-STD" | "PB-COM" | "PB-RES" | "PB-VIP";
 
@@ -235,11 +284,20 @@ const createEmptyProductUnit = (): ProductUnitForm => ({
     uomCode: "",
     conversionToBase: "",
     isBaseUnit: false,
+    isPurchaseUnit: false,
+    isRequestUnit: false,
+    isSalesUnit: false,
+    isStockUnit: false,
     allowFractionalQuantity: false,
     barcode: "",
+    coverageBasisQuantity: null,
+    coverageQuantity: null,
+    coverageUomCode: null,
+    coverageNotes: null,
 });
 
 const MAX_PACKAGING_LEVELS = 6;
+const FLOORING_DERIVED_UOMS = new Set(["sqm", "plank", "box"]);
 
 const PRODUCT_TYPES: ProductType[] = [
     "Material",
@@ -481,12 +539,22 @@ const Products = () => {
     const queryClient = useQueryClient();
     // Bridge for the newly added Pricing RPCs/columns until generated Supabase
     // TypeScript types are refreshed from the hosted schema.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = supabase as any;
+    const db = supabase;
 
-    const [role, setRole] = useState<AppRole>("viewer");
+    const productManagementAccessQuery = useQuery({
+        queryKey: ["products", "management-access"],
+        queryFn: async () => {
+            const { data, error } = await supabase.rpc(
+                "can_manage_products_strict",
+            );
 
-    const isAdmin = role === "admin";
+            if (error) throw error;
+            return data === true;
+        },
+        staleTime: 5 * 60 * 1000,
+    });
+
+    const isAdmin = productManagementAccessQuery.data === true;
 
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
@@ -494,7 +562,9 @@ const Products = () => {
     const [typeFilter, setTypeFilter] = useState("all");
 
     const [showForm, setShowForm] = useState(false);
-    const [isHydratingProductDetails, setIsHydratingProductDetails] = useState(false);
+    const [isHydratingProductDetails, setIsHydratingProductDetails] = useState(
+        false,
+    );
     const [showView, setShowView] = useState(false);
     const [editingProduct, setEditingProduct] = useState<ProductRow | null>(
         null,
@@ -508,15 +578,17 @@ const Products = () => {
     const [productCodeIdentity, setProductCodeIdentity] = useState<
         ProductCodeBuilderValue | null
     >(null);
-    const [productIdentityForm, setProductIdentityForm] =
-        useState<ProductIdentityFormValue>({ ...EMPTY_PRODUCT_IDENTITY });
-    const [productIdentityValidation, setProductIdentityValidation] =
-        useState<ProductIdentityValidationState>({
-            status: "idle",
-            message: null,
-            preview: null,
-            identity: null,
-        });
+    const [productIdentityForm, setProductIdentityForm] = useState<
+        ProductIdentityFormValue
+    >({ ...EMPTY_PRODUCT_IDENTITY });
+    const [productIdentityValidation, setProductIdentityValidation] = useState<
+        ProductIdentityValidationState
+    >({
+        status: "idle",
+        message: null,
+        preview: null,
+        identity: null,
+    });
     const [productName, setProductName] = useState("");
     const [lastSuggestedName, setLastSuggestedName] = useState<
         string | null
@@ -530,6 +602,9 @@ const Products = () => {
     const [productType, setProductType] = useState<ProductType>("Material");
     const [description, setDescription] = useState("");
     const [baseUom, setBaseUom] = useState("");
+    const [defaultPurchaseUom, setDefaultPurchaseUom] = useState("");
+    const [defaultRequestUom, setDefaultRequestUom] = useState("");
+    const [defaultSalesUom, setDefaultSalesUom] = useState("");
     const [wastePercent, setWastePercent] = useState("0");
     const [usesCoverage, setUsesCoverage] = useState(false);
     const [isStockItem, setIsStockItem] = useState(true);
@@ -543,6 +618,9 @@ const Products = () => {
         emptyCoverage,
     );
     const [productUnits, setProductUnits] = useState<ProductUnitForm[]>([]);
+    const [flooringSpec, setFlooringSpec] = useState<FlooringSpecForm>(
+        emptyFlooringSpec,
+    );
     const [pricingUom, setPricingUom] = useState("");
     const [maximumDiscountPercent, setMaximumDiscountPercent] = useState("0");
     const [pricingEffectiveFrom, setPricingEffectiveFrom] = useState(
@@ -615,7 +693,19 @@ const Products = () => {
     };
 
     const selectBaseProductUnit = (uomCode: string) => {
+        const previousBaseUom = baseUom;
+
         setBaseUom(uomCode);
+        setDefaultPurchaseUom((current) =>
+            !current || current === previousBaseUom ? uomCode : current
+        );
+        setDefaultRequestUom((current) =>
+            !current || current === previousBaseUom ? uomCode : current
+        );
+        setDefaultSalesUom((current) =>
+            !current || current === previousBaseUom ? uomCode : current
+        );
+
         setProductUnits((current) => {
             const supported = current.filter(
                 (unit) => !unit.isBaseUnit && unit.uomCode !== uomCode,
@@ -627,8 +717,16 @@ const Products = () => {
                     uomCode,
                     conversionToBase: "1",
                     isBaseUnit: true,
+                    isPurchaseUnit: false,
+                    isRequestUnit: false,
+                    isSalesUnit: false,
+                    isStockUnit: false,
                     allowFractionalQuantity: true,
                     barcode: "",
+                    coverageBasisQuantity: null,
+                    coverageQuantity: null,
+                    coverageUomCode: null,
+                    coverageNotes: null,
                 },
             ];
         });
@@ -639,10 +737,14 @@ const Products = () => {
     };
 
     useEffect(() => {
-        supabase.auth.getUser().then(({ data }) => {
-            setRole(normalizeAppRole(data.user?.app_metadata?.app_role));
-        });
-    }, []);
+        if (!productManagementAccessQuery.error) return;
+
+        toast.error(
+            `Unable to verify Product management permission: ${
+                productManagementAccessQuery.error.message
+            }`,
+        );
+    }, [productManagementAccessQuery.error]);
 
     useEffect(() => {
         if (!categoryComboboxOpen) return;
@@ -693,7 +795,8 @@ const Products = () => {
           is_active,
           product_categories (
             category_code,
-            category_name
+            category_name,
+            product_specification_type
           )
         `,
                 )
@@ -716,6 +819,7 @@ const Products = () => {
           parent_category_id,
           category_code,
           category_name,
+          product_specification_type,
           is_active
         `,
                 )
@@ -892,6 +996,61 @@ const Products = () => {
         [categories, categoryId],
     );
 
+    const isFlooringProduct =
+        selectedCategory?.product_specification_type === "flooring";
+
+    const originalIsFlooringProduct =
+        editingProduct?.product_categories?.product_specification_type ===
+            "flooring";
+
+    useEffect(() => {
+        if (!isFlooringProduct || isHydratingProductDetails) return;
+
+        // For an existing Flooring Product, loadProductDetails() hydrates the
+        // backend-synchronized rows and this effect does not replace them.
+        if (editingProduct && originalIsFlooringProduct) return;
+
+        // New Flooring Products, or a form switched from a Generic Category to
+        // Flooring, must start from the canonical sqm Base. We intentionally do
+        // not carry Generic conversion factors across because they were measured
+        // against a different Base UOM. Additional packaging can then be added
+        // explicitly by the user; plank/box are created by the Flooring RPC.
+        setBaseUom("sqm");
+        setDefaultPurchaseUom("sqm");
+        setDefaultRequestUom("sqm");
+        setDefaultSalesUom("sqm");
+        setUsesCoverage(false);
+        setCoverageForm(emptyCoverage());
+        setProductUnits([
+            {
+                id: "base-unit-sqm",
+                uomCode: "sqm",
+                conversionToBase: "1",
+                isBaseUnit: true,
+                isPurchaseUnit: false,
+                isRequestUnit: false,
+                isSalesUnit: false,
+                isStockUnit: false,
+                allowFractionalQuantity: true,
+                barcode: "",
+                coverageBasisQuantity: null,
+                coverageQuantity: null,
+                coverageUomCode: null,
+                coverageNotes: null,
+            },
+        ]);
+        setPricingUom((current) =>
+            current && current !== "plank" && current !== "box"
+                ? current
+                : "sqm"
+        );
+    }, [
+        editingProduct,
+        isFlooringProduct,
+        isHydratingProductDetails,
+        originalIsFlooringProduct,
+    ]);
+
     const buildSuggestedProductName = (
         identity: ProductCodeBuilderValue | null,
     ) => {
@@ -950,8 +1109,8 @@ const Products = () => {
         if (!suggestedProductName) return;
 
         const trimmedName = productName.trim();
-        const isSystemGenerated =
-            trimmedName === "" || trimmedName === lastSuggestedName;
+        const isSystemGenerated = trimmedName === "" ||
+            trimmedName === lastSuggestedName;
 
         if (isSystemGenerated) {
             setProductName(suggestedProductName);
@@ -1014,11 +1173,59 @@ const Products = () => {
                         group: unit.isBaseUnit
                             ? "Base Measurement Unit"
                             : "Supported Product Unit",
-                        description: `1 ${unit.uomCode} = ${unit.conversionToBase || "?"} ${baseUom || "base"}`,
+                        description: `1 ${unit.uomCode} = ${
+                            unit.conversionToBase || "?"
+                        } ${baseUom || "base"}`,
                     };
                 }),
         [baseUom, productUnits, units],
     );
+
+    const commercialPricingUomOptions = useMemo<SearchableOption[]>(() => {
+        if (!isFlooringProduct) return pricingUomOptions;
+
+        const configuredCodes = new Set(
+            productUnits.map((unit) => unit.uomCode.trim()).filter(Boolean),
+        );
+
+        // plank/box may not exist yet while creating a new Flooring Product.
+        // They are valid future Pricing UOMs because save_product_flooring_spec()
+        // creates/synchronizes them before the Pricing RPC runs.
+        configuredCodes.add("sqm");
+        configuredCodes.add("plank");
+        configuredCodes.add("box");
+
+        return Array.from(configuredCodes).flatMap((uomCode) => {
+            const master = units.find((item) => item.uom_code === uomCode);
+            if (!master || !master.is_active) return [];
+
+            const configuredUnit = productUnits.find((unit) =>
+                unit.uomCode === uomCode
+            );
+            const isDerived = FLOORING_DERIVED_UOMS.has(uomCode);
+
+            return [{
+                value: uomCode,
+                label: `${uomCode} — ${master.uom_name} (${master.uom_symbol})`,
+                searchText:
+                    `${uomCode} ${master.uom_name} ${master.uom_symbol} ${master.uom_category}`,
+                group: isDerived
+                    ? (uomCode === "sqm"
+                        ? "Base Measurement Unit"
+                        : "Backend-derived Flooring Unit")
+                    : "Supported Product Unit",
+                description: isDerived
+                    ? (uomCode === "sqm"
+                        ? "Canonical Flooring Base Measurement Unit"
+                        : "Factor-to-Base is derived by the Flooring Specification backend.")
+                    : configuredUnit
+                    ? `1 ${uomCode} = ${
+                        configuredUnit.conversionToBase || "?"
+                    } sqm`
+                    : undefined,
+            }];
+        });
+    }, [isFlooringProduct, pricingUomOptions, productUnits, units]);
 
     useEffect(() => {
         /*
@@ -1030,15 +1237,51 @@ const Products = () => {
          */
         if (isHydratingProductDetails || !pricingUom) return;
 
-        const stillSupported = productUnits.some((unit) =>
-            unit.uomCode === pricingUom
-        );
+        const stillSupported = isFlooringProduct
+            ? commercialPricingUomOptions.some((option) =>
+                option.value === pricingUom
+            )
+            : productUnits.some((unit) => unit.uomCode === pricingUom);
 
         if (!stillSupported) {
             setPricingUom("");
             setPriceMatrix(emptyPriceMatrix());
         }
-    }, [isHydratingProductDetails, pricingUom, productUnits]);
+    }, [
+        commercialPricingUomOptions,
+        isFlooringProduct,
+        isHydratingProductDetails,
+        pricingUom,
+        productUnits,
+    ]);
+
+    useEffect(() => {
+        if (isHydratingProductDetails || productUnits.length === 0) return;
+
+        const supportedUoms = new Set(
+            productUnits
+                .map((unit) => unit.uomCode.trim())
+                .filter(Boolean),
+        );
+        const fallbackUom = supportedUoms.has(baseUom) ? baseUom : "";
+
+        if (!defaultPurchaseUom || !supportedUoms.has(defaultPurchaseUom)) {
+            setDefaultPurchaseUom(fallbackUom);
+        }
+        if (!defaultRequestUom || !supportedUoms.has(defaultRequestUom)) {
+            setDefaultRequestUom(fallbackUom);
+        }
+        if (!defaultSalesUom || !supportedUoms.has(defaultSalesUom)) {
+            setDefaultSalesUom(fallbackUom);
+        }
+    }, [
+        baseUom,
+        defaultPurchaseUom,
+        defaultRequestUom,
+        defaultSalesUom,
+        isHydratingProductDetails,
+        productUnits,
+    ]);
 
     const filteredProducts = useMemo(() => {
         const keyword = searchTerm.trim().toLowerCase();
@@ -1122,6 +1365,9 @@ const Products = () => {
         setProductType("Material");
         setDescription("");
         setBaseUom("");
+        setDefaultPurchaseUom("");
+        setDefaultRequestUom("");
+        setDefaultSalesUom("");
         setWastePercent("0");
         setUsesCoverage(false);
         setIsStockItem(true);
@@ -1131,6 +1377,7 @@ const Products = () => {
         setDynamicValues({});
         setCoverageForm(emptyCoverage());
         setProductUnits([]);
+        setFlooringSpec(emptyFlooringSpec());
         setPricingUom("");
         setMaximumDiscountPercent("0");
         setPricingEffectiveFrom(new Date().toISOString().slice(0, 10));
@@ -1143,48 +1390,62 @@ const Products = () => {
 
         try {
             setEditingProduct(product);
-        setProductCode(product.product_code);
-        setProductCodeIdentity(null);
-        setProductIdentityForm({ ...EMPTY_PRODUCT_IDENTITY });
-        setProductIdentityValidation({
-            status: "idle",
-            message: null,
-            preview: null,
-            identity: null,
-        });
-        setProductName(product.product_name);
-        setLastSuggestedName(null);
-        setLiveIdentityNameSuggestion("");
-        setCategoryId(product.category_id);
-        setCategorySearch("");
-        setCategoryComboboxOpen(false);
-        setProductType(product.product_type as ProductType);
-        setDescription(product.description ?? "");
-        setBaseUom(product.base_uom_code ?? "");
-        setWastePercent(String(product.default_waste_percent ?? 0));
-        setUsesCoverage(product.uses_coverage);
-        setIsStockItem(product.is_stock_item);
-        setIsServiceItem(product.is_service_item);
-        setSearchKeywords(product.search_keywords ?? "");
-        setIsActive(product.is_active);
-        const loadedPricingUom = product.pricing_uom_code ?? "";
-        const loadedMaximumDiscountPercent = String(
-            product.maximum_discount_percent ?? 0,
-        );
+            setProductCode(product.product_code);
+            setProductCodeIdentity(null);
+            setProductIdentityForm({ ...EMPTY_PRODUCT_IDENTITY });
+            setProductIdentityValidation({
+                status: "idle",
+                message: null,
+                preview: null,
+                identity: null,
+            });
+            setProductName(product.product_name);
+            setLastSuggestedName(null);
+            setLiveIdentityNameSuggestion("");
+            setCategoryId(product.category_id);
+            setCategorySearch("");
+            setCategoryComboboxOpen(false);
+            setProductType(product.product_type as ProductType);
+            setDescription(product.description ?? "");
+            setBaseUom(product.base_uom_code ?? "");
+            setDefaultPurchaseUom(
+                product.default_purchase_uom_code ?? product.base_uom_code ??
+                    "",
+            );
+            setDefaultRequestUom(
+                product.default_request_uom_code ?? product.base_uom_code ?? "",
+            );
+            setDefaultSalesUom(
+                product.default_sales_uom_code ?? product.base_uom_code ?? "",
+            );
+            setWastePercent(String(product.default_waste_percent ?? 0));
+            const loadedIsFlooring =
+                product.product_categories?.product_specification_type ===
+                    "flooring";
+            setUsesCoverage(loadedIsFlooring ? false : product.uses_coverage);
+            setIsStockItem(product.is_stock_item);
+            setIsServiceItem(product.is_service_item);
+            setSearchKeywords(product.search_keywords ?? "");
+            setIsActive(product.is_active);
+            const loadedPricingUom = product.pricing_uom_code ?? "";
+            const loadedMaximumDiscountPercent = String(
+                product.maximum_discount_percent ?? 0,
+            );
 
-        setPricingUom(loadedPricingUom);
-        setMaximumDiscountPercent(loadedMaximumDiscountPercent);
+            setPricingUom(loadedPricingUom);
+            setMaximumDiscountPercent(loadedMaximumDiscountPercent);
 
-        const [
-            valuesResult,
-            coverageResult,
-            productUnitsResult,
-            priceMatrixResult,
-        ] = await Promise.all([
-            supabase
-                .from("product_attribute_values")
-                .select(
-                    `
+            const [
+                valuesResult,
+                coverageResult,
+                productUnitsResult,
+                priceMatrixResult,
+                flooringSpecResult,
+            ] = await Promise.all([
+                supabase
+                    .from("product_attribute_values")
+                    .select(
+                        `
             product_attribute_value_id,
             attribute_id,
             value_text,
@@ -1196,40 +1457,48 @@ const Products = () => {
               attribute_option_id
             )
           `,
-                )
-                .eq("product_id", product.product_id)
-                .eq("is_deleted", false),
-            supabase
-                .from("product_coverages")
-                .select("*")
-                .eq("product_id", product.product_id)
-                .eq("is_deleted", false)
-                .eq("is_default", true)
-                .maybeSingle(),
-            db
-                .from("product_units")
-                .select(
-                    `
+                    )
+                    .eq("product_id", product.product_id)
+                    .eq("is_deleted", false),
+                supabase
+                    .from("product_coverages")
+                    .select("*")
+                    .eq("product_id", product.product_id)
+                    .eq("is_deleted", false)
+                    .eq("is_default", true)
+                    .maybeSingle(),
+                db
+                    .from("product_units")
+                    .select(
+                        `
         product_unit_id,
         uom_code,
         conversion_to_base,
         is_base_unit,
+        is_purchase_unit,
+        is_request_unit,
+        is_sales_unit,
+        is_stock_unit,
         allow_fractional_quantity,
         sort_order,
         barcode,
+        coverage_basis_quantity,
+        coverage_quantity,
+        coverage_uom_code,
+        coverage_notes,
         is_active
     `,
-                )
-                .eq("product_id", product.product_id)
-                .eq("is_deleted", false)
-                .eq("is_active", true)
-                .order("sort_order", { ascending: false })
-                .order("conversion_to_base", { ascending: false }),
-            product.pricing_uom_code
-                ? db
-                    .from("price_book_lines")
-                    .select(
-                        `
+                    )
+                    .eq("product_id", product.product_id)
+                    .eq("is_deleted", false)
+                    .eq("is_active", true)
+                    .order("sort_order", { ascending: false })
+                    .order("conversion_to_base", { ascending: false }),
+                product.pricing_uom_code
+                    ? db
+                        .from("price_book_lines")
+                        .select(
+                            `
               price_book_line_id,
               price_book_id,
               price_uom_code,
@@ -1242,123 +1511,187 @@ const Products = () => {
                 price_book_code
               )
             `,
+                        )
+                        .eq("product_id", product.product_id)
+                        .eq("price_uom_code", product.pricing_uom_code)
+                        .eq("is_deleted", false)
+                        .eq("is_active", true)
+                    : Promise.resolve({ data: [], error: null }),
+                db
+                    .from("product_flooring_specs")
+                    .select(
+                        `
+          dimension_type,
+          plank_width_mm,
+          plank_length_mm,
+          plank_thickness_mm,
+          minimum_length_mm,
+          maximum_length_mm,
+          planks_per_box,
+          declared_sqm_per_box,
+          coverage_method,
+          manufacturer_name,
+          manufacturer_product_code,
+          manufacturer_notes
+        `,
                     )
                     .eq("product_id", product.product_id)
-                    .eq("price_uom_code", product.pricing_uom_code)
                     .eq("is_deleted", false)
-                    .eq("is_active", true)
-                : Promise.resolve({ data: [], error: null }),
-        ]);
+                    .maybeSingle(),
+            ]);
 
-        if (valuesResult.error) throw valuesResult.error;
-        if (coverageResult.error) throw coverageResult.error;
-        if (productUnitsResult.error) throw productUnitsResult.error;
-        if (priceMatrixResult.error) throw priceMatrixResult.error;
+            if (valuesResult.error) throw valuesResult.error;
+            if (coverageResult.error) throw coverageResult.error;
+            if (productUnitsResult.error) throw productUnitsResult.error;
+            if (priceMatrixResult.error) throw priceMatrixResult.error;
+            if (flooringSpecResult.error) throw flooringSpecResult.error;
 
-        const nextValues: Record<string, AttributeFormValue> = {};
+            const nextValues: Record<string, AttributeFormValue> = {};
 
-        for (const value of valuesResult.data ?? []) {
-            const multi = value.product_attribute_value_options?.map(
-                (option) => option.attribute_option_id,
-            );
+            for (const value of valuesResult.data ?? []) {
+                const multi = value.product_attribute_value_options?.map(
+                    (option) => option.attribute_option_id,
+                );
 
-            if (multi && multi.length > 0) {
-                nextValues[value.attribute_id] = multi;
-            } else if (value.selected_option_id) {
-                nextValues[value.attribute_id] = value.selected_option_id;
-            } else if (value.value_boolean !== null) {
-                nextValues[value.attribute_id] = value.value_boolean;
-            } else if (value.value_number !== null) {
-                nextValues[value.attribute_id] = String(value.value_number);
-            } else {
-                nextValues[value.attribute_id] = value.value_text ??
-                    value.value_date ?? "";
+                if (multi && multi.length > 0) {
+                    nextValues[value.attribute_id] = multi;
+                } else if (value.selected_option_id) {
+                    nextValues[value.attribute_id] = value.selected_option_id;
+                } else if (value.value_boolean !== null) {
+                    nextValues[value.attribute_id] = value.value_boolean;
+                } else if (value.value_number !== null) {
+                    nextValues[value.attribute_id] = String(value.value_number);
+                } else {
+                    nextValues[value.attribute_id] = value.value_text ??
+                        value.value_date ?? "";
+                }
             }
-        }
 
-        setDynamicValues(nextValues);
+            setDynamicValues(nextValues);
 
-        if (coverageResult.data) {
-            const coverage = coverageResult.data;
-            setCoverageForm({
-                sourceQuantity: String(coverage.source_quantity),
-                sourceUom: coverage.source_uom_code,
-                coverageQuantity: String(coverage.coverage_quantity),
-                coverageUom: coverage.coverage_uom_code,
-                minimumCoverage: coverage.minimum_coverage?.toString() ?? "",
-                maximumCoverage: coverage.maximum_coverage?.toString() ?? "",
-                isEstimate: coverage.is_estimate ?? true,
-                notes: coverage.notes ?? "",
+            if (coverageResult.data && !loadedIsFlooring) {
+                const coverage = coverageResult.data;
+                setCoverageForm({
+                    sourceQuantity: String(coverage.source_quantity),
+                    sourceUom: coverage.source_uom_code,
+                    coverageQuantity: String(coverage.coverage_quantity),
+                    coverageUom: coverage.coverage_uom_code,
+                    minimumCoverage: coverage.minimum_coverage?.toString() ??
+                        "",
+                    maximumCoverage: coverage.maximum_coverage?.toString() ??
+                        "",
+                    isEstimate: coverage.is_estimate ?? true,
+                    notes: coverage.notes ?? "",
+                });
+            } else {
+                setCoverageForm({
+                    ...emptyCoverage(),
+                    sourceUom: product.base_uom_code ?? "",
+                });
+            }
+
+            const loadedProductUnits: ProductUnitForm[] = (
+                productUnitsResult.data ?? []
+            ).map((unit: ProductUnitRow) => ({
+                id: unit.product_unit_id,
+                uomCode: unit.uom_code,
+                conversionToBase: String(unit.conversion_to_base),
+                isBaseUnit: Boolean(unit.is_base_unit),
+                isPurchaseUnit: Boolean(unit.is_purchase_unit),
+                isRequestUnit: Boolean(unit.is_request_unit),
+                isSalesUnit: Boolean(unit.is_sales_unit),
+                isStockUnit: Boolean(unit.is_stock_unit),
+                allowFractionalQuantity: Boolean(
+                    unit.allow_fractional_quantity,
+                ),
+                barcode: unit.barcode ?? "",
+                coverageBasisQuantity: unit.coverage_basis_quantity === null ||
+                        unit.coverage_basis_quantity === undefined
+                    ? null
+                    : Number(unit.coverage_basis_quantity),
+                coverageQuantity: unit.coverage_quantity === null ||
+                        unit.coverage_quantity === undefined
+                    ? null
+                    : Number(unit.coverage_quantity),
+                coverageUomCode: unit.coverage_uom_code ?? null,
+                coverageNotes: unit.coverage_notes ?? null,
+            }));
+
+            setProductUnits(loadedProductUnits);
+
+            if (flooringSpecResult.data) {
+                const spec = flooringSpecResult.data as ProductFlooringSpecRow;
+                setFlooringSpec({
+                    dimensionType: spec.dimension_type as FlooringDimensionType,
+                    plankWidthMm: spec.plank_width_mm?.toString() ?? "",
+                    plankLengthMm: spec.plank_length_mm?.toString() ?? "",
+                    plankThicknessMm: spec.plank_thickness_mm?.toString() ?? "",
+                    minimumLengthMm: spec.minimum_length_mm?.toString() ?? "",
+                    maximumLengthMm: spec.maximum_length_mm?.toString() ?? "",
+                    planksPerBox: spec.planks_per_box?.toString() ?? "",
+                    declaredSqmPerBox: spec.declared_sqm_per_box?.toString() ??
+                        "",
+                    coverageMethod: spec
+                        .coverage_method as FlooringCoverageMethod,
+                    manufacturerName: spec.manufacturer_name ?? "",
+                    manufacturerProductCode: spec.manufacturer_product_code ??
+                        "",
+                    manufacturerNotes: spec.manufacturer_notes ?? "",
+                });
+            } else {
+                setFlooringSpec(emptyFlooringSpec());
+            }
+
+            const nextMatrix = emptyPriceMatrix();
+            for (const row of priceMatrixResult.data ?? []) {
+                const relation = Array.isArray(row.price_books)
+                    ? row.price_books[0]
+                    : row.price_books;
+                const code = relation?.price_book_code as
+                    | PriceBookCode
+                    | undefined;
+
+                if (!code || !PRICE_BOOK_CODES.includes(code)) continue;
+
+                nextMatrix[code] = {
+                    unitPrice: String(row.unit_price ?? ""),
+                    minimumPrice: row.minimum_price === null ||
+                            row.minimum_price === undefined
+                        ? ""
+                        : String(row.minimum_price),
+                };
+            }
+            const pricingEffectiveDates: string[] = Array.from(
+                new Set<string>(
+                    (priceMatrixResult.data ?? [])
+                        .map((row) =>
+                            typeof row?.effective_from === "string"
+                                ? row.effective_from
+                                : ""
+                        )
+                        .filter((value: string) => value.length > 0),
+                ),
+            ).sort();
+
+            /*
+             * Existing active rows normally share one Effective From date.
+             * If legacy rows differ, use the latest active date for the editor.
+             * Merely opening/saving the Product must not create a new price version.
+             */
+            const loadedPricingEffectiveFrom = pricingEffectiveDates.at(-1) ??
+                new Date().toISOString().slice(0, 10);
+
+            setPricingEffectiveFrom(loadedPricingEffectiveFrom);
+            setPriceMatrix(nextMatrix);
+
+            initialPricingSnapshotRef.current = buildPricingSnapshot({
+                pricingUom: loadedPricingUom,
+                maximumDiscountPercent: loadedMaximumDiscountPercent,
+                effectiveFrom: loadedPricingEffectiveFrom,
+                matrix: nextMatrix,
             });
-        } else {
-            setCoverageForm({
-                ...emptyCoverage(),
-                sourceUom: product.base_uom_code ?? "",
-            });
-        }
 
-        const loadedProductUnits: ProductUnitForm[] = (
-            productUnitsResult.data ?? []
-        ).map((unit: any) => ({
-            id: unit.product_unit_id,
-            uomCode: unit.uom_code,
-            conversionToBase: String(unit.conversion_to_base),
-            isBaseUnit: Boolean(unit.is_base_unit),
-            allowFractionalQuantity: Boolean(unit.allow_fractional_quantity),
-            barcode: unit.barcode ?? "",
-        }));
-
-        setProductUnits(loadedProductUnits);
-
-        const nextMatrix = emptyPriceMatrix();
-        for (const row of priceMatrixResult.data ?? []) {
-            const relation = Array.isArray(row.price_books)
-                ? row.price_books[0]
-                : row.price_books;
-            const code = relation?.price_book_code as PriceBookCode | undefined;
-
-            if (!code || !PRICE_BOOK_CODES.includes(code)) continue;
-
-            nextMatrix[code] = {
-                unitPrice: String(row.unit_price ?? ""),
-                minimumPrice: row.minimum_price === null ||
-                        row.minimum_price === undefined
-                    ? ""
-                    : String(row.minimum_price),
-            };
-        }
-        const pricingEffectiveDates: string[] = Array.from(
-            new Set<string>(
-                (priceMatrixResult.data ?? [])
-                    .map((row: any) =>
-                        typeof row?.effective_from === "string"
-                            ? row.effective_from
-                            : ""
-                    )
-                    .filter((value: string) => value.length > 0),
-            ),
-        ).sort();
-
-        /*
-         * Existing active rows normally share one Effective From date.
-         * If legacy rows differ, use the latest active date for the editor.
-         * Merely opening/saving the Product must not create a new price version.
-         */
-        const loadedPricingEffectiveFrom =
-            pricingEffectiveDates.at(-1) ??
-            new Date().toISOString().slice(0, 10);
-
-        setPricingEffectiveFrom(loadedPricingEffectiveFrom);
-        setPriceMatrix(nextMatrix);
-
-        initialPricingSnapshotRef.current = buildPricingSnapshot({
-            pricingUom: loadedPricingUom,
-            maximumDiscountPercent: loadedMaximumDiscountPercent,
-            effectiveFrom: loadedPricingEffectiveFrom,
-            matrix: nextMatrix,
-        });
-
-        setShowForm(true);
+            setShowForm(true);
         } finally {
             setIsHydratingProductDetails(false);
         }
@@ -1473,19 +1806,24 @@ const Products = () => {
                 );
             }
 
-            if (unit.isBaseUnit) {
-                return null;
-            }
-
             return {
-                from_uom_code: uomCode,
-                to_uom_code: baseUom,
-                conversion_factor: conversionToBase,
+                uom_code: uomCode,
+                conversion_to_base: conversionToBase,
+                is_base_unit: unit.isBaseUnit,
+                is_purchase_unit: unit.isPurchaseUnit,
+                is_request_unit: unit.isRequestUnit,
+                is_sales_unit: unit.isSalesUnit,
+                is_stock_unit: unit.isStockUnit,
                 allow_fractional_quantity: unit.allowFractionalQuantity,
+                barcode: unit.barcode.trim() || null,
+                coverage_basis_quantity: unit.coverageBasisQuantity,
+                coverage_quantity: unit.coverageQuantity,
+                coverage_uom_code: unit.coverageUomCode,
+                coverage_notes: unit.coverageNotes,
                 sort_order: (productUnits.length - index) * 10,
                 is_active: true,
             } as Json;
-        }).filter((unit): unit is Json => unit !== null);
+        });
     };
 
     const buildCoveragePayload = (): Json[] => {
@@ -1569,6 +1907,111 @@ const Products = () => {
         ];
     };
 
+    const buildFlooringSpecRpcArguments = () => {
+        const positiveNumberOrNull = (value: string, label: string) => {
+            const parsed = numberOrNull(value);
+            if (parsed !== null && (!Number.isFinite(parsed) || parsed <= 0)) {
+                throw new Error(`${label} must be greater than zero.`);
+            }
+            return parsed;
+        };
+
+        const width = positiveNumberOrNull(
+            flooringSpec.plankWidthMm,
+            "Plank Width",
+        );
+        const length = positiveNumberOrNull(
+            flooringSpec.plankLengthMm,
+            "Plank Length",
+        );
+        const thickness = positiveNumberOrNull(
+            flooringSpec.plankThicknessMm,
+            "Plank Thickness",
+        );
+        const minimumLength = positiveNumberOrNull(
+            flooringSpec.minimumLengthMm,
+            "Minimum Length",
+        );
+        const maximumLength = positiveNumberOrNull(
+            flooringSpec.maximumLengthMm,
+            "Maximum Length",
+        );
+        const declaredSqmPerBox = positiveNumberOrNull(
+            flooringSpec.declaredSqmPerBox,
+            "Declared sqm per Box",
+        );
+        const planksPerBox = Number(flooringSpec.planksPerBox);
+
+        if (!Number.isInteger(planksPerBox) || planksPerBox <= 0) {
+            throw new Error(
+                "Planks per Box must be a whole number greater than zero.",
+            );
+        }
+
+        if (flooringSpec.dimensionType === "Fixed Size") {
+            if (width === null || length === null) {
+                throw new Error(
+                    "Fixed Size flooring requires Plank Width and Plank Length.",
+                );
+            }
+        } else {
+            if (width === null) {
+                throw new Error(
+                    "Random Length / Mixed Sizes flooring requires Plank Width.",
+                );
+            }
+            if (minimumLength === null || maximumLength === null) {
+                throw new Error(
+                    "Random Length / Mixed Sizes flooring requires Minimum and Maximum Length.",
+                );
+            }
+            if (maximumLength < minimumLength) {
+                throw new Error(
+                    "Maximum Length cannot be less than Minimum Length.",
+                );
+            }
+            if (declaredSqmPerBox === null) {
+                throw new Error(
+                    "Random Length / Mixed Sizes flooring requires Manufacturer Declared sqm per Box.",
+                );
+            }
+        }
+
+        if (
+            flooringSpec.coverageMethod === "Calculated from Dimensions" &&
+            flooringSpec.dimensionType !== "Fixed Size"
+        ) {
+            throw new Error(
+                "Calculated from Dimensions is available only for Fixed Size flooring.",
+            );
+        }
+
+        if (
+            flooringSpec.coverageMethod === "Manufacturer Declared" &&
+            declaredSqmPerBox === null
+        ) {
+            throw new Error(
+                "Manufacturer Declared coverage requires Declared sqm per Box.",
+            );
+        }
+
+        return {
+            p_dimension_type: flooringSpec.dimensionType,
+            p_plank_width_mm: width,
+            p_plank_length_mm: length,
+            p_plank_thickness_mm: thickness,
+            p_minimum_length_mm: minimumLength,
+            p_maximum_length_mm: maximumLength,
+            p_planks_per_box: planksPerBox,
+            p_declared_sqm_per_box: declaredSqmPerBox,
+            p_coverage_method: flooringSpec.coverageMethod,
+            p_manufacturer_name: flooringSpec.manufacturerName.trim() || null,
+            p_manufacturer_product_code:
+                flooringSpec.manufacturerProductCode.trim() || null,
+            p_manufacturer_notes: flooringSpec.manufacturerNotes.trim() || null,
+        };
+    };
+
     const saveProduct = useMutation({
         mutationFn: async () => {
             if (!isAdmin) {
@@ -1579,7 +2022,9 @@ const Products = () => {
 
             const name = productName.trim();
 
-            if (!editingProduct && productIdentityValidation.status !== "valid") {
+            if (
+                !editingProduct && productIdentityValidation.status !== "valid"
+            ) {
                 throw new Error(
                     productIdentityValidation.message ||
                         "Complete Product Code Identity and wait for validation.",
@@ -1592,8 +2037,35 @@ const Products = () => {
             if (!categoryId) {
                 throw new Error("Product Category is required.");
             }
+
+            const flooringRpcArguments = isFlooringProduct
+                ? buildFlooringSpecRpcArguments()
+                : null;
+
             if (!baseUom) {
                 throw new Error("Base Unit of Measure is required.");
+            }
+
+            const supportedUoms = new Set(
+                productUnits
+                    .map((unit) => unit.uomCode.trim())
+                    .filter(Boolean),
+            );
+
+            if (!defaultPurchaseUom || !supportedUoms.has(defaultPurchaseUom)) {
+                throw new Error(
+                    "Default Purchase UOM must be one of this Product's configured Supported Units.",
+                );
+            }
+            if (!defaultRequestUom || !supportedUoms.has(defaultRequestUom)) {
+                throw new Error(
+                    "Default Request UOM must be one of this Product's configured Supported Units.",
+                );
+            }
+            if (!defaultSalesUom || !supportedUoms.has(defaultSalesUom)) {
+                throw new Error(
+                    "Default Sales UOM must be one of this Product's configured Supported Units.",
+                );
             }
 
             const waste = Number(wastePercent || 0);
@@ -1607,13 +2079,17 @@ const Products = () => {
                 throw new Error("Pricing UOM is required.");
             }
 
-            if (
-                !productUnits.some((unit) =>
-                    unit.uomCode === pricingUom
+            const pricingUomWillBeSupported = isFlooringProduct
+                ? commercialPricingUomOptions.some((option) =>
+                    option.value === pricingUom
                 )
-            ) {
+                : productUnits.some((unit) => unit.uomCode === pricingUom);
+
+            if (!pricingUomWillBeSupported) {
                 throw new Error(
-                    "Pricing UOM must be one of this Product's configured Supported Units.",
+                    isFlooringProduct
+                        ? "Flooring Pricing UOM must be a supported Product Unit. The backend derives sqm/plank and sqm/box factors."
+                        : "Pricing UOM must be one of this Product's configured Supported Units.",
                 );
             }
 
@@ -1649,8 +2125,7 @@ const Products = () => {
                 }
 
                 const unitPriceText = priceMatrix[code].unitPrice.trim();
-                const minimumPriceText =
-                    priceMatrix[code].minimumPrice.trim();
+                const minimumPriceText = priceMatrix[code].minimumPrice.trim();
 
                 if (!unitPriceText) {
                     throw new Error(
@@ -1665,7 +2140,9 @@ const Products = () => {
 
                 if (!Number.isFinite(unitPrice) || unitPrice < 0) {
                     throw new Error(
-                        `${PRICE_BOOK_LABELS[code]} Selling Price must be zero or greater.`,
+                        `${
+                            PRICE_BOOK_LABELS[code]
+                        } Selling Price must be zero or greater.`,
                     );
                 }
 
@@ -1674,7 +2151,9 @@ const Products = () => {
                     (!Number.isFinite(minimumPrice) || minimumPrice < 0)
                 ) {
                     throw new Error(
-                        `${PRICE_BOOK_LABELS[code]} Minimum Price must be zero or greater.`,
+                        `${
+                            PRICE_BOOK_LABELS[code]
+                        } Minimum Price must be zero or greater.`,
                     );
                 }
 
@@ -1683,7 +2162,9 @@ const Products = () => {
                     minimumPrice > unitPrice
                 ) {
                     throw new Error(
-                        `${PRICE_BOOK_LABELS[code]} Minimum Price cannot exceed Selling Price.`,
+                        `${
+                            PRICE_BOOK_LABELS[code]
+                        } Minimum Price cannot exceed Selling Price.`,
                     );
                 }
 
@@ -1701,8 +2182,7 @@ const Products = () => {
                 matrix: priceMatrix,
             });
 
-            const pricingChanged =
-                !editingProduct ||
+            const pricingChanged = !editingProduct ||
                 initialPricingSnapshotRef.current !== currentPricingSnapshot;
 
             for (const attribute of effectiveAttributes) {
@@ -1728,9 +2208,9 @@ const Products = () => {
                 description: description.trim() || null,
                 search_keywords: searchKeywords.trim() || null,
                 base_uom_code: baseUom,
-                default_purchase_uom_code: baseUom,
-                default_request_uom_code: baseUom,
-                default_sales_uom_code: baseUom,
+                default_purchase_uom_code: defaultPurchaseUom,
+                default_request_uom_code: defaultRequestUom,
+                default_sales_uom_code: defaultSalesUom,
                 default_waste_percent: waste,
                 uses_coverage: usesCoverage,
                 is_stock_item: !serviceItem,
@@ -1764,17 +2244,21 @@ const Products = () => {
 
             const rpcArguments = {
                 p_product: productPayload as Json,
-                p_uom_conversions: buildProductUnitsPayload() as Json,
+                p_product_units: buildProductUnitsPayload() as Json,
                 p_coverages: buildCoveragePayload() as Json,
                 p_attributes: buildAttributePayload() as Json,
             };
 
             let productId = editingProduct?.product_id ?? null;
             let productCreatedDuringThisSave = false;
+            let postCanonicalStage:
+                | "flooring"
+                | "flooring-refresh"
+                | "pricing" = flooringRpcArguments ? "flooring" : "pricing";
 
             if (editingProduct) {
-                const { error } = await supabase.rpc(
-                    "update_product_atomic",
+                const { error } = await db.rpc(
+                    "update_product_with_units_atomic",
                     {
                         p_product_id: editingProduct.product_id,
                         ...rpcArguments,
@@ -1782,8 +2266,8 @@ const Products = () => {
                 );
                 if (error) throw error;
             } else {
-                const { data, error } = await supabase.rpc(
-                    "create_product_atomic",
+                const { data, error } = await db.rpc(
+                    "create_product_with_units_atomic",
                     rpcArguments,
                 );
                 if (error) throw error;
@@ -1800,10 +2284,71 @@ const Products = () => {
             }
 
             if (!productId) {
-                throw new Error("Product ID is required before saving Pricing.");
+                throw new Error(
+                    "Product ID is required before saving Pricing.",
+                );
             }
 
             try {
+                if (flooringRpcArguments) {
+                    const { error: flooringError } = await db.rpc(
+                        "save_product_flooring_spec",
+                        {
+                            p_product_id: productId,
+                            ...flooringRpcArguments,
+                        },
+                    );
+
+                    if (flooringError) throw flooringError;
+                    postCanonicalStage = "flooring-refresh";
+
+                    // Refresh canonical units after backend derivation. The UI never
+                    // calculates sqm/plank or sqm/box itself.
+                    const { data: syncedUnits, error: syncedUnitsError } =
+                        await db
+                            .from("product_units")
+                            .select(
+                                "product_unit_id,uom_code,conversion_to_base,is_base_unit,is_purchase_unit,is_request_unit,is_sales_unit,is_stock_unit,allow_fractional_quantity,sort_order,barcode,coverage_basis_quantity,coverage_quantity,coverage_uom_code,coverage_notes,is_active",
+                            )
+                            .eq("product_id", productId)
+                            .eq("is_deleted", false)
+                            .eq("is_active", true)
+                            .order("sort_order", { ascending: false });
+
+                    if (syncedUnitsError) throw syncedUnitsError;
+
+                    setProductUnits(
+                        (syncedUnits ?? []).map((unit: ProductUnitRow) => ({
+                            id: unit.product_unit_id,
+                            uomCode: unit.uom_code,
+                            conversionToBase: String(unit.conversion_to_base),
+                            isBaseUnit: Boolean(unit.is_base_unit),
+                            isPurchaseUnit: Boolean(unit.is_purchase_unit),
+                            isRequestUnit: Boolean(unit.is_request_unit),
+                            isSalesUnit: Boolean(unit.is_sales_unit),
+                            isStockUnit: Boolean(unit.is_stock_unit),
+                            allowFractionalQuantity: Boolean(
+                                unit.allow_fractional_quantity,
+                            ),
+                            barcode: unit.barcode ?? "",
+                            coverageBasisQuantity:
+                                unit.coverage_basis_quantity === null
+                                    ? null
+                                    : Number(unit.coverage_basis_quantity),
+                            coverageQuantity: unit.coverage_quantity === null
+                                ? null
+                                : Number(unit.coverage_quantity),
+                            coverageUomCode: unit.coverage_uom_code ?? null,
+                            coverageNotes: unit.coverage_notes ?? null,
+                        })),
+                    );
+
+                    setBaseUom("sqm");
+                    setDefaultPurchaseUom("box");
+                    setDefaultRequestUom("box");
+                    postCanonicalStage = "pricing";
+                }
+
                 /*
                  * Preserve commercial history:
                  * - New Product: Pricing must be written.
@@ -1836,15 +2381,14 @@ const Products = () => {
 
                     if (matrixError) throw matrixError;
 
-                    initialPricingSnapshotRef.current =
-                        currentPricingSnapshot;
+                    initialPricingSnapshotRef.current = currentPricingSnapshot;
                 }
             } catch (pricingError) {
                 /*
-                 * Base Product create/update is already atomic in its own RPC.
-                 * If a newly created Product reaches this point, switch the
-                 * open form into Edit mode so retrying Pricing never attempts
-                 * to create the same immutable Product Code a second time.
+                 * Product canonical save, Flooring Spec save and Pricing save are
+                 * separate RPC boundaries. If a newly created Product reaches
+                 * this point, switch the open form into Edit mode so retrying
+                 * never attempts to create the same immutable Product Code twice.
                  */
                 if (productCreatedDuringThisSave) {
                     const { data: createdRow } = await db
@@ -1873,7 +2417,8 @@ const Products = () => {
                   is_active,
                   product_categories (
                     category_code,
-                    category_name
+                    category_name,
+                    product_specification_type
                   )
                 `,
                         )
@@ -1886,7 +2431,25 @@ const Products = () => {
                     }
                 }
 
-                throw pricingError;
+                const errorMessage = pricingError instanceof Error
+                    ? pricingError.message
+                    : String(pricingError);
+
+                if (postCanonicalStage === "flooring") {
+                    throw new Error(
+                        `The Product core was saved, but Physical Flooring Specification could not be saved. The Product remains available for a safe retry in Edit mode. ${errorMessage}`,
+                    );
+                }
+
+                if (postCanonicalStage === "flooring-refresh") {
+                    throw new Error(
+                        `The Product and Physical Flooring Specification were saved, but the synced Flooring Units could not be reloaded before Pricing. Reopen Edit Product before retrying Pricing. ${errorMessage}`,
+                    );
+                }
+
+                throw new Error(
+                    `The Product data before Pricing was saved, but Commercial Pricing could not be completed. The Product remains available for a safe retry in Edit mode. ${errorMessage}`,
+                );
             }
         },
         onSuccess: () => {
@@ -2211,20 +2774,21 @@ const Products = () => {
     const coverageQuantityNumber = Number(
         coverageForm.coverageQuantity || 0,
     );
-    const coverageExpectedBaseQuantity =
-        coverageSourceProductUnit &&
-            Number.isFinite(Number(coverageSourceProductUnit.conversionToBase)) &&
+    const coverageExpectedBaseQuantity = coverageSourceProductUnit &&
+            Number.isFinite(
+                Number(coverageSourceProductUnit.conversionToBase),
+            ) &&
             coverageSourceQuantityNumber > 0
-            ? coverageSourceQuantityNumber *
-                Number(coverageSourceProductUnit.conversionToBase)
-            : null;
-    const coverageDuplicatesUnitConversion =
-        Boolean(baseUom) &&
+        ? coverageSourceQuantityNumber *
+            Number(coverageSourceProductUnit.conversionToBase)
+        : null;
+    const coverageDuplicatesUnitConversion = Boolean(baseUom) &&
         coverageForm.coverageUom === baseUom &&
         coverageExpectedBaseQuantity !== null &&
         Number.isFinite(coverageQuantityNumber) &&
         coverageQuantityNumber > 0 &&
-        Math.abs(coverageExpectedBaseQuantity - coverageQuantityNumber) < 0.000001;
+        Math.abs(coverageExpectedBaseQuantity - coverageQuantityNumber) <
+            0.000001;
 
     return (
         <div className="space-y-6 p-4 sm:p-6">
@@ -2545,7 +3109,7 @@ const Products = () => {
                     </article>
                 ))}
             </section>
-<Dialog
+            <Dialog
                 open={showForm}
                 onOpenChange={(open) => {
                     setShowForm(open);
@@ -2576,57 +3140,71 @@ const Products = () => {
                                         : "Select the controlled values that form the permanent Product Code."}
                                 </p>
 
-                                {editingProduct ? (
-        <div className="mt-4 space-y-4">
-            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-red-700">
-                    Product Code
-                </p>
-                <p className="mt-2 break-all font-mono text-lg font-black text-slate-900">
-                    {productCode}
-                </p>
-            </div>
+                                {editingProduct
+                                    ? (
+                                        <div className="mt-4 space-y-4">
+                                            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                                                <p className="text-xs font-bold uppercase tracking-wide text-red-700">
+                                                    Product Code
+                                                </p>
+                                                <p className="mt-2 break-all font-mono text-lg font-black text-slate-900">
+                                                    {productCode}
+                                                </p>
+                                            </div>
 
-            <p className="text-xs text-amber-700">
-                Product Code identity is immutable after Product creation.
-            </p>
-        </div>
-    ) : (
-        <div className="mt-4">
-            <ProductIdentityStep
-                value={productIdentityForm}
-                onChange={setProductIdentityForm}
-                onNameSuggestionChange={setLiveIdentityNameSuggestion}
-                onValidationChange={(state) => {
-                    setProductIdentityValidation(state);
-                    setProductCodeIdentity(state.identity);
-                    setProductCode(
-                        state.preview?.product_code_preview ?? "",
-                    );
-                }}
-                onManage={() => openMasterData("product-code")}
-                disabled={saveProduct.isPending}
-            />
-        </div>
-    )}
+                                            <p className="text-xs text-amber-700">
+                                                Product Code identity is
+                                                immutable after Product
+                                                creation.
+                                            </p>
+                                        </div>
+                                    )
+                                    : (
+                                        <div className="mt-4">
+                                            <ProductIdentityStep
+                                                value={productIdentityForm}
+                                                onChange={setProductIdentityForm}
+                                                onNameSuggestionChange={setLiveIdentityNameSuggestion}
+                                                onValidationChange={(state) => {
+                                                    setProductIdentityValidation(
+                                                        state,
+                                                    );
+                                                    setProductCodeIdentity(
+                                                        state.identity,
+                                                    );
+                                                    setProductCode(
+                                                        state.preview
+                                                            ?.product_code_preview ??
+                                                            "",
+                                                    );
+                                                }}
+                                                onManage={() =>
+                                                    openMasterData(
+                                                        "product-code",
+                                                    )}
+                                                disabled={saveProduct.isPending}
+                                            />
+                                        </div>
+                                    )}
                             </div>
 
                             <div className="mt-4 grid gap-4 md:grid-cols-2">
-                                {editingProduct ? (
-                                    <div className="space-y-2">
-                                        <Label>Product Code</Label>
-                                        <Input
-                                            value={productCode}
-                                            readOnly
-                                            className="cursor-not-allowed bg-slate-100 font-mono"
-                                        />
-                                        <p className="text-xs text-slate-500">
-                                            Product Code is permanent and cannot be changed.
-                                        </p>
-                                    </div>
-                                ) : null}
-
-
+                                {editingProduct
+                                    ? (
+                                        <div className="space-y-2">
+                                            <Label>Product Code</Label>
+                                            <Input
+                                                value={productCode}
+                                                readOnly
+                                                className="cursor-not-allowed bg-slate-100 font-mono"
+                                            />
+                                            <p className="text-xs text-slate-500">
+                                                Product Code is permanent and
+                                                cannot be changed.
+                                            </p>
+                                        </div>
+                                    )
+                                    : null}
 
                                 <div className="space-y-2">
                                     <Label>Product Category *</Label>
@@ -2850,7 +3428,11 @@ const Products = () => {
                                     />
                                 </div>
 
-                                <div className={`space-y-2 ${editingProduct ? "" : "md:col-span-2"}`}>
+                                <div
+                                    className={`space-y-2 ${
+                                        editingProduct ? "" : "md:col-span-2"
+                                    }`}
+                                >
                                     <Label>Product Name *</Label>
                                     <Input
                                         className={FIELD_CLASS}
@@ -2861,24 +3443,34 @@ const Products = () => {
                                         }}
                                         placeholder="Enter the product name used throughout REDS"
                                     />
-                                    {!editingProduct && suggestedProductName ? (
-                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                            <p className="text-xs text-slate-500">
-                                                Suggested from Product Code identity: <span className="font-semibold text-slate-900">{suggestedProductName}</span>
-                                            </p>
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => {
-                                                    setProductName(suggestedProductName);
-                                                    setLastSuggestedName(suggestedProductName);
-                                                }}
-                                            >
-                                                Regenerate Name
-                                            </Button>
-                                        </div>
-                                    ) : null}
+                                    {!editingProduct && suggestedProductName
+                                        ? (
+                                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                                <p className="text-xs text-slate-500">
+                                                    Suggested from Product Code
+                                                    identity:{" "}
+                                                    <span className="font-semibold text-slate-900">
+                                                        {suggestedProductName}
+                                                    </span>
+                                                </p>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        setProductName(
+                                                            suggestedProductName,
+                                                        );
+                                                        setLastSuggestedName(
+                                                            suggestedProductName,
+                                                        );
+                                                    }}
+                                                >
+                                                    Regenerate Name
+                                                </Button>
+                                            </div>
+                                        )
+                                        : null}
                                 </div>
 
                                 <div className="space-y-2 md:col-span-2">
@@ -2893,15 +3485,377 @@ const Products = () => {
                                     />
                                 </div>
                             </div>
-
                         </section>
+
+                        {isFlooringProduct
+                            ? (
+                                <section className="rounded-2xl border border-[#E5E7EB] bg-[#FCFAFA] p-4">
+                                    <SectionHeading
+                                        number={2}
+                                        title="Physical Flooring Specification"
+                                        helper="Enter actual manufacturer/product physical data. REDS derives sqm per plank and sqm per box on the backend; no fixture dimension is used as a default."
+                                    />
+
+                                    <div className="mt-4 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A8A]">
+                                        <p className="font-bold">
+                                            Backend-derived Flooring UOM
+                                        </p>
+                                        <p className="mt-1">
+                                            Base Measurement = sqm. Box and
+                                            plank conversion factors are
+                                            synchronized by
+                                            save_product_flooring_spec().
+                                        </p>
+                                    </div>
+
+                                    <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                        <div className="space-y-2">
+                                            <Label>Dimension Type *</Label>
+                                            <Select
+                                                value={flooringSpec
+                                                    .dimensionType}
+                                                onValueChange={(value) =>
+                                                    setFlooringSpec((
+                                                        current,
+                                                    ) => ({
+                                                        ...current,
+                                                        dimensionType:
+                                                            value as FlooringDimensionType,
+                                                        coverageMethod:
+                                                            value ===
+                                                                    "Fixed Size"
+                                                                ? current
+                                                                    .coverageMethod
+                                                                : "Manufacturer Declared",
+                                                        plankLengthMm:
+                                                            value ===
+                                                                    "Fixed Size"
+                                                                ? current
+                                                                    .plankLengthMm
+                                                                : "",
+                                                    }))}
+                                            >
+                                                <SelectTrigger
+                                                    className={FIELD_CLASS}
+                                                >
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="Fixed Size">
+                                                        Fixed Size
+                                                    </SelectItem>
+                                                    <SelectItem value="Random Length">
+                                                        Random Length
+                                                    </SelectItem>
+                                                    <SelectItem value="Mixed Sizes">
+                                                        Mixed Sizes
+                                                    </SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label>Coverage Method *</Label>
+                                            <Select
+                                                value={flooringSpec
+                                                    .coverageMethod}
+                                                onValueChange={(value) =>
+                                                    setFlooringSpec((
+                                                        current,
+                                                    ) => ({
+                                                        ...current,
+                                                        coverageMethod:
+                                                            value as FlooringCoverageMethod,
+                                                    }))}
+                                            >
+                                                <SelectTrigger
+                                                    className={FIELD_CLASS}
+                                                >
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="Manufacturer Declared">
+                                                        Manufacturer Declared
+                                                    </SelectItem>
+                                                    {flooringSpec
+                                                            .dimensionType ===
+                                                            "Fixed Size"
+                                                        ? (
+                                                            <SelectItem value="Calculated from Dimensions">
+                                                                Calculated from
+                                                                Dimensions
+                                                            </SelectItem>
+                                                        )
+                                                        : null}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label>Planks per Box *</Label>
+                                            <Input
+                                                className={FIELD_CLASS}
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                value={flooringSpec
+                                                    .planksPerBox}
+                                                onChange={(event) =>
+                                                    setFlooringSpec((
+                                                        current,
+                                                    ) => ({
+                                                        ...current,
+                                                        planksPerBox:
+                                                            event.target.value,
+                                                    }))}
+                                                placeholder="Enter manufacturer pack quantity"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label>Plank Width (mm) *</Label>
+                                            <Input
+                                                className={FIELD_CLASS}
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                value={flooringSpec
+                                                    .plankWidthMm}
+                                                onChange={(event) =>
+                                                    setFlooringSpec((
+                                                        current,
+                                                    ) => ({
+                                                        ...current,
+                                                        plankWidthMm:
+                                                            event.target.value,
+                                                    }))}
+                                                placeholder="Width in mm"
+                                            />
+                                        </div>
+
+                                        {flooringSpec.dimensionType ===
+                                                "Fixed Size"
+                                            ? (
+                                                <div className="space-y-2">
+                                                    <Label>
+                                                        Plank Length (mm) *
+                                                    </Label>
+                                                    <Input
+                                                        className={FIELD_CLASS}
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        value={flooringSpec
+                                                            .plankLengthMm}
+                                                        onChange={(event) =>
+                                                            setFlooringSpec((
+                                                                current,
+                                                            ) => ({
+                                                                ...current,
+                                                                plankLengthMm:
+                                                                    event.target
+                                                                        .value,
+                                                            }))}
+                                                        placeholder="Length in mm"
+                                                    />
+                                                </div>
+                                            )
+                                            : (
+                                                <>
+                                                    <div className="space-y-2">
+                                                        <Label>
+                                                            Minimum Length (mm)
+                                                            *
+                                                        </Label>
+                                                        <Input
+                                                            className={FIELD_CLASS}
+                                                            type="number"
+                                                            min="0"
+                                                            step="0.01"
+                                                            value={flooringSpec
+                                                                .minimumLengthMm}
+                                                            onChange={(event) =>
+                                                                setFlooringSpec(
+                                                                    (
+                                                                        current,
+                                                                    ) => ({
+                                                                        ...current,
+                                                                        minimumLengthMm:
+                                                                            event
+                                                                                .target
+                                                                                .value,
+                                                                    })
+                                                                )}
+                                                            placeholder="Minimum length"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label>
+                                                            Maximum Length (mm)
+                                                            *
+                                                        </Label>
+                                                        <Input
+                                                            className={FIELD_CLASS}
+                                                            type="number"
+                                                            min="0"
+                                                            step="0.01"
+                                                            value={flooringSpec
+                                                                .maximumLengthMm}
+                                                            onChange={(event) =>
+                                                                setFlooringSpec(
+                                                                    (
+                                                                        current,
+                                                                    ) => ({
+                                                                        ...current,
+                                                                        maximumLengthMm:
+                                                                            event
+                                                                                .target
+                                                                                .value,
+                                                                    })
+                                                                )}
+                                                            placeholder="Maximum length"
+                                                        />
+                                                    </div>
+                                                </>
+                                            )}
+
+                                        <div className="space-y-2">
+                                            <Label>Plank Thickness (mm)</Label>
+                                            <Input
+                                                className={FIELD_CLASS}
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                value={flooringSpec
+                                                    .plankThicknessMm}
+                                                onChange={(event) =>
+                                                    setFlooringSpec((
+                                                        current,
+                                                    ) => ({
+                                                        ...current,
+                                                        plankThicknessMm:
+                                                            event.target.value,
+                                                    }))}
+                                                placeholder="Optional"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label>
+                                                Manufacturer Declared sqm per
+                                                Box{flooringSpec
+                                                                .coverageMethod ===
+                                                            "Manufacturer Declared" ||
+                                                        flooringSpec
+                                                                .dimensionType !==
+                                                            "Fixed Size"
+                                                    ? " *"
+                                                    : ""}
+                                            </Label>
+                                            <Input
+                                                className={FIELD_CLASS}
+                                                type="number"
+                                                min="0"
+                                                step="0.000001"
+                                                value={flooringSpec
+                                                    .declaredSqmPerBox}
+                                                onChange={(event) =>
+                                                    setFlooringSpec((
+                                                        current,
+                                                    ) => ({
+                                                        ...current,
+                                                        declaredSqmPerBox:
+                                                            event.target.value,
+                                                    }))}
+                                                placeholder="Use the manufacturer's declared coverage"
+                                            />
+                                            <p className="text-xs text-slate-500">
+                                                This is source data, not a
+                                                manually calculated
+                                                Factor-to-Base.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-5 border-t border-[#E5E7EB] pt-4">
+                                        <p className="text-sm font-bold text-slate-900">
+                                            Manufacturer Reference
+                                        </p>
+                                        <div className="mt-3 grid gap-4 md:grid-cols-2">
+                                            <div className="space-y-2">
+                                                <Label>Manufacturer Name</Label>
+                                                <Input
+                                                    className={FIELD_CLASS}
+                                                    value={flooringSpec
+                                                        .manufacturerName}
+                                                    onChange={(event) =>
+                                                        setFlooringSpec((
+                                                            current,
+                                                        ) => ({
+                                                            ...current,
+                                                            manufacturerName:
+                                                                event.target
+                                                                    .value,
+                                                        }))}
+                                                    placeholder="Optional"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>
+                                                    Manufacturer Product Code
+                                                </Label>
+                                                <Input
+                                                    className={FIELD_CLASS}
+                                                    value={flooringSpec
+                                                        .manufacturerProductCode}
+                                                    onChange={(event) =>
+                                                        setFlooringSpec((
+                                                            current,
+                                                        ) => ({
+                                                            ...current,
+                                                            manufacturerProductCode:
+                                                                event.target
+                                                                    .value,
+                                                        }))}
+                                                    placeholder="Optional"
+                                                />
+                                            </div>
+                                            <div className="space-y-2 md:col-span-2">
+                                                <Label>
+                                                    Manufacturer Notes
+                                                </Label>
+                                                <textarea
+                                                    className={TEXTAREA_CLASS}
+                                                    value={flooringSpec
+                                                        .manufacturerNotes}
+                                                    onChange={(event) =>
+                                                        setFlooringSpec((
+                                                            current,
+                                                        ) => ({
+                                                            ...current,
+                                                            manufacturerNotes:
+                                                                event.target
+                                                                    .value,
+                                                        }))}
+                                                    placeholder="Optional packaging, profile or manufacturer notes"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+                            )
+                            : null}
 
                         <section className="rounded-2xl border border-[#E5E7EB] bg-[#FCFAFA] p-4">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                 <SectionHeading
-                                    number={2}
-                                    title="Units & Packaging"
-                                    helper="Choose the Base Measurement Unit first, then add up to 6 packaging levels. Every conversion is entered as 1 selected Unit = X Base Measurement Units."
+                                    number={isFlooringProduct ? 3 : 2}
+                                    title={isFlooringProduct
+                                        ? "Flooring Units & Packaging"
+                                        : "Units & Packaging"}
+                                    helper={isFlooringProduct
+                                        ? "Flooring Base sqm plus plank/box factors are backend-derived and locked. Other packaging, such as pallet, can still be configured with its own Factor-to-Base."
+                                        : "Choose the Base Measurement Unit first, then add up to 6 packaging levels. Every conversion is entered as 1 selected Unit = X Base Measurement Units."}
                                 />
                                 <Button
                                     type="button"
@@ -2920,16 +3874,25 @@ const Products = () => {
 
                             <div className="mt-4 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A8A]">
                                 <p className="font-bold">
-                                    Conversion rule
+                                    {isFlooringProduct
+                                        ? "Flooring conversion rule"
+                                        : "Conversion rule"}
                                 </p>
                                 <p className="mt-1">
-                                    Base Measurement Unit is the common reference used for quantity conversion and reporting.
-                                    Enter each supported Unit as:
-                                    {" "}
-                                    <span className="font-bold">
-                                        1 Unit = X Base Unit
-                                    </span>.
-                                    Do not enter the reverse relationship.
+                                    {isFlooringProduct
+                                        ? "Flooring Base Measurement is sqm. Box/plank conversion factors shown below come from the backend flooring specification sync."
+                                        : "Base Measurement Unit is the common reference used for quantity conversion and reporting. Enter each supported Unit as:"}
+                                    {!isFlooringProduct
+                                        ? (
+                                            <>
+                                                {" "}
+                                                <span className="font-bold">
+                                                    1 Unit = X Base Unit
+                                                </span>. Do not enter the
+                                                reverse relationship.
+                                            </>
+                                        )
+                                        : null}
                                 </p>
                             </div>
 
@@ -2961,11 +3924,13 @@ const Products = () => {
                                                 : "Select Base Measurement Unit"}
                                             searchPlaceholder="Search UOM code, name or category..."
                                             emptyText="No active Units of Measure configured."
+                                            disabled={isFlooringProduct}
                                         />
                                     </div>
                                     <p className="mt-2 text-xs text-slate-500">
-                                        The common physical measurement used as the conversion anchor.
-                                        It does not have to be the Purchase or Sales UOM.
+                                        The common physical measurement used as
+                                        the conversion anchor. It does not have
+                                        to be the Purchase or Sales UOM.
                                     </p>
                                 </div>
 
@@ -2983,7 +3948,8 @@ const Products = () => {
                                         </span>
                                     </p>
                                     <p className="text-xs text-slate-500">
-                                        Optional levels, largest packaging first.
+                                        Optional levels, largest packaging
+                                        first.
                                     </p>
                                 </div>
 
@@ -3002,8 +3968,10 @@ const Products = () => {
                                             "Select a Base Measurement Unit to begin"}
                                     </p>
                                     <p className="mt-1 text-xs text-slate-500">
-                                        Packaging Level 1 is the largest configured package.
-                                        Base Measurement Unit always remains the conversion anchor.
+                                        Packaging Level 1 is the largest
+                                        configured package. Base Measurement
+                                        Unit always remains the conversion
+                                        anchor.
                                     </p>
                                 </div>
                             </div>
@@ -3012,10 +3980,13 @@ const Products = () => {
                                 ? (
                                     <div className="mt-4 rounded-xl border border-dashed border-[#D8B4B4] bg-[#FFF8F8] p-5 text-center">
                                         <p className="font-semibold text-slate-900">
-                                            Select the Base Measurement Unit first
+                                            Select the Base Measurement Unit
+                                            first
                                         </p>
                                         <p className="mt-1 text-sm text-slate-500">
-                                            The system will create and lock the Base Measurement Unit row automatically at a conversion of 1.
+                                            The system will create and lock the
+                                            Base Measurement Unit row
+                                            automatically at a conversion of 1.
                                         </p>
                                     </div>
                                 )
@@ -3035,21 +4006,24 @@ const Products = () => {
 
                                             <div className="divide-y divide-[#E5E7EB]">
                                                 {productUnits.map((unit) => {
-                                                    const selectedMasterUnit = units
-                                                        .find(
-                                                            (item) =>
-                                                                item.uom_code ===
-                                                                    unit.uomCode,
-                                                        );
+                                                    const selectedMasterUnit =
+                                                        units
+                                                            .find(
+                                                                (item) =>
+                                                                    item.uom_code ===
+                                                                        unit.uomCode,
+                                                            );
                                                     const nonBaseUnits =
                                                         productUnits.filter(
                                                             (item) =>
-                                                                !item.isBaseUnit,
+                                                                !item
+                                                                    .isBaseUnit,
                                                         );
                                                     const nonBaseIndex =
                                                         nonBaseUnits.findIndex(
                                                             (item) =>
-                                                                item.id === unit.id,
+                                                                item.id ===
+                                                                    unit.id,
                                                         );
                                                     const canMoveUp =
                                                         !unit.isBaseUnit &&
@@ -3058,7 +4032,8 @@ const Products = () => {
                                                         !unit.isBaseUnit &&
                                                         nonBaseIndex >= 0 &&
                                                         nonBaseIndex <
-                                                            nonBaseUnits.length - 1;
+                                                            nonBaseUnits
+                                                                    .length - 1;
 
                                                     return (
                                                         <div
@@ -3069,12 +4044,17 @@ const Products = () => {
                                                                 {unit.isBaseUnit
                                                                     ? (
                                                                         <span className="rounded-lg bg-[#DCFCE7] px-2.5 py-2 text-xs font-bold text-[#166534]">
-                                                                            Base Measurement
+                                                                            Base
+                                                                            Measurement
                                                                         </span>
                                                                     )
                                                                     : (
                                                                         <span className="rounded-lg bg-slate-100 px-2.5 py-2 text-xs font-bold text-slate-800">
-                                                                            Packaging Level {nonBaseIndex + 1}
+                                                                            Packaging
+                                                                            Level
+                                                                            {" "}
+                                                                            {nonBaseIndex +
+                                                                                1}
                                                                         </span>
                                                                     )}
                                                             </div>
@@ -3087,125 +4067,221 @@ const Products = () => {
                                                                     ? (
                                                                         <div className="rounded-xl border border-[#BBF7D0] bg-[#F0FDF4] px-3 py-2.5">
                                                                             <p className="font-semibold text-slate-900">
-                                                                                {unit.uomCode}
+                                                                                {unit
+                                                                                    .uomCode}
                                                                                 {" — "}
-                                                                                {selectedMasterUnit?.uom_name ??
+                                                                                {selectedMasterUnit
+                                                                                    ?.uom_name ??
                                                                                     "Base Measurement Unit"}
                                                                             </p>
                                                                             <p className="mt-0.5 text-xs text-[#166534]">
-                                                                                Conversion anchor · locked
+                                                                                Conversion
+                                                                                anchor
+                                                                                ·
+                                                                                locked
                                                                             </p>
                                                                         </div>
                                                                     )
                                                                     : (
                                                                         <SearchablePicker
-                                                                            value={unit.uomCode}
-                                                                            onChange={(value) =>
-                                                                                setProductUnits(
-                                                                                    (current) =>
-                                                                                        current.map(
-                                                                                            (item) =>
-                                                                                                item.id === unit.id
-                                                                                                    ? {
-                                                                                                        ...item,
-                                                                                                        uomCode: value,
-                                                                                                    }
-                                                                                                    : item,
-                                                                                        ),
-                                                                                )}
-                                                                            options={uomOptions.filter(
-                                                                                (option) => {
-                                                                                    const masterUnit =
-                                                                                        units.find(
-                                                                                            (item) =>
-                                                                                                item.uom_code ===
-                                                                                                    option.value,
-                                                                                        );
-                                                                                    const usedElsewhere =
-                                                                                        productUnits.some(
-                                                                                            (item) =>
-                                                                                                item.id !== unit.id &&
-                                                                                                item.uomCode ===
-                                                                                                    option.value,
-                                                                                        );
-                                                                                    return (
-                                                                                        Boolean(
-                                                                                            masterUnit?.is_active,
-                                                                                        ) &&
-                                                                                        option.value !== baseUom &&
-                                                                                        !usedElsewhere
-                                                                                    );
-                                                                                },
+                                                                            value={unit
+                                                                                .uomCode}
+                                                                            onChange={(
+                                                                                value,
+                                                                            ) => setProductUnits(
+                                                                                (
+                                                                                    current,
+                                                                                ) => current
+                                                                                    .map(
+                                                                                        (
+                                                                                            item,
+                                                                                        ) => item
+                                                                                                .id ===
+                                                                                                unit.id
+                                                                                            ? {
+                                                                                                ...item,
+                                                                                                uomCode:
+                                                                                                    value,
+                                                                                            }
+                                                                                            : item,
+                                                                                    ),
                                                                             )}
+                                                                            options={uomOptions
+                                                                                .filter(
+                                                                                    (
+                                                                                        option,
+                                                                                    ) => {
+                                                                                        const masterUnit =
+                                                                                            units
+                                                                                                .find(
+                                                                                                    (
+                                                                                                        item,
+                                                                                                    ) => item
+                                                                                                        .uom_code ===
+                                                                                                        option
+                                                                                                            .value,
+                                                                                                );
+                                                                                        const usedElsewhere =
+                                                                                            productUnits
+                                                                                                .some(
+                                                                                                    (
+                                                                                                        item,
+                                                                                                    ) => item
+                                                                                                                .id !==
+                                                                                                            unit.id &&
+                                                                                                        item.uomCode ===
+                                                                                                            option
+                                                                                                                .value,
+                                                                                                );
+                                                                                        return (
+                                                                                            Boolean(
+                                                                                                masterUnit
+                                                                                                    ?.is_active,
+                                                                                            ) &&
+                                                                                            option
+                                                                                                    .value !==
+                                                                                                baseUom &&
+                                                                                            !(
+                                                                                                isFlooringProduct &&
+                                                                                                FLOORING_DERIVED_UOMS
+                                                                                                    .has(
+                                                                                                        option
+                                                                                                            .value,
+                                                                                                    ) &&
+                                                                                                option
+                                                                                                        .value !==
+                                                                                                    unit.uomCode
+                                                                                            ) &&
+                                                                                            !usedElsewhere
+                                                                                        );
+                                                                                    },
+                                                                                )}
                                                                             placeholder="Select packaging UOM"
                                                                             searchPlaceholder="Search UOM code, name or category..."
                                                                             emptyText="No available Units of Measure found."
+                                                                            disabled={isFlooringProduct &&
+                                                                                FLOORING_DERIVED_UOMS
+                                                                                    .has(
+                                                                                        unit.uomCode,
+                                                                                    )}
                                                                         />
                                                                     )}
                                                             </div>
 
                                                             <div className="space-y-2">
                                                                 <Label className="lg:hidden">
-                                                                    Conversion to Base Measurement Unit
+                                                                    Conversion
+                                                                    to Base
+                                                                    Measurement
+                                                                    Unit
                                                                 </Label>
                                                                 <div className="flex min-w-0 items-center gap-2">
                                                                     <span className="shrink-0 text-sm font-semibold text-slate-700">
-                                                                        1 {unit.uomCode || "unit"} =
+                                                                        1{" "}
+                                                                        {unit
+                                                                            .uomCode ||
+                                                                            "unit"}
+                                                                        {" "}
+                                                                        =
                                                                     </span>
                                                                     <Input
-                                                                        className={unit.isBaseUnit
-                                                                            ? "h-11 min-w-0 cursor-not-allowed rounded-xl border-[#BBF7D0] bg-[#F0FDF4] font-semibold text-[#166534]"
+                                                                        className={unit
+                                                                                .isBaseUnit ||
+                                                                                (isFlooringProduct &&
+                                                                                    FLOORING_DERIVED_UOMS
+                                                                                        .has(
+                                                                                            unit.uomCode,
+                                                                                        ))
+                                                                            ? "h-11 min-w-0 cursor-not-allowed rounded-xl border-[#E5E7EB] bg-[#F1F5F9] font-semibold text-slate-600"
                                                                             : `${FIELD_CLASS} min-w-0`}
                                                                         type="number"
                                                                         min="0"
                                                                         step="0.000001"
-                                                                        value={unit.conversionToBase}
-                                                                        readOnly={unit.isBaseUnit}
-                                                                        onChange={(event) =>
-                                                                            setProductUnits(
-                                                                                (current) =>
-                                                                                    current.map(
-                                                                                        (item) =>
-                                                                                            item.id === unit.id
-                                                                                                ? {
-                                                                                                    ...item,
-                                                                                                    conversionToBase:
-                                                                                                        event.target.value,
-                                                                                                }
-                                                                                                : item,
-                                                                                    ),
-                                                                            )}
+                                                                        value={unit
+                                                                            .conversionToBase}
+                                                                        readOnly={unit
+                                                                            .isBaseUnit ||
+                                                                            (isFlooringProduct &&
+                                                                                FLOORING_DERIVED_UOMS
+                                                                                    .has(
+                                                                                        unit.uomCode,
+                                                                                    ))}
+                                                                        onChange={(
+                                                                            event,
+                                                                        ) => setProductUnits(
+                                                                            (
+                                                                                current,
+                                                                            ) => current
+                                                                                .map(
+                                                                                    (
+                                                                                        item,
+                                                                                    ) => item
+                                                                                            .id ===
+                                                                                            unit.id
+                                                                                        ? {
+                                                                                            ...item,
+                                                                                            conversionToBase:
+                                                                                                event
+                                                                                                    .target
+                                                                                                    .value,
+                                                                                        }
+                                                                                        : item,
+                                                                                ),
+                                                                        )}
                                                                         placeholder="Example: 2.2"
                                                                     />
                                                                     <span className="shrink-0 text-sm font-semibold text-slate-700">
                                                                         {baseUom}
                                                                     </span>
                                                                 </div>
-                                                                {!unit.isBaseUnit && (
-                                                                    <p className="text-xs text-slate-500">
-                                                                        Enter how many {baseUom} are contained in exactly 1 {unit.uomCode || "selected unit"}.
-                                                                    </p>
-                                                                )}
+                                                                {!unit
+                                                                    .isBaseUnit &&
+                                                                    (
+                                                                        <p className="text-xs text-slate-500">
+                                                                            Enter
+                                                                            how
+                                                                            many
+                                                                            {" "}
+                                                                            {baseUom}
+                                                                            {" "}
+                                                                            are
+                                                                            contained
+                                                                            in
+                                                                            exactly
+                                                                            1
+                                                                            {" "}
+                                                                            {unit
+                                                                                .uomCode ||
+                                                                                "selected unit"}.
+                                                                        </p>
+                                                                    )}
                                                             </div>
 
                                                             <div className="space-y-2">
                                                                 <Label className="lg:hidden">
-                                                                    Allow Fractional
+                                                                    Allow
+                                                                    Fractional
                                                                 </Label>
                                                                 <button
                                                                     type="button"
                                                                     onClick={() =>
                                                                         setProductUnits(
-                                                                            (current) =>
-                                                                                current.map(
-                                                                                    (item) =>
-                                                                                        item.id === unit.id
-                                                                                            ? {
-                                                                                                ...item,
-                                                                                                allowFractionalQuantity:
-                                                                                                    !item.allowFractionalQuantity,
-                                                                                            }
-                                                                                            : item,
+                                                                            (
+                                                                                current,
+                                                                            ) => current
+                                                                                .map(
+                                                                                    (
+                                                                                        item,
+                                                                                    ) => item
+                                                                                            .id ===
+                                                                                            unit.id
+                                                                                        ? {
+                                                                                            ...item,
+                                                                                            allowFractionalQuantity:
+                                                                                                !item
+                                                                                                    .allowFractionalQuantity,
+                                                                                        }
+                                                                                        : item,
                                                                                 ),
                                                                         )}
                                                                     className={`h-10 w-full rounded-xl border px-2 text-xs font-bold transition ${
@@ -3214,7 +4290,8 @@ const Products = () => {
                                                                             : "border-[#E5E7EB] bg-white text-slate-500"
                                                                     }`}
                                                                 >
-                                                                    {unit.allowFractionalQuantity
+                                                                    {unit
+                                                                            .allowFractionalQuantity
                                                                         ? "✓ Yes"
                                                                         : "× No"}
                                                                 </button>
@@ -3226,21 +4303,30 @@ const Products = () => {
                                                                 </Label>
                                                                 <Input
                                                                     className={FIELD_CLASS}
-                                                                    value={unit.barcode}
-                                                                    onChange={(event) =>
-                                                                        setProductUnits(
-                                                                            (current) =>
-                                                                                current.map(
-                                                                                    (item) =>
-                                                                                        item.id === unit.id
-                                                                                            ? {
-                                                                                                ...item,
-                                                                                                barcode:
-                                                                                                    event.target.value,
-                                                                                            }
-                                                                                            : item,
-                                                                                ),
-                                                                        )}
+                                                                    value={unit
+                                                                        .barcode}
+                                                                    onChange={(
+                                                                        event,
+                                                                    ) => setProductUnits(
+                                                                        (
+                                                                            current,
+                                                                        ) => current
+                                                                            .map(
+                                                                                (
+                                                                                    item,
+                                                                                ) => item
+                                                                                        .id ===
+                                                                                        unit.id
+                                                                                    ? {
+                                                                                        ...item,
+                                                                                        barcode:
+                                                                                            event
+                                                                                                .target
+                                                                                                .value,
+                                                                                    }
+                                                                                    : item,
+                                                                            ),
+                                                                    )}
                                                                     placeholder="Optional"
                                                                 />
                                                             </div>
@@ -3258,7 +4344,12 @@ const Products = () => {
                                                                                 type="button"
                                                                                 variant="ghost"
                                                                                 size="icon"
-                                                                                disabled={!canMoveUp}
+                                                                                disabled={(isFlooringProduct &&
+                                                                                    FLOORING_DERIVED_UOMS
+                                                                                        .has(
+                                                                                            unit.uomCode,
+                                                                                        )) ||
+                                                                                    !canMoveUp}
                                                                                 onClick={() =>
                                                                                     moveProductUnit(
                                                                                         unit.id,
@@ -3273,7 +4364,12 @@ const Products = () => {
                                                                                 type="button"
                                                                                 variant="ghost"
                                                                                 size="icon"
-                                                                                disabled={!canMoveDown}
+                                                                                disabled={(isFlooringProduct &&
+                                                                                    FLOORING_DERIVED_UOMS
+                                                                                        .has(
+                                                                                            unit.uomCode,
+                                                                                        )) ||
+                                                                                    !canMoveDown}
                                                                                 onClick={() =>
                                                                                     moveProductUnit(
                                                                                         unit.id,
@@ -3288,12 +4384,22 @@ const Products = () => {
                                                                                 type="button"
                                                                                 variant="ghost"
                                                                                 size="icon"
+                                                                                disabled={isFlooringProduct &&
+                                                                                    FLOORING_DERIVED_UOMS
+                                                                                        .has(
+                                                                                            unit.uomCode,
+                                                                                        )}
                                                                                 onClick={() =>
                                                                                     setProductUnits(
-                                                                                        (current) =>
-                                                                                            current.filter(
-                                                                                                (item) =>
-                                                                                                    item.id !== unit.id,
+                                                                                        (
+                                                                                            current,
+                                                                                        ) => current
+                                                                                            .filter(
+                                                                                                (
+                                                                                                    item,
+                                                                                                ) => item
+                                                                                                    .id !==
+                                                                                                    unit.id,
                                                                                             ),
                                                                                     )}
                                                                                 title="Remove packaging unit"
@@ -3311,10 +4417,15 @@ const Products = () => {
 
                                             <div className="flex flex-col gap-2 border-t border-[#BFDBFE] bg-[#EFF6FF] px-3 py-3 text-xs text-[#1E3A8A] sm:flex-row sm:items-center sm:justify-between">
                                                 <span>
-                                                    Base Measurement Unit ({baseUom}) is always 1 {baseUom}.
+                                                    Base Measurement Unit
+                                                    ({baseUom}) is always 1{" "}
+                                                    {baseUom}.
                                                 </span>
                                                 <span className="font-semibold">
-                                                    Up to {MAX_PACKAGING_LEVELS} packaging levels · largest first
+                                                    Up to {MAX_PACKAGING_LEVELS}
+                                                    {" "}
+                                                    packaging levels · largest
+                                                    first
                                                 </span>
                                             </div>
                                         </div>
@@ -3328,66 +4439,100 @@ const Products = () => {
                                                     .filter((unit) =>
                                                         !unit.isBaseUnit &&
                                                         unit.uomCode &&
-                                                        Number(unit.conversionToBase) > 0
+                                                        Number(
+                                                                unit.conversionToBase,
+                                                            ) > 0
                                                     )
-                                                    .map((unit, index, configuredPackagingUnits) => {
-                                                        const currentFactor = Number(
-                                                            unit.conversionToBase,
-                                                        );
-                                                        const nextUnit =
-                                                            configuredPackagingUnits[index + 1];
-                                                        const nextFactor = nextUnit
-                                                            ? Number(
-                                                                nextUnit.conversionToBase,
-                                                            )
-                                                            : 1;
-                                                        const derivedRatio =
-                                                            Number.isFinite(currentFactor) &&
-                                                                Number.isFinite(nextFactor) &&
-                                                                nextFactor > 0
-                                                                ? currentFactor / nextFactor
-                                                                : null;
-                                                        const nextCode =
-                                                            nextUnit?.uomCode ||
-                                                            baseUom;
+                                                    .map(
+                                                        (
+                                                            unit,
+                                                            index,
+                                                            configuredPackagingUnits,
+                                                        ) => {
+                                                            const currentFactor =
+                                                                Number(
+                                                                    unit.conversionToBase,
+                                                                );
+                                                            const nextUnit =
+                                                                configuredPackagingUnits[
+                                                                    index + 1
+                                                                ];
+                                                            const nextFactor =
+                                                                nextUnit
+                                                                    ? Number(
+                                                                        nextUnit
+                                                                            .conversionToBase,
+                                                                    )
+                                                                    : 1;
+                                                            const derivedRatio =
+                                                                Number.isFinite(
+                                                                        currentFactor,
+                                                                    ) &&
+                                                                    Number
+                                                                        .isFinite(
+                                                                            nextFactor,
+                                                                        ) &&
+                                                                    nextFactor >
+                                                                        0
+                                                                    ? currentFactor /
+                                                                        nextFactor
+                                                                    : null;
+                                                            const nextCode =
+                                                                nextUnit
+                                                                    ?.uomCode ||
+                                                                baseUom;
 
-                                                        return (
-                                                            <div
-                                                                key={`summary-${unit.id}`}
-                                                                className="grid gap-1 rounded-lg bg-[#F8FAFC] px-3 py-2 sm:grid-cols-2"
-                                                            >
-                                                                <span className="font-semibold text-slate-900">
-                                                                    1 {unit.uomCode} ={" "}
-                                                                    {currentFactor.toLocaleString(
-                                                                        "en-AU",
-                                                                        {
-                                                                            maximumFractionDigits: 6,
-                                                                        },
-                                                                    )}{" "}
-                                                                    {baseUom}
-                                                                </span>
-                                                                <span className="text-sm text-slate-500">
-                                                                    {derivedRatio !== null &&
-                                                                        nextCode !== baseUom
-                                                                        ? `Derived: 1 ${unit.uomCode} = ${
-                                                                            derivedRatio.toLocaleString(
+                                                            return (
+                                                                <div
+                                                                    key={`summary-${unit.id}`}
+                                                                    className="grid gap-1 rounded-lg bg-[#F8FAFC] px-3 py-2 sm:grid-cols-2"
+                                                                >
+                                                                    <span className="font-semibold text-slate-900">
+                                                                        1{" "}
+                                                                        {unit
+                                                                            .uomCode}
+                                                                        {" "}
+                                                                        ={" "}
+                                                                        {currentFactor
+                                                                            .toLocaleString(
                                                                                 "en-AU",
                                                                                 {
-                                                                                    maximumFractionDigits: 6,
+                                                                                    maximumFractionDigits:
+                                                                                        6,
                                                                                 },
-                                                                            )
-                                                                        } ${nextCode}`
-                                                                        : nextCode === baseUom
-                                                                        ? `Direct conversion to Base Measurement Unit`
-                                                                        : ""}
-                                                                </span>
-                                                            </div>
-                                                        );
-                                                    })}
+                                                                            )}
+                                                                        {" "}
+                                                                        {baseUom}
+                                                                    </span>
+                                                                    <span className="text-sm text-slate-500">
+                                                                        {derivedRatio !==
+                                                                                    null &&
+                                                                                nextCode !==
+                                                                                    baseUom
+                                                                            ? `Derived: 1 ${unit.uomCode} = ${
+                                                                                derivedRatio
+                                                                                    .toLocaleString(
+                                                                                        "en-AU",
+                                                                                        {
+                                                                                            maximumFractionDigits:
+                                                                                                6,
+                                                                                        },
+                                                                                    )
+                                                                            } ${nextCode}`
+                                                                            : nextCode ===
+                                                                                    baseUom
+                                                                            ? `Direct conversion to Base Measurement Unit`
+                                                                            : ""}
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        },
+                                                    )}
 
                                                 <div className="grid gap-1 rounded-lg border border-[#BBF7D0] bg-[#F0FDF4] px-3 py-2 sm:grid-cols-2">
                                                     <span className="font-semibold text-[#166534]">
-                                                        1 {baseUom} = 1 {baseUom}
+                                                        1 {baseUom} = 1{" "}
+                                                        {baseUom}
                                                     </span>
                                                     <span className="text-sm text-[#166534]">
                                                         Base Measurement Unit
@@ -3395,18 +4540,104 @@ const Products = () => {
                                                 </div>
 
                                                 {productUnits.filter((unit) =>
-                                                        !unit.isBaseUnit &&
-                                                        unit.uomCode &&
-                                                        Number(unit.conversionToBase) > 0
-                                                    ).length === 0 && (
+                                                            !unit.isBaseUnit &&
+                                                            unit.uomCode &&
+                                                            Number(
+                                                                    unit.conversionToBase,
+                                                                ) > 0
+                                                        ).length === 0 && (
                                                     <p className="text-sm text-slate-500">
-                                                        No packaging levels configured. This Product uses only the Base Measurement Unit.
+                                                        No packaging levels
+                                                        configured. This Product
+                                                        uses only the Base
+                                                        Measurement Unit.
                                                     </p>
                                                 )}
                                             </div>
                                         </div>
                                     </>
                                 )}
+
+                            <div className="mt-4 rounded-xl border border-[#E5E7EB] bg-white p-4">
+                                <div>
+                                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                                        Default Transaction Units
+                                    </p>
+                                    <p className="mt-1 text-sm text-slate-500">
+                                        {isFlooringProduct
+                                            ? "Flooring Purchase and Request UOM are backend-managed as box after the Physical Flooring Specification is saved. Sales UOM remains selectable from the synced and configured Product Units."
+                                            : "Choose the default Purchase, Request and Sales UOM from this Product's configured Supported Units. These defaults are independent from the Base Measurement Unit."}
+                                    </p>
+                                </div>
+
+                                <div className="mt-4 grid gap-4 md:grid-cols-3">
+                                    <div className="space-y-2">
+                                        <Label>Default Purchase UOM *</Label>
+                                        <SearchablePicker
+                                            value={defaultPurchaseUom}
+                                            onChange={setDefaultPurchaseUom}
+                                            options={pricingUomOptions}
+                                            placeholder={baseUom
+                                                ? "Select Purchase UOM"
+                                                : "Configure Units & Packaging first"}
+                                            searchPlaceholder="Search supported Product UOM..."
+                                            emptyText="No Product Units are configured."
+                                            disabled={isFlooringProduct ||
+                                                !baseUom ||
+                                                pricingUomOptions.length === 0}
+                                        />
+                                        {isFlooringProduct
+                                            ? (
+                                                <p className="text-xs text-slate-500">
+                                                    Backend managed by Flooring
+                                                    Specification sync.
+                                                </p>
+                                            )
+                                            : null}
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Default Request UOM *</Label>
+                                        <SearchablePicker
+                                            value={defaultRequestUom}
+                                            onChange={setDefaultRequestUom}
+                                            options={pricingUomOptions}
+                                            placeholder={baseUom
+                                                ? "Select Request UOM"
+                                                : "Configure Units & Packaging first"}
+                                            searchPlaceholder="Search supported Product UOM..."
+                                            emptyText="No Product Units are configured."
+                                            disabled={isFlooringProduct ||
+                                                !baseUom ||
+                                                pricingUomOptions.length === 0}
+                                        />
+                                        {isFlooringProduct
+                                            ? (
+                                                <p className="text-xs text-slate-500">
+                                                    Backend managed by Flooring
+                                                    Specification sync.
+                                                </p>
+                                            )
+                                            : null}
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Default Sales UOM *</Label>
+                                        <SearchablePicker
+                                            value={defaultSalesUom}
+                                            onChange={setDefaultSalesUom}
+                                            options={pricingUomOptions}
+                                            placeholder={baseUom
+                                                ? "Select Sales UOM"
+                                                : "Configure Units & Packaging first"}
+                                            searchPlaceholder="Search supported Product UOM..."
+                                            emptyText="No Product Units are configured."
+                                            disabled={!baseUom ||
+                                                pricingUomOptions.length === 0}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
 
                             <div className="mt-4 grid gap-4 md:grid-cols-3">
                                 <div className="space-y-2">
@@ -3445,21 +4676,25 @@ const Products = () => {
                                     <input
                                         type="checkbox"
                                         checked={usesCoverage}
+                                        disabled={isFlooringProduct}
                                         onChange={(event) =>
-                                            setUsesCoverage(event.target.checked)}
-                                        className="h-4 w-4 rounded border-slate-300 text-red-600"
+                                            setUsesCoverage(
+                                                event.target.checked,
+                                            )}
+                                        className="h-4 w-4 rounded border-slate-300 text-red-600 disabled:cursor-not-allowed"
                                     />
                                     <span>
                                         <span className="block">
                                             Uses Coverage / Yield
                                         </span>
                                         <span className="mt-1 block text-xs font-normal text-slate-500">
-                                            Enable structured coverage information for this Product.
+                                            {isFlooringProduct
+                                                ? "Flooring exact physical coverage is managed by Physical Flooring Specification, not the generic Yield form."
+                                                : "Enable structured coverage information for this Product."}
                                         </span>
                                     </span>
                                 </label>
                             </div>
-
                         </section>
 
                         <section className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm">
@@ -3468,10 +4703,10 @@ const Products = () => {
                                     Commercial Pricing Policy
                                 </h3>
                                 <p className="mt-1 text-sm text-slate-500">
-                                    Set one authoritative Pricing UOM and the four
-                                    Product selling-price levels. Transaction UOM
-                                    prices are derived by the backend from
-                                    Factor-to-Base.
+                                    Set one authoritative Pricing UOM and the
+                                    four Product selling-price levels.
+                                    Transaction UOM prices are derived by the
+                                    backend from Factor-to-Base.
                                 </p>
                             </div>
 
@@ -3485,19 +4720,22 @@ const Products = () => {
                                             setPricingUom(value);
                                             setPriceMatrix(emptyPriceMatrix());
                                         }}
-                                        options={pricingUomOptions}
+                                        options={commercialPricingUomOptions}
                                         placeholder={baseUom
                                             ? "Select supported Product UOM"
                                             : "Configure Units & Packaging first"}
                                         searchPlaceholder="Search supported Product UOM..."
-                                        emptyText="No Product Units are configured. Add the Unit in Units & Packaging first."
+                                        emptyText={isFlooringProduct
+                                            ? "Required Flooring UOM master records are unavailable."
+                                            : "No Product Units are configured. Add the Unit in Units & Packaging first."}
                                         disabled={!baseUom ||
-                                            pricingUomOptions.length === 0}
+                                            commercialPricingUomOptions
+                                                    .length === 0}
                                     />
                                     <p className="text-xs leading-5 text-slate-500">
-                                        Only Units configured for this Product are
-                                        available. To use another UOM, add it to
-                                        Units & Packaging first.
+                                        {isFlooringProduct
+                                            ? "Flooring pricing may use sqm, backend-derived plank/box, or another configured Product Unit such as pallet. Pricing is saved only after the Flooring Specification sync completes."
+                                            : "Only Units configured for this Product are available. To use another UOM, add it to Units & Packaging first."}
                                     </p>
                                 </div>
 
@@ -3517,9 +4755,9 @@ const Products = () => {
                                         placeholder="0"
                                     />
                                     <p className="text-xs leading-5 text-slate-500">
-                                        0% means no discount is allowed. The same
-                                        maximum applies regardless of Transaction
-                                        UOM.
+                                        0% means no discount is allowed. The
+                                        same maximum applies regardless of
+                                        Transaction UOM.
                                     </p>
                                 </div>
 
@@ -3536,8 +4774,8 @@ const Products = () => {
                                     />
                                     <p className="text-xs leading-5 text-slate-500">
                                         New prices affect new transactions only.
-                                        Existing Sent/Accepted commercial snapshots
-                                        remain unchanged.
+                                        Existing Sent/Accepted commercial
+                                        snapshots remain unchanged.
                                     </p>
                                 </div>
                             </div>
@@ -3563,7 +4801,9 @@ const Products = () => {
                                             >
                                                 <div>
                                                     <p className="font-bold text-slate-900">
-                                                        {PRICE_BOOK_LABELS[code]}
+                                                        {PRICE_BOOK_LABELS[
+                                                            code
+                                                        ]}
                                                     </p>
                                                     <p className="mt-1 font-mono text-xs text-slate-500">
                                                         {code}
@@ -3663,11 +4903,11 @@ const Products = () => {
                                 : null}
                         </section>
 
-                        {usesCoverage
+                        {usesCoverage && !isFlooringProduct
                             ? (
                                 <section className="rounded-2xl border border-[#E5E7EB] bg-[#FCFAFA] p-4">
                                     <SectionHeading
-                                        number={3}
+                                        number={isFlooringProduct ? 4 : 3}
                                         title="Specifications & Coverage"
                                         helper="Coverage / Yield is for operational performance, not for exact Product UOM conversion."
                                     />
@@ -3675,26 +4915,29 @@ const Products = () => {
                                     <div className="mt-3 grid gap-3 lg:grid-cols-2">
                                         <div className="rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A8A]">
                                             <p className="font-bold">
-                                                Unit Conversion belongs in Step 2
+                                                Unit Conversion belongs in Step
+                                                2
                                             </p>
                                             <p className="mt-1">
-                                                Exact relationships such as
-                                                {" "}
+                                                Exact relationships such as{" "}
                                                 <span className="font-bold">
                                                     1 box = 2.20 sqm
-                                                </span>
-                                                {" "}
-                                                must be configured in Units & Packaging.
+                                                </span>{" "}
+                                                must be configured in Units &
+                                                Packaging.
                                             </p>
                                         </div>
 
                                         <div className="rounded-xl border border-[#E5E7EB] bg-white px-4 py-3 text-sm text-slate-600">
                                             <p className="font-bold text-slate-900">
-                                                Use Coverage / Yield for performance
+                                                Use Coverage / Yield for
+                                                performance
                                             </p>
                                             <p className="mt-1">
-                                                Example: 1 bag of adhesive covers approximately 5 sqm,
-                                                while the bag itself may contain 20 kg.
+                                                Example: 1 bag of adhesive
+                                                covers approximately 5 sqm,
+                                                while the bag itself may contain
+                                                20 kg.
                                             </p>
                                         </div>
                                     </div>
@@ -3702,26 +4945,35 @@ const Products = () => {
                                     {coverageDuplicatesUnitConversion && (
                                         <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                                             <p className="font-bold">
-                                                This Coverage duplicates the Product UOM conversion.
+                                                This Coverage duplicates the
+                                                Product UOM conversion.
                                             </p>
                                             <p className="mt-1">
-                                                The entered values match
-                                                {" "}
+                                                The entered values match{" "}
                                                 <span className="font-bold">
-                                                    {coverageForm.sourceQuantity || "1"} {coverageForm.sourceUom}
+                                                    {coverageForm
+                                                        .sourceQuantity || "1"}
+                                                    {" "}
+                                                    {coverageForm.sourceUom}
                                                     {" = "}
-                                                    {coverageForm.coverageQuantity} {coverageForm.coverageUom}
-                                                </span>.
-                                                {" "}
-                                                Keep the exact relationship in Step 2 and turn off
-                                                Uses Coverage / Yield unless this record represents a separate
-                                                estimated or confirmed operational yield.
+                                                    {coverageForm
+                                                        .coverageQuantity}{" "}
+                                                    {coverageForm.coverageUom}
+                                                </span>.{" "}
+                                                Keep the exact relationship in
+                                                Step 2 and turn off Uses
+                                                Coverage / Yield unless this
+                                                record represents a separate
+                                                estimated or confirmed
+                                                operational yield.
                                             </p>
                                         </div>
                                     )}
                                     <div className="mt-4 grid gap-4 md:grid-cols-4">
                                         <div className="space-y-2">
-                                            <Label>Yield Source Quantity *</Label>
+                                            <Label>
+                                                Yield Source Quantity *
+                                            </Label>
                                             <Input
                                                 className={FIELD_CLASS}
                                                 type="number"
@@ -3756,11 +5008,14 @@ const Products = () => {
                                                 emptyText="No configured Product Units available."
                                             />
                                             <p className="text-xs text-slate-500">
-                                                Source UOM must be one of this Product's configured Units.
+                                                Source UOM must be one of this
+                                                Product's configured Units.
                                             </p>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Yield / Coverage Quantity *</Label>
+                                            <Label>
+                                                Yield / Coverage Quantity *
+                                            </Label>
                                             <Input
                                                 className={FIELD_CLASS}
                                                 type="number"
@@ -3777,7 +5032,9 @@ const Products = () => {
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Yield / Coverage UOM *</Label>
+                                            <Label>
+                                                Yield / Coverage UOM *
+                                            </Label>
                                             <SearchablePicker
                                                 value={coverageForm.coverageUom}
                                                 onChange={(value) =>
@@ -3952,7 +5209,9 @@ const Products = () => {
                                                 Product Specifications
                                             </h3>
                                             <p className="mt-1 text-sm text-slate-500">
-                                                Category-driven product details. Required fields must be completed before activation.
+                                                Category-driven product details.
+                                                Required fields must be
+                                                completed before activation.
                                             </p>
                                         </div>
                                         {isAdmin
@@ -4052,7 +5311,7 @@ const Products = () => {
 
                         <section className="rounded-2xl border border-[#E5E7EB] bg-[#FCFAFA] p-4">
                             <SectionHeading
-                                number={4}
+                                number={isFlooringProduct ? 5 : 4}
                                 title="Review and Status"
                                 helper="Confirm the product flags and status before saving."
                             />
@@ -4066,6 +5325,22 @@ const Products = () => {
                                         {productType}
                                     </p>
                                 </div>
+
+                                {isFlooringProduct
+                                    ? (
+                                        <div className="rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] p-3 text-sm">
+                                            <span className="text-[#1E3A8A]">
+                                                Specification
+                                            </span>
+                                            <p className="mt-1 font-semibold text-[#1E3A8A]">
+                                                Flooring
+                                            </p>
+                                            <p className="mt-1 text-xs text-[#1E3A8A]">
+                                                Backend-derived UOM factors
+                                            </p>
+                                        </div>
+                                    )
+                                    : null}
 
                                 <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 text-sm">
                                     <span className="text-slate-500">
