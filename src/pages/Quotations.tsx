@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   CheckCircle2,
   FileEdit,
@@ -42,11 +42,15 @@ type ProjectRow = Database["public"]["Tables"]["projects"]["Row"];
 type AreaRow = Database["public"]["Tables"]["project_areas"]["Row"];
 type ProductRow = Database["public"]["Tables"]["products"]["Row"];
 type UomRow = Database["public"]["Tables"]["units_of_measure"]["Row"];
-type ConversionRow =
-  Database["public"]["Tables"]["product_uom_conversions"]["Row"];
+type ProductUnitRow =
+  Database["public"]["Tables"]["product_units"]["Row"];
 type PriceBookRow = Database["public"]["Tables"]["price_books"]["Row"];
 type PriceBookLineRow = Database["public"]["Tables"]["price_book_lines"]["Row"];
 type AreaTypeRow = Database["public"]["Tables"]["project_area_types"]["Row"];
+type QuotationBillingUnitRow =
+  Database["public"]["Tables"]["quotation_billing_units"]["Row"];
+type QuotationBillingAllocationRow =
+  Database["public"]["Tables"]["quotation_line_billing_allocations"]["Row"];
 
 type Lookup = {
   customers: CustomerRow[];
@@ -55,7 +59,7 @@ type Lookup = {
   areas: AreaRow[];
   products: ProductRow[];
   uoms: UomRow[];
-  conversions: ConversionRow[];
+  productUnits: ProductUnitRow[];
   priceBooks: PriceBookRow[];
   areaTypes: AreaTypeRow[];
 };
@@ -77,6 +81,8 @@ type LineForm = {
   quantity: string;
   unitPrice: string;
   discountPercent: string;
+  discountReason: string;
+  maximumDiscountPercent: number;
   taxRate: string;
   costPrice: string;
   notes: string;
@@ -87,7 +93,6 @@ type LineForm = {
   priceSource: string;
   originalUnitPrice: number | null;
   minimumPriceSnapshot: number | null;
-  manualPriceReason: string;
   priceError: string;
   priceLoading: boolean;
 };
@@ -145,7 +150,7 @@ const PERMISSIONS = [
   "quotations.view_margin",
   "quotations.create",
   "quotations.update_draft",
-  "quotations.override_unit_price",
+  "quotations.apply_discount",
   "quotations.send",
   "quotations.create_revision",
   "quotations.accept",
@@ -229,6 +234,8 @@ const emptyLine = (): LineForm => ({
   quantity: "1",
   unitPrice: "",
   discountPercent: "0",
+  discountReason: "",
+  maximumDiscountPercent: 0,
   taxRate: "10",
   costPrice: "0",
   notes: "",
@@ -239,7 +246,6 @@ const emptyLine = (): LineForm => ({
   priceSource: "",
   originalUnitPrice: null,
   minimumPriceSnapshot: null,
-  manualPriceReason: "",
   priceError: "",
   priceLoading: false,
 });
@@ -337,7 +343,7 @@ export default function Quotations() {
         areas,
         products,
         uoms,
-        conversions,
+        productUnits,
         priceBooks,
         areaTypes,
       ] = await Promise.all([
@@ -363,10 +369,10 @@ export default function Quotations() {
         ).order("product_name"),
         supabase.from("units_of_measure").select("*").eq("is_deleted", false)
           .eq("is_active", true).order("sort_order"),
-        supabase.from("product_uom_conversions").select("*").eq(
+        supabase.from("product_units").select("*").eq(
           "is_deleted",
           false,
-        ).eq("is_active", true),
+        ).eq("is_active", true).order("sort_order"),
         supabase.from("price_books").select("*").eq("is_deleted", false).eq(
           "is_active",
           true,
@@ -382,7 +388,7 @@ export default function Quotations() {
           areas,
           products,
           uoms,
-          conversions,
+          productUnits,
           priceBooks,
             areaTypes,
         ]
@@ -396,7 +402,7 @@ export default function Quotations() {
         areas: areas.data ?? [],
         products: products.data ?? [],
         uoms: uoms.data ?? [],
-        conversions: conversions.data ?? [],
+        productUnits: productUnits.data ?? [],
         priceBooks: priceBooks.data ?? [],
         areaTypes: areaTypes.data ?? [],
       };
@@ -447,7 +453,7 @@ export default function Quotations() {
           "quotation_id",
           selectedId,
         ).eq("is_deleted", false).order("line_no"),
-        (supabase as any).from("quotation_revisions").select("*").eq(
+        supabase.from("quotation_revisions").select("*").eq(
           "quotation_id",
           selectedId,
         ).eq("is_deleted", false).order("revision_no", { ascending: false }),
@@ -488,14 +494,14 @@ export default function Quotations() {
       ),
     [lookupQuery.data?.projects],
   );
-  const getQuotationContext = (quotation: QuotationRow) => {
+  const getQuotationContext = useCallback((quotation: QuotationRow) => {
     const customer = customerById.get(quotation.customer_id);
     const site = quotation.project_site_id
       ? siteById.get(quotation.project_site_id)
       : undefined;
     const project = site ? projectById.get(site.project_id) : undefined;
     return { customer, site, project };
-  };
+  }, [customerById, projectById, siteById]);
   const filteredQuotations = useMemo(() => {
     const rows = listQuery.data ?? [];
     const term = search.trim().toLowerCase();
@@ -512,7 +518,7 @@ export default function Quotations() {
         site?.site_name,
       ].some((value) => value?.toLowerCase().includes(term));
     });
-  }, [listQuery.data, search, customerById, siteById, projectById]);
+  }, [getQuotationContext, listQuery.data, search]);
 
   const filteredProjects = useMemo(() =>
     (lookupQuery.data?.projects ?? []).filter((project) =>
@@ -569,11 +575,11 @@ export default function Quotations() {
         "quotation_id",
         quotation.quotation_id,
       ).eq("is_deleted", false).order("line_no"),
-      (supabase as any).from("quotation_billing_units").select("*").eq(
+      supabase.from("quotation_billing_units").select("*").eq(
         "quotation_id",
         quotation.quotation_id,
       ).eq("is_deleted", false).eq("is_active", true).order("sort_order"),
-      (supabase as any).from("quotation_line_billing_allocations").select("*").eq(
+      supabase.from("quotation_line_billing_allocations").select("*").eq(
         "quotation_id",
         quotation.quotation_id,
       ).eq("is_deleted", false).eq("is_active", true).order("sort_order"),
@@ -601,7 +607,7 @@ export default function Quotations() {
       internalNotes: quotation.internal_notes ?? "",
     });
 
-    setLines((existingLines ?? []).map((line: any) => ({
+    setLines((existingLines ?? []).map((line: QuotationLineRow) => ({
       clientId: line.quotation_line_id,
       lineUid: line.line_uid ?? createStableUuid(),
       productId: line.product_id ?? "",
@@ -613,15 +619,19 @@ export default function Quotations() {
       quantity: String(line.quantity),
       unitPrice: String(line.unit_price),
       discountPercent: String(line.discount_percent),
+      discountReason: line.discount_reason ?? "",
+      maximumDiscountPercent: Number(
+        lookupQuery.data?.products.find(
+          (product) => product.product_id === line.product_id,
+        )?.maximum_discount_percent ?? 0,
+      ),
       taxRate: String(line.tax_rate),
       costPrice: String(line.cost_price ?? 0),
       notes: line.notes ?? "",
       isOptional: line.is_optional,
       allowFractionalQuantity: line.allow_fractional_quantity,
       billingMethod: (line.billing_method ?? "Quantity") as BillingMethod,
-      priceMode: line.price_source === "Manual" && Boolean(line.product_id)
-        ? "Manual"
-        : "Standard",
+      priceMode: line.product_id ? "Standard" : "Manual",
       priceSource: line.price_source ?? "",
       originalUnitPrice: line.original_unit_price === null ||
           line.original_unit_price === undefined
@@ -631,13 +641,13 @@ export default function Quotations() {
           line.minimum_price_snapshot === undefined
         ? null
         : Number(line.minimum_price_snapshot),
-      manualPriceReason: line.manual_price_reason ?? "",
       priceError: "",
       priceLoading: false,
     })));
 
-    const allocationRows = (existingAllocations ?? []) as any[];
-    setBillingUnits(((existingUnits ?? []) as any[]).map((unit) => {
+    const allocationRows: QuotationBillingAllocationRow[] =
+      existingAllocations ?? [];
+    setBillingUnits((existingUnits ?? []).map((unit: QuotationBillingUnitRow) => {
       const allocations: Record<string, string> = {};
       allocationRows.filter((allocation) =>
         allocation.billing_unit_uid === unit.billing_unit_uid
@@ -704,49 +714,39 @@ export default function Quotations() {
       )
     );
 
-  const findConversion = (
+  const findProductUnit = (
     productId: string,
-    salesUomCode: string,
-    baseUomCode: string,
-  ) => {
-    if (!salesUomCode || !baseUomCode) return undefined;
-    if (salesUomCode === baseUomCode) return undefined;
-
-    return lookupQuery.data?.conversions.find(
-      (conversion) =>
-        conversion.product_id === productId &&
-        conversion.from_uom_code === salesUomCode &&
-        conversion.to_uom_code === baseUomCode &&
-        conversion.is_active &&
-        !conversion.is_deleted,
+    uomCode: string,
+  ) =>
+    lookupQuery.data?.productUnits.find(
+      (unit) =>
+        unit.product_id === productId &&
+        unit.uom_code === uomCode &&
+        unit.is_active &&
+        !unit.is_deleted,
     );
+
+  const supportedSalesUoms = (line: LineForm): ProductUnitRow[] => {
+    if (!line.productId) return [];
+
+    return (lookupQuery.data?.productUnits ?? [])
+      .filter(
+        (unit) =>
+          unit.product_id === line.productId &&
+          unit.is_active &&
+          !unit.is_deleted &&
+          Number(unit.conversion_to_base) > 0,
+      )
+      .sort((a, b) => {
+        const sortDifference = Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0);
+        if (sortDifference !== 0) return sortDifference;
+        return a.uom_code.localeCompare(b.uom_code);
+      });
   };
 
-  const supportedSalesUoms = (line: LineForm) => {
-    const product = lookupQuery.data?.products.find(
-      (item) => item.product_id === line.productId,
-    );
-    const baseUomCode = line.baseUomCode || product?.base_uom_code || "";
-
-    if (!line.productId || !baseUomCode) return [];
-
-    const supportedCodes = new Set<string>([baseUomCode]);
-
-    lookupQuery.data?.conversions.forEach((conversion) => {
-      if (
-        conversion.product_id === line.productId &&
-        conversion.to_uom_code === baseUomCode &&
-        conversion.is_active &&
-        !conversion.is_deleted
-      ) {
-        supportedCodes.add(conversion.from_uom_code);
-      }
-    });
-
-    return (lookupQuery.data?.uoms ?? []).filter(
-      (uom) => supportedCodes.has(uom.uom_code),
-    );
-  };
+  const uomDisplayName = (uomCode: string) =>
+    lookupQuery.data?.uoms.find((uom) => uom.uom_code === uomCode)?.uom_name ??
+    uomCode;
 
   const resolveLineUom = (line: LineForm) => {
     const product = lookupQuery.data?.products.find(
@@ -761,21 +761,19 @@ export default function Quotations() {
       product?.default_sales_uom_code ||
       baseUomCode;
 
-    const conversion = findConversion(
-      line.productId,
-      salesUomCode,
-      baseUomCode,
-    );
+    const productUnit = line.productId
+      ? findProductUnit(line.productId, salesUomCode)
+      : undefined;
 
-    const conversionFactor = salesUomCode === baseUomCode
-      ? 1
-      : Number(conversion?.conversion_factor ?? line.conversionFactor);
+    const conversionFactor = line.productId
+      ? Number(productUnit?.conversion_to_base ?? line.conversionFactor)
+      : Number(line.conversionFactor || 1);
 
     return {
       salesUomCode,
       baseUomCode,
       conversionFactor,
-      allowFractionalQuantity: conversion?.allow_fractional_quantity ??
+      allowFractionalQuantity: productUnit?.allow_fractional_quantity ??
         line.allowFractionalQuantity,
     };
   };
@@ -832,8 +830,8 @@ export default function Quotations() {
   };
 
   const openSellingPriceDialogForLine = (line: LineForm) => {
-    if (!line.productId || !line.salesUomCode) {
-      toast.error("Select a Product and Sales UOM first.");
+    if (!line.productId) {
+      toast.error("Select a Product first.");
       return;
     }
 
@@ -845,14 +843,20 @@ export default function Quotations() {
       return;
     }
 
+    const pricingUomCode = product.pricing_uom_code ?? "";
+    if (!pricingUomCode) {
+      toast.error("This Product does not have a Pricing UOM configured.");
+      return;
+    }
+
     const pricingDate = header.issueDate || new Date().toISOString().slice(0, 10);
     setSellingDialogTargetLineId(line.clientId);
     setSellingProductId(product.product_id);
     setSellingProductCode(product.product_code ?? null);
     setSellingProductName(product.product_name ?? null);
-    setSellingUom(line.salesUomCode);
+    setSellingUom(pricingUomCode);
     setSellingEffectiveFrom(pricingDate);
-    loadSellingPriceMatrix(product.product_id, line.salesUomCode, pricingDate);
+    loadSellingPriceMatrix(product.product_id, pricingUomCode, pricingDate);
     setShowSellingPriceDialog(true);
   };
 
@@ -879,7 +883,7 @@ export default function Quotations() {
 
     updateLine(lineId, { priceLoading: true, priceError: "" });
 
-    const { data, error } = await (supabase as any).rpc(
+    const { data, error } = await supabase.rpc(
       "resolve_quotation_line_price",
       {
         p_price_book_id: priceBookId,
@@ -929,7 +933,6 @@ export default function Quotations() {
       minimumPriceSnapshot: row.minimum_price_snapshot === null
         ? null
         : Number(row.minimum_price_snapshot),
-      manualPriceReason: "",
       priceError: "",
       priceLoading: false,
     });
@@ -951,7 +954,7 @@ export default function Quotations() {
         minimum_price: number | null;
       }>;
     }) => {
-      const { data, error } = await (supabase as any).rpc(
+      const { data, error } = await supabase.rpc(
         "set_product_selling_price_matrix_atomic",
         {
           p_product_id: productId,
@@ -1057,24 +1060,35 @@ export default function Quotations() {
     if (!product) return;
 
     const baseUomCode = product.base_uom_code ?? "";
-    const salesUomCode = product.default_sales_uom_code ?? baseUomCode;
-    const conversion = findConversion(productId, salesUomCode, baseUomCode);
+    const requestedSalesUom = product.default_sales_uom_code ?? baseUomCode;
+    const requestedUnit = findProductUnit(productId, requestedSalesUom);
+    const baseUnit = findProductUnit(productId, baseUomCode);
+    const selectedUnit = requestedUnit ?? baseUnit;
+
+    if (!selectedUnit || Number(selectedUnit.conversion_to_base) <= 0) {
+      toast.error(
+        "This Product does not have an active Supported Transaction UOM with a valid Factor-to-Base.",
+      );
+      return;
+    }
+
+    const salesUomCode = selectedUnit.uom_code;
 
     updateLine(lineId, {
       productId,
       description: product.description?.trim() || product.product_name,
       salesUomCode,
       baseUomCode,
-      conversionFactor: String(
-        salesUomCode === baseUomCode ? 1 : conversion?.conversion_factor ?? 0,
-      ),
+      conversionFactor: String(selectedUnit.conversion_to_base),
       unitPrice: "",
-      allowFractionalQuantity: conversion?.allow_fractional_quantity ?? true,
+      discountPercent: "0",
+      discountReason: "",
+      maximumDiscountPercent: Number(product.maximum_discount_percent ?? 0),
+      allowFractionalQuantity: selectedUnit.allow_fractional_quantity,
       priceMode: "Standard",
       priceSource: "",
       originalUnitPrice: null,
       minimumPriceSnapshot: null,
-      manualPriceReason: "",
       priceError: "",
     });
 
@@ -1089,22 +1103,20 @@ export default function Quotations() {
     const baseUomCode = line.baseUomCode || product?.base_uom_code || "";
     const currentResolvedUom = resolveLineUom(line);
 
-    const nextConversion = findConversion(
+    const nextUnit = findProductUnit(
       line.productId,
       salesUomCode,
-      baseUomCode,
     );
-    const nextConversionFactor = salesUomCode === baseUomCode
-      ? 1
-      : Number(nextConversion?.conversion_factor ?? 0);
+    const nextConversionFactor = Number(nextUnit?.conversion_to_base ?? 0);
 
     if (
       !baseUomCode ||
+      !nextUnit ||
       !Number.isFinite(nextConversionFactor) ||
       nextConversionFactor <= 0
     ) {
       toast.error(
-        `No active conversion exists from ${salesUomCode} to the Product Base UOM.`,
+        `${salesUomCode} is not an active Supported Transaction UOM with a valid Factor-to-Base.`,
       );
       return;
     }
@@ -1129,14 +1141,12 @@ export default function Quotations() {
       baseUomCode,
       conversionFactor: String(nextConversionFactor),
       quantity: formatQuantityValue(convertedQuantity),
-      allowFractionalQuantity: nextConversion?.allow_fractional_quantity ??
-        line.allowFractionalQuantity,
+      allowFractionalQuantity: nextUnit.allow_fractional_quantity,
       priceMode: line.productId ? "Standard" : "Manual",
       unitPrice: line.productId ? "" : line.unitPrice,
       priceSource: "",
       originalUnitPrice: null,
       minimumPriceSnapshot: null,
-      manualPriceReason: "",
       priceError: "",
     });
 
@@ -1182,22 +1192,28 @@ export default function Quotations() {
         conversion_factor: conversionFactor,
         base_quantity: quantity * conversionFactor,
         quantity,
-        discount_percent: safeNumber(line.discountPercent),
+        discount_percent: line.productId
+          ? can("quotations.apply_discount")
+            ? safeNumber(line.discountPercent)
+            : null
+          : safeNumber(line.discountPercent),
+        discount_reason: line.productId &&
+            can("quotations.apply_discount") &&
+            safeNumber(line.discountPercent) > 0
+          ? line.discountReason.trim() || null
+          : null,
         tax_rate: safeNumber(line.taxRate),
-        cost_price: can("quotations.view_cost")
-          ? safeNumber(line.costPrice)
-          : 0,
         notes: line.notes.trim() || null,
         is_optional: line.isOptional,
         allow_fractional_quantity: resolvedUom.allowFractionalQuantity,
       };
 
-      if (!line.productId || line.priceMode === "Manual") {
-        payload.unit_price = safeNumber(line.unitPrice);
+      if (can("quotations.view_cost")) {
+        payload.cost_price = safeNumber(line.costPrice);
       }
 
-      if (line.productId && line.priceMode === "Manual") {
-        payload.manual_price_reason = line.manualPriceReason.trim() || null;
+      if (!line.productId) {
+        payload.unit_price = safeNumber(line.unitPrice);
       }
 
       return payload;
@@ -1321,17 +1337,33 @@ export default function Quotations() {
         if (!line.unitPrice.trim() || safeNumber(line.unitPrice) < 0) {
           throw new Error(`Line ${index + 1}: Manual line requires a Unit Price.`);
         }
-      } else if (line.priceMode === "Manual") {
-        if (!can("quotations.override_unit_price")) {
+      } else {
+        if (!line.unitPrice.trim() || safeNumber(line.unitPrice) < 0) {
           throw new Error(
-            `Line ${index + 1}: You do not have permission to override Unit Price.`,
+            `Line ${index + 1}: Product Unit Price could not be resolved from Product Pricing.`,
           );
         }
-        if (!line.unitPrice.trim() || safeNumber(line.unitPrice) < 0) {
-          throw new Error(`Line ${index + 1}: Manual Unit Price is required.`);
+
+        const discount = safeNumber(line.discountPercent);
+        if (discount < 0 || discount > 100) {
+          throw new Error(`Line ${index + 1}: Discount must be between 0 and 100.`);
         }
-        if (!line.manualPriceReason.trim()) {
-          throw new Error(`Line ${index + 1}: Manual Price Reason is required.`);
+
+        if (discount > 0) {
+          if (!can("quotations.apply_discount")) {
+            throw new Error(
+              `Line ${index + 1}: quotations.apply_discount permission is required.`,
+            );
+          }
+          if (!line.discountReason.trim()) {
+            throw new Error(`Line ${index + 1}: Discount Reason is required.`);
+          }
+          if (discount > line.maximumDiscountPercent) {
+            throw new Error(
+              `Line ${index + 1}: Discount ${discount}% exceeds the Product maximum ` +
+                `${line.maximumDiscountPercent}%.`,
+            );
+          }
         }
       }
 
@@ -1405,14 +1437,14 @@ export default function Quotations() {
       const billingPayload = buildBillingPayload();
 
       const result = editingId
-        ? await (supabase as any).rpc("update_draft_quotation_progress_atomic", {
+        ? await supabase.rpc("update_draft_quotation_progress_atomic", {
           p_quotation_id: editingId,
           p_quotation,
           p_lines: payloadLines(),
           p_billing_units: billingPayload.units as Json,
           p_billing_allocations: billingPayload.allocations as Json,
         })
-        : await (supabase as any).rpc("create_quotation_progress_atomic", {
+        : await supabase.rpc("create_quotation_progress_atomic", {
           p_quotation,
           p_lines: payloadLines(),
           p_billing_units: billingPayload.units as Json,
@@ -1459,7 +1491,7 @@ export default function Quotations() {
       }
 
       const result = await supabase.rpc(
-        "create_project_area_atomic" as never,
+        "create_project_area_atomic",
         {
           p_site_id: header.projectSiteId,
           p_area_name: areaForm.areaName.trim(),
@@ -1467,7 +1499,7 @@ export default function Quotations() {
           p_estimated_quantity: estimatedQuantity,
           p_unit_of_measure: areaForm.unitOfMeasure || "sqm",
           p_notes: areaForm.notes.trim() || null,
-        } as never,
+        },
       );
 
       if (result.error) throw result.error;
@@ -1505,30 +1537,30 @@ export default function Quotations() {
       const quotation = actionDialog.quotation;
       let result;
       if (actionDialog.type === "send") {
-        result = await (supabase as any).rpc("send_quotation_atomic", {
+        result = await supabase.rpc("send_quotation_atomic", {
           p_quotation_id: quotation.quotation_id,
         });
       } else if (actionDialog.type === "accept") {
-        result = await (supabase as any).rpc("accept_quotation_atomic", {
+        result = await supabase.rpc("accept_quotation_atomic", {
           p_quotation_id: quotation.quotation_id,
           p_required_by_date: acceptRequiredBy || undefined,
         });
       } else if (actionDialog.type === "reject") {
-        result = await (supabase as any).rpc("reject_quotation_atomic", {
+        result = await supabase.rpc("reject_quotation_atomic", {
           p_quotation_id: quotation.quotation_id,
           p_rejection_reason: actionReason.trim(),
         });
       } else if (actionDialog.type === "cancel") {
-        result = await (supabase as any).rpc("cancel_quotation_atomic", {
+        result = await supabase.rpc("cancel_quotation_atomic", {
           p_quotation_id: quotation.quotation_id,
           p_cancellation_reason: actionReason.trim(),
         });
       } else if (actionDialog.type === "delete") {
-        result = await (supabase as any).rpc("soft_delete_quotation_atomic", {
+        result = await supabase.rpc("soft_delete_quotation_atomic", {
           p_quotation_id: quotation.quotation_id,
         });
       } else if (actionDialog.type === "revision") {
-        result = await (supabase as any).rpc(
+        result = await supabase.rpc(
           "create_quotation_revision_atomic",
           {
             p_quotation_id: quotation.quotation_id,
@@ -1875,8 +1907,7 @@ export default function Quotations() {
                             priceSource: "",
                             originalUnitPrice: null,
                             minimumPriceSnapshot: null,
-                            manualPriceReason: "",
-                            priceError: nextPriceBookId
+                                                      priceError: nextPriceBookId
                               ? ""
                               : "The selected Customer does not have a Price Book.",
                           }
@@ -2057,8 +2088,7 @@ export default function Quotations() {
                                 priceSource: "Manual",
                                 originalUnitPrice: null,
                                 minimumPriceSnapshot: null,
-                                manualPriceReason: "",
-                                unitPrice: line.productId ? "" : line.unitPrice,
+                                                              unitPrice: line.productId ? "" : line.unitPrice,
                                 priceError: "",
                               })
                               : void chooseProduct(line.clientId, value)}
@@ -2134,9 +2164,12 @@ export default function Quotations() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {supportedSalesUoms(line).map((x) => (
-                              <SelectItem key={x.uom_code} value={x.uom_code}>
-                                {x.uom_code} — {x.uom_name}
+                            {supportedSalesUoms(line).map((unit) => (
+                              <SelectItem
+                                key={unit.product_unit_id}
+                                value={unit.uom_code}
+                              >
+                                {unit.uom_code} — {uomDisplayName(unit.uom_code)}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -2162,8 +2195,7 @@ export default function Quotations() {
                             min="0"
                             step="any"
                             value={line.unitPrice}
-                            readOnly={Boolean(line.productId) &&
-                              line.priceMode === "Standard"}
+                            readOnly={Boolean(line.productId)}
                             onChange={(e) =>
                               updateLine(line.clientId, {
                                 unitPrice: e.target.value,
@@ -2173,7 +2205,7 @@ export default function Quotations() {
                               ? "Resolving Price Book price..."
                               : "0.00"}
                           />
-                          {line.productId && line.priceMode === "Standard" && (
+                          {line.productId && (
                             <div className="flex flex-wrap items-center gap-2 text-xs">
                               {line.priceLoading
                                 ? <span className="text-slate-500">Checking Customer Price Book...</span>
@@ -2206,66 +2238,69 @@ export default function Quotations() {
                                     Ask an authorised user to configure the Customer Price Book price.
                                   </span>
                                 )}
-                              {can("quotations.override_unit_price") && (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    updateLine(line.clientId, {
-                                      priceMode: "Manual",
-                                      unitPrice: line.unitPrice ||
-                                        String(line.originalUnitPrice ?? ""),
-                                      priceSource: "Manual",
-                                      priceError: "",
-                                    })}
-                                >
-                                  Manual override
-                                </Button>
-                              )}
-                            </div>
-                          )}
-                          {line.productId && line.priceMode === "Manual" && (
-                            <div className="space-y-2">
-                              <Input
-                                value={line.manualPriceReason}
-                                onChange={(e) =>
-                                  updateLine(line.clientId, {
-                                    manualPriceReason: e.target.value,
-                                  })}
-                                placeholder="Manual Price Reason *"
-                                className="bg-[#F7F9FB]"
-                              />
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  void resolveStandardPrice(
-                                    line.clientId,
-                                    line.productId,
-                                    line.salesUomCode,
-                                  )}
-                              >
-                                Use Customer Price Book price
-                              </Button>
+
                             </div>
                           )}
                         </div>
                       </Field>
-                      <Field label="Discount %">
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={line.discountPercent}
-                          onChange={(e) =>
-                            updateLine(line.clientId, {
-                              discountPercent: e.target.value,
-                            })}
-                          className="bg-[#F7F9FB]"
-                        />
+                      <Field
+                        label={line.productId
+                          ? `Discount % · Max ${line.maximumDiscountPercent}%`
+                          : "Discount %"}
+                      >
+                        <div className="space-y-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            max={line.productId
+                              ? line.maximumDiscountPercent
+                              : 100}
+                            step="0.01"
+                            value={line.discountPercent}
+                            disabled={Boolean(line.productId) &&
+                              (!can("quotations.apply_discount") ||
+                                line.maximumDiscountPercent <= 0)}
+                            onChange={(e) => {
+                              const nextValue = e.target.value;
+                              updateLine(line.clientId, {
+                                discountPercent: nextValue,
+                                discountReason: safeNumber(nextValue) > 0
+                                  ? line.discountReason
+                                  : "",
+                              });
+                            }}
+                            className="bg-[#F7F9FB]"
+                          />
+                          {line.productId &&
+                            line.maximumDiscountPercent <= 0 && (
+                            <p className="text-xs text-slate-500">
+                              This Product does not allow a discount.
+                            </p>
+                          )}
+                          {line.productId &&
+                            line.maximumDiscountPercent > 0 &&
+                            !can("quotations.apply_discount") && (
+                            <p className="text-xs text-slate-500">
+                              quotations.apply_discount permission is required.
+                            </p>
+                          )}
+                        </div>
                       </Field>
+                      {line.productId &&
+                        safeNumber(line.discountPercent) > 0 && (
+                        <Field label="Discount Reason *">
+                          <Input
+                            value={line.discountReason}
+                            disabled={!can("quotations.apply_discount")}
+                            onChange={(e) =>
+                              updateLine(line.clientId, {
+                                discountReason: e.target.value,
+                              })}
+                            placeholder="Reason for Product discount"
+                            className="bg-[#F7F9FB]"
+                          />
+                        </Field>
+                      )}
                       <Field label="Tax %">
                         <Input
                           type="number"
