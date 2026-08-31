@@ -27,6 +27,7 @@ import {
     XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
@@ -72,6 +73,37 @@ type RpcCaller = (
 type PermissionMap = Record<string, boolean>;
 
 type PageMode = "list" | "form" | "detail";
+
+type InvoiceCreateMode =
+    | "Quotation"
+    | "Accepted Revision"
+    | "Variation"
+    | "Counter Sale";
+
+type InvoiceWorkStatus = {
+    work_order_id: string;
+    work_order_no: string;
+    work_order_status: string;
+    source_type: string;
+    source_id: string;
+    base_uom_code: string;
+    commercial_base_quantity: number;
+    approved_base_quantity: number;
+    pending_review_base_quantity: number;
+    completion_percent: number;
+    source_line_ids: string[];
+    quantity_integrity_ok: boolean;
+    invoice_eligible: boolean;
+    eligibility_status: string;
+    blocking_reason: string | null;
+    claim_status: string | null;
+    claimed_invoice_id: string | null;
+    claimed_invoice_no: string | null;
+    claimed_invoice_document_status: string | null;
+    claimed_invoice_status: string | null;
+    ui_status: "ReadyToInvoice" | "NotReady" | "Reserved" | "FullyInvoiced";
+    selectable: boolean;
+};
 
 type InvoiceSourceReference = {
     invoice_source_id: string;
@@ -186,13 +218,13 @@ type ProductOption = {
     is_service_item: boolean;
 };
 
-type UomConversion = {
-    product_uom_conversion_id: string;
+type ProductUnitOption = {
+    product_unit_id: string;
     product_id: string;
-    from_uom_code: string;
-    to_uom_code: string;
-    conversion_factor: number;
-    allow_fractional_quantity: boolean;
+    uom_code: string;
+    conversion_to_base: number;
+    is_base_unit: boolean;
+    is_sales_unit: boolean;
     sort_order: number;
 };
 
@@ -224,6 +256,11 @@ type SourceOption = {
     project_id: string | null;
     project_site_id: string | null;
     total_amount: number;
+    price_book_id: string | null;
+    payment_terms_type_snapshot: string | null;
+    payment_terms_days_snapshot: number | null;
+    parent_quotation_no?: string | null;
+    revision_no?: number | null;
 };
 
 type VariationInvoicePreviewLine = {
@@ -527,6 +564,101 @@ const addDays = (date: string, days: number) => {
     return value.toISOString().slice(0, 10);
 };
 
+const calculateDueDateFromTerms = (
+    invoiceDateValue: string,
+    paymentTermsType: string,
+    paymentTermsDays: number,
+) => {
+    if (!invoiceDateValue) return "";
+
+    const [year, month, day] = invoiceDateValue
+        .split("-")
+        .map(Number);
+
+    if (!year || !month || !day) return "";
+
+    const days = Number.isFinite(paymentTermsDays)
+        ? Math.trunc(paymentTermsDays)
+        : 14;
+
+    const type = paymentTermsType || "Days After Bill";
+
+    const toIsoDate = (value: Date) =>
+        [
+            value.getFullYear(),
+            String(value.getMonth() + 1).padStart(2, "0"),
+            String(value.getDate()).padStart(2, "0"),
+        ].join("-");
+
+    const daysInMonth = (y: number, oneBasedMonth: number) =>
+        new Date(y, oneBasedMonth, 0).getDate();
+
+    if (type === "Days After Bill") {
+        const value = new Date(year, month - 1, day);
+        value.setDate(value.getDate() + days);
+        return toIsoDate(value);
+    }
+
+    if (type === "Days After Bill Month") {
+        const value = new Date(year, month, 1);
+        value.setDate(value.getDate() + days);
+        return toIsoDate(value);
+    }
+
+    if (type === "Day of Current Month") {
+        const safeDay = Math.min(
+            Math.max(days, 1),
+            daysInMonth(year, month),
+        );
+        return toIsoDate(
+            new Date(year, month - 1, safeDay),
+        );
+    }
+
+    if (type === "Day of Following Month") {
+        const nextMonthDate = new Date(year, month, 1);
+        const nextYear = nextMonthDate.getFullYear();
+        const nextMonth = nextMonthDate.getMonth() + 1;
+        const safeDay = Math.min(
+            Math.max(days, 1),
+            daysInMonth(nextYear, nextMonth),
+        );
+        return toIsoDate(
+            new Date(nextYear, nextMonth - 1, safeDay),
+        );
+    }
+
+    return addDays(invoiceDateValue, 14);
+};
+
+const formatPaymentTerms = (
+    paymentTermsType: unknown,
+    paymentTermsDays: unknown,
+) => {
+    const type = String(paymentTermsType ?? "").trim();
+    const rawDays = Number(paymentTermsDays);
+    const days = Number.isFinite(rawDays)
+        ? Math.trunc(rawDays)
+        : null;
+
+    if (!type || days === null) return "—";
+
+    if (type === "Days After Bill") {
+        return `${days} Days After Bill`;
+    }
+    if (type === "Days After Bill Month") {
+        return `${days} Days After Bill Month`;
+    }
+    if (type === "Day of Current Month") {
+        return `Day ${days} of Current Month`;
+    }
+    if (type === "Day of Following Month") {
+        return `Day ${days} of Following Month`;
+    }
+
+    return `${type} ${days}`;
+};
+
 const money = (value: unknown) =>
     new Intl.NumberFormat("en-AU", {
         style: "currency",
@@ -665,14 +797,31 @@ const Invoices = () => {
     const [dateTo, setDateTo] = useState("");
     const [page, setPage] = useState(1);
 
+    const [createMode, setCreateMode] = useState<InvoiceCreateMode>(
+        "Quotation",
+    );
+    const [sourceSearch, setSourceSearch] = useState("");
+    const [selectedCommercialSourceId, setSelectedCommercialSourceId] =
+        useState("");
+    const [selectedWorkOrderIds, setSelectedWorkOrderIds] = useState<string[]>(
+        [],
+    );
+
     const [customerId, setCustomerId] = useState("");
     const [projectId, setProjectId] = useState("");
     const [siteId, setSiteId] = useState("");
     const [priceBookId, setPriceBookId] = useState("");
     const [invoiceType, setInvoiceType] = useState("Standard");
     const [invoiceDate, setInvoiceDate] = useState(today());
+    const [paymentTermsType, setPaymentTermsType] =
+        useState("Days After Bill");
+    const [paymentTermsDays, setPaymentTermsDays] = useState(14);
     const [dueDate, setDueDate] = useState(
-        addDays(today(), 14),
+        calculateDueDateFromTerms(
+            today(),
+            "Days After Bill",
+            14,
+        ),
     );
     const [customerReference, setCustomerReference] = useState("");
     const [notes, setNotes] = useState("");
@@ -746,7 +895,7 @@ const Invoices = () => {
     const customers = useQuery({
         queryKey: ["invoice-customers-v2"],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
+            const { data, error } = await supabase
                 .from("customers")
                 .select(
                     "customer_id, customer_code, customer_name, price_book_id",
@@ -766,7 +915,7 @@ const Invoices = () => {
     const customerFinancials = useQuery({
         queryKey: ["invoice-customer-financials-v2"],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
+            const { data, error } = await supabase
                 .from("customer_financial_settings")
                 .select(
                     [
@@ -793,7 +942,7 @@ const Invoices = () => {
     const projects = useQuery({
         queryKey: ["invoice-projects-v2"],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
+            const { data, error } = await supabase
                 .from("projects")
                 .select(
                     "project_id, project_no, project_name, customer_id",
@@ -813,7 +962,7 @@ const Invoices = () => {
     const sites = useQuery({
         queryKey: ["invoice-sites-v2"],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
+            const { data, error } = await supabase
                 .from("project_sites")
                 .select(
                     "site_id, site_code, site_name, project_id",
@@ -833,7 +982,7 @@ const Invoices = () => {
     const areas = useQuery({
         queryKey: ["invoice-areas-v2"],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
+            const { data, error } = await supabase
                 .from("project_areas")
                 .select(
                     "area_id, area_code, area_name, project_id, site_id",
@@ -853,7 +1002,7 @@ const Invoices = () => {
     const products = useQuery({
         queryKey: ["invoice-products-v2"],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
+            const { data, error } = await supabase
                 .from("products")
                 .select(
                     [
@@ -878,19 +1027,19 @@ const Invoices = () => {
         },
     });
 
-    const conversions = useQuery({
-        queryKey: ["invoice-product-uom-conversions-v2"],
+    const productUnits = useQuery({
+        queryKey: ["invoice-product-units-v3"],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
-                .from("product_uom_conversions")
+            const { data, error } = await supabase
+                .from("product_units")
                 .select(
                     [
-                        "product_uom_conversion_id",
+                        "product_unit_id",
                         "product_id",
-                        "from_uom_code",
-                        "to_uom_code",
-                        "conversion_factor",
-                        "allow_fractional_quantity",
+                        "uom_code",
+                        "conversion_to_base",
+                        "is_base_unit",
+                        "is_sales_unit",
                         "sort_order",
                     ].join(", "),
                 )
@@ -902,14 +1051,14 @@ const Invoices = () => {
                 throw error;
             }
 
-            return (data ?? []) as UomConversion[];
+            return (data ?? []) as ProductUnitOption[];
         },
     });
 
     const priceBooks = useQuery({
         queryKey: ["invoice-price-books-v2"],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
+            const { data, error } = await supabase
                 .from("price_books")
                 .select(
                     "price_book_id, price_book_code, price_book_name, is_default, effective_from, effective_to",
@@ -929,7 +1078,7 @@ const Invoices = () => {
     const priceBookLines = useQuery({
         queryKey: ["invoice-price-book-lines-v2"],
         queryFn: async () => {
-            const { data, error } = await (supabase as any)
+            const { data, error } = await supabase
                 .from("price_book_lines")
                 .select(
                     [
@@ -955,14 +1104,14 @@ const Invoices = () => {
     });
 
     const sourceOptions = useQuery({
-        queryKey: ["invoice-source-options-v2"],
+        queryKey: ["invoice-source-options-v3"],
         queryFn: async () => {
             const result: SourceOption[] = [];
 
             const {
                 data: quotationRows,
                 error: quotationError,
-            } = await (supabase as any)
+            } = await supabase
                 .from("quotations")
                 .select(
                     [
@@ -971,42 +1120,307 @@ const Invoices = () => {
                         "customer_id",
                         "project_site_id",
                         "total_amount",
-                        "project_sites(project_id)",
+                        "price_book_id",
+                        "payment_terms_type_snapshot",
+                        "payment_terms_days_snapshot",
+                        "accepted_revision_id",
                     ].join(", "),
                 )
                 .eq("quotation_status", "Accepted")
+                .is("accepted_revision_id", null)
                 .eq("is_deleted", false)
                 .eq("is_active", true)
                 .order("quotation_no");
 
             if (quotationError) {
                 throw quotationError;
+            } else {
+                const quotationSiteIds = Array.from(
+                    new Set(
+                        (quotationRows ?? [])
+                            .map((row) =>
+                                row.project_site_id
+                                    ? String(row.project_site_id)
+                                    : ""
+                            )
+                            .filter(Boolean),
+                    ),
+                );
+
+                const quotationProjectBySite = new Map<string, string>();
+
+                if (quotationSiteIds.length > 0) {
+                    const {
+                        data: quotationSiteRows,
+                        error: quotationSiteError,
+                    } = await supabase
+                        .from("project_sites")
+                        .select("site_id, project_id")
+                        .in("site_id", quotationSiteIds)
+                        .eq("is_deleted", false);
+
+                    if (quotationSiteError) {
+                        throw quotationSiteError;
+                    } else {
+                        for (const site of quotationSiteRows ?? []) {
+                            if (site.site_id && site.project_id) {
+                                quotationProjectBySite.set(
+                                    String(site.site_id),
+                                    String(site.project_id),
+                                );
+                            }
+                        }
+                    }
+                }
+
+                for (const row of quotationRows ?? []) {
+                    const quotationSiteId = row.project_site_id
+                        ? String(row.project_site_id)
+                        : null;
+
+                    result.push({
+                        source_type: "Quotation",
+                        source_id: String(row.quotation_id),
+                        source_no: String(row.quotation_no),
+                        customer_id: String(row.customer_id),
+                        project_id: quotationSiteId
+                            ? quotationProjectBySite.get(quotationSiteId) ??
+                                null
+                            : null,
+                        project_site_id: quotationSiteId,
+                        total_amount: Number(row.total_amount || 0),
+                        price_book_id: row.price_book_id
+                            ? String(row.price_book_id)
+                            : null,
+                        payment_terms_type_snapshot:
+                            row.payment_terms_type_snapshot
+                                ? String(row.payment_terms_type_snapshot)
+                                : null,
+                        payment_terms_days_snapshot:
+                            row.payment_terms_days_snapshot === null ||
+                                    row.payment_terms_days_snapshot === undefined
+                                ? null
+                                : Number(row.payment_terms_days_snapshot),
+                    });
+                }
             }
 
-            for (const row of quotationRows ?? []) {
-                result.push({
-                    source_type: "Quotation",
-                    source_id: String(row.quotation_id),
-                    source_no: String(row.quotation_no),
-                    customer_id: String(row.customer_id),
-                    project_id: row.project_sites?.project_id
-                        ? String(
-                            row.project_sites.project_id,
-                        )
-                        : null,
-                    project_site_id: row.project_site_id
-                        ? String(row.project_site_id)
-                        : null,
-                    total_amount: Number(
-                        row.total_amount || 0,
+            const {
+                data: revisionRows,
+                error: revisionError,
+            } = await supabase
+                .from("quotation_revisions")
+                .select(
+                    [
+                        "revision_id",
+                        "revision_no",
+                        "quotation_id",
+                        "customer_id",
+                        "project_site_id",
+                        "total_amount",
+                        "price_book_id",
+                        "payment_terms_type_snapshot",
+                        "payment_terms_days_snapshot",
+                    ].join(", "),
+                )
+                .eq("revision_status", "Accepted")
+                .eq("is_deleted", false)
+                .eq("is_active", true)
+                .order("revision_no");
+
+            if (revisionError) {
+                throw revisionError;
+            } else {
+                const revisionQuotationIds = Array.from(
+                    new Set(
+                        (revisionRows ?? [])
+                            .map((row) =>
+                                row.quotation_id ? String(row.quotation_id) : ""
+                            )
+                            .filter(Boolean),
                     ),
-                });
+                );
+
+                const quotationById = new Map<
+                    string,
+                    {
+                        quotation_no: string;
+                        quotation_status: string;
+                        accepted_revision_id: string | null;
+                    }
+                >();
+
+                if (revisionQuotationIds.length > 0) {
+                    const {
+                        data: revisionParentRows,
+                        error: revisionParentError,
+                    } = await supabase
+                        .from("quotations")
+                        .select(
+                            [
+                                "quotation_id",
+                                "quotation_no",
+                                "quotation_status",
+                                "accepted_revision_id",
+                            ].join(", "),
+                        )
+                        .in(
+                            "quotation_id",
+                            revisionQuotationIds,
+                        )
+                        .eq("is_deleted", false)
+                        .eq("is_active", true);
+
+                    if (revisionParentError) {
+                        throw revisionParentError;
+                    } else {
+                        for (
+                            const parent of revisionParentRows ?? []
+                        ) {
+                            if (!parent.quotation_id) {
+                                continue;
+                            }
+
+                            quotationById.set(
+                                String(parent.quotation_id),
+                                {
+                                    quotation_no: String(
+                                        parent.quotation_no ??
+                                            "Quotation",
+                                    ),
+                                    quotation_status: String(
+                                        parent.quotation_status ?? "",
+                                    ),
+                                    accepted_revision_id:
+                                        parent.accepted_revision_id
+                                            ? String(
+                                                parent.accepted_revision_id,
+                                            )
+                                            : null,
+                                },
+                            );
+                        }
+                    }
+                }
+
+                const revisionSiteIds = Array.from(
+                    new Set(
+                        (revisionRows ?? [])
+                            .map((row) =>
+                                row.project_site_id
+                                    ? String(row.project_site_id)
+                                    : ""
+                            )
+                            .filter(Boolean),
+                    ),
+                );
+
+                const revisionProjectBySite = new Map<string, string>();
+
+                if (revisionSiteIds.length > 0) {
+                    const {
+                        data: revisionSiteRows,
+                        error: revisionSiteError,
+                    } = await supabase
+                        .from("project_sites")
+                        .select("site_id, project_id")
+                        .in("site_id", revisionSiteIds)
+                        .eq("is_deleted", false);
+
+                    if (revisionSiteError) {
+                        throw revisionSiteError;
+                    } else {
+                        for (
+                            const site of revisionSiteRows ?? []
+                        ) {
+                            if (
+                                site.site_id &&
+                                site.project_id
+                            ) {
+                                revisionProjectBySite.set(
+                                    String(site.site_id),
+                                    String(site.project_id),
+                                );
+                            }
+                        }
+                    }
+                }
+
+                for (const row of revisionRows ?? []) {
+                    const parent = quotationById.get(
+                        String(row.quotation_id),
+                    );
+
+                    if (!parent) {
+                        continue;
+                    }
+
+                    if (
+                        parent.quotation_status !==
+                            "Accepted"
+                    ) {
+                        continue;
+                    }
+
+                    if (
+                        parent.accepted_revision_id !==
+                            String(row.revision_id)
+                    ) {
+                        continue;
+                    }
+
+                    const revisionSiteId = row.project_site_id
+                        ? String(row.project_site_id)
+                        : null;
+
+                    result.push({
+                        source_type: "Quotation Revision",
+                        source_id: String(
+                            row.revision_id,
+                        ),
+                        source_no: `${parent.quotation_no} / Rev ${
+                            Number(
+                                row.revision_no || 0,
+                            )
+                        }`,
+                        customer_id: String(
+                            row.customer_id,
+                        ),
+                        project_id: revisionSiteId
+                            ? revisionProjectBySite.get(
+                                revisionSiteId,
+                            ) ?? null
+                            : null,
+                        project_site_id: revisionSiteId,
+                        total_amount: Number(
+                            row.total_amount || 0,
+                        ),
+                        price_book_id: row.price_book_id
+                            ? String(
+                                row.price_book_id,
+                            )
+                            : null,
+                        payment_terms_type_snapshot:
+                            row.payment_terms_type_snapshot
+                                ? String(row.payment_terms_type_snapshot)
+                                : null,
+                        payment_terms_days_snapshot:
+                            row.payment_terms_days_snapshot === null ||
+                                    row.payment_terms_days_snapshot === undefined
+                                ? null
+                                : Number(row.payment_terms_days_snapshot),
+                        parent_quotation_no: parent.quotation_no,
+                        revision_no: Number(
+                            row.revision_no || 0,
+                        ),
+                    });
+                }
             }
 
             const {
                 data: variationRows,
                 error: variationError,
-            } = await (supabase as any)
+            } = await supabase
                 .from("variations")
                 .select(
                     [
@@ -1016,6 +1430,9 @@ const Invoices = () => {
                         "project_id",
                         "project_site_id",
                         "total_amount",
+                        "price_book_id",
+                        "payment_terms_type_snapshot",
+                        "payment_terms_days_snapshot",
                     ].join(", "),
                 )
                 .eq("variation_status", "Accepted")
@@ -1025,26 +1442,66 @@ const Invoices = () => {
 
             if (variationError) {
                 throw variationError;
-            }
-
-            for (const row of variationRows ?? []) {
-                result.push({
-                    source_type: "Variation",
-                    source_id: String(row.variation_id),
-                    source_no: String(row.variation_no),
-                    customer_id: String(row.customer_id),
-                    project_id: row.project_id ? String(row.project_id) : null,
-                    project_site_id: row.project_site_id
-                        ? String(row.project_site_id)
-                        : null,
-                    total_amount: Number(
-                        row.total_amount || 0,
-                    ),
-                });
+            } else {
+                for (const row of variationRows ?? []) {
+                    result.push({
+                        source_type: "Variation",
+                        source_id: String(row.variation_id),
+                        source_no: String(row.variation_no),
+                        customer_id: String(row.customer_id),
+                        project_id: row.project_id
+                            ? String(row.project_id)
+                            : null,
+                        project_site_id: row.project_site_id
+                            ? String(row.project_site_id)
+                            : null,
+                        total_amount: Number(row.total_amount || 0),
+                        price_book_id: row.price_book_id
+                            ? String(row.price_book_id)
+                            : null,
+                        payment_terms_type_snapshot:
+                            row.payment_terms_type_snapshot
+                                ? String(row.payment_terms_type_snapshot)
+                                : null,
+                        payment_terms_days_snapshot:
+                            row.payment_terms_days_snapshot === null ||
+                                    row.payment_terms_days_snapshot === undefined
+                                ? null
+                                : Number(row.payment_terms_days_snapshot),
+                    });
+                }
             }
 
             return result;
         },
+    });
+
+    const activeCommercialSourceType = useMemo<
+        SourceOption["source_type"] | null
+    >(() => {
+        if (createMode === "Quotation") return "Quotation";
+        if (createMode === "Accepted Revision") return "Quotation Revision";
+        if (createMode === "Variation") return "Variation";
+        return null;
+    }, [createMode]);
+
+    const invoiceWorkStatus = useQuery({
+        queryKey: [
+            "invoice-source-work-status-v2",
+            activeCommercialSourceType,
+            selectedCommercialSourceId,
+        ],
+        enabled: !editingId &&
+            Boolean(activeCommercialSourceType) &&
+            Boolean(selectedCommercialSourceId),
+        queryFn: () =>
+            callRpc<InvoiceWorkStatus[]>(
+                "list_invoice_source_work_status",
+                {
+                    p_source_type: activeCommercialSourceType,
+                    p_source_id: selectedCommercialSourceId,
+                },
+            ),
     });
 
     const invoiceList = useQuery({
@@ -1084,19 +1541,53 @@ const Invoices = () => {
     });
 
     const detail = useQuery({
-        queryKey: ["invoice-detail-v2", selectedId],
+        queryKey: ["invoice-detail-v4", selectedId],
         enabled: Boolean(selectedId),
-        queryFn: () =>
-            callRpc<InvoiceDetail>(
-                "get_customer_invoice_detail",
-                {
-                    p_invoice_id: selectedId,
+        queryFn: async () => {
+            const [
+                data,
+                persistedPriceBookId,
+                persistedPaymentTerms,
+            ] = await Promise.all([
+                callRpc<InvoiceDetail>(
+                    "get_customer_invoice_detail",
+                    {
+                        p_invoice_id: selectedId,
+                    },
+                ),
+                callRpc<string | null>(
+                    "get_customer_invoice_price_book_id",
+                    {
+                        p_invoice_id: selectedId,
+                    },
+                ),
+                callRpc<Record<string, unknown>>(
+                    "get_customer_invoice_payment_terms",
+                    {
+                        p_invoice_id: selectedId,
+                    },
+                ),
+            ]);
+
+            return {
+                ...data,
+                invoice: {
+                    ...(data.invoice ?? {}),
+                    ...(persistedPaymentTerms ?? {}),
+                    price_book_id:
+                        persistedPriceBookId ??
+                        data.invoice?.price_book_id ??
+                        null,
                 },
-            ),
+            } as InvoiceDetail;
+        },
     });
 
     const permission = permissions.data ?? {};
-    const rows = invoiceList.data ?? [];
+    const rows = useMemo(
+        () => invoiceList.data ?? [],
+        [invoiceList.data],
+    );
 
     const totalRows = Number(
         rows[0]?.total_row_count || 0,
@@ -1123,6 +1614,22 @@ const Invoices = () => {
         [customerId, customerFinancials.data],
     );
 
+    const selectedProject = useMemo(
+        () =>
+            (projects.data ?? []).find(
+                (project) => project.project_id === projectId,
+            ) ?? null,
+        [projectId, projects.data],
+    );
+
+    const selectedSite = useMemo(
+        () =>
+            (sites.data ?? []).find(
+                (site) => site.site_id === siteId,
+            ) ?? null,
+        [siteId, sites.data],
+    );
+
     const selectedPriceBook = useMemo(
         () =>
             (priceBooks.data ?? []).find(
@@ -1146,6 +1653,69 @@ const Invoices = () => {
                 source.source_type === "Quotation Revision" ||
                 source.source_type === "Variation"),
     );
+
+    const isCommercialSourceCreate = !editingId &&
+        createMode !== "Counter Sale";
+
+    const commercialSourceOptions = useMemo(() => {
+        const value = sourceSearch.trim().toLowerCase();
+
+        return (sourceOptions.data ?? [])
+            .filter((source) =>
+                source.source_type === activeCommercialSourceType
+            )
+            .filter((source) => {
+                if (!value) return true;
+
+                const customer = (customers.data ?? []).find(
+                    (item) => item.customer_id === source.customer_id,
+                );
+
+                const project = (projects.data ?? []).find(
+                    (item) => item.project_id === source.project_id,
+                );
+
+                const haystack = [
+                    source.source_no,
+                    source.parent_quotation_no,
+                    customer?.customer_code,
+                    customer?.customer_name,
+                    project?.project_no,
+                    project?.project_name,
+                ]
+                    .filter(Boolean)
+                    .join(" ")
+                    .toLowerCase();
+
+                return haystack.includes(value);
+            });
+    }, [
+        sourceOptions.data,
+        activeCommercialSourceType,
+        sourceSearch,
+        customers.data,
+        projects.data,
+    ]);
+
+    const selectedCommercialSource = useMemo(
+        () =>
+            (sourceOptions.data ?? []).find(
+                (source) =>
+                    source.source_type === activeCommercialSourceType &&
+                    source.source_id === selectedCommercialSourceId,
+            ) ?? null,
+        [
+            sourceOptions.data,
+            activeCommercialSourceType,
+            selectedCommercialSourceId,
+        ],
+    );
+
+    const commercialSourceLabel = createMode === "Accepted Revision"
+        ? "Accepted Revision"
+        : createMode === "Variation"
+        ? "Accepted Variation"
+        : "Accepted Quotation";
 
     useEffect(() => {
         if (
@@ -1323,13 +1893,25 @@ const Invoices = () => {
         setPriceBookId(defaultPriceBook?.price_book_id ?? "");
         setInvoiceType("Standard");
         setInvoiceDate(today());
-        setDueDate(addDays(today(), 14));
+        setPaymentTermsType("Days After Bill");
+        setPaymentTermsDays(14);
+        setDueDate(
+            calculateDueDateFromTerms(
+                today(),
+                "Days After Bill",
+                14,
+            ),
+        );
         setCustomerReference("");
         setNotes("");
         setLineAmountType("Exclusive");
         setCustomerDiscount(0);
         setLines([createBlankLine(1)]);
         setSources([]);
+        setCreateMode("Quotation");
+        setSourceSearch("");
+        setSelectedCommercialSourceId("");
+        setSelectedWorkOrderIds([]);
     };
 
     const openCreate = () => {
@@ -1386,9 +1968,15 @@ const Invoices = () => {
                 "",
         );
 
-        const termsDays = Number(
+        const nextPaymentTermsType =
+            financial?.payment_terms_type ??
+                "Days After Bill";
+        const nextPaymentTermsDays = Number(
             financial?.payment_terms_days ?? 14,
         );
+
+        setPaymentTermsType(nextPaymentTermsType);
+        setPaymentTermsDays(nextPaymentTermsDays);
 
         const nextDiscount = Number(
             financial?.discount_percent ?? 0,
@@ -1403,7 +1991,11 @@ const Invoices = () => {
         );
 
         setDueDate(
-            addDays(invoiceDate, termsDays),
+            calculateDueDateFromTerms(
+                invoiceDate,
+                nextPaymentTermsType,
+                nextPaymentTermsDays,
+            ),
         );
 
         setLines((current) =>
@@ -1414,18 +2006,89 @@ const Invoices = () => {
         );
     };
 
+    const changeCreateMode = (nextMode: InvoiceCreateMode) => {
+        setCreateMode(nextMode);
+        setSelectedCommercialSourceId("");
+        setSelectedWorkOrderIds([]);
+        setSourceSearch("");
+        setSources([]);
+
+        if (nextMode === "Counter Sale") {
+            setCustomerId("");
+            setProjectId("");
+            setSiteId("");
+            setPriceBookId(defaultPriceBook?.price_book_id ?? "");
+            setLines([createBlankLine(1)]);
+        } else {
+            setCustomerId("");
+            setProjectId("");
+            setSiteId("");
+            setPriceBookId("");
+            setLines([createBlankLine(1)]);
+        }
+    };
+
+    const selectCommercialSource = (sourceId: string) => {
+        setSelectedCommercialSourceId(sourceId);
+        setSelectedWorkOrderIds([]);
+
+        const source = (sourceOptions.data ?? []).find(
+            (item) =>
+                item.source_type === activeCommercialSourceType &&
+                item.source_id === sourceId,
+        );
+
+        if (!source) {
+            setCustomerId("");
+            setProjectId("");
+            setSiteId("");
+            setPriceBookId("");
+            return;
+        }
+
+        const snapshotTermsType =
+            source.payment_terms_type_snapshot ??
+                "Days After Bill";
+        const snapshotTermsDays = Number(
+            source.payment_terms_days_snapshot ?? 14,
+        );
+
+        setCustomerId(source.customer_id);
+        setProjectId(source.project_id ?? "");
+        setSiteId(source.project_site_id ?? "");
+        setPriceBookId(source.price_book_id ?? "");
+
+        setPaymentTermsType(snapshotTermsType);
+        setPaymentTermsDays(snapshotTermsDays);
+        setDueDate(
+            calculateDueDateFromTerms(
+                invoiceDate,
+                snapshotTermsType,
+                snapshotTermsDays,
+            ),
+        );
+    };
+
+    const toggleWorkOrder = (work: InvoiceWorkStatus) => {
+        if (!work.selectable) return;
+
+        setSelectedWorkOrderIds((current) =>
+            current.includes(work.work_order_id)
+                ? current.filter((id) => id !== work.work_order_id)
+                : [...current, work.work_order_id]
+        );
+    };
+
     const applyInvoiceDate = (
         nextDate: string,
     ) => {
         setInvoiceDate(nextDate);
 
         setDueDate(
-            addDays(
+            calculateDueDateFromTerms(
                 nextDate,
-                Number(
-                    selectedFinancial?.payment_terms_days ??
-                        14,
-                ),
+                paymentTermsType,
+                paymentTermsDays,
             ),
         );
     };
@@ -1433,44 +2096,25 @@ const Invoices = () => {
     const getProductUoms = (
         product: ProductOption,
     ) => {
-        const result = new Map<
-            string,
-            {
-                factor: number;
-                allowFractional: boolean;
-            }
-        >();
-
-        result.set(product.base_uom_code, {
-            factor: 1,
-            allowFractional: true,
-        });
-
-        for (const conversion of conversions.data ?? []) {
-            if (
-                conversion.product_id ===
-                    product.product_id &&
-                conversion.to_uom_code ===
-                    product.base_uom_code
-            ) {
-                result.set(
-                    conversion.from_uom_code,
-                    {
-                        factor: Number(
-                            conversion.conversion_factor,
-                        ),
-                        allowFractional: conversion.allow_fractional_quantity,
-                    },
-                );
-            }
-        }
-
-        return [...result.entries()].map(
-            ([uomCode, detailValue]) => ({
-                uomCode,
-                ...detailValue,
-            }),
-        );
+        return (productUnits.data ?? [])
+            .filter(
+                (unit) =>
+                    unit.product_id === product.product_id &&
+                    unit.is_sales_unit,
+            )
+            .sort(
+                (a, b) =>
+                    Number(a.sort_order ?? 0) -
+                    Number(b.sort_order ?? 0),
+            )
+            .map((unit) => ({
+                uomCode: unit.uom_code,
+                factor: Number(unit.conversion_to_base),
+                // product_units is now the canonical UOM authority.
+                // Fractional handling is not stored on product_units,
+                // so Counter Sale keeps the existing permissive UI behavior.
+                allowFractional: true,
+            }));
     };
 
     const sellingProduct = sellingProductId
@@ -1986,6 +2630,93 @@ const Invoices = () => {
                 );
             }
 
+            if (!editingId && createMode === "Quotation") {
+                if (!selectedCommercialSourceId) {
+                    throw new Error(
+                        "Please select an Accepted Quotation.",
+                    );
+                }
+
+                if (selectedWorkOrderIds.length === 0) {
+                    throw new Error(
+                        "Select at least one Ready to Invoice Work Order.",
+                    );
+                }
+
+                return callRpc<string>(
+                    "create_draft_invoice_from_ready_quotation_work_atomic",
+                    {
+                        p_quotation_id: selectedCommercialSourceId,
+                        p_work_order_ids: selectedWorkOrderIds,
+                        p_invoice: {
+                            invoice_type: invoiceType,
+                            invoice_date: invoiceDate,
+                            customer_reference: customerReference.trim() ||
+                                null,
+                            notes: notes.trim() || null,
+                        },
+                    },
+                );
+            }
+
+            if (!editingId && createMode === "Accepted Revision") {
+                if (!selectedCommercialSourceId) {
+                    throw new Error(
+                        "Please select an Accepted Revision.",
+                    );
+                }
+
+                if (selectedWorkOrderIds.length === 0) {
+                    throw new Error(
+                        "Select at least one Ready to Invoice Work Order.",
+                    );
+                }
+
+                return callRpc<string>(
+                    "create_draft_invoice_from_ready_revision_work_atomic",
+                    {
+                        p_revision_id: selectedCommercialSourceId,
+                        p_work_order_ids: selectedWorkOrderIds,
+                        p_invoice: {
+                            invoice_type: invoiceType,
+                            invoice_date: invoiceDate,
+                            customer_reference: customerReference.trim() ||
+                                null,
+                            notes: notes.trim() || null,
+                        },
+                    },
+                );
+            }
+
+            if (!editingId && createMode === "Variation") {
+                if (!selectedCommercialSourceId) {
+                    throw new Error(
+                        "Please select an Accepted Variation.",
+                    );
+                }
+
+                if (selectedWorkOrderIds.length === 0) {
+                    throw new Error(
+                        "Select at least one Ready to Invoice Work Order.",
+                    );
+                }
+
+                return callRpc<string>(
+                    "create_draft_invoice_from_ready_variation_work_atomic",
+                    {
+                        p_variation_id: selectedCommercialSourceId,
+                        p_work_order_ids: selectedWorkOrderIds,
+                        p_invoice: {
+                            invoice_type: invoiceType,
+                            invoice_date: invoiceDate,
+                            customer_reference:
+                                customerReference.trim() || null,
+                            notes: notes.trim() || null,
+                        },
+                    },
+                );
+            }
+
             if (lines.length === 0) {
                 throw new Error(
                     "At least one Invoice line is required.",
@@ -2166,17 +2897,45 @@ const Invoices = () => {
 
                 if (!priceBookId) {
                     throw new Error(
-                        "Price Book is required for a Direct Invoice.",
+                        "Price Book is required for Counter Sale.",
                     );
                 }
 
+                if (cleanLines.length === 0) {
+                    throw new Error(
+                        "Add at least one Product Line for Counter Sale.",
+                    );
+                }
+
+                const missingProductIndex = cleanLines.findIndex(
+                    (line) => !line.product_id,
+                );
+
+                if (missingProductIndex !== -1) {
+                    throw new Error(
+                        `Line ${
+                            missingProductIndex + 1
+                        }: Product is required for Counter Sale.`,
+                    );
+                }
+
+                // Existing Invoice detail does not expose price_book_line_id
+                // on active_lines. Do not block Counter Sale Edit on missing
+                // client-side pricing lineage metadata. The dedicated backend
+                // update RPC is authoritative and resolves/validates the exact
+                // Price Book + Product + Sales UOM + Invoice Date atomically.
                 return callRpc<string>(
-                    "update_direct_invoice_draft_with_price_book_atomic",
+                    "update_counter_sale_invoice_atomic",
                     {
                         p_invoice_id: editingId,
                         p_invoice: header,
-                        p_lines: cleanLines,
-                        p_sources: cleanSources,
+                        p_lines: cleanLines.map((line) => ({
+                            product_id: line.product_id,
+                            quantity: line.quantity,
+                            sales_uom_code: line.sales_uom_code,
+                            description: line.description,
+                            notes: line.notes,
+                        })),
                         p_price_book_id: priceBookId,
                     },
                 );
@@ -2195,15 +2954,35 @@ const Invoices = () => {
                 );
             }
 
-            // Direct Invoice workflow (no commercial source).
+            // Counter Sale workflow (no Accepted commercial source).
+            // One RPC owns validation + Header + Source + Lines + Mapping +
+            // Audit + totals in one PostgreSQL transaction.
             if (!priceBookId) {
                 throw new Error(
-                    "Price Book is required for a Direct Invoice.",
+                    "Price Book is required for Counter Sale.",
                 );
             }
 
-            // Every Product/UOM must have an exact price in the selected
-            // Price Book. Standard is reference-only for other books.
+            if (cleanLines.length === 0) {
+                throw new Error(
+                    "Add at least one Product Line for Counter Sale.",
+                );
+            }
+
+            const missingProductIndex = cleanLines.findIndex(
+                (line) => !line.product_id,
+            );
+
+            if (missingProductIndex !== -1) {
+                throw new Error(
+                    `Line ${
+                        missingProductIndex + 1
+                    }: Product is required for Counter Sale.`,
+                );
+            }
+
+            // Frontend gives immediate feedback; backend remains authoritative
+            // and re-validates exact Price Book + Product + Sales UOM.
             const missingPriceIndex = lines.findIndex(
                 (line) =>
                     Boolean(line.product_id) &&
@@ -2215,52 +2994,24 @@ const Invoices = () => {
                 throw new Error(
                     `Line ${
                         missingPriceIndex + 1
-                    }: Selling Price is missing in the selected Price Book. Please configure it before creating a Direct Invoice.`,
+                    }: Selling Price is missing in the selected Price Book. Please configure it before creating Counter Sale.`,
                 );
             }
 
-            const invoiceId = await callRpc<string>(
-                "create_direct_invoice_draft_with_price_book_atomic",
+            return callRpc<string>(
+                "create_counter_sale_invoice_atomic",
                 {
                     p_invoice: header,
+                    p_lines: cleanLines.map((line) => ({
+                        product_id: line.product_id,
+                        quantity: line.quantity,
+                        sales_uom_code: line.sales_uom_code,
+                        description: line.description,
+                        notes: line.notes,
+                    })),
                     p_price_book_id: priceBookId,
                 },
             );
-
-            const failures: { index: number; error: unknown }[] = [];
-
-            for (let i = 0; i < cleanLines.length; i++) {
-                const l = cleanLines[i];
-
-                try {
-                    await callRpc<string>(
-                        "add_direct_invoice_price_book_product_line_atomic",
-                        {
-                            p_customer_invoice_id: invoiceId,
-                            p_product_id: l.product_id,
-                            p_quantity: l.quantity,
-                            p_sales_uom_code: l.sales_uom_code,
-                            p_project_area_id: l.project_area_id || null,
-                            p_description: l.description,
-                            p_notes: l.notes,
-                        },
-                    );
-                } catch (err) {
-                    failures.push({ index: i, error: err });
-                }
-            }
-
-            if (failures.length > 0) {
-                // Do not attempt rollback. Preserve form and surface error.
-                const firstErr: any = failures[0].error ?? {};
-                throw new Error(
-                    `Draft Invoice ${invoiceId} created but ${failures.length} product line(s) failed to add: ${
-                        firstErr.message || String(firstErr)
-                    }. Your form has been preserved.`,
-                );
-            }
-
-            return invoiceId;
         },
 
         onSuccess: async (invoiceId) => {
@@ -2448,14 +3199,35 @@ const Invoices = () => {
         invoiceId: string,
     ) => {
         try {
-            const data = await callRpc<InvoiceDetail>(
-                "get_customer_invoice_detail",
-                {
-                    p_invoice_id: invoiceId,
-                },
-            );
+            const [
+                data,
+                persistedPriceBookId,
+                persistedPaymentTerms,
+            ] = await Promise.all([
+                callRpc<InvoiceDetail>(
+                    "get_customer_invoice_detail",
+                    {
+                        p_invoice_id: invoiceId,
+                    },
+                ),
+                callRpc<string | null>(
+                    "get_customer_invoice_price_book_id",
+                    {
+                        p_invoice_id: invoiceId,
+                    },
+                ),
+                callRpc<Record<string, unknown>>(
+                    "get_customer_invoice_payment_terms",
+                    {
+                        p_invoice_id: invoiceId,
+                    },
+                ),
+            ]);
 
-            const invoice = data.invoice ?? {};
+            const invoice = {
+                ...(data.invoice ?? {}),
+                ...(persistedPaymentTerms ?? {}),
+            };
 
             const detailLines = data.active_lines ?? [];
 
@@ -2493,7 +3265,11 @@ const Invoices = () => {
 
             setPriceBookId(
                 String(
-                    invoice.price_book_id ??
+                    persistedPriceBookId ??
+                        invoice.price_book_id ??
+                        detailLines.find(
+                            (line) => Boolean(line.price_book_id),
+                        )?.price_book_id ??
                         "",
                 ),
             );
@@ -2512,12 +3288,27 @@ const Invoices = () => {
                 ),
             );
 
+            const persistedTermsType = String(
+                invoice.payment_terms_type ??
+                    "Days After Bill",
+            );
+            const persistedTermsDays = Number(
+                invoice.payment_terms_days ?? 14,
+            );
+
+            setPaymentTermsType(persistedTermsType);
+            setPaymentTermsDays(persistedTermsDays);
+
             setDueDate(
                 String(
                     invoice.due_date ??
-                        addDays(
-                            today(),
-                            14,
+                        calculateDueDateFromTerms(
+                            String(
+                                invoice.invoice_date ??
+                                    today(),
+                            ),
+                            persistedTermsType,
+                            persistedTermsDays,
                         ),
                 ),
             );
@@ -2646,9 +3437,7 @@ const Invoices = () => {
                 detailSources
                     .filter(
                         (source) =>
-                            !Boolean(
-                                source.is_deleted,
-                            ),
+                            !source.is_deleted,
                     )
                     .map((source) => ({
                         key: uniqueKey(),
@@ -2777,76 +3566,155 @@ const Invoices = () => {
         });
     };
 
-    const exportCsv = () => {
-        const headers = [
-            "Invoice",
-            "Type",
-            "Customer",
-            "Project",
-            "Site",
-            "Invoice Date",
-            "Due Date",
-            "Document Status",
-            "Payment Status",
-            "Subtotal",
-            "Discount",
-            "Tax",
-            "Total",
-            "Paid",
-            "Balance",
-        ];
+    const exportXlsx = async () => {
+        try {
+            /*
+             * list_customer_invoices enforces p_limit between 1 and 500.
+             * Export therefore reads all matching rows in safe 500-row pages
+             * instead of bypassing the backend contract with a larger limit.
+             */
+            const exportRows: InvoiceRow[] = [];
+            const exportPageSize = 500;
+            let exportOffset = 0;
 
-        const body = rows.map((row) =>
-            [
-                row.invoice_no,
-                row.invoice_type,
-                `${row.customer_code} - ${row.customer_name}`,
-                row.project_no
-                    ? `${row.project_no} - ${row.project_name ?? ""}`
-                    : "",
-                row.site_code
-                    ? `${row.site_code} - ${row.site_name ?? ""}`
-                    : "",
-                row.invoice_date,
-                row.due_date,
-                row.document_status,
-                row.payment_status,
-                row.subtotal_amount,
-                row.discount_amount ?? 0,
-                row.tax_amount,
-                row.total_amount,
-                row.paid_amount,
-                row.balance_amount,
-            ]
-                .map(csvCell)
-                .join(",")
-        );
+            while (true) {
+                const batch = await callRpc<InvoiceRow[]>(
+                    "list_customer_invoices",
+                    {
+                        p_search: search.trim() || null,
+                        p_document_status: documentStatus === "All"
+                            ? null
+                            : documentStatus,
+                        p_payment_status: paymentStatus === "All"
+                            ? null
+                            : paymentStatus,
+                        p_invoice_type: invoiceTypeFilter === "All"
+                            ? null
+                            : invoiceTypeFilter,
+                        p_customer_id: null,
+                        p_project_id: null,
+                        p_project_site_id: null,
+                        p_date_from: dateFrom || null,
+                        p_date_to: dateTo || null,
+                        p_limit: exportPageSize,
+                        p_offset: exportOffset,
+                    },
+                );
 
-        const blob = new Blob(
-            [
-                [
-                    headers
-                        .map(csvCell)
-                        .join(","),
-                    ...body,
-                ].join("\n"),
-            ],
-            {
-                type: "text/csv;charset=utf-8",
-            },
-        );
+                exportRows.push(...batch);
 
-        const url = URL.createObjectURL(blob);
+                if (batch.length < exportPageSize) {
+                    break;
+                }
 
-        const anchor = document.createElement("a");
+                exportOffset += exportPageSize;
 
-        anchor.href = url;
+                /*
+                 * Defensive stop only. The backend page contract remains
+                 * authoritative and no mutation occurs during export.
+                 */
+                if (exportOffset > 100000) {
+                    throw new Error(
+                        "Invoice export exceeded the safe paging limit.",
+                    );
+                }
+            }
 
-        anchor.download = `REDS-Invoices-${today()}.csv`;
+            if (!exportRows.length) {
+                toast.error(
+                    "No Invoice rows match the current search and filters.",
+                );
+                return;
+            }
 
-        anchor.click();
+            const rows = exportRows.map((row) => ({
+                "Invoice No.": row.invoice_no,
+                "Invoice Type": row.invoice_type,
+                "Customer Code": row.customer_code,
+                "Customer": row.customer_name,
+                "Project No.": row.project_no ?? "",
+                "Project": row.project_name ?? "",
+                "Site Code": row.site_code ?? "",
+                "Site": row.site_name ?? "",
+                "Invoice Date": row.invoice_date,
+                "Due Date": row.due_date,
+                "Document Status": row.document_status,
+                "Payment Status": row.payment_status,
+                "Tax Presentation": row.line_amount_type,
+                "Subtotal": Number(row.subtotal_amount || 0),
+                "Discount": Number(row.discount_amount || 0),
+                "GST": Number(row.tax_amount || 0),
+                "Total": Number(row.total_amount || 0),
+                "Paid": Number(row.paid_amount || 0),
+                "Amount Due": Number(row.balance_amount || 0),
+                "Currency": row.currency_code || "AUD",
+                "Customer Reference": row.customer_reference ?? "",
+                "Source Types": (row.source_types ?? []).join(", "),
+                "Source References": (row.source_references ?? [])
+                    .map((source) =>
+                        String(
+                            source.source_reference ??
+                                source.source_type ??
+                                "",
+                        )
+                    )
+                    .filter(Boolean)
+                    .join(", "),
+            }));
 
-        URL.revokeObjectURL(url);
+            const workbook = XLSX.utils.book_new();
+            const worksheet = XLSX.utils.json_to_sheet(rows);
+
+            worksheet["!cols"] = [
+                { wch: 16 },
+                { wch: 16 },
+                { wch: 16 },
+                { wch: 32 },
+                { wch: 16 },
+                { wch: 28 },
+                { wch: 16 },
+                { wch: 28 },
+                { wch: 14 },
+                { wch: 14 },
+                { wch: 18 },
+                { wch: 18 },
+                { wch: 18 },
+                { wch: 14 },
+                { wch: 14 },
+                { wch: 14 },
+                { wch: 14 },
+                { wch: 14 },
+                { wch: 14 },
+                { wch: 12 },
+                { wch: 24 },
+                { wch: 24 },
+                { wch: 42 },
+            ];
+
+            XLSX.utils.book_append_sheet(
+                workbook,
+                worksheet,
+                "Invoices",
+            );
+
+            XLSX.writeFile(
+                workbook,
+                `REDS-Invoices-${today()}.xlsx`,
+                {
+                    compression: true,
+                },
+            );
+
+            toast.success(
+                `Exported ${exportRows.length} Invoice row(s) to XLSX using the current search and filters.`,
+            );
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Invoice XLSX export failed.",
+            );
+        }
     };
 
     const printPage = () => {
@@ -2922,7 +3790,7 @@ const Invoices = () => {
 
         try {
             if (customerId) {
-                const { data, error } = await (supabase as any)
+                const { data, error } = await supabase
                     .from("customer_addresses")
                     .select(
                         "address_line1, address_line2, suburb, state, postcode, country, address_type, is_primary",
@@ -2940,19 +3808,19 @@ const Invoices = () => {
 
                 const addresses = data ?? [];
                 customerAddress = addresses.find(
-                    (address: any) =>
+                    (address) =>
                         String(address.address_type ?? "").toLowerCase() ===
                             "billing",
                 ) ??
                     addresses.find(
-                        (address: any) => Boolean(address.is_primary),
+                        (address) => Boolean(address.is_primary),
                     ) ??
                     addresses[0] ??
                     null;
             }
 
             if (projectSiteId) {
-                const { data, error } = await (supabase as any)
+                const { data, error } = await supabase
                     .from("project_sites")
                     .select(
                         "address_line_1, address_line_2, suburb, state, postcode, country",
@@ -3024,6 +3892,18 @@ const Invoices = () => {
             String(invoice.line_amount_type ?? "Exclusive"),
         );
 
+        const isCommercialTaxPresentation =
+            lineAmountType === "Exclusive";
+        const isResidentialTaxPresentation =
+            lineAmountType === "Inclusive";
+        const isDraftDocument =
+            String(invoice.document_status ?? "") === "Draft";
+
+        const paymentTermsDisplay = formatPaymentTerms(
+            invoice.payment_terms_type,
+            invoice.payment_terms_days,
+        );
+
         const discountAmount = Number(invoice.discount_amount || 0);
         const taxAmount = Number(invoice.tax_amount || 0);
         const paidAmount = Number(invoice.paid_amount || 0);
@@ -3043,6 +3923,33 @@ const Invoices = () => {
                     .filter(Boolean)
                     .join(" — ");
 
+                if (isResidentialTaxPresentation) {
+                    return `
+                        <tr>
+                            <td class="description">${
+                        escapeHtml(
+                            productLabel ||
+                                line.product_name ||
+                                "Item",
+                        )
+                    }</td>
+                            <td class="num">${
+                        escapeHtml(
+                            formatMoney(lineAmount),
+                        )
+                    }</td>
+                        </tr>
+                    `;
+                }
+
+                const gstCell = isCommercialTaxPresentation
+                    ? `<td class="num">${
+                        escapeHtml(
+                            `${formatNumber(line.tax_rate)}%`,
+                        )
+                    }</td>`
+                    : "";
+
                 return `
                     <tr>
                         <td class="description">${
@@ -3061,6 +3968,7 @@ const Invoices = () => {
                         formatMoney(line.unit_price),
                     )
                 }</td>
+                        ${gstCell}
                         <td class="num">${
                     escapeHtml(
                         formatMoney(lineAmount),
@@ -3080,7 +3988,7 @@ const Invoices = () => {
                 `
             : "";
 
-        const summaryRows = lineAmountType === "Exclusive"
+        const summaryRows = isCommercialTaxPresentation
             ? `
                     <tr>
                         <td>Subtotal</td>
@@ -3104,11 +4012,11 @@ const Invoices = () => {
             }</td>
                     </tr>
                 `
-            : lineAmountType === "Inclusive"
+            : isResidentialTaxPresentation
             ? `
                     ${discountRow}
                     <tr class="invoice-total">
-                        <td>Invoice Total incl GST</td>
+                        <td>Invoice Total inc GST</td>
                         <td>${
                 escapeHtml(
                     formatMoney(invoice.total_amount),
@@ -3278,11 +4186,26 @@ const Invoices = () => {
             text-align: left;
         }
 
+        ${
+            isResidentialTaxPresentation
+                ? `
+        .lines th:nth-child(1) { width: 76%; }
+        .lines th:nth-child(2) { width: 24%; }`
+                : isCommercialTaxPresentation
+                ? `
+        .lines th:nth-child(1) { width: 40%; }
+        .lines th:nth-child(2) { width: 9%; }
+        .lines th:nth-child(3) { width: 9%; }
+        .lines th:nth-child(4) { width: 15%; }
+        .lines th:nth-child(5) { width: 11%; }
+        .lines th:nth-child(6) { width: 16%; }`
+                : `
         .lines th:nth-child(1) { width: 48%; }
         .lines th:nth-child(2) { width: 10%; }
         .lines th:nth-child(3) { width: 10%; }
         .lines th:nth-child(4) { width: 16%; }
-        .lines th:nth-child(5) { width: 16%; }
+        .lines th:nth-child(5) { width: 16%; }`
+        }
 
         .lines td {
             padding: 9px 7px;
@@ -3395,7 +4318,11 @@ const Invoices = () => {
             </div>
 
             <div class="invoice-title">
-                <h1>TAX INVOICE</h1>
+                <h1>${
+                    escapeHtml(
+                        `${isDraftDocument ? "DRAFT " : ""}TAX INVOICE`,
+                    )
+                }</h1>
 
                 <table class="meta">
                     <tr>
@@ -3417,6 +4344,10 @@ const Invoices = () => {
                 formatDate(invoice.due_date),
             )
         }</td>
+                    </tr>
+                    <tr>
+                        <td>Payment Terms</td>
+                        <td>${escapeHtml(paymentTermsDisplay)}</td>
                     </tr>
                     ${
             customerReference
@@ -3468,18 +4399,32 @@ const Invoices = () => {
 
         <table class="lines">
             <thead>
+                ${
+                    isResidentialTaxPresentation
+                        ? `
+                <tr>
+                    <th>Product Code / Description</th>
+                    <th class="num">Total</th>
+                </tr>`
+                        : `
                 <tr>
                     <th>Product Code / Description</th>
                     <th class="num">Qty</th>
                     <th>UOM</th>
                     <th class="num">Unit Price</th>
+                    ${
+                        isCommercialTaxPresentation
+                            ? '<th class="num">GST</th>'
+                            : ""
+                    }
                     <th class="num">Amount</th>
-                </tr>
+                </tr>`
+                }
             </thead>
             <tbody>
                 ${
             lineRows ||
-            `<tr><td colspan="5" style="text-align:center;color:#777;padding:20px">No invoice lines.</td></tr>`
+            `<tr><td colspan="${isResidentialTaxPresentation ? 2 : isCommercialTaxPresentation ? 6 : 5}" style="text-align:center;color:#777;padding:20px">No invoice lines.</td></tr>`
         }
             </tbody>
         </table>
@@ -3521,8 +4466,8 @@ const Invoices = () => {
         </section>
 
         <div class="print-note">
-            Use your browser Print dialog to print this Invoice or choose
-            “Save as PDF”.
+            Print this customer Invoice or choose “Save as PDF” in the
+            browser Print dialog.
         </div>
     </main>
 
@@ -3541,6 +4486,982 @@ const Invoices = () => {
         printWindow.document.open();
         printWindow.document.write(html);
         printWindow.document.close();
+    };
+
+    const downloadCustomerInvoicePdf = async (
+        invoice: Record<string, unknown>,
+        detailLines: InvoiceDetailLine[],
+    ) => {
+        try {
+            /*
+             * PDF libraries are loaded only when the user clicks Download PDF.
+             * This keeps them out of the initial Invoice page execution path.
+             */
+            const [{ jsPDF }, autoTableModule] = await Promise.all([
+                import("jspdf"),
+                import("jspdf-autotable"),
+            ]);
+
+            const autoTable = autoTableModule.default;
+
+            const pdf = new jsPDF({
+                orientation: "portrait",
+                unit: "mm",
+                format: "a4",
+                compress: true,
+            });
+
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            const marginLeft = 14;
+            const marginRight = 14;
+            const contentWidth =
+                pageWidth - marginLeft - marginRight;
+
+            const cleanText = (value: unknown) =>
+                String(value ?? "")
+                    .replace(/[–—]/g, "-")
+                    .replace(/[“”]/g, '"')
+                    .replace(/[‘’]/g, "'")
+                    .trim();
+
+            const moneyPdf = (value: unknown) =>
+                new Intl.NumberFormat("en-AU", {
+                    style: "currency",
+                    currency: "AUD",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                })
+                    .format(Number(value || 0))
+                    .replace(/\u00a0/g, " ");
+
+            const numberPdf = (value: unknown) =>
+                new Intl.NumberFormat("en-AU", {
+                    maximumFractionDigits: 6,
+                }).format(Number(value || 0));
+
+            const datePdf = (value: unknown) => {
+                const raw = cleanText(value);
+                if (!raw) return "-";
+
+                const iso = raw.match(
+                    /^(\d{4})-(\d{2})-(\d{2})/,
+                );
+
+                if (iso) {
+                    return `${iso[3]}/${iso[2]}/${iso[1]}`;
+                }
+
+                const parsed = new Date(raw);
+                return Number.isNaN(parsed.getTime())
+                    ? raw
+                    : parsed.toLocaleDateString("en-AU");
+            };
+
+            const customerId = cleanText(
+                invoice.customer_id,
+            );
+            const projectSiteId = cleanText(
+                invoice.project_site_id,
+            );
+
+            let customerAddress:
+                | {
+                    address_line1?: string | null;
+                    address_line2?: string | null;
+                    suburb?: string | null;
+                    state?: string | null;
+                    postcode?: string | null;
+                    country?: string | null;
+                }
+                | null = null;
+
+            let projectSite:
+                | {
+                    address_line_1?: string | null;
+                    address_line_2?: string | null;
+                    suburb?: string | null;
+                    state?: string | null;
+                    postcode?: string | null;
+                    country?: string | null;
+                }
+                | null = null;
+
+            if (customerId) {
+                const { data, error } = await supabase
+                    .from("customer_addresses")
+                    .select(
+                        "address_line1, address_line2, suburb, state, postcode, country, address_type, is_primary",
+                    )
+                    .eq("customer_id", customerId)
+                    .eq("is_deleted", false)
+                    .eq("is_active", true)
+                    .order("is_primary", {
+                        ascending: false,
+                    });
+
+                if (error) throw error;
+
+                const addresses = data ?? [];
+
+                customerAddress = addresses.find(
+                    (address) =>
+                        String(
+                            address.address_type ?? "",
+                        ).toLowerCase() === "billing",
+                ) ??
+                    addresses.find(
+                        (address) =>
+                            Boolean(address.is_primary),
+                    ) ??
+                    addresses[0] ??
+                    null;
+            }
+
+            if (projectSiteId) {
+                const { data, error } = await supabase
+                    .from("project_sites")
+                    .select(
+                        "address_line_1, address_line_2, suburb, state, postcode, country",
+                    )
+                    .eq("site_id", projectSiteId)
+                    .eq("is_deleted", false)
+                    .maybeSingle();
+
+                if (error) throw error;
+
+                projectSite = data ?? null;
+            }
+
+            const buildAddressLines = (
+                address:
+                    | {
+                        address_line1?: string | null;
+                        address_line2?: string | null;
+                        address_line_1?: string | null;
+                        address_line_2?: string | null;
+                        suburb?: string | null;
+                        state?: string | null;
+                        postcode?: string | null;
+                        country?: string | null;
+                    }
+                    | null,
+            ) => {
+                if (!address) return ["-"];
+
+                const firstLine =
+                    address.address_line1 ??
+                    address.address_line_1 ??
+                    "";
+
+                const secondLine =
+                    address.address_line2 ??
+                    address.address_line_2 ??
+                    "";
+
+                const locality = [
+                    address.suburb,
+                    address.state,
+                    address.postcode,
+                ]
+                    .filter(Boolean)
+                    .join(" ");
+
+                return [
+                    firstLine,
+                    secondLine,
+                    locality,
+                    address.country,
+                ]
+                    .map(cleanText)
+                    .filter(Boolean);
+            };
+
+            const billingAddressLines =
+                buildAddressLines(customerAddress);
+
+            const projectAddressLines =
+                buildAddressLines(projectSite);
+
+            const lineAmountType =
+                normalizeLineAmountType(
+                    cleanText(
+                        invoice.line_amount_type ||
+                            "Exclusive",
+                    ),
+                );
+
+            const isCommercialTaxPresentation =
+                lineAmountType === "Exclusive";
+
+            const isResidentialTaxPresentation =
+                lineAmountType === "Inclusive";
+
+            const isDraftDocument =
+                cleanText(invoice.document_status) ===
+                "Draft";
+
+            const paymentTermsDisplay =
+                formatPaymentTerms(
+                    invoice.payment_terms_type,
+                    invoice.payment_terms_days,
+                );
+
+            const invoiceNo =
+                cleanText(invoice.invoice_no) ||
+                "Invoice";
+
+            const customerName =
+                cleanText(invoice.customer_name) ||
+                "Customer";
+
+            const customerCode =
+                cleanText(invoice.customer_code);
+
+            const customerReference =
+                cleanText(
+                    invoice.customer_reference,
+                );
+
+            const projectDisplay = [
+                cleanText(invoice.project_name),
+                cleanText(invoice.site_name),
+            ]
+                .filter(Boolean)
+                .join(" - ");
+
+            const drawPageHeader = () => {
+                pdf.setTextColor(180, 35, 43);
+                pdf.setFont("helvetica", "bold");
+                pdf.setFontSize(30);
+                pdf.text("REDS", marginLeft, 18);
+
+                pdf.setFontSize(7.5);
+                pdf.text(
+                    "TIMBER FLOORING SPECIALISTS",
+                    marginLeft,
+                    23,
+                );
+
+                pdf.setTextColor(40, 40, 40);
+                pdf.setFont("helvetica", "bold");
+                pdf.setFontSize(8.5);
+                pdf.text(
+                    "REDS FLOORING PTY LTD",
+                    marginLeft,
+                    31,
+                );
+
+                pdf.setFont("helvetica", "normal");
+                pdf.setFontSize(7.5);
+
+                [
+                    "Unit 27 70 Norma Road Myaree WA 6154",
+                    "ABN: 61 621 645 949",
+                    "Ph: 0498 072 147",
+                    "projects@redstimberflooring.com",
+                    "accounts@redstimberflooring.com",
+                    "www.redstimberflooring.com",
+                ].forEach((line, index) => {
+                    pdf.text(
+                        line,
+                        marginLeft,
+                        35 + index * 4,
+                    );
+                });
+
+                pdf.setFont("helvetica", "bold");
+                pdf.setFontSize(18);
+                pdf.text(
+                    `${
+                        isDraftDocument
+                            ? "DRAFT "
+                            : ""
+                    }TAX INVOICE`,
+                    pageWidth - marginRight,
+                    18,
+                    {
+                        align: "right",
+                    },
+                );
+
+                const metaRows: Array<
+                    [string, string]
+                > = [
+                    [
+                        "Invoice No.",
+                        invoiceNo,
+                    ],
+                    [
+                        "Invoice Date",
+                        datePdf(
+                            invoice.invoice_date,
+                        ),
+                    ],
+                    [
+                        "Due Date",
+                        datePdf(invoice.due_date),
+                    ],
+                    [
+                        "Payment Terms",
+                        cleanText(
+                            paymentTermsDisplay,
+                        ) || "-",
+                    ],
+                ];
+
+                if (customerReference) {
+                    metaRows.push([
+                        "Reference",
+                        customerReference,
+                    ]);
+                }
+
+                let metaY = 27;
+
+                metaRows.forEach(
+                    ([label, value]) => {
+                        pdf.setFont(
+                            "helvetica",
+                            "bold",
+                        );
+                        pdf.setFontSize(7.5);
+                        pdf.text(
+                            label,
+                            pageWidth - 61,
+                            metaY,
+                        );
+
+                        pdf.setFont(
+                            "helvetica",
+                            "normal",
+                        );
+
+                        const split =
+                            pdf.splitTextToSize(
+                                value,
+                                43,
+                            );
+
+                        pdf.text(
+                            split,
+                            pageWidth -
+                                marginRight,
+                            metaY,
+                            {
+                                align: "right",
+                            },
+                        );
+
+                        metaY += Math.max(
+                            4.5,
+                            split.length * 3.3 +
+                                1,
+                        );
+                    },
+                );
+
+                pdf.setDrawColor(139, 63, 63);
+                pdf.setLineWidth(0.6);
+                pdf.line(
+                    marginLeft,
+                    59,
+                    pageWidth - marginRight,
+                    59,
+                );
+            };
+
+            const drawPageFooter = (
+                pageNumber: number,
+                totalPages: number,
+            ) => {
+                pdf.setDrawColor(190, 190, 190);
+                pdf.setLineWidth(0.2);
+                pdf.line(
+                    marginLeft,
+                    pageHeight - 13,
+                    pageWidth - marginRight,
+                    pageHeight - 13,
+                );
+
+                pdf.setTextColor(105, 105, 105);
+                pdf.setFont(
+                    "helvetica",
+                    "normal",
+                );
+                pdf.setFontSize(7);
+                pdf.text(
+                    "REDS Flooring Pty Ltd",
+                    marginLeft,
+                    pageHeight - 8,
+                );
+
+                pdf.text(
+                    `Page ${pageNumber} of ${totalPages}`,
+                    pageWidth - marginRight,
+                    pageHeight - 8,
+                    {
+                        align: "right",
+                    },
+                );
+            };
+
+            drawPageHeader();
+
+            let y = 67;
+
+            pdf.setTextColor(139, 63, 63);
+            pdf.setFont("helvetica", "bold");
+            pdf.setFontSize(7.5);
+            pdf.text("BILL TO", marginLeft, y);
+
+            pdf.text(
+                "PROJECT / SITE",
+                marginLeft + contentWidth / 2,
+                y,
+            );
+
+            y += 5;
+
+            pdf.setTextColor(35, 35, 35);
+            pdf.setFontSize(9);
+            pdf.text(
+                customerName,
+                marginLeft,
+                y,
+            );
+
+            pdf.text(
+                projectDisplay || "-",
+                marginLeft + contentWidth / 2,
+                y,
+            );
+
+            pdf.setFont("helvetica", "normal");
+            pdf.setFontSize(7.5);
+
+            const leftPartyLines = [
+                customerCode,
+                ...billingAddressLines,
+            ]
+                .map(cleanText)
+                .filter(Boolean);
+
+            const rightPartyLines =
+                projectAddressLines
+                    .map(cleanText)
+                    .filter(Boolean);
+
+            const leftPartyY = y + 4;
+            const rightPartyY = y + 4;
+
+            leftPartyLines.forEach(
+                (line, index) => {
+                    pdf.text(
+                        pdf.splitTextToSize(
+                            line,
+                            contentWidth / 2 - 8,
+                        ),
+                        marginLeft,
+                        leftPartyY +
+                            index * 3.8,
+                    );
+                },
+            );
+
+            rightPartyLines.forEach(
+                (line, index) => {
+                    pdf.text(
+                        pdf.splitTextToSize(
+                            line,
+                            contentWidth / 2 - 8,
+                        ),
+                        marginLeft +
+                            contentWidth / 2,
+                        rightPartyY +
+                            index * 3.8,
+                    );
+                },
+            );
+
+            y +=
+                Math.max(
+                    leftPartyLines.length,
+                    rightPartyLines.length,
+                    1,
+                ) *
+                    3.8 +
+                9;
+
+            const bodyRows = detailLines.map(
+                (line) => {
+                    const lineAmount =
+                        lineAmountType ===
+                            "Exclusive"
+                            ? Number(
+                                line.line_subtotal ||
+                                    0,
+                            ) -
+                                Number(
+                                    line.discount_amount ||
+                                        0,
+                                )
+                            : Number(
+                                line.line_total || 0,
+                            );
+
+                    const productLabel = [
+                        line.product_code,
+                        line.description,
+                    ]
+                        .map(cleanText)
+                        .filter(Boolean)
+                        .join(" - ");
+
+                    if (
+                        isResidentialTaxPresentation
+                    ) {
+                        return [
+                            productLabel ||
+                                cleanText(
+                                    line.product_name,
+                                ) ||
+                                "Item",
+                            moneyPdf(lineAmount),
+                        ];
+                    }
+
+                    const row = [
+                        productLabel ||
+                            cleanText(
+                                line.product_name,
+                            ) ||
+                            "Item",
+                        numberPdf(line.quantity),
+                        cleanText(
+                            line.sales_uom_code,
+                        ) || "-",
+                        moneyPdf(
+                            line.unit_price,
+                        ),
+                    ];
+
+                    if (
+                        isCommercialTaxPresentation
+                    ) {
+                        row.push(
+                            `${numberPdf(
+                                line.tax_rate,
+                            )}%`,
+                        );
+                    }
+
+                    row.push(
+                        moneyPdf(lineAmount),
+                    );
+
+                    return row;
+                },
+            );
+
+            const head = isResidentialTaxPresentation
+                ? [[
+                    "Description",
+                    "Total",
+                ]]
+                : isCommercialTaxPresentation
+                ? [[
+                    "Description",
+                    "Qty",
+                    "UOM",
+                    "Unit Price",
+                    "GST",
+                    "Amount",
+                ]]
+                : [[
+                    "Description",
+                    "Qty",
+                    "UOM",
+                    "Unit Price",
+                    "Amount",
+                ]];
+
+            const columnStyles =
+                isResidentialTaxPresentation
+                    ? {
+                        0: {
+                            cellWidth: 137,
+                        },
+                        1: {
+                            cellWidth: 45,
+                            halign: "right",
+                        },
+                    }
+                    : isCommercialTaxPresentation
+                    ? {
+                        0: {
+                            cellWidth: 72,
+                        },
+                        1: {
+                            cellWidth: 17,
+                            halign: "right",
+                        },
+                        2: {
+                            cellWidth: 18,
+                        },
+                        3: {
+                            cellWidth: 27,
+                            halign: "right",
+                        },
+                        4: {
+                            cellWidth: 18,
+                            halign: "right",
+                        },
+                        5: {
+                            cellWidth: 30,
+                            halign: "right",
+                        },
+                    }
+                    : {
+                        0: {
+                            cellWidth: 82,
+                        },
+                        1: {
+                            cellWidth: 18,
+                            halign: "right",
+                        },
+                        2: {
+                            cellWidth: 18,
+                        },
+                        3: {
+                            cellWidth: 30,
+                            halign: "right",
+                        },
+                        4: {
+                            cellWidth: 34,
+                            halign: "right",
+                        },
+                    };
+
+            autoTable(pdf, {
+                startY: y,
+                head,
+                body:
+                    bodyRows.length > 0
+                        ? bodyRows
+                        : [[
+                            "No invoice lines.",
+                            ...new Array(
+                                head[0].length - 1,
+                            ).fill(""),
+                        ]],
+                margin: {
+                    left: marginLeft,
+                    right: marginRight,
+                    top: 64,
+                    bottom: 20,
+                },
+                theme: "plain",
+                styles: {
+                    font: "helvetica",
+                    fontSize: 7.5,
+                    cellPadding: 2.2,
+                    lineColor: [
+                        222,
+                        222,
+                        222,
+                    ],
+                    lineWidth: {
+                        bottom: 0.15,
+                    },
+                    overflow: "linebreak",
+                    valign: "top",
+                    textColor: [
+                        35,
+                        35,
+                        35,
+                    ],
+                },
+                headStyles: {
+                    fillColor: [
+                        139,
+                        63,
+                        63,
+                    ],
+                    textColor: [
+                        255,
+                        255,
+                        255,
+                    ],
+                    fontStyle: "bold",
+                    lineWidth: 0,
+                },
+                columnStyles,
+                didDrawPage: () => {
+                    /*
+                     * The first page header is already drawn before
+                     * autoTable. For continuation pages, redraw the
+                     * REDS document header so each page is standalone.
+                     */
+                    if (
+                        pdf.getNumberOfPages() > 1
+                    ) {
+                        drawPageHeader();
+                    }
+                },
+            });
+
+            const pdfWithAutoTable = pdf as typeof pdf & {
+                lastAutoTable?: { finalY?: number };
+            };
+            const tableFinalY = Number(
+                pdfWithAutoTable.lastAutoTable?.finalY,
+            ) || y;
+
+            let summaryY = tableFinalY + 8;
+
+            const ensureSpace = (
+                requiredHeight: number,
+            ) => {
+                if (
+                    summaryY + requiredHeight >
+                    pageHeight - 23
+                ) {
+                    pdf.addPage();
+                    drawPageHeader();
+                    summaryY = 67;
+                }
+            };
+
+            const summaryRows: Array<
+                [string, string, boolean?]
+            > = [];
+
+            if (
+                isCommercialTaxPresentation
+            ) {
+                summaryRows.push([
+                    "Subtotal",
+                    moneyPdf(
+                        invoice.subtotal_amount,
+                    ),
+                ]);
+            }
+
+            if (
+                Number(
+                    invoice.discount_amount ||
+                        0,
+                ) > 0
+            ) {
+                summaryRows.push([
+                    "Discount",
+                    moneyPdf(
+                        invoice.discount_amount,
+                    ),
+                ]);
+            }
+
+            if (
+                isCommercialTaxPresentation
+            ) {
+                summaryRows.push([
+                    "GST",
+                    moneyPdf(invoice.tax_amount),
+                ]);
+            }
+
+            summaryRows.push([
+                isResidentialTaxPresentation
+                    ? "Invoice Total inc GST"
+                    : "Invoice Total",
+                moneyPdf(invoice.total_amount),
+                true,
+            ]);
+
+            summaryRows.push([
+                "Paid",
+                moneyPdf(invoice.paid_amount),
+            ]);
+
+            summaryRows.push([
+                "AMOUNT DUE",
+                moneyPdf(invoice.balance_amount),
+                true,
+            ]);
+
+            ensureSpace(
+                summaryRows.length * 6 + 42,
+            );
+
+            const summaryLabelX =
+                pageWidth - marginRight - 63;
+
+            const summaryValueX =
+                pageWidth - marginRight;
+
+            summaryRows.forEach(
+                ([label, value, strong]) => {
+                    if (
+                        label === "AMOUNT DUE"
+                    ) {
+                        /*
+                         * Draw the separator in its own vertical space.
+                         * Previously the rule sat only 2 mm above the text
+                         * baseline, so it crossed the 10 pt AMOUNT DUE text.
+                         */
+                        pdf.setDrawColor(
+                            139,
+                            63,
+                            63,
+                        );
+                        pdf.setLineWidth(0.6);
+                        pdf.line(
+                            summaryLabelX,
+                            summaryY,
+                            summaryValueX,
+                            summaryY,
+                        );
+
+                        summaryY += 5;
+
+                        pdf.setTextColor(
+                            139,
+                            63,
+                            63,
+                        );
+                    } else {
+                        pdf.setTextColor(
+                            55,
+                            55,
+                            55,
+                        );
+                    }
+
+                    pdf.setFont(
+                        "helvetica",
+                        strong
+                            ? "bold"
+                            : "normal",
+                    );
+
+                    pdf.setFontSize(
+                        label ===
+                                "AMOUNT DUE"
+                            ? 10
+                            : 8,
+                    );
+
+                    pdf.text(
+                        label,
+                        summaryLabelX,
+                        summaryY,
+                    );
+
+                    pdf.text(
+                        value,
+                        summaryValueX,
+                        summaryY,
+                        {
+                            align: "right",
+                        },
+                    );
+
+                    summaryY +=
+                        label ===
+                                "AMOUNT DUE"
+                            ? 7
+                            : 5.5;
+                },
+            );
+
+            summaryY += 5;
+
+            pdf.setTextColor(139, 63, 63);
+            pdf.setFont("helvetica", "bold");
+            pdf.setFontSize(8);
+            pdf.text(
+                "Electronic Funds Transfer",
+                marginLeft,
+                summaryY,
+            );
+
+            pdf.text(
+                "Defect Claims",
+                marginLeft +
+                    contentWidth / 2,
+                summaryY,
+            );
+
+            summaryY += 4.5;
+
+            pdf.setTextColor(55, 55, 55);
+            pdf.setFont("helvetica", "normal");
+            pdf.setFontSize(7.2);
+
+            const bankLines = [
+                "Account Name: Reds Flooring Pty Ltd",
+                "Account BSB: 016-267",
+                "Account Number: 466752247",
+                `Reference: ${invoiceNo}`,
+            ];
+
+            bankLines.forEach(
+                (line, index) => {
+                    pdf.text(
+                        line,
+                        marginLeft,
+                        summaryY +
+                            index * 3.8,
+                    );
+                },
+            );
+
+            const defectText =
+                "All claims of defect or dispute must be made in writing within 14 days of the invoice date. Failure to provide this notice will result in the Invoice being due and payable as per the original terms.";
+
+            pdf.text(
+                pdf.splitTextToSize(
+                    defectText,
+                    contentWidth / 2 - 6,
+                ),
+                marginLeft +
+                    contentWidth / 2,
+                summaryY,
+            );
+
+            const totalPages =
+                pdf.getNumberOfPages();
+
+            for (
+                let pageNumber = 1;
+                pageNumber <= totalPages;
+                pageNumber += 1
+            ) {
+                pdf.setPage(pageNumber);
+                drawPageFooter(
+                    pageNumber,
+                    totalPages,
+                );
+            }
+
+            pdf.save(
+                `${invoiceNo.replace(
+                    /[^A-Za-z0-9._-]+/g,
+                    "-",
+                )}.pdf`,
+            );
+
+            toast.success(
+                `Downloaded ${invoiceNo}.pdf`,
+            );
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Invoice PDF download failed.",
+            );
+        }
     };
 
     const renderList = () => (
@@ -3565,10 +5486,10 @@ const Invoices = () => {
                     <Button
                         variant="outline"
                         className="rounded-xl"
-                        onClick={exportCsv}
+                        onClick={exportXlsx}
                     >
                         <Download className="mr-2 h-4 w-4" />
-                        Export CSV
+                        Export XLSX
                     </Button>
 
                     <Button
@@ -4143,8 +6064,8 @@ const Invoices = () => {
                         </h1>
 
                         <p className="mt-1 text-sm text-slate-500">
-                            Invoice number is generated automatically when the
-                            Draft is saved.
+                            Search accepted work, select only billable completed
+                            Work, then save a protected Draft Invoice.
                         </p>
                     </div>
                 </div>
@@ -4160,7 +6081,18 @@ const Invoices = () => {
 
                     <Button
                         className={RED_BUTTON}
-                        disabled={saveInvoice.isPending}
+                        disabled={
+                            saveInvoice.isPending ||
+                            (
+                                !editingId &&
+                                (
+                                    createMode === "Quotation" ||
+                                    createMode === "Accepted Revision" ||
+                                    createMode === "Variation"
+                                ) &&
+                                selectedWorkOrderIds.length === 0
+                            )
+                        }
                         onClick={() => saveInvoice.mutate()}
                     >
                         {saveInvoice.isPending
@@ -4191,42 +6123,488 @@ const Invoices = () => {
                 </div>
             )}
 
-            <Card className="rounded-2xl">
+            <Card className="rounded-2xl border-slate-200">
                 <CardContent className="space-y-5 p-5 md:p-6">
                     <SectionHeader
                         number="01"
-                        title="Customer & Commercial Source"
-                        description="Select the Customer, Project, Site, Price Book and accepted commercial source."
+                        title={editingId
+                            ? "Customer & Commercial Source"
+                            : "Invoice Source"}
+                        description={editingId
+                            ? "Source information for this existing Draft Invoice."
+                            : "Choose one Invoice flow. Accepted commercial documents use immutable source pricing; Counter Sale uses current Product/UOM/Price Book data."}
                     />
 
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                        <div className="space-y-2">
-                            <Label>
-                                Customer{" "}
-                                <span className="text-red-600">
-                                    *
-                                </span>
-                            </Label>
+                    {!editingId && (
+                        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                            {(
+                                [
+                                    ["Quotation", "Quotation"],
+                                    ["Accepted Revision", "Accepted Revision"],
+                                    ["Variation", "Variation"],
+                                    ["Counter Sale", "Counter Sale"],
+                                ] as [InvoiceCreateMode, string][]
+                            ).map(([value, label]) => {
+                                const active = createMode === value;
 
-                            <Select
-                                value={customerId}
-                                onValueChange={applyCustomerDefaults}
-                                disabled={Boolean(
-                                    editingId,
-                                )}
-                            >
-                                <SelectTrigger
-                                    className={INPUT_CLASS}
+                                return (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => changeCreateMode(value)}
+                                        className={`rounded-xl border px-4 py-3 text-left transition ${
+                                            active
+                                                ? "border-[#8B3F3F] bg-[#8B3F3F] text-white shadow-sm"
+                                                : "border-slate-200 bg-white text-slate-700 hover:border-[#9E4B4B] hover:bg-[#F7F9FB]"
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="font-semibold">
+                                                {label}
+                                            </span>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {!editingId && createMode !== "Counter Sale" && (
+                        <div className="space-y-5">
+                            <div className="rounded-2xl border border-slate-200 bg-[#F7F9FB] p-4">
+                                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(300px,420px)] lg:items-end">
+                                    <div>
+                                        <Label>
+                                            Search {commercialSourceLabel}
+                                        </Label>
+                                        <div className="relative mt-2">
+                                            <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
+                                            <Input
+                                                className={`${INPUT_CLASS} pl-10`}
+                                                value={sourceSearch}
+                                                onChange={(event) =>
+                                                    setSourceSearch(
+                                                        event.target.value,
+                                                    )}
+                                                placeholder={`Search ${commercialSourceLabel.toLowerCase()} no., customer or project`}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <Label>{commercialSourceLabel} *</Label>
+                                        <Select
+                                            value={selectedCommercialSourceId ||
+                                                "none"}
+                                            onValueChange={(value) =>
+                                                selectCommercialSource(
+                                                    value === "none"
+                                                        ? ""
+                                                        : value,
+                                                )}
+                                        >
+                                            <SelectTrigger
+                                                className={`${INPUT_CLASS} mt-2`}
+                                            >
+                                                <SelectValue
+                                                    placeholder={`Select ${commercialSourceLabel}`}
+                                                />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">
+                                                    Select{" "}
+                                                    {commercialSourceLabel}
+                                                </SelectItem>
+                                                {commercialSourceOptions.map((
+                                                    source,
+                                                ) => (
+                                                    <SelectItem
+                                                        key={source.source_id}
+                                                        value={source.source_id}
+                                                    >
+                                                        {source.source_no} —
+                                                        {" "}
+                                                        {money(
+                                                            source.total_amount,
+                                                        )}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {selectedCommercialSource && (
+                                <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
+                                    <div>
+                                        <p className="text-xs text-slate-500">
+                                            Accepted Source
+                                        </p>
+                                        <p className="mt-1 font-semibold text-slate-900">
+                                            {selectedCommercialSource.source_no}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-slate-500">
+                                            Customer
+                                        </p>
+                                        <p className="mt-1 font-semibold text-slate-900">
+                                            {selectedCustomer
+                                                ? `${selectedCustomer.customer_code} — ${selectedCustomer.customer_name}`
+                                                : "—"}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-slate-500">
+                                            Project / Site
+                                        </p>
+                                        <p className="mt-1 font-semibold text-slate-900">
+                                            {[
+                                                filteredProjects.find((item) =>
+                                                    item.project_id ===
+                                                        projectId
+                                                )?.project_no,
+                                                filteredSites.find((item) =>
+                                                    item.site_id === siteId
+                                                )?.site_code,
+                                            ].filter(Boolean).join(" / ") ||
+                                                "—"}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-slate-500">
+                                            Accepted Price Book
+                                        </p>
+                                        <p className="mt-1 font-semibold text-slate-900">
+                                            {selectedPriceBook
+                                                ? `${selectedPriceBook.price_book_code} — ${selectedPriceBook.price_book_name}`
+                                                : "Source snapshot"}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {selectedCommercialSourceId && (
+                                <div className="space-y-3">
+                                    <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+                                        <div>
+                                            <p className="font-semibold text-slate-900">
+                                                Ready Work
+                                            </p>
+                                            <p className="text-xs text-slate-500">
+                                                Only 100% completed work backed
+                                                by Approved Daily Reports can be
+                                                selected.
+                                            </p>
+                                        </div>
+                                        <div className="text-sm text-slate-500">
+                                            Selected{" "}
+                                            <span className="font-semibold text-slate-900">
+                                                {selectedWorkOrderIds.length}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {invoiceWorkStatus.isLoading
+                                        ? (
+                                            <div className="flex items-center gap-2 rounded-xl border border-slate-200 p-4 text-sm text-slate-500">
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                Loading Work status…
+                                            </div>
+                                        )
+                                        : invoiceWorkStatus.isError
+                                        ? (
+                                            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                                                Work eligibility could not be
+                                                loaded.
+                                            </div>
+                                        )
+                                        : (invoiceWorkStatus.data ?? [])
+                                                .length === 0
+                                        ? (
+                                            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                                                No commercial Work Order
+                                                allocation is available for this
+                                                {" "}
+                                                {commercialSourceLabel}.
+                                            </div>
+                                        )
+                                        : (
+                                            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                                                <div className="overflow-x-auto">
+                                                    <Table className="min-w-[980px]">
+                                                        <TableHeader>
+                                                            <TableRow className="bg-slate-50/90 hover:bg-slate-50/90">
+                                                                <TableHead className="w-[72px] text-center">
+                                                                    Select
+                                                                </TableHead>
+                                                                <TableHead className="min-w-[190px]">
+                                                                    Work /
+                                                                    Status
+                                                                </TableHead>
+                                                                <TableHead className="w-[100px]">
+                                                                    UOM
+                                                                </TableHead>
+                                                                <TableHead className="min-w-[145px] text-right">
+                                                                    Accepted
+                                                                    Base Qty
+                                                                </TableHead>
+                                                                <TableHead className="min-w-[155px] text-right">
+                                                                    Completed
+                                                                    (Approved)
+                                                                </TableHead>
+                                                                <TableHead className="min-w-[145px] text-right">
+                                                                    Previously
+                                                                    Invoiced
+                                                                </TableHead>
+                                                                <TableHead className="min-w-[145px] text-right">
+                                                                    Available to
+                                                                    Invoice
+                                                                </TableHead>
+                                                                <TableHead className="min-w-[150px]">
+                                                                    Status
+                                                                </TableHead>
+                                                            </TableRow>
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                            {(invoiceWorkStatus
+                                                                .data ?? [])
+                                                                .map((work) => {
+                                                                    const selected =
+                                                                        selectedWorkOrderIds
+                                                                            .includes(
+                                                                                work.work_order_id,
+                                                                            );
+                                                                    const ready =
+                                                                        work.ui_status ===
+                                                                            "ReadyToInvoice";
+                                                                    const invoiced =
+                                                                        work.ui_status ===
+                                                                            "FullyInvoiced";
+                                                                    const reserved =
+                                                                        work.ui_status ===
+                                                                            "Reserved";
+
+                                                                    // Phase 1 invoices whole eligible Work portions only.
+                                                                    // Partial completion never creates a partially billable quantity.
+                                                                    const previouslyInvoiced =
+                                                                        invoiced
+                                                                            ? Number(
+                                                                                work.commercial_base_quantity ??
+                                                                                    0,
+                                                                            )
+                                                                            : 0;
+                                                                    const availableToInvoice =
+                                                                        ready
+                                                                            ? Number(
+                                                                                work.commercial_base_quantity ??
+                                                                                    0,
+                                                                            )
+                                                                            : 0;
+
+                                                                    const rowSurface =
+                                                                        selected
+                                                                            ? "bg-emerald-50/80"
+                                                                            : invoiced
+                                                                            ? "bg-slate-50"
+                                                                            : reserved
+                                                                            ? "bg-amber-50/60"
+                                                                            : ready
+                                                                            ? "bg-emerald-50/35"
+                                                                            : "bg-red-50/45";
+
+                                                                    return (
+                                                                        <TableRow
+                                                                            key={work
+                                                                                .work_order_id}
+                                                                            className={`${rowSurface} ${
+                                                                                work.selectable
+                                                                                    ? "cursor-pointer"
+                                                                                    : ""
+                                                                            }`}
+                                                                            onClick={() => {
+                                                                                if (
+                                                                                    work.selectable
+                                                                                ) {
+                                                                                    toggleWorkOrder(
+                                                                                        work,
+                                                                                    );
+                                                                                }
+                                                                            }}
+                                                                        >
+                                                                            <TableCell className="text-center">
+                                                                                <input
+                                                                                    type="checkbox"
+                                                                                    checked={selected}
+                                                                                    disabled={!work
+                                                                                        .selectable}
+                                                                                    onChange={() =>
+                                                                                        toggleWorkOrder(
+                                                                                            work,
+                                                                                        )}
+                                                                                    onClick={(
+                                                                                        event,
+                                                                                    ) => event
+                                                                                        .stopPropagation()}
+                                                                                    aria-label={`Select ${work.work_order_no}`}
+                                                                                    className="h-4 w-4 rounded border-slate-300 accent-[#934544] disabled:cursor-not-allowed"
+                                                                                />
+                                                                            </TableCell>
+
+                                                                            <TableCell>
+                                                                                <p className="font-semibold text-slate-900">
+                                                                                    {work
+                                                                                        .work_order_no}
+                                                                                </p>
+                                                                                <p className="mt-0.5 text-xs text-slate-500">
+                                                                                    {work
+                                                                                        .work_order_status}
+                                                                                </p>
+                                                                                {(work
+                                                                                    .claimed_invoice_no ||
+                                                                                    work.blocking_reason) &&
+                                                                                    (
+                                                                                        <p className="mt-1 text-xs text-slate-500">
+                                                                                            {work
+                                                                                                    .claimed_invoice_no
+                                                                                                ? `Invoice: ${work.claimed_invoice_no}`
+                                                                                                : work
+                                                                                                    .blocking_reason}
+                                                                                        </p>
+                                                                                    )}
+                                                                            </TableCell>
+
+                                                                            <TableCell className="font-medium text-slate-700">
+                                                                                {work
+                                                                                    .base_uom_code ||
+                                                                                    "—"}
+                                                                            </TableCell>
+
+                                                                            <TableCell className="text-right font-semibold tabular-nums">
+                                                                                {numberText(
+                                                                                    work.commercial_base_quantity,
+                                                                                    6,
+                                                                                )}
+                                                                                {" "}
+                                                                                {work
+                                                                                    .base_uom_code}
+                                                                            </TableCell>
+
+                                                                            <TableCell className="text-right tabular-nums">
+                                                                                <span className="font-semibold text-slate-900">
+                                                                                    {numberText(
+                                                                                        work.approved_base_quantity,
+                                                                                        6,
+                                                                                    )}
+                                                                                    {" "}
+                                                                                    {work
+                                                                                        .base_uom_code}
+                                                                                </span>
+                                                                                <span className="ml-2 text-xs text-slate-500">
+                                                                                    ({numberText(
+                                                                                        work.completion_percent,
+                                                                                        2,
+                                                                                    )}%)
+                                                                                </span>
+                                                                            </TableCell>
+
+                                                                            <TableCell className="text-right tabular-nums">
+                                                                                {numberText(
+                                                                                    previouslyInvoiced,
+                                                                                    6,
+                                                                                )}
+                                                                                {" "}
+                                                                                {work
+                                                                                    .base_uom_code}
+                                                                            </TableCell>
+
+                                                                            <TableCell className="text-right font-semibold tabular-nums">
+                                                                                {numberText(
+                                                                                    availableToInvoice,
+                                                                                    6,
+                                                                                )}
+                                                                                {" "}
+                                                                                {work
+                                                                                    .base_uom_code}
+                                                                            </TableCell>
+
+                                                                            <TableCell>
+                                                                                <Badge
+                                                                                    className={ready
+                                                                                        ? "border-emerald-200 bg-emerald-100 text-emerald-800"
+                                                                                        : invoiced
+                                                                                        ? "border-slate-200 bg-slate-200 text-slate-700"
+                                                                                        : reserved
+                                                                                        ? "border-amber-200 bg-amber-100 text-amber-800"
+                                                                                        : "border-red-200 bg-red-100 text-red-800"}
+                                                                                    variant="outline"
+                                                                                >
+                                                                                    {ready
+                                                                                        ? "Ready"
+                                                                                        : invoiced
+                                                                                        ? "Fully Invoiced"
+                                                                                        : reserved
+                                                                                        ? "Reserved"
+                                                                                        : work
+                                                                                                .approved_base_quantity >
+                                                                                                0
+                                                                                        ? "Not Completed"
+                                                                                        : "Not Started"}
+                                                                                </Badge>
+                                                                            </TableCell>
+                                                                        </TableRow>
+                                                                    );
+                                                                })}
+                                                        </TableBody>
+                                                    </Table>
+                                                </div>
+
+                                                <div className="grid gap-2 border-t border-slate-200 bg-slate-50/70 p-3 text-xs text-slate-600 sm:grid-cols-2 xl:grid-cols-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                                                        Ready — 100% Approved
+                                                        and billable
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
+                                                        Not Completed / Not
+                                                        Started — cannot Invoice
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                                                        Reserved — already held
+                                                        by a Draft Invoice
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="h-2.5 w-2.5 rounded-full bg-slate-400" />
+                                                        Fully Invoiced — cannot
+                                                        Invoice again
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {(!editingId && createMode === "Counter Sale") && (
+                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                            <div className="space-y-2">
+                                <Label>
+                                    Customer{" "}
+                                    <span className="text-red-600">*</span>
+                                </Label>
+                                <Select
+                                    value={customerId}
+                                    onValueChange={applyCustomerDefaults}
                                 >
-                                    <SelectValue placeholder="Select Customer" />
-                                </SelectTrigger>
-
-                                <SelectContent>
-                                    {(
-                                        customers.data ??
-                                            []
-                                    ).map(
-                                        (
+                                    <SelectTrigger className={INPUT_CLASS}>
+                                        <SelectValue placeholder="Select Customer" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {(customers.data ?? []).map((
                                             customer,
                                         ) => (
                                             <SelectItem
@@ -4236,58 +6614,31 @@ const Invoices = () => {
                                                 {customer.customer_code} —{" "}
                                                 {customer.customer_name}
                                             </SelectItem>
-                                        ),
-                                    )}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
 
-                        <div className="space-y-2">
-                            <Label>
-                                Project
-                            </Label>
-
-                            <Select
-                                value={projectId ||
-                                    "none"}
-                                onValueChange={(
-                                    value,
-                                ) => {
-                                    setProjectId(
-                                        value ===
-                                                "none"
-                                            ? ""
-                                            : value,
-                                    );
-
-                                    setSiteId(
-                                        "",
-                                    );
-
-                                    setSources(
-                                        [],
-                                    );
-                                }}
-                                disabled={!customerId ||
-                                    Boolean(
-                                        editingId,
-                                    )}
-                            >
-                                <SelectTrigger
-                                    className={INPUT_CLASS}
+                            <div className="space-y-2">
+                                <Label>Project</Label>
+                                <Select
+                                    value={projectId || "none"}
+                                    onValueChange={(value) => {
+                                        setProjectId(
+                                            value === "none" ? "" : value,
+                                        );
+                                        setSiteId("");
+                                    }}
+                                    disabled={!customerId}
                                 >
-                                    <SelectValue placeholder="Select Project" />
-                                </SelectTrigger>
-
-                                <SelectContent>
-                                    <SelectItem value="none">
-                                        No Project
-                                    </SelectItem>
-
-                                    {filteredProjects.map(
-                                        (
-                                            project,
-                                        ) => (
+                                    <SelectTrigger className={INPUT_CLASS}>
+                                        <SelectValue placeholder="Select Project" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">
+                                            No Project
+                                        </SelectItem>
+                                        {filteredProjects.map((project) => (
                                             <SelectItem
                                                 key={project.project_id}
                                                 value={project.project_id}
@@ -4295,54 +6646,29 @@ const Invoices = () => {
                                                 {project.project_no} —{" "}
                                                 {project.project_name}
                                             </SelectItem>
-                                        ),
-                                    )}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
 
-                        <div className="space-y-2">
-                            <Label>
-                                Project Site
-                            </Label>
-
-                            <Select
-                                value={siteId ||
-                                    "none"}
-                                onValueChange={(
-                                    value,
-                                ) => {
-                                    setSiteId(
-                                        value ===
-                                                "none"
-                                            ? ""
-                                            : value,
-                                    );
-
-                                    setSources(
-                                        [],
-                                    );
-                                }}
-                                disabled={!projectId ||
-                                    Boolean(
-                                        editingId,
-                                    )}
-                            >
-                                <SelectTrigger
-                                    className={INPUT_CLASS}
+                            <div className="space-y-2">
+                                <Label>Project Site</Label>
+                                <Select
+                                    value={siteId || "none"}
+                                    onValueChange={(value) =>
+                                        setSiteId(
+                                            value === "none" ? "" : value,
+                                        )}
+                                    disabled={!projectId}
                                 >
-                                    <SelectValue placeholder="Select Site" />
-                                </SelectTrigger>
-
-                                <SelectContent>
-                                    <SelectItem value="none">
-                                        No Site
-                                    </SelectItem>
-
-                                    {filteredSites.map(
-                                        (
-                                            site,
-                                        ) => (
+                                    <SelectTrigger className={INPUT_CLASS}>
+                                        <SelectValue placeholder="Select Site" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">
+                                            No Site
+                                        </SelectItem>
+                                        {filteredSites.map((site) => (
                                             <SelectItem
                                                 key={site.site_id}
                                                 value={site.site_id}
@@ -4350,29 +6676,20 @@ const Invoices = () => {
                                                 {site.site_code} —{" "}
                                                 {site.site_name}
                                             </SelectItem>
-                                        ),
-                                    )}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
 
-                        {!hasCommercialSource && (
                             <div className="space-y-2">
-                                <Label>
-                                    Price Book *
-                                </Label>
-
+                                <Label>Price Book *</Label>
                                 <Select
                                     value={priceBookId}
                                     onValueChange={changeDirectPriceBook}
-                                    disabled={!permission[
-                                        "invoices.override_price_book"
-                                    ]}
                                 >
                                     <SelectTrigger className={INPUT_CLASS}>
                                         <SelectValue placeholder="Select Price Book" />
                                     </SelectTrigger>
-
                                     <SelectContent>
                                         {effectivePriceBooks.map((book) => (
                                             <SelectItem
@@ -4387,316 +6704,54 @@ const Invoices = () => {
                                         ))}
                                     </SelectContent>
                                 </Select>
-
-                                {!permission[
-                                    "invoices.override_price_book"
-                                ] && (
-                                    <p className="text-xs text-slate-500">
-                                        Standard is used by default. Changing
-                                        Price Book requires permission.
-                                    </p>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    {customerId && (
-                        <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm md:grid-cols-5">
-                            <div>
-                                <p className="text-xs text-slate-500">
-                                    Customer
-                                </p>
-
-                                <p className="font-medium text-slate-900">
-                                    {selectedCustomer
-                                        ? `${selectedCustomer.customer_code} — ${selectedCustomer.customer_name}`
-                                        : "—"}
-                                </p>
-                            </div>
-
-                            <div>
-                                <p className="text-xs text-slate-500">
-                                    Price Book
-                                </p>
-
-                                <p className="font-medium text-slate-900">
-                                    {selectedPriceBook
-                                        ? `${selectedPriceBook.price_book_code} — ${selectedPriceBook.price_book_name}`
-                                        : "Not configured"}
-                                </p>
-                            </div>
-
-                            <div>
-                                <p className="text-xs text-slate-500">
-                                    Payment Terms
-                                </p>
-
-                                <p className="font-medium text-slate-900">
-                                    {selectedFinancial
-                                        ? `${selectedFinancial.payment_terms_type} ${selectedFinancial.payment_terms_days}`
-                                        : "14 Days After Bill"}
-                                </p>
-                            </div>
-
-                            <div>
-                                <p className="text-xs text-slate-500">
-                                    Line Amount Type
-                                </p>
-
-                                <p className="font-medium text-slate-900">
-                                    {lineAmountType}
-                                </p>
-                            </div>
-
-                            <div>
-                                <p className="text-xs text-slate-500">
-                                    Default Discount
-                                </p>
-
-                                <p className="font-medium text-slate-900">
-                                    {numberText(
-                                        customerDiscount,
-                                        4,
-                                    )}
-                                    %
-                                </p>
                             </div>
                         </div>
                     )}
 
-                    <div className="space-y-3">
-                        <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
-                            <div>
-                                <p className="font-medium text-slate-900">
-                                    Accepted Commercial Sources
-                                </p>
-
-                                <p className="text-xs text-slate-500">
-                                    Optional. Sources must match the selected
-                                    Customer, Project and Site.
-                                </p>
+                    {editingId && (
+                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                            <div className="space-y-2">
+                                <Label>Customer</Label>
+                                <Input
+                                    className={INPUT_CLASS}
+                                    value={selectedCustomer
+                                        ? `${selectedCustomer.customer_code} — ${selectedCustomer.customer_name}`
+                                        : customerId}
+                                    readOnly
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Project</Label>
+                                <Input
+                                    className={INPUT_CLASS}
+                                    value={selectedProject
+                                        ? `${selectedProject.project_no} — ${selectedProject.project_name}`
+                                        : projectId || "—"}
+                                    readOnly
+                                />
                             </div>
 
-                            <Button
-                                type="button"
-                                variant="outline"
-                                className="rounded-xl"
-                                disabled={!customerId}
-                                onClick={addSource}
-                            >
-                                <Plus className="mr-2 h-4 w-4" />
-                                Add Source
-                            </Button>
+                            <div className="space-y-2">
+                                <Label>Site</Label>
+                                <Input
+                                    className={INPUT_CLASS}
+                                    value={selectedSite
+                                        ? `${selectedSite.site_code} — ${selectedSite.site_name}`
+                                        : siteId || "—"}
+                                    readOnly
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Price Book</Label>
+                                <Input
+                                    className={INPUT_CLASS}
+                                    value={selectedPriceBook?.price_book_name ??
+                                        "Source / existing snapshot"}
+                                    readOnly
+                                />
+                            </div>
                         </div>
-
-                        {sources.length ===
-                                0
-                            ? (
-                                <div className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">
-                                    No commercial source linked. This Invoice
-                                    will be treated as a direct or manual
-                                    commercial Invoice.
-                                </div>
-                            )
-                            : (
-                                <div className="space-y-3">
-                                    {sources.map(
-                                        (
-                                            source,
-                                            index,
-                                        ) => {
-                                            const options = availableSources
-                                                .filter(
-                                                    (
-                                                        option,
-                                                    ) => option.source_type ===
-                                                        source.source_type,
-                                                );
-
-                                            return (
-                                                <div
-                                                    key={source.key}
-                                                    className="grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-[160px_1fr_180px_44px]"
-                                                >
-                                                    <Select
-                                                        value={source
-                                                            .source_type}
-                                                        onValueChange={(
-                                                            value,
-                                                        ) => updateSource(
-                                                            source.key,
-                                                            {
-                                                                source_type:
-                                                                    value as
-                                                                        | "Quotation"
-                                                                        | "Variation",
-                                                                source_id: "",
-                                                                source_amount:
-                                                                    "0",
-                                                            },
-                                                        )}
-                                                    >
-                                                        <SelectTrigger
-                                                            className={INPUT_CLASS}
-                                                        >
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-
-                                                        <SelectContent>
-                                                            <SelectItem value="Quotation">
-                                                                Quotation
-                                                            </SelectItem>
-
-                                                            <SelectItem value="Variation">
-                                                                Variation
-                                                            </SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-
-                                                    <Select
-                                                        value={source
-                                                            .source_id ||
-                                                            "none"}
-                                                        onValueChange={async (
-                                                            value,
-                                                        ) => {
-                                                            const option =
-                                                                options.find(
-                                                                    (item) =>
-                                                                        item.source_id ===
-                                                                            value,
-                                                                );
-
-                                                            updateSource(
-                                                                source.key,
-                                                                {
-                                                                    source_id:
-                                                                        value ===
-                                                                                "none"
-                                                                            ? ""
-                                                                            : value,
-                                                                    source_amount:
-                                                                        option
-                                                                            ? String(
-                                                                                option
-                                                                                    .total_amount,
-                                                                            )
-                                                                            : "0",
-                                                                },
-                                                            );
-
-                                                            if (
-                                                                value === "none"
-                                                            ) {
-                                                                return;
-                                                            }
-
-                                                            if (
-                                                                source
-                                                                    .source_type ===
-                                                                    "Variation"
-                                                            ) {
-                                                                try {
-                                                                    await loadVariationSourceLines(
-                                                                        value,
-                                                                    );
-                                                                } catch (error) {
-                                                                    toast.error(
-                                                                        error instanceof
-                                                                                Error
-                                                                            ? error
-                                                                                .message
-                                                                            : "Variation lines could not be loaded.",
-                                                                    );
-                                                                }
-                                                            }
-                                                        }}
-                                                    >
-                                                        <SelectTrigger
-                                                            className={INPUT_CLASS}
-                                                        >
-                                                            <SelectValue
-                                                                placeholder={`Select accepted ${source.source_type}`}
-                                                            />
-                                                        </SelectTrigger>
-
-                                                        <SelectContent>
-                                                            <SelectItem value="none">
-                                                                Select accepted
-                                                                {" "}
-                                                                {source
-                                                                    .source_type}
-                                                            </SelectItem>
-
-                                                            {options.map(
-                                                                (
-                                                                    option,
-                                                                ) => (
-                                                                    <SelectItem
-                                                                        key={option
-                                                                            .source_id}
-                                                                        value={option
-                                                                            .source_id}
-                                                                    >
-                                                                        {option
-                                                                            .source_no}
-                                                                        {" "}
-                                                                        —{" "}
-                                                                        {money(
-                                                                            option
-                                                                                .total_amount,
-                                                                        )}
-                                                                    </SelectItem>
-                                                                ),
-                                                            )}
-                                                        </SelectContent>
-                                                    </Select>
-
-                                                    <Input
-                                                        type="number"
-                                                        min="0"
-                                                        step="0.01"
-                                                        className={INPUT_CLASS}
-                                                        value={source
-                                                            .source_amount}
-                                                        onChange={(
-                                                            event,
-                                                        ) => updateSource(
-                                                            source.key,
-                                                            {
-                                                                source_amount:
-                                                                    event
-                                                                        .target
-                                                                        .value,
-                                                            },
-                                                        )}
-                                                        placeholder="Source Amount"
-                                                    />
-
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-11 rounded-xl text-red-600"
-                                                        onClick={() =>
-                                                            removeSource(
-                                                                source.key,
-                                                            )}
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-
-                                                    <p className="text-xs text-slate-400 md:col-span-4">
-                                                        Source {index +
-                                                            1}
-                                                    </p>
-                                                </div>
-                                            );
-                                        },
-                                    )}
-                                </div>
-                            )}
-                    </div>
+                    )}
                 </CardContent>
             </Card>
 
@@ -4784,6 +6839,19 @@ const Invoices = () => {
                         </div>
 
                         <div className="space-y-2">
+                            <Label>Payment Terms</Label>
+
+                            <Input
+                                className={INPUT_CLASS}
+                                value={formatPaymentTerms(
+                                    paymentTermsType,
+                                    paymentTermsDays,
+                                )}
+                                readOnly
+                            />
+                        </div>
+
+                        <div className="space-y-2">
                             <Label>
                                 Due Date{" "}
                                 <span className="text-red-600">
@@ -4795,14 +6863,12 @@ const Invoices = () => {
                                 type="date"
                                 className={INPUT_CLASS}
                                 value={dueDate}
-                                onChange={(
-                                    event,
-                                ) => setDueDate(
-                                    event
-                                        .target
-                                        .value,
-                                )}
+                                readOnly
                             />
+
+                            <p className="text-xs text-slate-500">
+                                Calculated automatically from the Invoice Payment Terms.
+                            </p>
                         </div>
 
                         <div className="space-y-2 md:col-span-2">
@@ -4846,749 +6912,788 @@ const Invoices = () => {
                 </CardContent>
             </Card>
 
-            <Card className="rounded-2xl">
-                <CardContent className="space-y-5 p-5 md:p-6">
-                    <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-                        <SectionHeader
-                            number="03"
-                            title="Products & Services"
-                            description="Product, Sales UOM, Base UOM, conversion, pricing and discount snapshots are validated by the Backend."
-                        />
+            {(!isCommercialSourceCreate) && (
+                <>
+                    <Card className="rounded-2xl">
+                        <CardContent className="space-y-5 p-5 md:p-6">
+                            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                                <SectionHeader
+                                    number="03"
+                                    title="Products & Services"
+                                    description="Product, Sales UOM, Base UOM, conversion, pricing and discount snapshots are validated by the Backend."
+                                />
 
-                        <div>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                className="shrink-0 rounded-xl"
-                                onClick={addLine}
-                                disabled={hasCommercialSource}
-                            >
-                                <Plus className="mr-2 h-4 w-4" />
-                                Add Line
-                            </Button>
-
-                            {hasCommercialSource && (
-                                <p className="mt-2 text-sm text-amber-600">
-                                    This Invoice is based on an approved
-                                    commercial source. Additional Products
-                                    cannot be added here. Create a new Invoice
-                                    for any additional sale.
-                                </p>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="space-y-4">
-                        {lines.map(
-                            (
-                                line,
-                                index,
-                            ) => {
-                                const product = (
-                                    products.data ??
-                                        []
-                                ).find(
-                                    (
-                                        item,
-                                    ) => item.product_id ===
-                                        line.product_id,
-                                );
-
-                                const productUoms = product
-                                    ? getProductUoms(
-                                        product,
-                                    )
-                                    : [];
-
-                                const calculation = lineCalculations[
-                                    index
-                                ];
-
-                                return (
-                                    <div
-                                        key={line.key}
-                                        className="rounded-2xl border border-slate-200 bg-white p-4"
+                                <div>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="shrink-0 rounded-xl"
+                                        onClick={addLine}
+                                        disabled={hasCommercialSource}
                                     >
-                                        <div className="mb-4 flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <PackageSearch className="h-5 w-5 text-[#8B3F3F]" />
+                                        <Plus className="mr-2 h-4 w-4" />
+                                        Add Line
+                                    </Button>
 
-                                                <p className="font-semibold text-slate-900">
-                                                    Line {index +
-                                                        1}
-                                                </p>
+                                    {hasCommercialSource && (
+                                        <p className="mt-2 text-sm text-amber-600">
+                                            This Invoice is based on an approved
+                                            commercial source. Additional
+                                            Products cannot be added here.
+                                            Create a new Invoice for any
+                                            additional sale.
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
 
-                                                <Badge variant="outline">
-                                                    {line.price_source}
-                                                </Badge>
-                                            </div>
+                            <div className="space-y-4">
+                                {lines.map(
+                                    (
+                                        line,
+                                        index,
+                                    ) => {
+                                        const product = (
+                                            products.data ??
+                                                []
+                                        ).find(
+                                            (
+                                                item,
+                                            ) => item.product_id ===
+                                                line.product_id,
+                                        );
 
-                                            {lines.length >
-                                                    1 && (
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="rounded-xl text-red-600"
-                                                    onClick={() =>
-                                                        removeLine(
-                                                            line.key,
-                                                        )}
-                                                >
-                                                    <X className="h-4 w-4" />
-                                                </Button>
-                                            )}
-                                        </div>
+                                        const productUoms = product
+                                            ? getProductUoms(
+                                                product,
+                                            )
+                                            : [];
 
-                                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-12">
-                                            <div className="space-y-2 xl:col-span-4">
-                                                <Label>
-                                                    Product / Service{" "}
-                                                    <span className="text-red-600">
-                                                        *
-                                                    </span>
-                                                </Label>
+                                        const calculation = lineCalculations[
+                                            index
+                                        ];
 
-                                                <Select
-                                                    value={line.product_id ||
-                                                        "none"}
-                                                    onValueChange={(
-                                                        value,
-                                                    ) => selectProduct(
-                                                        line.key,
-                                                        value ===
-                                                                "none"
-                                                            ? ""
-                                                            : value,
+                                        return (
+                                            <div
+                                                key={line.key}
+                                                className="rounded-2xl border border-slate-200 bg-white p-4"
+                                            >
+                                                <div className="mb-4 flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <PackageSearch className="h-5 w-5 text-[#8B3F3F]" />
+
+                                                        <p className="font-semibold text-slate-900">
+                                                            Line {index +
+                                                                1}
+                                                        </p>
+
+                                                        <Badge variant="outline">
+                                                            {line.price_source}
+                                                        </Badge>
+                                                    </div>
+
+                                                    {lines.length >
+                                                            1 && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="rounded-xl text-red-600"
+                                                            onClick={() =>
+                                                                removeLine(
+                                                                    line.key,
+                                                                )}
+                                                        >
+                                                            <X className="h-4 w-4" />
+                                                        </Button>
                                                     )}
-                                                >
-                                                    <SelectTrigger
-                                                        className={INPUT_CLASS}
-                                                    >
-                                                        <SelectValue placeholder="Select Product" />
-                                                    </SelectTrigger>
+                                                </div>
 
-                                                    <SelectContent>
-                                                        <SelectItem value="none">
-                                                            Select Product
-                                                        </SelectItem>
+                                                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-12">
+                                                    <div className="space-y-2 xl:col-span-4">
+                                                        <Label>
+                                                            Product / Service
+                                                            {" "}
+                                                            <span className="text-red-600">
+                                                                *
+                                                            </span>
+                                                        </Label>
 
-                                                        {(
-                                                            products.data ??
-                                                                []
-                                                        ).map(
-                                                            (
-                                                                item,
-                                                            ) => (
-                                                                <SelectItem
-                                                                    key={item
-                                                                        .product_id}
-                                                                    value={item
-                                                                        .product_id}
-                                                                >
-                                                                    {item
-                                                                        .product_code}
-                                                                    {" "}
-                                                                    — {item
-                                                                        .product_name}
-                                                                </SelectItem>
-                                                            ),
-                                                        )}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-
-                                            <div className="space-y-2 xl:col-span-3">
-                                                <Label>
-                                                    Project Area
-                                                </Label>
-
-                                                <Select
-                                                    value={line
-                                                        .project_area_id ||
-                                                        "none"}
-                                                    onValueChange={(
-                                                        value,
-                                                    ) => updateLine(
-                                                        line.key,
-                                                        {
-                                                            project_area_id:
+                                                        <Select
+                                                            value={line
+                                                                .product_id ||
+                                                                "none"}
+                                                            onValueChange={(
+                                                                value,
+                                                            ) => selectProduct(
+                                                                line.key,
                                                                 value ===
                                                                         "none"
                                                                     ? ""
                                                                     : value,
-                                                        },
-                                                    )}
-                                                    disabled={!siteId}
-                                                >
-                                                    <SelectTrigger
-                                                        className={INPUT_CLASS}
-                                                    >
-                                                        <SelectValue placeholder="No Area" />
-                                                    </SelectTrigger>
-
-                                                    <SelectContent>
-                                                        <SelectItem value="none">
-                                                            No Area
-                                                        </SelectItem>
-
-                                                        {filteredAreas.map(
-                                                            (
-                                                                area,
-                                                            ) => (
-                                                                <SelectItem
-                                                                    key={area
-                                                                        .area_id}
-                                                                    value={area
-                                                                        .area_id}
-                                                                >
-                                                                    {area
-                                                                        .area_code}
-                                                                    {" "}
-                                                                    — {area
-                                                                        .area_name}
-                                                                </SelectItem>
-                                                            ),
-                                                        )}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-
-                                            <div className="space-y-2 xl:col-span-2">
-                                                <Label>
-                                                    Sales UOM{" "}
-                                                    <span className="text-red-600">
-                                                        *
-                                                    </span>
-                                                </Label>
-
-                                                <Select
-                                                    value={line
-                                                        .sales_uom_code ||
-                                                        "none"}
-                                                    onValueChange={(
-                                                        value,
-                                                    ) => selectLineUom(
-                                                        line.key,
-                                                        value ===
-                                                                "none"
-                                                            ? ""
-                                                            : value,
-                                                    )}
-                                                    disabled={!product}
-                                                >
-                                                    <SelectTrigger
-                                                        className={INPUT_CLASS}
-                                                    >
-                                                        <SelectValue placeholder="Select UOM" />
-                                                    </SelectTrigger>
-
-                                                    <SelectContent>
-                                                        <SelectItem value="none">
-                                                            Select UOM
-                                                        </SelectItem>
-
-                                                        {productUoms.map(
-                                                            (
-                                                                uom,
-                                                            ) => (
-                                                                <SelectItem
-                                                                    key={uom
-                                                                        .uomCode}
-                                                                    value={uom
-                                                                        .uomCode}
-                                                                >
-                                                                    {uom.uomCode}
-
-                                                                    {uom.factor !==
-                                                                            1
-                                                                        ? ` → ${uom.factor} ${product?.base_uom_code}`
-                                                                        : ""}
-                                                                </SelectItem>
-                                                            ),
-                                                        )}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-
-                                            <div className="space-y-2 xl:col-span-1">
-                                                <Label>
-                                                    Qty *
-                                                </Label>
-
-                                                <Input
-                                                    type="number"
-                                                    min="0"
-                                                    step={line
-                                                            .allow_fractional_quantity
-                                                        ? "0.000001"
-                                                        : "1"}
-                                                    className={INPUT_CLASS}
-                                                    value={line.quantity}
-                                                    onChange={(
-                                                        event,
-                                                    ) => changeQuantity(
-                                                        line.key,
-                                                        event
-                                                            .target
-                                                            .value,
-                                                    )}
-                                                />
-                                            </div>
-
-                                            <div className="space-y-2 xl:col-span-2">
-                                                <Label>
-                                                    Unit Price *
-                                                </Label>
-
-                                                <Input
-                                                    type="number"
-                                                    min="0"
-                                                    step="0.01"
-                                                    className={INPUT_CLASS}
-                                                    value={line.unit_price}
-                                                    readOnly={line
-                                                                .price_source ===
-                                                            "Selling Price Missing" ||
-                                                        (Boolean(
-                                                            line.price_book_line_id,
-                                                        ) &&
-                                                            !permission[
-                                                                "invoices.override_unit_price"
-                                                            ])}
-                                                    onChange={(event) => {
-                                                        // Block manual edits when the selected Price Book price is missing
-                                                        if (
-                                                            line.price_source ===
-                                                                "Selling Price Missing"
-                                                        ) return;
-
-                                                        updateLine(line.key, {
-                                                            unit_price:
-                                                                event.target
-                                                                    .value,
-                                                            price_source:
-                                                                line.original_unit_price !==
-                                                                        null &&
-                                                                    Number(
-                                                                            event
-                                                                                .target
-                                                                                .value,
-                                                                        ) !==
-                                                                        Number(
-                                                                            line.original_unit_price,
-                                                                        )
-                                                                    ? "Manual"
-                                                                    : line
-                                                                            .price_book_line_id
-                                                                    ? "Price Book"
-                                                                    : "Manual",
-                                                        });
-                                                    }}
-                                                />
-                                            </div>
-
-                                            {/* Missing selected Price Book price warning + action */}
-                                            {product && line.sales_uom_code &&
-                                                !line.price_book_line_id &&
-                                                line.price_source ===
-                                                    "Selling Price Missing" &&
-                                                (
-                                                    <div className="xl:col-span-12 mt-2 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-800">
-                                                        <div className="text-sm">
-                                                            <p>
-                                                                No{" "}
-                                                                {selectedPriceBook
-                                                                    ?.price_book_name ??
-                                                                    "selected Price Book"}
-                                                                {" "}
-                                                                selling price is
-                                                                configured for
-                                                                this Product /
-                                                                UOM.
-                                                            </p>
-                                                            {line
-                                                                        .standard_reference_price !==
-                                                                    null &&
-                                                                priceBookId !==
-                                                                    defaultPriceBook
-                                                                        ?.price_book_id &&
-                                                                (
-                                                                    <p className="mt-1 font-medium">
-                                                                        Standard
-                                                                        Reference:
-                                                                        {" "}
-                                                                        {money(
-                                                                            line.standard_reference_price,
-                                                                        )} /
-                                                                        {" "}
-                                                                        {line
-                                                                            .sales_uom_code}
-                                                                    </p>
-                                                                )}
-                                                        </div>
-
-                                                        {permission[
-                                                                "products.manage_sales_prices"
-                                                            ]
-                                                            ? (
-                                                                <Button
-                                                                    variant="outline"
-                                                                    className="ml-auto rounded-xl"
-                                                                    onClick={() => {
-                                                                        setSellingDialogTargetKey(
-                                                                            line.key,
-                                                                        );
-                                                                        setSellingProductId(
-                                                                            line.product_id ??
-                                                                                null,
-                                                                        );
-                                                                        setSellingProductCode(
-                                                                            product
-                                                                                .product_code ??
-                                                                                null,
-                                                                        );
-                                                                        setSellingProductName(
-                                                                            product
-                                                                                .product_name ??
-                                                                                null,
-                                                                        );
-                                                                        const dialogDate =
-                                                                            invoiceDate ||
-                                                                            today();
-                                                                        const dialogUom =
-                                                                            line.sales_uom_code ??
-                                                                                "";
-
-                                                                        setSellingUom(
-                                                                            dialogUom ||
-                                                                                null,
-                                                                        );
-                                                                        setSellingEffectiveFrom(
-                                                                            dialogDate,
-                                                                        );
-
-                                                                        if (
-                                                                            line.product_id &&
-                                                                            dialogUom
-                                                                        ) {
-                                                                            loadSellingPriceMatrix(
-                                                                                line.product_id,
-                                                                                dialogUom,
-                                                                                dialogDate,
-                                                                            );
-                                                                        } else {
-                                                                            setSellingPricesByBook(
-                                                                                {},
-                                                                            );
-                                                                            setSellingMinimumPricesByBook(
-                                                                                {},
-                                                                            );
-                                                                        }
-
-                                                                        setShowSellingPriceDialog(
-                                                                            true,
-                                                                        );
-                                                                    }}
-                                                                >
-                                                                    Set Selling
-                                                                    Price
-                                                                </Button>
-                                                            )
-                                                            : (
-                                                                <div className="ml-auto text-sm">
-                                                                    Ask an
-                                                                    authorised
-                                                                    user to
-                                                                    configure
-                                                                    the selected
-                                                                    Price Book
-                                                                    selling
-                                                                    price.
-                                                                </div>
                                                             )}
+                                                        >
+                                                            <SelectTrigger
+                                                                className={INPUT_CLASS}
+                                                            >
+                                                                <SelectValue placeholder="Select Product" />
+                                                            </SelectTrigger>
+
+                                                            <SelectContent>
+                                                                <SelectItem value="none">
+                                                                    Select
+                                                                    Product
+                                                                </SelectItem>
+
+                                                                {(
+                                                                    products
+                                                                        .data ??
+                                                                        []
+                                                                ).map(
+                                                                    (
+                                                                        item,
+                                                                    ) => (
+                                                                        <SelectItem
+                                                                            key={item
+                                                                                .product_id}
+                                                                            value={item
+                                                                                .product_id}
+                                                                        >
+                                                                            {item
+                                                                                .product_code}
+                                                                            {" "}
+                                                                            —
+                                                                            {" "}
+                                                                            {item
+                                                                                .product_name}
+                                                                        </SelectItem>
+                                                                    ),
+                                                                )}
+                                                            </SelectContent>
+                                                        </Select>
                                                     </div>
-                                                )}
 
-                                            <div className="space-y-2 xl:col-span-5">
-                                                <Label>
-                                                    Description
-                                                </Label>
+                                                    <div className="space-y-2 xl:col-span-3">
+                                                        <Label>
+                                                            Project Area
+                                                        </Label>
 
-                                                <Input
-                                                    className={INPUT_CLASS}
-                                                    value={line.description}
-                                                    onChange={(
-                                                        event,
-                                                    ) => updateLine(
-                                                        line.key,
-                                                        {
-                                                            description: event
-                                                                .target
-                                                                .value,
-                                                        },
-                                                    )}
-                                                />
-                                            </div>
+                                                        <Select
+                                                            value={line
+                                                                .project_area_id ||
+                                                                "none"}
+                                                            onValueChange={(
+                                                                value,
+                                                            ) => updateLine(
+                                                                line.key,
+                                                                {
+                                                                    project_area_id:
+                                                                        value ===
+                                                                                "none"
+                                                                            ? ""
+                                                                            : value,
+                                                                },
+                                                            )}
+                                                            disabled={!siteId}
+                                                        >
+                                                            <SelectTrigger
+                                                                className={INPUT_CLASS}
+                                                            >
+                                                                <SelectValue placeholder="No Area" />
+                                                            </SelectTrigger>
 
-                                            <div className="space-y-2 xl:col-span-2">
-                                                <Label>
-                                                    Base UOM
-                                                </Label>
+                                                            <SelectContent>
+                                                                <SelectItem value="none">
+                                                                    No Area
+                                                                </SelectItem>
 
-                                                <Input
-                                                    className={`${INPUT_CLASS} text-slate-500`}
-                                                    value={line.base_uom_code}
-                                                    readOnly
-                                                />
-                                            </div>
+                                                                {filteredAreas
+                                                                    .map(
+                                                                        (
+                                                                            area,
+                                                                        ) => (
+                                                                            <SelectItem
+                                                                                key={area
+                                                                                    .area_id}
+                                                                                value={area
+                                                                                    .area_id}
+                                                                            >
+                                                                                {area
+                                                                                    .area_code}
+                                                                                {" "}
+                                                                                —
+                                                                                {" "}
+                                                                                {area
+                                                                                    .area_name}
+                                                                            </SelectItem>
+                                                                        ),
+                                                                    )}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
 
-                                            <div className="space-y-2 xl:col-span-2">
-                                                <Label>
-                                                    Conversion
-                                                </Label>
+                                                    <div className="space-y-2 xl:col-span-2">
+                                                        <Label>
+                                                            Sales UOM{" "}
+                                                            <span className="text-red-600">
+                                                                *
+                                                            </span>
+                                                        </Label>
 
-                                                <Input
-                                                    className={`${INPUT_CLASS} text-slate-500`}
-                                                    value={numberText(
-                                                        line.conversion_factor,
-                                                        6,
-                                                    )}
-                                                    readOnly
-                                                />
-                                            </div>
+                                                        <Select
+                                                            value={line
+                                                                .sales_uom_code ||
+                                                                "none"}
+                                                            onValueChange={(
+                                                                value,
+                                                            ) => selectLineUom(
+                                                                line.key,
+                                                                value ===
+                                                                        "none"
+                                                                    ? ""
+                                                                    : value,
+                                                            )}
+                                                            disabled={!product}
+                                                        >
+                                                            <SelectTrigger
+                                                                className={INPUT_CLASS}
+                                                            >
+                                                                <SelectValue placeholder="Select UOM" />
+                                                            </SelectTrigger>
 
-                                            <div className="space-y-2 xl:col-span-2">
-                                                <Label>
-                                                    Base Quantity
-                                                </Label>
+                                                            <SelectContent>
+                                                                <SelectItem value="none">
+                                                                    Select UOM
+                                                                </SelectItem>
 
-                                                <Input
-                                                    className={`${INPUT_CLASS} text-slate-500`}
-                                                    value={numberText(
-                                                        line.base_quantity,
-                                                        6,
-                                                    )}
-                                                    readOnly
-                                                />
-                                            </div>
+                                                                {productUoms
+                                                                    .map(
+                                                                        (
+                                                                            uom,
+                                                                        ) => (
+                                                                            <SelectItem
+                                                                                key={uom
+                                                                                    .uomCode}
+                                                                                value={uom
+                                                                                    .uomCode}
+                                                                            >
+                                                                                {uom.uomCode}
 
-                                            <div className="space-y-2 xl:col-span-1">
-                                                <Label>
-                                                    Discount %
-                                                </Label>
+                                                                                {uom.factor !==
+                                                                                        1
+                                                                                    ? ` → ${uom.factor} ${product?.base_uom_code}`
+                                                                                    : ""}
+                                                                            </SelectItem>
+                                                                        ),
+                                                                    )}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
 
-                                                <Input
-                                                    type="number"
-                                                    min="0"
-                                                    max="100"
-                                                    step="0.0001"
-                                                    className={INPUT_CLASS}
-                                                    value={line
-                                                        .discount_percent}
-                                                    readOnly={!permission[
-                                                        "invoices.override_discount"
-                                                    ]}
-                                                    onChange={(
-                                                        event,
-                                                    ) => updateLine(
-                                                        line.key,
-                                                        {
-                                                            discount_percent:
+                                                    <div className="space-y-2 xl:col-span-1">
+                                                        <Label>
+                                                            Qty *
+                                                        </Label>
+
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            step={line
+                                                                    .allow_fractional_quantity
+                                                                ? "0.000001"
+                                                                : "1"}
+                                                            className={INPUT_CLASS}
+                                                            value={line
+                                                                .quantity}
+                                                            onChange={(
+                                                                event,
+                                                            ) => changeQuantity(
+                                                                line.key,
                                                                 event
                                                                     .target
                                                                     .value,
-                                                        },
-                                                    )}
-                                                />
-                                            </div>
-
-                                            <div className="space-y-2 xl:col-span-1">
-                                                <Label>
-                                                    GST %
-                                                </Label>
-
-                                                <Input
-                                                    type="number"
-                                                    min="0"
-                                                    max="100"
-                                                    step="0.0001"
-                                                    className={INPUT_CLASS}
-                                                    value={lineAmountType ===
-                                                            "No Tax"
-                                                        ? "0"
-                                                        : line.tax_rate}
-                                                    readOnly={lineAmountType ===
-                                                        "No Tax"}
-                                                    onChange={(
-                                                        event,
-                                                    ) => updateLine(
-                                                        line.key,
-                                                        {
-                                                            tax_rate: event
-                                                                .target
-                                                                .value,
-                                                        },
-                                                    )}
-                                                />
-                                            </div>
-
-                                            <div className="space-y-2 xl:col-span-6">
-                                                <Label>
-                                                    Line Notes
-                                                </Label>
-
-                                                <Input
-                                                    className={INPUT_CLASS}
-                                                    value={line.notes}
-                                                    onChange={(
-                                                        event,
-                                                    ) => updateLine(
-                                                        line.key,
-                                                        {
-                                                            notes: event
-                                                                .target
-                                                                .value,
-                                                        },
-                                                    )}
-                                                />
-                                            </div>
-
-                                            <div className="xl:col-span-6">
-                                                <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3 text-sm sm:grid-cols-4">
-                                                    <div>
-                                                        <p className="text-xs text-slate-500">
-                                                            Line Subtotal
-                                                        </p>
-
-                                                        <p className="font-semibold">
-                                                            {money(
-                                                                calculation
-                                                                    ?.subtotal,
                                                             )}
-                                                        </p>
+                                                        />
                                                     </div>
 
-                                                    <div>
-                                                        <p className="text-xs text-slate-500">
-                                                            Discount
-                                                        </p>
+                                                    <div className="space-y-2 xl:col-span-2">
+                                                        <Label>
+                                                            Unit Price *
+                                                        </Label>
 
-                                                        <p className="font-semibold">
-                                                            {money(
-                                                                calculation
-                                                                    ?.discountAmount,
-                                                            )}
-                                                        </p>
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            step="0.01"
+                                                            className={INPUT_CLASS}
+                                                            value={line
+                                                                .unit_price}
+                                                            readOnly={line
+                                                                        .price_source ===
+                                                                    "Selling Price Missing" ||
+                                                                (Boolean(
+                                                                    line.price_book_line_id,
+                                                                ) &&
+                                                                    !permission[
+                                                                        "invoices.override_unit_price"
+                                                                    ])}
+                                                            onChange={(
+                                                                event,
+                                                            ) => {
+                                                                // Block manual edits when the selected Price Book price is missing
+                                                                if (
+                                                                    line.price_source ===
+                                                                        "Selling Price Missing"
+                                                                ) return;
+
+                                                                updateLine(
+                                                                    line.key,
+                                                                    {
+                                                                        unit_price:
+                                                                            event
+                                                                                .target
+                                                                                .value,
+                                                                        price_source:
+                                                                            line.original_unit_price !==
+                                                                                    null &&
+                                                                                Number(
+                                                                                        event
+                                                                                            .target
+                                                                                            .value,
+                                                                                    ) !==
+                                                                                    Number(
+                                                                                        line.original_unit_price,
+                                                                                    )
+                                                                                ? "Manual"
+                                                                                : line
+                                                                                        .price_book_line_id
+                                                                                ? "Price Book"
+                                                                                : "Manual",
+                                                                    },
+                                                                );
+                                                            }}
+                                                        />
                                                     </div>
 
-                                                    <div>
-                                                        <p className="text-xs text-slate-500">
-                                                            GST
-                                                        </p>
+                                                    {/* Missing selected Price Book price warning + action */}
+                                                    {product &&
+                                                        line.sales_uom_code &&
+                                                        !line
+                                                            .price_book_line_id &&
+                                                        line.price_source ===
+                                                            "Selling Price Missing" &&
+                                                        (
+                                                            <div className="xl:col-span-12 mt-2 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-800">
+                                                                <div className="text-sm">
+                                                                    <p>
+                                                                        No{" "}
+                                                                        {selectedPriceBook
+                                                                            ?.price_book_name ??
+                                                                            "selected Price Book"}
+                                                                        {" "}
+                                                                        selling
+                                                                        price is
+                                                                        configured
+                                                                        for this
+                                                                        Product
+                                                                        / UOM.
+                                                                    </p>
+                                                                    {line
+                                                                                .standard_reference_price !==
+                                                                            null &&
+                                                                        priceBookId !==
+                                                                            defaultPriceBook
+                                                                                ?.price_book_id &&
+                                                                        (
+                                                                            <p className="mt-1 font-medium">
+                                                                                Standard
+                                                                                Reference:
+                                                                                {" "}
+                                                                                {money(
+                                                                                    line.standard_reference_price,
+                                                                                )}
+                                                                                {" "}
+                                                                                /
+                                                                                {" "}
+                                                                                {line
+                                                                                    .sales_uom_code}
+                                                                            </p>
+                                                                        )}
+                                                                </div>
 
-                                                        <p className="font-semibold">
-                                                            {money(
-                                                                calculation
-                                                                    ?.taxAmount,
+                                                                {permission[
+                                                                        "products.manage_sales_prices"
+                                                                    ]
+                                                                    ? (
+                                                                        <Button
+                                                                            variant="outline"
+                                                                            className="ml-auto rounded-xl"
+                                                                            onClick={() => {
+                                                                                setSellingDialogTargetKey(
+                                                                                    line.key,
+                                                                                );
+                                                                                setSellingProductId(
+                                                                                    line.product_id ??
+                                                                                        null,
+                                                                                );
+                                                                                setSellingProductCode(
+                                                                                    product
+                                                                                        .product_code ??
+                                                                                        null,
+                                                                                );
+                                                                                setSellingProductName(
+                                                                                    product
+                                                                                        .product_name ??
+                                                                                        null,
+                                                                                );
+                                                                                const dialogDate =
+                                                                                    invoiceDate ||
+                                                                                    today();
+                                                                                const dialogUom =
+                                                                                    line.sales_uom_code ??
+                                                                                        "";
+
+                                                                                setSellingUom(
+                                                                                    dialogUom ||
+                                                                                        null,
+                                                                                );
+                                                                                setSellingEffectiveFrom(
+                                                                                    dialogDate,
+                                                                                );
+
+                                                                                if (
+                                                                                    line.product_id &&
+                                                                                    dialogUom
+                                                                                ) {
+                                                                                    loadSellingPriceMatrix(
+                                                                                        line.product_id,
+                                                                                        dialogUom,
+                                                                                        dialogDate,
+                                                                                    );
+                                                                                } else {
+                                                                                    setSellingPricesByBook(
+                                                                                        {},
+                                                                                    );
+                                                                                    setSellingMinimumPricesByBook(
+                                                                                        {},
+                                                                                    );
+                                                                                }
+
+                                                                                setShowSellingPriceDialog(
+                                                                                    true,
+                                                                                );
+                                                                            }}
+                                                                        >
+                                                                            Set
+                                                                            Selling
+                                                                            Price
+                                                                        </Button>
+                                                                    )
+                                                                    : (
+                                                                        <div className="ml-auto text-sm">
+                                                                            Ask
+                                                                            an
+                                                                            authorised
+                                                                            user
+                                                                            to
+                                                                            configure
+                                                                            the
+                                                                            selected
+                                                                            Price
+                                                                            Book
+                                                                            selling
+                                                                            price.
+                                                                        </div>
+                                                                    )}
+                                                            </div>
+                                                        )}
+
+                                                    <div className="space-y-2 xl:col-span-5">
+                                                        <Label>
+                                                            Description
+                                                        </Label>
+
+                                                        <Input
+                                                            className={INPUT_CLASS}
+                                                            value={line
+                                                                .description}
+                                                            onChange={(
+                                                                event,
+                                                            ) => updateLine(
+                                                                line.key,
+                                                                {
+                                                                    description:
+                                                                        event
+                                                                            .target
+                                                                            .value,
+                                                                },
                                                             )}
-                                                        </p>
+                                                        />
                                                     </div>
 
-                                                    <div>
-                                                        <p className="text-xs text-slate-500">
-                                                            Line Total
-                                                        </p>
+                                                    <div className="space-y-2 xl:col-span-2">
+                                                        <Label>
+                                                            Base UOM
+                                                        </Label>
 
-                                                        <p className="font-bold text-[#8B3F3F]">
-                                                            {money(
-                                                                calculation
-                                                                    ?.total,
+                                                        <Input
+                                                            className={`${INPUT_CLASS} text-slate-500`}
+                                                            value={line
+                                                                .base_uom_code}
+                                                            readOnly
+                                                        />
+                                                    </div>
+
+                                                    <div className="space-y-2 xl:col-span-2">
+                                                        <Label>
+                                                            Conversion
+                                                        </Label>
+
+                                                        <Input
+                                                            className={`${INPUT_CLASS} text-slate-500`}
+                                                            value={numberText(
+                                                                line.conversion_factor,
+                                                                6,
                                                             )}
-                                                        </p>
+                                                            readOnly
+                                                        />
+                                                    </div>
+
+                                                    <div className="space-y-2 xl:col-span-2">
+                                                        <Label>
+                                                            Base Quantity
+                                                        </Label>
+
+                                                        <Input
+                                                            className={`${INPUT_CLASS} text-slate-500`}
+                                                            value={numberText(
+                                                                line.base_quantity,
+                                                                6,
+                                                            )}
+                                                            readOnly
+                                                        />
+                                                    </div>
+
+                                                    <div className="space-y-2 xl:col-span-1">
+                                                        <Label>
+                                                            Discount %
+                                                        </Label>
+
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            max="100"
+                                                            step="0.0001"
+                                                            className={INPUT_CLASS}
+                                                            value={line
+                                                                .discount_percent}
+                                                            readOnly={!permission[
+                                                                "invoices.override_discount"
+                                                            ]}
+                                                            onChange={(
+                                                                event,
+                                                            ) => updateLine(
+                                                                line.key,
+                                                                {
+                                                                    discount_percent:
+                                                                        event
+                                                                            .target
+                                                                            .value,
+                                                                },
+                                                            )}
+                                                        />
+                                                    </div>
+
+                                                    <div className="space-y-2 xl:col-span-1">
+                                                        <Label>
+                                                            GST %
+                                                        </Label>
+
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            max="100"
+                                                            step="0.0001"
+                                                            className={INPUT_CLASS}
+                                                            value={lineAmountType ===
+                                                                    "No Tax"
+                                                                ? "0"
+                                                                : line.tax_rate}
+                                                            readOnly={lineAmountType ===
+                                                                "No Tax"}
+                                                            onChange={(
+                                                                event,
+                                                            ) => updateLine(
+                                                                line.key,
+                                                                {
+                                                                    tax_rate:
+                                                                        event
+                                                                            .target
+                                                                            .value,
+                                                                },
+                                                            )}
+                                                        />
+                                                    </div>
+
+                                                    <div className="space-y-2 xl:col-span-6">
+                                                        <Label>
+                                                            Line Notes
+                                                        </Label>
+
+                                                        <Input
+                                                            className={INPUT_CLASS}
+                                                            value={line.notes}
+                                                            onChange={(
+                                                                event,
+                                                            ) => updateLine(
+                                                                line.key,
+                                                                {
+                                                                    notes: event
+                                                                        .target
+                                                                        .value,
+                                                                },
+                                                            )}
+                                                        />
+                                                    </div>
+
+                                                    <div className="xl:col-span-6">
+                                                        <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3 text-sm sm:grid-cols-4">
+                                                            <div>
+                                                                <p className="text-xs text-slate-500">
+                                                                    Line
+                                                                    Subtotal
+                                                                </p>
+
+                                                                <p className="font-semibold">
+                                                                    {money(
+                                                                        calculation
+                                                                            ?.subtotal,
+                                                                    )}
+                                                                </p>
+                                                            </div>
+
+                                                            <div>
+                                                                <p className="text-xs text-slate-500">
+                                                                    Discount
+                                                                </p>
+
+                                                                <p className="font-semibold">
+                                                                    {money(
+                                                                        calculation
+                                                                            ?.discountAmount,
+                                                                    )}
+                                                                </p>
+                                                            </div>
+
+                                                            <div>
+                                                                <p className="text-xs text-slate-500">
+                                                                    GST
+                                                                </p>
+
+                                                                <p className="font-semibold">
+                                                                    {money(
+                                                                        calculation
+                                                                            ?.taxAmount,
+                                                                    )}
+                                                                </p>
+                                                            </div>
+
+                                                            <div>
+                                                                <p className="text-xs text-slate-500">
+                                                                    Line Total
+                                                                </p>
+
+                                                                <p className="font-bold text-[#8B3F3F]">
+                                                                    {money(
+                                                                        calculation
+                                                                            ?.total,
+                                                                    )}
+                                                                </p>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </div>
-                                );
-                            },
-                        )}
-                    </div>
-                </CardContent>
-            </Card>
+                                        );
+                                    },
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="rounded-2xl">
+                        <CardContent className="space-y-5 p-5 md:p-6">
+                            <SectionHeader
+                                number="04"
+                                title="Financial Summary"
+                                description="Values below are previews. The Backend recalculates and validates all final amounts."
+                            />
+
+                            <div className="ml-auto grid max-w-2xl gap-3 sm:grid-cols-2">
+                                <div className="rounded-xl border border-slate-200 p-4">
+                                    <p className="text-sm text-slate-500">
+                                        Subtotal before discount
+                                    </p>
+
+                                    <p className="mt-1 text-xl font-semibold">
+                                        {money(
+                                            formTotals.subtotal,
+                                        )}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-xl border border-slate-200 p-4">
+                                    <p className="text-sm text-slate-500">
+                                        Line Discounts
+                                    </p>
+
+                                    <p className="mt-1 text-xl font-semibold text-red-700">
+                                        − {money(
+                                            formTotals.discount,
+                                        )}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-xl border border-slate-200 p-4">
+                                    <p className="text-sm text-slate-500">
+                                        GST (
+                                        {lineAmountType}
+                                        )
+                                    </p>
+
+                                    <p className="mt-1 text-xl font-semibold">
+                                        {money(
+                                            formTotals.tax,
+                                        )}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-xl border border-[#8B3F3F] bg-red-50 p-4">
+                                    <p className="text-sm text-[#8B3F3F]">
+                                        Invoice Total
+                                    </p>
+
+                                    <p className="mt-1 text-2xl font-bold text-[#8B3F3F]">
+                                        {money(
+                                            formTotals.grandTotal,
+                                        )}
+                                    </p>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </>
+            )}
 
             <Card className="rounded-2xl">
                 <CardContent className="space-y-5 p-5 md:p-6">
                     <SectionHeader
-                        number="04"
-                        title="Financial Summary"
-                        description="Values below are previews. The Backend recalculates and validates all final amounts."
-                    />
-
-                    <div className="ml-auto grid max-w-2xl gap-3 sm:grid-cols-2">
-                        <div className="rounded-xl border border-slate-200 p-4">
-                            <p className="text-sm text-slate-500">
-                                Subtotal before discount
-                            </p>
-
-                            <p className="mt-1 text-xl font-semibold">
-                                {money(
-                                    formTotals.subtotal,
-                                )}
-                            </p>
-                        </div>
-
-                        <div className="rounded-xl border border-slate-200 p-4">
-                            <p className="text-sm text-slate-500">
-                                Line Discounts
-                            </p>
-
-                            <p className="mt-1 text-xl font-semibold text-red-700">
-                                − {money(
-                                    formTotals.discount,
-                                )}
-                            </p>
-                        </div>
-
-                        <div className="rounded-xl border border-slate-200 p-4">
-                            <p className="text-sm text-slate-500">
-                                GST (
-                                {lineAmountType}
-                                )
-                            </p>
-
-                            <p className="mt-1 text-xl font-semibold">
-                                {money(
-                                    formTotals.tax,
-                                )}
-                            </p>
-                        </div>
-
-                        <div className="rounded-xl border border-[#8B3F3F] bg-red-50 p-4">
-                            <p className="text-sm text-[#8B3F3F]">
-                                Invoice Total
-                            </p>
-
-                            <p className="mt-1 text-2xl font-bold text-[#8B3F3F]">
-                                {money(
-                                    formTotals.grandTotal,
-                                )}
-                            </p>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card className="rounded-2xl">
-                <CardContent className="space-y-5 p-5 md:p-6">
-                    <SectionHeader
-                        number="05"
+                        number={isCommercialSourceCreate ? "03" : "05"}
                         title="Review & Status"
                         description="The Invoice is saved as Draft. Approval and Issue remain separate permission-controlled actions."
                     />
 
-                    <div className="grid gap-4 md:grid-cols-3">
+                    <div className="grid gap-4 md:grid-cols-2">
                         <div className="rounded-xl border border-slate-200 p-4">
                             <p className="text-xs text-slate-500">
                                 Document Status
@@ -5608,16 +7713,6 @@ const Invoices = () => {
                                 Unpaid
                             </p>
                         </div>
-
-                        <div className="rounded-xl border border-slate-200 p-4">
-                            <p className="text-xs text-slate-500">
-                                Currency
-                            </p>
-
-                            <p className="mt-1 font-semibold text-slate-900">
-                                AUD — stored by Backend
-                            </p>
-                        </div>
                     </div>
 
                     <div className="flex justify-end gap-2">
@@ -5631,7 +7726,18 @@ const Invoices = () => {
 
                         <Button
                             className={RED_BUTTON}
-                            disabled={saveInvoice.isPending}
+                            disabled={
+                                saveInvoice.isPending ||
+                                (
+                                    !editingId &&
+                                    (
+                                        createMode === "Quotation" ||
+                                        createMode === "Accepted Revision" ||
+                                        createMode === "Variation"
+                                    ) &&
+                                    selectedWorkOrderIds.length === 0
+                                )
+                            }
                             onClick={() => saveInvoice.mutate()}
                         >
                             {saveInvoice.isPending
@@ -5657,9 +7763,7 @@ const Invoices = () => {
             detail.data?.active_sources ?? []
         ).filter(
             (source) =>
-                !Boolean(
-                    source.is_deleted,
-                ),
+                !source.is_deleted,
         );
 
         const allocations = detail.data?.payments ?? [];
@@ -5673,6 +7777,12 @@ const Invoices = () => {
                 selectedId ??
                 "",
         );
+
+        const detailLineAmountType = normalizeLineAmountType(
+            String(invoice.line_amount_type ?? "Exclusive"),
+        );
+        const detailShowsSeparateGst =
+            detailLineAmountType === "Exclusive";
 
         return (
             <div className="space-y-6 p-4 md:p-6">
@@ -5742,7 +7852,20 @@ const Invoices = () => {
                                 )}
                         >
                             <Printer className="mr-2 h-4 w-4" />
-                            Print / PDF
+                            Print
+                        </Button>
+
+                        <Button
+                            variant="outline"
+                            className="rounded-xl"
+                            onClick={() =>
+                                downloadCustomerInvoicePdf(
+                                    invoice,
+                                    detailLines,
+                                )}
+                        >
+                            <Download className="mr-2 h-4 w-4" />
+                            Download PDF
                         </Button>
 
                         {status ===
@@ -5918,7 +8041,13 @@ const Invoices = () => {
                                         ],
                                         [
                                             "Price Book",
-                                            invoice.price_book_name,
+                                            (priceBooks.data ?? []).find(
+                                                (book) =>
+                                                    book.price_book_id ===
+                                                    invoice.price_book_id,
+                                            )?.price_book_name ??
+                                                invoice.price_book_name ??
+                                                "—",
                                         ],
                                         [
                                             "Line Amount Type",
@@ -5926,12 +8055,10 @@ const Invoices = () => {
                                         ],
                                         [
                                             "Payment Terms",
-                                            `${
-                                                invoice.payment_terms_type ??
-                                                    "—"
-                                            } ${
-                                                invoice.payment_terms_days ?? ""
-                                            }`,
+                                            formatPaymentTerms(
+                                                invoice.payment_terms_type,
+                                                invoice.payment_terms_days,
+                                            ),
                                         ],
                                         [
                                             "Subtotal",
@@ -5945,12 +8072,14 @@ const Invoices = () => {
                                                 invoice.discount_amount,
                                             ),
                                         ],
-                                        [
-                                            "GST",
-                                            money(
-                                                invoice.tax_amount,
-                                            ),
-                                        ],
+                                        ...(detailShowsSeparateGst
+                                            ? [[
+                                                "GST",
+                                                money(
+                                                    invoice.tax_amount,
+                                                ),
+                                            ]]
+                                            : []),
                                         [
                                             "Total",
                                             money(
@@ -6010,10 +8139,6 @@ const Invoices = () => {
                                                     </TableHead>
 
                                                     <TableHead>
-                                                        Area
-                                                    </TableHead>
-
-                                                    <TableHead>
                                                         UOM Conversion
                                                     </TableHead>
 
@@ -6029,9 +8154,11 @@ const Invoices = () => {
                                                         Discount
                                                     </TableHead>
 
-                                                    <TableHead className="text-right">
-                                                        GST
-                                                    </TableHead>
+                                                    {detailShowsSeparateGst && (
+                                                        <TableHead className="text-right">
+                                                            GST
+                                                        </TableHead>
+                                                    )}
 
                                                     <TableHead className="text-right">
                                                         Total
@@ -6080,14 +8207,6 @@ const Invoices = () => {
                                                                             "",
                                                                     )}
                                                                 </p>
-                                                            </TableCell>
-
-                                                            <TableCell>
-                                                                {String(
-                                                                    line.project_area_name ??
-                                                                        line.area_name ??
-                                                                        "—",
-                                                                )}
                                                             </TableCell>
 
                                                             <TableCell>
@@ -6151,11 +8270,13 @@ const Invoices = () => {
                                                                 </p>
                                                             </TableCell>
 
-                                                            <TableCell className="text-right">
-                                                                {money(
-                                                                    line.tax_amount,
-                                                                )}
-                                                            </TableCell>
+                                                            {detailShowsSeparateGst && (
+                                                                <TableCell className="text-right">
+                                                                    {money(
+                                                                        line.tax_amount,
+                                                                    )}
+                                                                </TableCell>
+                                                            )}
 
                                                             <TableCell className="text-right font-semibold">
                                                                 {money(
