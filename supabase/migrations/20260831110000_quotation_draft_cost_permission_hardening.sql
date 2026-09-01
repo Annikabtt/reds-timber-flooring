@@ -64,7 +64,6 @@ begin
                 btrim(line.value ->> 'line_uid'),
                 ''
              )::uuid
-         and ql.is_active = true
          and ql.is_deleted = false;
     end if;
 
