@@ -52,6 +52,37 @@ type QuotationBillingUnitRow =
 type QuotationBillingAllocationRow =
   Database["public"]["Tables"]["quotation_line_billing_allocations"]["Row"];
 
+type QuotationSummary = {
+  quotation_id: string;
+  quotation_no: string;
+  quotation_status: string;
+  revision_no: number;
+  issue_date: string | null;
+  total_amount: number;
+  customer: {
+    customer_id: string;
+  };
+  project: {
+    project_id: string | null;
+  };
+  site: {
+    site_id: string | null;
+  };
+};
+
+type QuotationDetailPayload = {
+  quotation: QuotationRow;
+  base_lines: QuotationLineRow[];
+  revisions: Array<Record<string, Json | undefined>>;
+};
+
+const requireRpcObject = <T,>(value: Json | null, name: string): T => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${name} returned an invalid response.`);
+  }
+  return value as unknown as T;
+};
+
 type Lookup = {
   customers: CustomerRow[];
   sites: SiteRow[];
@@ -298,7 +329,7 @@ export default function Quotations() {
   const [lines, setLines] = useState<LineForm[]>([emptyLine()]);
   const [billingUnits, setBillingUnits] = useState<BillingUnitForm[]>([]);
   const [actionDialog, setActionDialog] = useState<
-    { type: string; quotation: QuotationRow } | null
+    { type: string; quotation: QuotationSummary } | null
   >(null);
   const [actionReason, setActionReason] = useState("");
   const [acceptRequiredBy, setAcceptRequiredBy] = useState("");
@@ -423,17 +454,21 @@ export default function Quotations() {
   });
 
   const listQuery = useQuery({
-    queryKey: ["quotations", status],
+    queryKey: ["quotations", status, search],
     enabled: can("quotations.view"),
     queryFn: async () => {
-      let query = supabase.from("quotations").select("*").eq(
-        "is_deleted",
-        false,
-      ).order("created_at", { ascending: false });
-      if (status !== "all") query = query.eq("quotation_status", status);
-      const { data, error } = await query;
+      const { data, error } = await supabase.rpc("list_quotations", {
+        p_search: search.trim() || undefined,
+        p_status: status === "all" ? undefined : status,
+        p_limit: 200,
+        p_offset: 0,
+      });
       if (error) throw error;
-      return data ?? [];
+      const payload = requireRpcObject<{ rows?: QuotationSummary[] }>(
+        data,
+        "list_quotations",
+      );
+      return payload.rows ?? [];
     },
   });
 
@@ -442,29 +477,18 @@ export default function Quotations() {
     enabled: Boolean(selectedId),
     queryFn: async () => {
       if (!selectedId) throw new Error("Quotation not selected.");
-      const [
-        { data: quotation, error: qError },
-        { data: detailLines, error: lError },
-        { data: revisions, error: rError },
-      ] = await Promise.all([
-        supabase.from("quotations").select("*").eq("quotation_id", selectedId)
-          .single(),
-        supabase.from("quotation_lines").select("*").eq(
-          "quotation_id",
-          selectedId,
-        ).eq("is_deleted", false).order("line_no"),
-        supabase.from("quotation_revisions").select("*").eq(
-          "quotation_id",
-          selectedId,
-        ).eq("is_deleted", false).order("revision_no", { ascending: false }),
-      ]);
-      if (qError) throw qError;
-      if (lError) throw lError;
-      if (rError) throw rError;
+      const { data, error } = await supabase.rpc("get_quotation_detail", {
+        p_quotation_id: selectedId,
+      });
+      if (error) throw error;
+      const payload = requireRpcObject<QuotationDetailPayload>(
+        data,
+        "get_quotation_detail",
+      );
       return {
-        quotation,
-        lines: detailLines ?? [],
-        revisions: revisions ?? [],
+        quotation: payload.quotation,
+        lines: payload.base_lines ?? [],
+        revisions: payload.revisions ?? [],
       };
     },
   });
@@ -494,31 +518,19 @@ export default function Quotations() {
       ),
     [lookupQuery.data?.projects],
   );
-  const getQuotationContext = useCallback((quotation: QuotationRow) => {
-    const customer = customerById.get(quotation.customer_id);
-    const site = quotation.project_site_id
-      ? siteById.get(quotation.project_site_id)
+  const getQuotationContext = useCallback((quotation: QuotationSummary) => {
+    const customer = customerById.get(quotation.customer.customer_id);
+    const site = quotation.site.site_id
+      ? siteById.get(quotation.site.site_id)
       : undefined;
-    const project = site ? projectById.get(site.project_id) : undefined;
+    const project = quotation.project.project_id
+      ? projectById.get(quotation.project.project_id)
+      : site
+      ? projectById.get(site.project_id)
+      : undefined;
     return { customer, site, project };
   }, [customerById, projectById, siteById]);
-  const filteredQuotations = useMemo(() => {
-    const rows = listQuery.data ?? [];
-    const term = search.trim().toLowerCase();
-    if (!term) return rows;
-    return rows.filter((quotation) => {
-      const { customer, site, project } = getQuotationContext(quotation);
-      return [
-        quotation.quotation_no,
-        customer?.customer_code,
-        customer?.customer_name,
-        project?.project_no,
-        project?.project_name,
-        site?.site_code,
-        site?.site_name,
-      ].some((value) => value?.toLowerCase().includes(term));
-    });
-  }, [getQuotationContext, listQuery.data, search]);
+  const filteredQuotations = listQuery.data ?? [];
 
   const filteredProjects = useMemo(() =>
     (lookupQuery.data?.projects ?? []).filter((project) =>
@@ -565,16 +577,15 @@ export default function Quotations() {
     setEditorOpen(true);
   };
 
-  const openEdit = async (quotation: QuotationRow) => {
+  const openEdit = async (quotation: QuotationSummary) => {
     const [
-      { data: existingLines, error: linesError },
+      { data: detailData, error: detailError },
       { data: existingUnits, error: unitsError },
       { data: existingAllocations, error: allocationsError },
     ] = await Promise.all([
-      supabase.from("quotation_lines").select("*").eq(
-        "quotation_id",
-        quotation.quotation_id,
-      ).eq("is_deleted", false).order("line_no"),
+      supabase.rpc("get_quotation_detail", {
+        p_quotation_id: quotation.quotation_id,
+      }),
       supabase.from("quotation_billing_units").select("*").eq(
         "quotation_id",
         quotation.quotation_id,
@@ -585,26 +596,35 @@ export default function Quotations() {
       ).eq("is_deleted", false).eq("is_active", true).order("sort_order"),
     ]);
 
-    if (linesError) return toast.error(linesError.message);
+    if (detailError) return toast.error(detailError.message);
     if (unitsError) return toast.error(unitsError.message);
     if (allocationsError) return toast.error(allocationsError.message);
 
+    const detail = requireRpcObject<QuotationDetailPayload>(
+      detailData,
+      "get_quotation_detail",
+    );
+    const quotationHeader = detail.quotation;
+    const existingLines = detail.base_lines ?? [];
+
     setEditingId(quotation.quotation_id);
-    const existingSite = quotation.project_site_id
-      ? lookupQuery.data?.sites.find((site) => site.site_id === quotation.project_site_id)
+    const existingSite = quotationHeader.project_site_id
+      ? lookupQuery.data?.sites.find((site) =>
+        site.site_id === quotationHeader.project_site_id
+      )
       : undefined;
 
     setHeader({
-      customerId: quotation.customer_id,
+      customerId: quotationHeader.customer_id,
       projectId: existingSite?.project_id ?? "",
-      projectSiteId: quotation.project_site_id ?? "",
-      priceBookId: quotation.price_book_id ?? "",
-      quotationSegment: quotation.quotation_segment,
-      quotationSource: quotation.quotation_source ?? "",
-      issueDate: quotation.issue_date ?? "",
-      validUntil: quotation.valid_until ?? "",
-      notes: quotation.notes ?? "",
-      internalNotes: quotation.internal_notes ?? "",
+      projectSiteId: quotationHeader.project_site_id ?? "",
+      priceBookId: quotationHeader.price_book_id ?? "",
+      quotationSegment: quotationHeader.quotation_segment,
+      quotationSource: quotationHeader.quotation_source ?? "",
+      issueDate: quotationHeader.issue_date ?? "",
+      validUntil: quotationHeader.valid_until ?? "",
+      notes: quotationHeader.notes ?? "",
+      internalNotes: quotationHeader.internal_notes ?? "",
     });
 
     setLines((existingLines ?? []).map((line: QuotationLineRow) => ({
@@ -1192,13 +1212,10 @@ export default function Quotations() {
         conversion_factor: conversionFactor,
         base_quantity: quantity * conversionFactor,
         quantity,
-        discount_percent: line.productId
-          ? can("quotations.apply_discount")
-            ? safeNumber(line.discountPercent)
-            : null
-          : safeNumber(line.discountPercent),
-        discount_reason: line.productId &&
-            can("quotations.apply_discount") &&
+        discount_percent: can("quotations.apply_discount")
+          ? safeNumber(line.discountPercent)
+          : null,
+        discount_reason: can("quotations.apply_discount") &&
             safeNumber(line.discountPercent) > 0
           ? line.discountReason.trim() || null
           : null,
@@ -1345,16 +1362,7 @@ export default function Quotations() {
         }
 
         const discount = safeNumber(line.discountPercent);
-        if (discount < 0 || discount > 100) {
-          throw new Error(`Line ${index + 1}: Discount must be between 0 and 100.`);
-        }
-
         if (discount > 0) {
-          if (!can("quotations.apply_discount")) {
-            throw new Error(
-              `Line ${index + 1}: quotations.apply_discount permission is required.`,
-            );
-          }
           if (!line.discountReason.trim()) {
             throw new Error(`Line ${index + 1}: Discount Reason is required.`);
           }
@@ -1365,6 +1373,11 @@ export default function Quotations() {
             );
           }
         }
+      }
+
+      const discount = safeNumber(line.discountPercent);
+      if (discount < 0 || discount > 100) {
+        throw new Error(`Line ${index + 1}: Discount must be between 0 and 100.`);
       }
 
       if (line.billingMethod === "Percentage") {
@@ -2257,8 +2270,8 @@ export default function Quotations() {
                               : 100}
                             step="0.01"
                             value={line.discountPercent}
-                            disabled={Boolean(line.productId) &&
-                              (!can("quotations.apply_discount") ||
+                            disabled={!can("quotations.apply_discount") ||
+                              (Boolean(line.productId) &&
                                 line.maximumDiscountPercent <= 0)}
                             onChange={(e) => {
                               const nextValue = e.target.value;
@@ -2277,9 +2290,7 @@ export default function Quotations() {
                               This Product does not allow a discount.
                             </p>
                           )}
-                          {line.productId &&
-                            line.maximumDiscountPercent > 0 &&
-                            !can("quotations.apply_discount") && (
+                          {!can("quotations.apply_discount") && (
                             <p className="text-xs text-slate-500">
                               quotations.apply_discount permission is required.
                             </p>
@@ -3057,10 +3068,10 @@ function RowActions({
   onEdit,
   onAction,
 }: {
-  quotation: QuotationRow;
+  quotation: QuotationSummary;
   can: (code: string) => boolean;
   onView: () => void;
-  onEdit: (q: QuotationRow) => void;
+  onEdit: (q: QuotationSummary) => void;
   onAction: (type: string) => void;
 }) {
   return (

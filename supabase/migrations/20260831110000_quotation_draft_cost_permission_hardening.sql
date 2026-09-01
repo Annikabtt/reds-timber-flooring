@@ -67,6 +67,59 @@ begin
          and ql.is_deleted = false;
     end if;
 
+    if v_safe_lines is not null
+       and jsonb_typeof(v_safe_lines) = 'array' then
+        select coalesce(
+            jsonb_agg(
+                line.value - '_preserve_discount'
+                order by line.ordinality
+            ),
+            '[]'::jsonb
+        )
+        into v_safe_lines
+        from jsonb_array_elements(v_safe_lines)
+            with ordinality as line(value, ordinality);
+    end if;
+
+    if not public.has_permission('quotations.apply_discount')
+       and v_safe_lines is not null
+       and jsonb_typeof(v_safe_lines) = 'array' then
+        select coalesce(
+            jsonb_agg(
+                case
+                    when ql.quotation_line_id is not null then
+                        line.value || jsonb_build_object(
+                            'discount_percent',
+                            ql.discount_percent,
+                            'discount_reason',
+                            ql.discount_reason,
+                            '_preserve_discount',
+                            true
+                        )
+                    else
+                        line.value || jsonb_build_object(
+                            'discount_percent',
+                            0,
+                            'discount_reason',
+                            null
+                        )
+                end
+                order by line.ordinality
+            ),
+            '[]'::jsonb
+        )
+        into v_safe_lines
+        from jsonb_array_elements(v_safe_lines)
+            with ordinality as line(value, ordinality)
+        left join public.quotation_lines ql
+          on ql.quotation_id = p_quotation_id
+         and ql.line_uid = nullif(
+                btrim(line.value ->> 'line_uid'),
+                ''
+             )::uuid
+         and ql.is_deleted = false;
+    end if;
+
     return public.update_draft_quotation_progress_atomic_impl(
         p_quotation_id,
         p_quotation,
