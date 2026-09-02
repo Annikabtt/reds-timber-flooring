@@ -34,11 +34,9 @@ begin
         'public.guard_quotation_product_discount()'::regprocedure
     );
 
-    v_patched := replace(
+    v_patched := regexp_replace(
         v_definition,
-        $marker$    /* ------------------------------------------------------------------------
-    New / changed positive Discount
-    ------------------------------------------------------------------------ */$marker$,
+        $pattern$/\*[[:space:]]*-+[[:space:]]*New / changed positive Discount[[:space:]]*-+[[:space:]]*\*/$pattern$,
         $replacement$    /* ------------------------------------------------------------------------
     Draft replacement RPCs soft-delete the current line before inserting its
     replacement. Permit an unchanged approved discount to survive that insert.
