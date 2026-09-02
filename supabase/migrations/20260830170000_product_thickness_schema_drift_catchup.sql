@@ -7,19 +7,42 @@ alter table public.product_thickness_codes
     add column if not exists thickness_mm numeric(10,3),
     add column if not exists thickness_meaning text;
 
-update public.product_thickness_codes
-set
-    thickness_mm = case
-        when thickness_code in ('X', 'Z') then null
-        else reference_thickness_mm
-    end,
-    thickness_meaning = case
-        when thickness_code = 'Z' then 'unknown'
-        when thickness_code = 'X' then 'not_applicable'
-        when reference_thickness_mm is not null then 'physical'
-        else 'reserved'
-    end
-where thickness_meaning is null;
+do $migration$
+begin
+    if exists (
+        select 1
+        from information_schema.columns
+        where table_schema = 'public'
+          and table_name = 'product_thickness_codes'
+          and column_name = 'reference_thickness_mm'
+    ) then
+        execute $sql$
+            update public.product_thickness_codes
+            set
+                thickness_mm = case
+                    when thickness_code in ('X', 'Z') then null
+                    else reference_thickness_mm
+                end,
+                thickness_meaning = case
+                    when thickness_code = 'Z' then 'unknown'
+                    when thickness_code = 'X' then 'not_applicable'
+                    when reference_thickness_mm is not null then 'physical'
+                    else 'reserved'
+                end
+            where thickness_meaning is null
+        $sql$;
+    else
+        update public.product_thickness_codes
+        set thickness_meaning = case
+            when thickness_code = 'Z' then 'unknown'
+            when thickness_code = 'X' then 'not_applicable'
+            when thickness_mm is not null then 'physical'
+            else 'reserved'
+        end
+        where thickness_meaning is null;
+    end if;
+end;
+$migration$;
 
 alter table public.product_thickness_codes
     alter column thickness_meaning set default 'physical',
