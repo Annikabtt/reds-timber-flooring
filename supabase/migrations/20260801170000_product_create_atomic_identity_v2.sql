@@ -1,4 +1,4 @@
-﻿CREATE OR REPLACE FUNCTION public.create_product_atomic_internal(p_product jsonb, p_uom_conversions jsonb DEFAULT '[]'::jsonb, p_coverages jsonb DEFAULT '[]'::jsonb, p_attributes jsonb DEFAULT '[]'::jsonb)
+CREATE OR REPLACE FUNCTION public.create_product_atomic_internal(p_product jsonb, p_uom_conversions jsonb DEFAULT '[]'::jsonb, p_coverages jsonb DEFAULT '[]'::jsonb, p_attributes jsonb DEFAULT '[]'::jsonb)
  RETURNS TABLE(product_id uuid, product_code text, product_name text, variant_code text)
  LANGUAGE plpgsql
  SECURITY DEFINER
