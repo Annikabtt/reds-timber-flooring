@@ -70,10 +70,92 @@ type QuotationSummary = {
   };
 };
 
+type QuotationDetailLine = Partial<QuotationLineRow> & {
+  quotation_line_id?: string | null;
+  revision_line_id?: string;
+  line_no: number;
+  line_uid?: string;
+  product_code?: string | null;
+  product_name?: string | null;
+  area_code?: string | null;
+  area_name?: string | null;
+  description: string;
+  quantity: number;
+  unit_of_measure: string;
+  unit_price: number;
+  line_total: number;
+};
+
+type QuotationRevisionDetail = Partial<
+  Database["public"]["Tables"]["quotation_revisions"]["Row"]
+> & {
+  revision_id: string;
+  revision_no: number;
+  revision_status: string;
+  lines?: QuotationDetailLine[];
+};
+
+type QuotationDetailContext = {
+  customer: {
+    customer_id: string;
+    customer_code: string | null;
+    customer_name: string | null;
+  };
+  project: {
+    project_id: string | null;
+    project_name: string | null;
+    project_status: string | null;
+  };
+  site: {
+    site_id: string | null;
+    site_code: string | null;
+    site_name: string | null;
+    site_status: string | null;
+    postcode: string | null;
+    contact_name: string | null;
+  };
+};
+
 type QuotationDetailPayload = {
   quotation: QuotationRow;
-  base_lines: QuotationLineRow[];
-  revisions: Array<Record<string, Json | undefined>>;
+  context: QuotationDetailContext;
+  base_lines: QuotationDetailLine[];
+  revisions: QuotationRevisionDetail[];
+};
+
+type DetailBillingUnit = {
+  billing_unit_uid: string;
+  billing_unit_code: string | null;
+  billing_unit_name: string;
+  sort_order: number;
+};
+
+type DetailBillingAllocation = {
+  billing_unit_uid: string;
+  line_uid: string;
+  allocated_quantity: number | null;
+  allocated_percent: number | null;
+  allocated_amount: number | null;
+  sort_order: number;
+};
+
+type DetailVersion = {
+  revisionId: string | null;
+  revisionNo: number;
+  status: string;
+  customerId: string;
+  projectSiteId: string | null;
+  priceBookId: string | null;
+  quotationSegment: string;
+  quotationSource: string | null;
+  issueDate: string | null;
+  validUntil: string | null;
+  subtotalAmount: number;
+  discountAmount: number;
+  taxAmount: number;
+  totalAmount: number;
+  notes: string | null;
+  internalNotes: string | null;
 };
 
 const requireRpcObject = <T,>(value: Json | null, name: string): T => {
@@ -485,9 +567,126 @@ export default function Quotations() {
         data,
         "get_quotation_detail",
       );
+
+      const activeRevision = payload.quotation.current_revision_id
+        ? payload.revisions.find((revision) =>
+          revision.revision_id === payload.quotation.current_revision_id
+        ) ?? null
+        : null;
+
+      let detailLines = activeRevision?.lines ?? payload.base_lines ?? [];
+      let billingUnits: DetailBillingUnit[] = [];
+      let billingAllocations: DetailBillingAllocation[] = [];
+
+      if (activeRevision) {
+        const [unitsResult, allocationsResult, identitiesResult] =
+          await Promise.all([
+            supabase.from("quotation_revision_billing_units").select(
+              "billing_unit_uid,billing_unit_code,billing_unit_name,sort_order",
+            ).eq("revision_id", activeRevision.revision_id).eq(
+              "is_deleted",
+              false,
+            ).eq("is_active", true).order("sort_order"),
+            supabase.from("quotation_revision_line_billing_allocations").select(
+              "billing_unit_uid,line_uid,allocated_quantity,allocated_percent,allocated_amount,sort_order",
+            ).eq("revision_id", activeRevision.revision_id).eq(
+              "is_deleted",
+              false,
+            ).eq("is_active", true).order("sort_order"),
+            supabase.from("quotation_revision_lines").select(
+              "revision_line_id,line_uid,billing_method",
+            ).eq("revision_id", activeRevision.revision_id).eq(
+              "is_deleted",
+              false,
+            ),
+          ]);
+
+        if (unitsResult.error) throw unitsResult.error;
+        if (allocationsResult.error) throw allocationsResult.error;
+        if (identitiesResult.error) throw identitiesResult.error;
+
+        const identityById = new Map(
+          (identitiesResult.data ?? []).map((line) => [
+            line.revision_line_id,
+            line,
+          ]),
+        );
+        detailLines = detailLines.map((line) => {
+          const identity = line.revision_line_id
+            ? identityById.get(line.revision_line_id)
+            : undefined;
+          return identity ? { ...line, ...identity } : line;
+        });
+        billingUnits = unitsResult.data ?? [];
+        billingAllocations = allocationsResult.data ?? [];
+      } else {
+        const [unitsResult, allocationsResult] = await Promise.all([
+          supabase.from("quotation_billing_units").select(
+            "billing_unit_uid,billing_unit_code,billing_unit_name,sort_order",
+          ).eq("quotation_id", selectedId).eq("is_deleted", false).eq(
+            "is_active",
+            true,
+          ).order("sort_order"),
+          supabase.from("quotation_line_billing_allocations").select(
+            "billing_unit_uid,line_uid,allocated_quantity,allocated_percent,allocated_amount,sort_order",
+          ).eq("quotation_id", selectedId).eq("is_deleted", false).eq(
+            "is_active",
+            true,
+          ).order("sort_order"),
+        ]);
+
+        if (unitsResult.error) throw unitsResult.error;
+        if (allocationsResult.error) throw allocationsResult.error;
+        billingUnits = unitsResult.data ?? [];
+        billingAllocations = allocationsResult.data ?? [];
+      }
+
+      const version: DetailVersion = activeRevision
+        ? {
+          revisionId: activeRevision.revision_id,
+          revisionNo: activeRevision.revision_no,
+          status: activeRevision.revision_status,
+          customerId: activeRevision.customer_id ?? payload.quotation.customer_id,
+          projectSiteId: activeRevision.project_site_id ?? null,
+          priceBookId: activeRevision.price_book_id ?? null,
+          quotationSegment: activeRevision.quotation_segment ?? "-",
+          quotationSource: activeRevision.quotation_source ?? null,
+          issueDate: activeRevision.issue_date ?? null,
+          validUntil: activeRevision.valid_until ?? null,
+          subtotalAmount: Number(activeRevision.subtotal_amount ?? 0),
+          discountAmount: Number(activeRevision.discount_amount ?? 0),
+          taxAmount: Number(activeRevision.tax_amount ?? 0),
+          totalAmount: Number(activeRevision.total_amount ?? 0),
+          notes: activeRevision.notes ?? null,
+          internalNotes: activeRevision.internal_notes ?? null,
+        }
+        : {
+          revisionId: null,
+          revisionNo: payload.quotation.revision_no,
+          status: payload.quotation.quotation_status,
+          customerId: payload.quotation.customer_id,
+          projectSiteId: payload.quotation.project_site_id,
+          priceBookId: payload.quotation.price_book_id,
+          quotationSegment: payload.quotation.quotation_segment,
+          quotationSource: payload.quotation.quotation_source,
+          issueDate: payload.quotation.issue_date,
+          validUntil: payload.quotation.valid_until,
+          subtotalAmount: payload.quotation.subtotal_amount,
+          discountAmount: payload.quotation.discount_amount,
+          taxAmount: payload.quotation.tax_amount,
+          totalAmount: payload.quotation.total_amount,
+          notes: payload.quotation.notes,
+          internalNotes: payload.quotation.internal_notes,
+        };
+
       return {
         quotation: payload.quotation,
-        lines: payload.base_lines ?? [],
+        context: payload.context,
+        version,
+        isRevision: Boolean(activeRevision),
+        lines: detailLines,
+        billingUnits,
+        billingAllocations,
         revisions: payload.revisions ?? [],
       };
     },
@@ -2909,7 +3108,7 @@ export default function Quotations() {
         open={Boolean(selectedId)}
         onOpenChange={(open) => !open && setSelectedId(null)}
       >
-        <DialogContent className="max-h-[94vh] max-w-5xl overflow-y-auto">
+        <DialogContent className="max-h-[94vh] max-w-6xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Quotation Details</DialogTitle>
           </DialogHeader>
@@ -2920,8 +3119,15 @@ export default function Quotations() {
                 title="Loading quotation..."
               />
             )
+            : detailQuery.isError
+            ? (
+              <PageState
+                icon={<XCircle className="h-6 w-6" />}
+                title={(detailQuery.error as Error).message}
+              />
+            )
             : detailQuery.data && (
-              <div className="space-y-5">
+              <div className="space-y-6">
                 <div className="rounded-xl bg-[#FBF1F1] p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -2929,73 +3135,308 @@ export default function Quotations() {
                         {detailQuery.data.quotation.quotation_no}
                       </div>
                       <div className="text-sm text-slate-500">
-                        Revision {detailQuery.data.quotation.revision_no}
+                        {detailQuery.data.isRevision
+                          ? `Current revision ${detailQuery.data.version.revisionNo}`
+                          : "Base quotation"}
                       </div>
                     </div>
                     <span
                       className={`rounded-full px-3 py-1 text-sm ${
-                        statusClass(detailQuery.data.quotation.quotation_status)
+                        statusClass(detailQuery.data.version.status)
                       }`}
                     >
-                      {detailQuery.data.quotation.quotation_status}
+                      {detailQuery.data.version.status}
                     </span>
                   </div>
                 </div>
-                <div className="overflow-x-auto rounded-xl border">
-                  <table className="w-full min-w-[760px] text-sm">
-                    <thead className="bg-slate-50">
-                      <tr>
-                        <th className="px-3 py-2 text-left">Line</th>
-                        <th className="px-3 py-2 text-left">Description</th>
-                        <th className="px-3 py-2 text-right">Qty</th>
-                        <th className="px-3 py-2 text-left">UOM</th>
-                        <th className="px-3 py-2 text-right">Price</th>
-                        <th className="px-3 py-2 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {detailQuery.data.lines.map((line) => (
-                        <tr key={line.quotation_line_id} className="border-t">
-                          <td className="px-3 py-3">{line.line_no}</td>
-                          <td className="px-3 py-3">{line.description}</td>
-                          <td className="px-3 py-3 text-right">
-                            {line.quantity}
-                          </td>
-                          <td className="px-3 py-3">
-                            {line.sales_uom_code || line.unit_of_measure}
-                          </td>
-                          <td className="px-3 py-3 text-right">
-                            {money(line.unit_price)}
-                          </td>
-                          <td className="px-3 py-3 text-right font-medium">
-                            {money(line.line_total)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="flex justify-end">
-                  <div className="w-full max-w-sm space-y-2 rounded-xl border p-4">
-                    <div className="flex justify-between">
-                      <span>Subtotal</span>
-                      <strong>
-                        {money(detailQuery.data.quotation.subtotal_amount)}
-                      </strong>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Tax</span>
-                      <strong>
-                        {money(detailQuery.data.quotation.tax_amount)}
-                      </strong>
-                    </div>
-                    <div className="flex justify-between border-t pt-2 text-lg">
-                      <span>Total</span>
-                      <strong>
-                        {money(detailQuery.data.quotation.total_amount)}
-                      </strong>
+
+                <Section number="1" title="Quotation context">
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <ReadOnlyField
+                      label="Customer"
+                      value={(() => {
+                        const customer = customerById.get(
+                          detailQuery.data.version.customerId,
+                        );
+                        return customer
+                          ? `${customer.customer_code} — ${customer.customer_name}`
+                          : `${textOrDash(detailQuery.data.context.customer.customer_code)} — ${textOrDash(detailQuery.data.context.customer.customer_name)}`;
+                      })()}
+                    />
+                    <ReadOnlyField
+                      label="Project"
+                      value={(() => {
+                        const site = detailQuery.data.version.projectSiteId
+                          ? siteById.get(detailQuery.data.version.projectSiteId)
+                          : undefined;
+                        const project = site
+                          ? projectById.get(site.project_id)
+                          : undefined;
+                        return project
+                          ? `${project.project_no} — ${project.project_name}`
+                          : textOrDash(detailQuery.data.context.project.project_name);
+                      })()}
+                    />
+                    <ReadOnlyField
+                      label="Project site"
+                      value={(() => {
+                        const site = detailQuery.data.version.projectSiteId
+                          ? siteById.get(detailQuery.data.version.projectSiteId)
+                          : undefined;
+                        return site
+                          ? `${site.site_code} — ${site.site_name}`
+                          : `${textOrDash(detailQuery.data.context.site.site_code)} — ${textOrDash(detailQuery.data.context.site.site_name)}`;
+                      })()}
+                    />
+                    <ReadOnlyField
+                      label="Customer Price Book"
+                      value={(() => {
+                        const priceBook = lookupQuery.data?.priceBooks.find(
+                          (item) =>
+                            item.price_book_id ===
+                              detailQuery.data.version.priceBookId,
+                        );
+                        return priceBook
+                          ? `${priceBook.price_book_code} — ${priceBook.price_book_name}`
+                          : "-";
+                      })()}
+                    />
+                    <ReadOnlyField
+                      label="Segment"
+                      value={textOrDash(detailQuery.data.version.quotationSegment)}
+                    />
+                    <ReadOnlyField
+                      label="Issue date"
+                      value={textOrDash(detailQuery.data.version.issueDate)}
+                    />
+                    <ReadOnlyField
+                      label="Valid until"
+                      value={textOrDash(detailQuery.data.version.validUntil)}
+                    />
+                    <ReadOnlyField
+                      label="Source"
+                      value={textOrDash(detailQuery.data.version.quotationSource)}
+                    />
+                  </div>
+                </Section>
+
+                <Section number="2" title="Quotation lines">
+                  <div className="space-y-4">
+                    {detailQuery.data.lines.map((line) => (
+                      <div
+                        key={line.revision_line_id ?? line.quotation_line_id ?? line.line_no}
+                        className="rounded-xl border p-4"
+                      >
+                        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <strong>Line {line.line_no}</strong>
+                            <div className="mt-1 text-sm text-slate-500">
+                              {line.product_code || line.product_name
+                                ? `${textOrDash(line.product_code)} — ${textOrDash(line.product_name)}`
+                                : "Manual line"}
+                            </div>
+                          </div>
+                          <strong>{money(line.line_total)}</strong>
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                          <ReadOnlyField
+                            label="Project area"
+                            value={line.area_code || line.area_name
+                              ? `${textOrDash(line.area_code)} — ${textOrDash(line.area_name)}`
+                              : "No area"}
+                          />
+                          <ReadOnlyField label="Quantity" value={String(line.quantity)} />
+                          <ReadOnlyField
+                            label="Sales UOM"
+                            value={textOrDash(line.sales_uom_code || line.unit_of_measure)}
+                          />
+                          <ReadOnlyField label="Unit price" value={money(line.unit_price)} />
+                          <ReadOnlyField
+                            label="Discount"
+                            value={`${Number(line.discount_percent ?? 0)}% (${money(line.discount_amount)})`}
+                          />
+                          <ReadOnlyField
+                            label="Tax"
+                            value={`${Number(line.tax_rate ?? 0)}% (${money(line.tax_amount)})`}
+                          />
+                          <ReadOnlyField
+                            label="Billing basis"
+                            value={textOrDash(line.billing_method)}
+                          />
+                          {can("quotations.view_cost") && (
+                            <ReadOnlyField label="Cost price" value={money(line.cost_price)} />
+                          )}
+                          {can("quotations.view_margin") && (
+                            <ReadOnlyField
+                              label="Margin"
+                              value={`${money(line.margin_amount)} (${Number(line.margin_percent ?? 0)}%)`}
+                            />
+                          )}
+                        </div>
+                        <div className="mt-4 grid gap-4 md:grid-cols-2">
+                          <ReadOnlyField label="Description" value={line.description} multiline />
+                          <ReadOnlyField
+                            label="Line notes"
+                            value={textOrDash(line.notes)}
+                            multiline
+                          />
+                        </div>
+                      </div>
+                    ))}
+
+                    <div className="ml-auto w-full max-w-md space-y-2 rounded-xl border p-4">
+                      <div className="flex justify-between">
+                        <span>Subtotal</span>
+                        <strong>{money(detailQuery.data.version.subtotalAmount)}</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Discount</span>
+                        <strong>{money(detailQuery.data.version.discountAmount)}</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Tax</span>
+                        <strong>{money(detailQuery.data.version.taxAmount)}</strong>
+                      </div>
+                      <div className="flex justify-between border-t pt-2 text-lg">
+                        <span>Total</span>
+                        <strong>{money(detailQuery.data.version.totalAmount)}</strong>
+                      </div>
                     </div>
                   </div>
+                </Section>
+
+                <Section number="3" title="Billing breakdown">
+                  {detailQuery.data.billingUnits.length
+                    ? (
+                      <div className="space-y-4">
+                        {detailQuery.data.billingUnits.map((unit) => {
+                          const allocations = detailQuery.data.billingAllocations
+                            .filter((allocation) =>
+                              allocation.billing_unit_uid === unit.billing_unit_uid
+                            );
+                          return (
+                            <div
+                              key={unit.billing_unit_uid}
+                              className="rounded-xl border p-4"
+                            >
+                              <div className="font-semibold">
+                                {textOrDash(unit.billing_unit_code)} — {unit.billing_unit_name}
+                              </div>
+                              {allocations.length
+                                ? (
+                                  <div className="mt-3 overflow-x-auto rounded-lg border">
+                                    <table className="w-full min-w-[560px] text-sm">
+                                      <thead className="bg-slate-50 text-left text-xs uppercase text-slate-600">
+                                        <tr>
+                                          <th className="px-3 py-2">Quotation line</th>
+                                          <th className="px-3 py-2 text-right">Allocated quantity</th>
+                                          <th className="px-3 py-2 text-right">Allocated %</th>
+                                          <th className="px-3 py-2 text-right">Allocated amount</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {allocations.map((allocation) => {
+                                          const line = detailQuery.data.lines.find(
+                                            (item) => item.line_uid === allocation.line_uid,
+                                          );
+                                          return (
+                                            <tr
+                                              key={`${unit.billing_unit_uid}-${allocation.line_uid}`}
+                                              className="border-t"
+                                            >
+                                              <td className="px-3 py-2">
+                                                {line
+                                                  ? `Line ${line.line_no} — ${line.description}`
+                                                  : "Quotation line"}
+                                              </td>
+                                              <td className="px-3 py-2 text-right">
+                                                {allocation.allocated_quantity ?? "-"}
+                                              </td>
+                                              <td className="px-3 py-2 text-right">
+                                                {allocation.allocated_percent == null
+                                                  ? "-"
+                                                  : `${allocation.allocated_percent}%`}
+                                              </td>
+                                              <td className="px-3 py-2 text-right">
+                                                {allocation.allocated_amount == null
+                                                  ? "-"
+                                                  : money(allocation.allocated_amount)}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )
+                                : (
+                                  <p className="mt-2 text-sm text-slate-500">
+                                    No line allocations recorded.
+                                  </p>
+                                )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )
+                    : (
+                      <div className="rounded-xl border border-dashed p-5 text-sm text-slate-500">
+                        No Work Unit billing lines. Quantity billing uses the quotation
+                        line quantity directly and does not require a Billing Breakdown.
+                      </div>
+                    )}
+                </Section>
+
+                <Section number="4" title="Notes">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <ReadOnlyField
+                      label="Customer notes"
+                      value={textOrDash(detailQuery.data.version.notes)}
+                      multiline
+                    />
+                    {can("quotations.view_internal") && (
+                      <ReadOnlyField
+                        label="Internal notes"
+                        value={textOrDash(detailQuery.data.version.internalNotes)}
+                        multiline
+                      />
+                    )}
+                  </div>
+                </Section>
+
+                {detailQuery.data.quotation.quotation_status === "Accepted" && (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                    This accepted quotation is locked to preserve the agreed snapshot.
+                    Further commercial changes must be recorded through a Variation;
+                    direct Edit is intentionally unavailable.
+                  </div>
+                )}
+
+                <div className="sticky bottom-0 flex justify-end gap-2 border-t bg-white py-4">
+                  <Button variant="outline" onClick={() => setSelectedId(null)}>
+                    Close
+                  </Button>
+                  {detailQuery.data.quotation.quotation_status === "Draft" &&
+                    can("quotations.update_draft") && (() => {
+                    const summary = filteredQuotations.find((quotation) =>
+                      quotation.quotation_id === detailQuery.data.quotation.quotation_id
+                    );
+                    return summary
+                      ? (
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            setSelectedId(null);
+                            void openEdit(summary);
+                          }}
+                          className="bg-[#9E4B4B] text-white hover:bg-[#843e3e]"
+                        >
+                          <FileEdit className="mr-2 h-4 w-4" />
+                          Edit Draft
+                        </Button>
+                      )
+                      : null;
+                  })()}
                 </div>
               </div>
             )}
@@ -3084,7 +3525,8 @@ function RowActions({
         aria-label="View Quotation"
         onClick={onView}
       >
-        <FileText className="h-4 w-4" />
+        <FileText className="mr-2 h-4 w-4" />
+        View
       </Button>
       {quotation.quotation_status === "Draft" &&
         can("quotations.update_draft") && (
@@ -3096,7 +3538,21 @@ function RowActions({
           aria-label="Edit Quotation"
           onClick={() => onEdit(quotation)}
         >
-          <FileEdit className="h-4 w-4" />
+          <FileEdit className="mr-2 h-4 w-4" />
+          Edit
+        </Button>
+      )}
+      {quotation.quotation_status === "Accepted" && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled
+          title="Accepted quotation is locked. Use a Variation for further commercial changes."
+          aria-label="Edit unavailable: accepted quotation is locked"
+        >
+          <FileEdit className="mr-2 h-4 w-4" />
+          Locked
         </Button>
       )}
       {quotation.quotation_status === "Draft" && can("quotations.send") && (
@@ -3188,6 +3644,28 @@ function Field(
     <div className="space-y-2">
       <Label>{label}</Label>
       {children}
+    </div>
+  );
+}
+function ReadOnlyField({
+  label,
+  value,
+  multiline = false,
+}: {
+  label: string;
+  value: string;
+  multiline?: boolean;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label className="text-slate-600">{label}</Label>
+      <div
+        className={`rounded-md border border-[#E5E7EB] bg-[#F7F9FB] px-3 py-2.5 text-sm text-slate-900 ${
+          multiline ? "min-h-20 whitespace-pre-wrap" : "min-h-10"
+        }`}
+      >
+        {value}
+      </div>
     </div>
   );
 }
