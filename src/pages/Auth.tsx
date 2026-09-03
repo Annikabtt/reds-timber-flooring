@@ -257,9 +257,19 @@ export default function Auth() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="sign-in-password" className="text-white">
-                    Password
-                  </Label>
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="sign-in-password" className="text-white">
+                      Password
+                    </Label>
+
+                    <button
+                      type="button"
+                      onClick={() => navigate("/forgot-password")}
+                      className="text-sm font-medium text-[#E0BC7A] transition-colors hover:text-white hover:underline"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
 
                   <div className="relative">
                     <Input

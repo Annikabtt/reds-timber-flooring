@@ -9,6 +9,8 @@ import PermissionRoute from "@/components/PermissionRoute";
 
 import LandingPage from "./pages/LandingPage";
 import Auth from "./pages/Auth";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import AccountAccessPage from "./pages/AccountAccessPage";
 import NotFound from "./pages/NotFound";
 
@@ -94,6 +96,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/account-access" element={<AccountAccessPage />} />
 
             <Route
