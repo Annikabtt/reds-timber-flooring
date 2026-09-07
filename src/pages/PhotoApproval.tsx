@@ -5,6 +5,9 @@ import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { useDailyReportPermissions } from "@/hooks/useDailyReportPermissions";
+import { requireDailyReportActions } from "@/lib/dailyReportPermissions";
+import { createDailyReportPhotoSignedUrl } from "@/lib/dailyReportApi";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,9 +41,11 @@ const uniqueIds = (values: Array<string | null>) =>
 
 export default function PhotoApproval() {
   const queryClient = useQueryClient();
+  const permissions = useDailyReportPermissions();
 
-  const { data: items = [], isLoading } = useQuery({
+  const { data: items = [], isLoading, error: itemsError } = useQuery({
     queryKey: ["photo_approval_pending"],
+    enabled: permissions.canRead,
     queryFn: async (): Promise<PhotoApprovalItem[]> => {
       const { data: photos, error: photosError } = await supabase
         .from("daily_report_photos")
@@ -137,6 +142,17 @@ export default function PhotoApproval() {
   });
 
   const pendingCount = useMemo(() => items.length, [items]);
+  const { data: signedPhotoUrls = {}, error: signedUrlError } = useQuery({
+    queryKey: ["photo-approval-signed-urls", items.map(({ photo }) => photo.photo_id)],
+    enabled: permissions.canRead && items.length > 0,
+    queryFn: async () => Object.fromEntries(await Promise.all(
+      items.map(async ({ photo }) => [
+        photo.photo_id,
+        await createDailyReportPhotoSignedUrl(photo.photo_url),
+      ]),
+    )),
+    staleTime: 50 * 60 * 1000,
+  });
   const groupedItems = useMemo<PhotoAreaGroup[]>(() => {
     const groups = new Map<string, PhotoAreaGroup>();
 
@@ -174,6 +190,8 @@ export default function PhotoApproval() {
 
   const approvePhoto = useMutation({
     mutationFn: async (photoId: string) => {
+      if (!permissions.userId) throw new Error("Please sign in before reviewing a photo.");
+      await requireDailyReportActions(permissions.userId, ["update_photos"]);
       const { data: userData } = await supabase.auth.getUser();
 
       const { error } = await supabase
@@ -200,6 +218,8 @@ export default function PhotoApproval() {
 
   const rejectPhoto = useMutation({
     mutationFn: async (photoId: string) => {
+      if (!permissions.userId) throw new Error("Please sign in before reviewing a photo.");
+      await requireDailyReportActions(permissions.userId, ["update_photos"]);
       const { data: userData } = await supabase.auth.getUser();
 
       const { error } = await supabase
@@ -224,8 +244,18 @@ export default function PhotoApproval() {
     },
   });
 
+  if (!permissions.canRead) {
+    return <div className="p-6 text-slate-500">
+      {permissions.isChecking ? "Checking photo access..." : permissions.error
+        ? <button type="button" className="underline" onClick={() => void permissions.retry()}>Unable to check access. Retry</button>
+        : "Your account is not active, so Daily Report photos are unavailable."}
+    </div>;
+  }
   if (isLoading) {
     return <div className="p-6 text-slate-500">Loading photos...</div>;
+  }
+  if (itemsError) {
+    return <div className="p-6 text-red-700">Unable to load photos: {itemsError.message}</div>;
   }
 
   return (
@@ -244,6 +274,11 @@ export default function PhotoApproval() {
       </div>
 
       <div className="space-y-6">
+        {signedUrlError && (
+          <Card><CardContent className="py-4 text-sm text-red-700">
+            Unable to load private photo links. Refresh and try again.
+          </CardContent></Card>
+        )}
         {groupedItems.map((group) => (
           <Card key={group.groupKey} className="shadow-sm">
             <CardHeader className="pb-3">
@@ -282,7 +317,7 @@ export default function PhotoApproval() {
                 {group.photos.map(({ photo, project }) => (
                   <Card key={photo.photo_id} className="overflow-hidden shadow-sm">
                     <img
-                      src={photo.photo_url}
+                      src={signedPhotoUrls[photo.photo_id] || ""}
                       alt={
                         photo.caption ||
                         project?.project_name ||
@@ -303,7 +338,7 @@ export default function PhotoApproval() {
                           size="sm"
                           className="flex-1 gap-1 bg-green-600 hover:bg-green-700 text-white"
                           disabled={
-                            approvePhoto.isPending || rejectPhoto.isPending
+                            !permissions.can("update_photos") || approvePhoto.isPending || rejectPhoto.isPending
                           }
                           onClick={() => approvePhoto.mutate(photo.photo_id)}
                         >
@@ -316,7 +351,7 @@ export default function PhotoApproval() {
                           variant="outline"
                           className="flex-1 gap-1 border-red-300 text-red-600 hover:bg-red-50"
                           disabled={
-                            approvePhoto.isPending || rejectPhoto.isPending
+                            !permissions.can("update_photos") || approvePhoto.isPending || rejectPhoto.isPending
                           }
                           onClick={() => rejectPhoto.mutate(photo.photo_id)}
                         >

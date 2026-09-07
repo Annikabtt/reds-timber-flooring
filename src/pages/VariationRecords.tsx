@@ -17,6 +17,7 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
+import { createDailyReportPhotoSignedUrl } from "@/lib/dailyReportApi";
 import redsLogo from "@/assets/reds-logo.png";
 import { Button } from "@/components/ui/button";
 import {
@@ -1141,15 +1142,14 @@ const VariationRecords = () => {
 
       const signed = await Promise.all(
         flattened.map(async (photo) => {
-          const { data: signedData, error: signedError } =
-            await supabase.storage
-              .from("daily-report-photos")
-              .createSignedUrl(photo.photo_url, 60 * 60);
-
-          return {
-            ...photo,
-            signed_url: signedError ? "" : signedData?.signedUrl ?? "",
-          };
+          try {
+            return {
+              ...photo,
+              signed_url: await createDailyReportPhotoSignedUrl(photo.photo_url),
+            };
+          } catch {
+            return { ...photo, signed_url: "" };
+          }
         })
       );
 

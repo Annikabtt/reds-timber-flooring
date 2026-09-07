@@ -9,11 +9,21 @@ import {
     UserCircle,
 } from "lucide-react";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useDailyReportPermissions } from "@/hooks/useDailyReportPermissions";
+import { requireDailyReportActions } from "@/lib/dailyReportPermissions";
+import {
+    createDailyReportBundleAtomic,
+    uploadDailyReportPhoto,
+} from "@/lib/dailyReportApi";
+import {
+    dailyReportWorkerChanges,
+    workTimeLogChanges,
+} from "@/lib/dailyReportPayload";
 
 type WorkOrderDetail = {
     work_order_id: string;
@@ -81,6 +91,14 @@ function getCurrentTimeValue() {
     return `${hours}:${minutes}`;
 }
 
+function getCurrentLocalDate() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
 function formatHoursAndMinutes(hoursValue: number) {
     const totalMinutes = Math.round(hoursValue * 60);
     const hours = Math.floor(totalMinutes / 60);
@@ -91,6 +109,8 @@ function formatHoursAndMinutes(hoursValue: number) {
 
 export default function MyWorkDailyReport() {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
+    const permissions = useDailyReportPermissions();
     const { workOrderId } = useParams();
     const workerSource = "Assigned";
     const [showProjectDetails, setShowProjectDetails] = useState(false);
@@ -117,8 +137,8 @@ export default function MyWorkDailyReport() {
         isLoading,
         error,
     } = useQuery({
-        queryKey: ["my-work-daily-report-work-order", workOrderId],
-        enabled: Boolean(workOrderId),
+        queryKey: ["my-work-daily-report-work-order", workOrderId, permissions.userId],
+        enabled: Boolean(workOrderId) && permissions.canRead,
         queryFn: async () => {
             const { data, error: workOrderError } = await supabase
                 .from("work_orders")
@@ -163,7 +183,8 @@ export default function MyWorkDailyReport() {
     });
 
     const { data: workerProfile } = useQuery({
-        queryKey: ["my-work-worker-profile"],
+        queryKey: ["my-work-worker-profile", permissions.userId],
+        enabled: permissions.canRead,
         queryFn: async () => {
             const {
                 data: { user },
@@ -197,7 +218,7 @@ export default function MyWorkDailyReport() {
             workOrderId,
             workerProfile?.employee_id,
         ],
-        enabled: Boolean(workOrderId && workerProfile?.employee_id),
+        enabled: permissions.canRead && Boolean(workOrderId && workerProfile?.employee_id),
         queryFn: async () => {
             const { data, error: activityError } = await supabase
                 .from("daily_reports")
@@ -243,76 +264,71 @@ export default function MyWorkDailyReport() {
 
     const submitDailyReport = useMutation({
         mutationFn: async () => {
-            if (!workOrder) {
-                throw new Error("Work order not found.");
-            }
-
+            if (!permissions.userId) throw new Error("Please sign in before submitting a report.");
+            const selectedFiles = selectedPhotos.length > 0
+                ? selectedPhotos
+                : photoFiles.map((file) => ({ file, caption: photoCaption.trim() }));
+            await requireDailyReportActions(
+                permissions.userId,
+                selectedFiles.length > 0 ? ["create", "upload_photos"] : ["create"],
+            );
+            if (!workOrder) throw new Error("Work order not found.");
             if (!workOrder.project_id || !workOrder.site_id) {
                 throw new Error("This work order is missing project or site.");
             }
-
-            if (attendanceStatus !== "Absent" && (!clockIn || !clockOut)) {
+            if (attendanceStatus !== "Not Attended" && (!clockIn || !clockOut)) {
                 throw new Error("Please enter Check In and Check Out time.");
             }
-
             if (!activityTypeId) {
-                throw new Error(
-                    "Work activity has not been assigned by management."
-                );
+                throw new Error("Work activity has not been assigned by management.");
             }
-
-            const {
-                data: { user },
-                error: userError,
-            } = await supabase.auth.getUser();
-
-            if (userError) throw userError;
-            if (!user?.email) {
-                throw new Error("Unable to find logged-in user email.");
-            }
-
-            const { data: employee, error: employeeError } = await supabase
-                .from("employees")
-                .select("employee_id")
-                .eq("email", user.email)
-                .maybeSingle();
-
-            if (employeeError) throw employeeError;
-            if (!employee?.employee_id) {
+            if (!workerProfile?.employee_id) {
                 throw new Error("No employee record found for this login email.");
             }
 
             const { data: workAssignment, error: assignmentError } = await supabase
                 .from("work_assignments")
                 .select("work_assignment_id")
-                .eq("employee_id", employee.employee_id)
+                .eq("employee_id", workerProfile.employee_id)
                 .eq("work_order_id", workOrder.work_order_id)
                 .maybeSingle();
-
             if (assignmentError) throw assignmentError;
 
-            const today = new Date().toISOString().slice(0, 10);
-
-            const submittedOtHours =
-                hasOvertime && otStart && otFinish
-                    ? calculateRegularHours(otStart, otFinish, "0")
-                    : 0;
-
-            const submittedRegularHours =
-                attendanceStatus === "Not Attended"
-                    ? 0
-                    : calculateRegularHours(clockIn, clockOut, String(submittedOtHours));
-
-            const { data: createdReport, error: reportError } = await supabase
-                .from("daily_reports")
-                .insert({
+            const today = getCurrentLocalDate();
+            const submittedOtHours = hasOvertime && otStart && otFinish
+                ? calculateRegularHours(otStart, otFinish, "0") : 0;
+            const submittedRegularHours = attendanceStatus === "Not Attended"
+                ? 0
+                : calculateRegularHours(clockIn, clockOut, String(submittedOtHours));
+            const labourRecord = {
+                employee_id: workerProfile.employee_id,
+                activity_type_id: activityTypeId,
+                work_assignment_id: workAssignment?.work_assignment_id || "",
+                replaces_work_assignment_id: "",
+                worker_source: workerSource,
+                attendance_status: attendanceStatus,
+                clock_in: attendanceStatus === "Not Attended" ? "" : clockIn,
+                clock_out: attendanceStatus === "Not Attended" ? "" : clockOut,
+                break_minutes: breakMinutes,
+                regular_hours: String(submittedRegularHours),
+                overtime_hours: String(submittedOtHours),
+                completed_quantity: completedQuantity,
+                ot_start: hasOvertime ? otStart : "",
+                ot_finish: hasOvertime ? otFinish : "",
+                ot_completed_quantity: otCompletedQuantity,
+                worker_role: "Worker",
+                notes: generalNote,
+            };
+            const workerPayload = dailyReportWorkerChanges(labourRecord);
+            const timeLogPayload = workTimeLogChanges(today, labourRecord);
+            const reportId = await createDailyReportBundleAtomic({
+                report: {
                     project_id: workOrder.project_id,
                     site_id: workOrder.site_id,
                     area_id: workOrder.area_id,
                     work_order_id: workOrder.work_order_id,
                     report_date: today,
                     weather_condition: "Not recorded",
-                    workers_count: 1,
                     progress_percent: 0,
                     work_completed: generalNote.trim() || "Worker mobile daily report",
                     issues_found: issueFound.trim() || null,
@@ -320,74 +336,25 @@ export default function MyWorkDailyReport() {
                     notes: generalNote.trim() || null,
                     completed_quantity: Number(completedQuantity || 0),
                     approval_status: "Submitted",
-                    is_deleted: false,
-                })
-                .select("report_id")
-                .single();
+                },
+                activities: [{ activity_type_id: activityTypeId }],
+                workers: [workerPayload],
+                timeLogs: [timeLogPayload],
+            });
 
-            if (reportError) throw reportError;
-
-            const reportId = createdReport.report_id;
-
-            const { error: workerError } = await supabase
-                .from("daily_report_workers")
-                .insert({
-                    report_id: reportId,
-                    employee_id: employee.employee_id,
-                    regular_hours: submittedRegularHours,
-                    overtime_hours: submittedOtHours,
-                    completed_quantity: Number(completedQuantity || 0),
-                    worker_role: "Worker",
-                    notes: generalNote.trim() || null,
-                    activity_type_id: activityTypeId || null,
-                    work_assignment_id: workAssignment?.work_assignment_id || null,
-                    worker_source: workerSource,
-                    attendance_status: attendanceStatus,
-                    replaces_work_assignment_id: null,
-                    ot_start: hasOvertime && otStart ? `${today}T${otStart}:00` : null,
-                    ot_finish: hasOvertime && otFinish ? `${today}T${otFinish}:00` : null,
-                    ot_completed_quantity: Number(otCompletedQuantity || 0),
+            for (const photo of selectedFiles) {
+                await uploadDailyReportPhoto({
+                    reportId,
+                    file: photo.file,
+                    caption: photo.caption,
                 });
-
-            if (workerError) throw workerError;
-
-            const { error: timeLogError } = await supabase
-                .from("work_time_logs")
-                .insert({
-                    employee_id: employee.employee_id,
-                    project_id: workOrder.project_id,
-                    site_id: workOrder.site_id,
-                    area_id: workOrder.area_id,
-                    work_order_id: workOrder.work_order_id,
-                    work_date: today,
-                    clock_in:
-                        attendanceStatus === "Not Attended" || !clockIn
-                            ? null
-                            : `${today}T${clockIn}:00`,
-                    clock_out:
-                        attendanceStatus === "Not Attended" || !clockOut
-                            ? null
-                            : `${today}T${clockOut}:00`,
-                    break_minutes: Number(breakMinutes || 0),
-                    regular_hours: submittedRegularHours,
-                    overtime_hours: submittedOtHours,
-                    approved: false,
-                    report_id: reportId,
-                    daily_report_id: reportId,
-                    time_status: "Submitted",
-                    work_assignment_id: workAssignment?.work_assignment_id || null,
-                    worker_source: workerSource,
-                    attendance_status: attendanceStatus,
-                    replaces_work_assignment_id: null,
-                    ot_start: hasOvertime && otStart ? `${today}T${otStart}:00` : null,
-                    ot_finish: hasOvertime && otFinish ? `${today}T${otFinish}:00` : null,
-                    ot_completed_quantity: Number(otCompletedQuantity || 0),
-                    notes: generalNote.trim() || null,
-                });
-
-            if (timeLogError) throw timeLogError;
+            }
         },
-        onSuccess: () => {
+        onSuccess: async () => {
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ["daily-reports"] }),
+                queryClient.invalidateQueries({ queryKey: ["my-work-assigned-activity"] }),
+            ]);
             toast.success("Daily report submitted.");
             navigate("/my-work");
         },
@@ -417,6 +384,22 @@ export default function MyWorkDailyReport() {
         `${workerProfile?.first_name || ""} ${workerProfile?.last_name || ""}`.trim() ||
         workerProfile?.employee_code ||
         "Worker";
+
+    if (!permissions.canRead) {
+        return (
+            <div className="mx-auto max-w-md space-y-4 p-4">
+                <p role="status" className="rounded-xl border bg-white p-4 text-sm">
+                    {permissions.isChecking ? "Checking report access..."
+                        : permissions.error ? "Unable to check your report access. Please retry."
+                            : "Daily Reports are available to active member accounts. Please contact an administrator to check your account."}
+                </p>
+                {permissions.error && (
+                    <button type="button" onClick={() => void permissions.retry()} className="underline">Retry</button>
+                )}
+                <button type="button" onClick={() => navigate("/my-work")} className="block underline">Back to My Work</button>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen overflow-x-hidden bg-slate-50 px-4 py-4">
@@ -554,7 +537,20 @@ export default function MyWorkDailyReport() {
                 )}
 
 
-                <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-sm">
+                <div role="status" className="text-sm text-slate-700">
+                    {permissions.isChecking ? "Checking report permissions..." : permissions.error ? (
+                        <>
+                            Unable to check your permissions. Your report has not been submitted.
+                            <button type="button" onClick={() => void permissions.retry()} className="ml-2 underline">
+                                Retry
+                            </button>
+                        </>
+                    ) : !permissions.can("create") ? (
+                        "Your account is working normally. You can view Daily Reports, but submitting requires permission from an administrator."
+                    ) : null}
+                </div>
+                <fieldset disabled={!permissions.can("create") || submitDailyReport.isPending}
+                    className="min-w-0 rounded-2xl bg-white border border-slate-200 p-4 shadow-sm">
                     <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
                             <UserCircle className="h-5 w-5" />
@@ -865,14 +861,16 @@ export default function MyWorkDailyReport() {
                         </div>
                     </div>
 
-                    <div className="mt-4 w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
+                    <fieldset disabled={!permissions.can("upload_photos")}
+                        className="mt-4 w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
                         <h3 className="text-base font-bold text-slate-900">
                             Photos
                         </h3>
                         <p className="mt-1 text-xs text-slate-500">
-                            Add site photos, work progress, issues, or completed areas.
+                            {permissions.can("upload_photos")
+                                ? "Add site photos, work progress, issues, or completed areas."
+                                : "Photo uploads require permission from an administrator."}
                         </p>
-
                         <div className="mt-4 space-y-4">
                             <div>
                                 <label className="text-sm font-semibold text-slate-900">
@@ -991,19 +989,26 @@ export default function MyWorkDailyReport() {
                                 )}
                             </div>
                         </div>
-                    </div>
+                    </fieldset>
+
+                    {(selectedPhotos.length > 0 || photoFiles.length > 0) && (
+                        <button type="button" className="my-3 text-sm text-red-700 underline"
+                            onClick={() => { setSelectedPhotos([]); setPhotoFiles([]); setPhotoCaption(""); }}>
+                            Clear selected photos
+                        </button>
+                    )}
 
                     <button
                         type="button"
                         onClick={() => submitDailyReport.mutate()}
-                        disabled={submitDailyReport.isPending || !workOrder}
+                        disabled={submitDailyReport.isPending || !workOrder || !permissions.can("create")}
                         className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-400"
                     >
                         {submitDailyReport.isPending
                             ? "Submitting..."
                             : "Submit Daily Report"}
                     </button>
-                </div>
+                </fieldset>
             </div>
         </div >
 

@@ -3,9 +3,18 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { CalendarDays, Plus, Search } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useDailyReportPermissions } from "@/hooks/useDailyReportPermissions";
+import { requireDailyReportActions } from "@/lib/dailyReportPermissions";
+import {
+  createDailyReportBundleAtomic,
+  updateDailyReportBundleAtomic,
+  uploadDailyReportPhoto,
+} from "@/lib/dailyReportApi";
+import {
+  dailyReportWorkerChanges,
+  workTimeLogChanges,
+} from "@/lib/dailyReportPayload";
 import { Button } from "@/components/ui/button";
-import { canManageWorkers } from "@/lib/permissions";
-import { type AppRole, normalizeAppRole } from "@/lib/roles";
 import {
   Dialog,
   DialogContent,
@@ -250,6 +259,7 @@ function DailyReportFormSection({
 const DailyReports = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const permissions = useDailyReportPermissions();
   const [searchParams] = useSearchParams();
   const workOrderIdFromUrl = searchParams.get("workOrderId");
   const editReportIdFromUrl = searchParams.get("editReportId");
@@ -257,7 +267,10 @@ const DailyReports = () => {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>("add");
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
-  const [editingApprovalStatus, setEditingApprovalStatus] = useState("");
+  const [editingUpdatedAt, setEditingUpdatedAt] = useState("");
+  const [editingActivityRows, setEditingActivityRows] = useState<
+    Array<{ id: string; activityTypeId: string }>
+  >([]);
   const [showWorkOrderDetails, setShowWorkOrderDetails] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterProjectId, setFilterProjectId] = useState("all");
@@ -281,8 +294,7 @@ const DailyReports = () => {
   const [notes, setNotes] = useState("");
   const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([]);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
-  const [currentAppRole, setCurrentAppRole] = useState<AppRole>("viewer");
-  const userCanManageWorkers = canManageWorkers(currentAppRole);
+  const userCanManageWorkers = permissions.can("update");
 
   // ใช้ชั่วคราวระหว่างการ Refactor
   const photoFiles = pendingPhotos.map((photo) => photo.file);
@@ -342,41 +354,11 @@ const DailyReports = () => {
     return `${hours}:${minutes}`;
   };
 
-  const combineReportDateAndTime = (
-    dateValue: string,
-    timeValue: string | null | undefined,
-  ) => {
-    if (!dateValue || !timeValue) return null;
-
-    const [year, month, day] = dateValue.split("-").map(Number);
-    const [hour, minute] = timeValue.split(":").map(Number);
-
-    if (
-      Number.isNaN(year) ||
-      Number.isNaN(month) ||
-      Number.isNaN(day) ||
-      Number.isNaN(hour) ||
-      Number.isNaN(minute)
-    ) {
-      return null;
-    }
-
-    return new Date(
-      year,
-      month - 1,
-      day,
-      hour,
-      minute,
-      0,
-      0,
-    ).toISOString();
-  };
-
   const timestampToTimeValue = (value: string | null | undefined) => {
     if (!value) return "";
 
-    if (/^\d{2}:\d{2}$/.test(value)) {
-      return value;
+    if (/^\d{2}:\d{2}(?::\d{2})?$/.test(value)) {
+      return value.slice(0, 5);
     }
 
     const date = new Date(value);
@@ -390,6 +372,11 @@ const DailyReports = () => {
 
     return `${hours}:${minutes}`;
   };
+
+  const saveErrorMessage = (error: Error) =>
+    error.message.includes("The report changed. Reload before saving.")
+      ? "This Daily Report changed while you were editing it. Reopen or reload it before saving."
+      : error.message;
 
   const addLabourRecord = () => {
     setLabourRecords((prev) => {
@@ -538,7 +525,6 @@ const DailyReports = () => {
       const { data } = await supabase.auth.getUser();
 
       setCurrentUserEmail(data.user?.email ?? null);
-      setCurrentAppRole(normalizeAppRole(data.user?.app_metadata?.app_role));
     };
 
     loadCurrentUser();
@@ -712,8 +698,13 @@ const DailyReports = () => {
           area_id,
           work_order_id,
           report_date,
+          updated_at,
           weather_condition,
           notes,
+          daily_report_activities (
+            daily_report_activity_id,
+            activity_type_id
+          ),
           daily_report_workers (
             daily_report_worker_id,
             employee_id,
@@ -731,10 +722,12 @@ const DailyReports = () => {
             worker_role,
             notes
           ),
-        work_time_logs (
+          work_time_logs (
           work_time_log_id,
           employee_id,
           activity_type_id,
+          work_assignment_id,
+          replaces_work_assignment_id,
           clock_in,
           clock_out,
           break_minutes,
@@ -761,7 +754,11 @@ const DailyReports = () => {
     },
   });
 
-  const { data: dailyReports = [] } = useQuery({
+  const {
+    data: dailyReports = [],
+    isLoading: dailyReportsLoading,
+    error: dailyReportsError,
+  } = useQuery({
     queryKey: ["daily_reports"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -875,13 +872,6 @@ const DailyReports = () => {
     return areas.find((area) => area.area_id === areaId);
   }, [areas, areaId]);
 
-  console.log("Daily Report Progress Debug", {
-    areaId,
-    selectedArea,
-    completedQuantity,
-    estimatedQuantity: selectedArea?.estimated_quantity,
-  });
-
   useEffect(() => {
     const completed = Number(completedQuantity || 0);
     const estimated = Number(selectedArea?.estimated_quantity || 0);
@@ -978,9 +968,16 @@ const DailyReports = () => {
   }, [selectedWorkOrder, reportDate, currentEmployee]);
 
   useEffect(() => {
-    if (!activeDraftReport) return;
+    if (!activeDraftReport || activeDraftReportId === activeDraftReport.report_id) return;
 
     setActiveDraftReportId(activeDraftReport.report_id);
+    setEditingUpdatedAt(activeDraftReport.updated_at);
+    setEditingActivityRows(
+      (activeDraftReport.daily_report_activities || []).map((activity) => ({
+        id: activity.daily_report_activity_id,
+        activityTypeId: activity.activity_type_id,
+      })),
+    );
     setProjectId(activeDraftReport.project_id || "");
     setSiteId(activeDraftReport.site_id || "");
     setAreaId(activeDraftReport.area_id || "");
@@ -993,7 +990,9 @@ const DailyReports = () => {
 
     const resumedLabourRecords = draftWorkers.map((worker) => {
       const matchedTimeLog = draftTimeLogs.find(
-        (timeLog) => timeLog.employee_id === worker.employee_id,
+        (timeLog) =>
+          timeLog.employee_id === worker.employee_id &&
+          timeLog.activity_type_id === worker.activity_type_id,
       );
 
       return {
@@ -1007,11 +1006,11 @@ const DailyReports = () => {
         attendance_status:
           (worker.attendance_status || "Present") as AttendanceStatus,
         activity_type_id: worker.activity_type_id || "",
-        clock_in: matchedTimeLog?.clock_in || "",
-        clock_out: matchedTimeLog?.clock_out || "",
+        clock_in: timestampToTimeValue(matchedTimeLog?.clock_in),
+        clock_out: timestampToTimeValue(matchedTimeLog?.clock_out),
         break_minutes: String(matchedTimeLog?.break_minutes ?? "60"),
-        ot_start: matchedTimeLog?.ot_start || worker.ot_start || "",
-        ot_finish: matchedTimeLog?.ot_finish || worker.ot_finish || "",
+        ot_start: timestampToTimeValue(matchedTimeLog?.ot_start || worker.ot_start),
+        ot_finish: timestampToTimeValue(matchedTimeLog?.ot_finish || worker.ot_finish),
         time_status: (matchedTimeLog?.time_status || "Pending") as TimeStatus,
         regular_hours: String(
           matchedTimeLog?.regular_hours ?? worker.regular_hours ?? "0",
@@ -1034,7 +1033,7 @@ const DailyReports = () => {
       setLabourRecords(resumedLabourRecords);
       setOpenWorkerCardIndexes([0]);
     }
-  }, [activeDraftReport]);
+  }, [activeDraftReport, activeDraftReportId]);
 
   const resetForm = () => {
     setProjectId("");
@@ -1056,7 +1055,8 @@ const DailyReports = () => {
     setActiveDraftReportId(null);
     setFormMode("add");
     setEditingReportId(null);
-    setEditingApprovalStatus("");
+    setEditingUpdatedAt("");
+    setEditingActivityRows([]);
     setIsManualBackdatedEntry(false);
   };
 
@@ -1077,9 +1077,11 @@ const DailyReports = () => {
         completed_quantity,
         progress_percent,
         approval_status,
+        updated_at,
         issues_found,
         notes,
         daily_report_activities (
+          daily_report_activity_id,
           activity_type_id
         ),
         daily_report_workers (
@@ -1114,6 +1116,7 @@ const DailyReports = () => {
       .select(`
         work_time_log_id,
         employee_id,
+        activity_type_id,
         clock_in,
         clock_out,
         break_minutes,
@@ -1135,7 +1138,11 @@ const DailyReports = () => {
 
     setFormMode("edit");
     setEditingReportId(report.report_id);
-    setEditingApprovalStatus(report.approval_status || "Submitted");
+    setEditingUpdatedAt(report.updated_at);
+    setEditingActivityRows((report.daily_report_activities || []).map((activity) => ({
+      id: activity.daily_report_activity_id,
+      activityTypeId: activity.activity_type_id,
+    })));
     setActiveDraftReportId(report.report_id);
 
     setProjectId(report.project_id || "");
@@ -1161,7 +1168,9 @@ const DailyReports = () => {
 
     const loadedLabourRecords = reportWorkers.map((worker) => {
       const matchedTimeLog = timeLogs.find(
-        (timeLog) => timeLog.employee_id === worker.employee_id,
+        (timeLog) =>
+          timeLog.employee_id === worker.employee_id &&
+          timeLog.activity_type_id === worker.activity_type_id,
       );
 
       return calculateLabourTime({
@@ -1218,7 +1227,56 @@ const DailyReports = () => {
     if (!editReportIdFromUrl) return;
 
     openEditDailyReport(editReportIdFromUrl);
+    // The URL is the trigger; form-loading helpers intentionally use current state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editReportIdFromUrl]);
+
+  const loadActivityRows = async (reportId: string) => {
+    const { data, error } = await supabase
+      .from("daily_report_activities")
+      .select("daily_report_activity_id, activity_type_id")
+      .eq("report_id", reportId);
+
+    if (error) throw error;
+    return (data || []).map((activity) => ({
+      id: activity.daily_report_activity_id,
+      activityTypeId: activity.activity_type_id,
+    }));
+  };
+
+  const updateDraftBundle = async (reportId: string, records: LabourRecord[]) => {
+    const expectedUpdatedAt = editingUpdatedAt;
+    if (!expectedUpdatedAt) throw new Error("Reload the draft before changing worker time.");
+    const activityTypeIds = Array.from(new Set(
+      records.map((record) => record.activity_type_id).filter(Boolean),
+    ));
+    const nextVersion = await updateDailyReportBundleAtomic(reportId, expectedUpdatedAt, {
+      reportChanges: {
+        weather_condition: weatherCondition || null,
+        workers_count: new Set(records.map((record) => record.employee_id).filter(Boolean)).size,
+      },
+      activities: activityTypeIds.map((activityTypeId) => {
+        const existing = editingActivityRows.find(
+          (activity) => activity.activityTypeId === activityTypeId,
+        );
+        return {
+          ...(existing ? { id: existing.id } : {}),
+          changes: { activity_type_id: activityTypeId },
+        };
+      }),
+      workers: records.filter((record) => record.employee_id).map((record) => ({
+        ...(record.daily_report_worker_id ? { id: record.daily_report_worker_id } : {}),
+        changes: dailyReportWorkerChanges(record),
+      })),
+      timeLogs: records.filter((record) => record.work_time_log_id || (record.attendance_status === "Present" && record.activity_type_id && record.clock_in)).map((record) => ({
+        ...(record.work_time_log_id ? { id: record.work_time_log_id } : {}),
+        changes: workTimeLogChanges(reportDate, record),
+      })),
+    });
+    setEditingUpdatedAt(nextVersion);
+    setEditingActivityRows(await loadActivityRows(reportId));
+    return nextVersion;
+  };
 
   const startDraftReport = useMutation({
     mutationFn: async ({
@@ -1228,6 +1286,11 @@ const DailyReports = () => {
       record: LabourRecord;
       recordIndex: number;
     }) => {
+      if (!permissions.userId) throw new Error("Please sign in before changing a Daily Report.");
+      await requireDailyReportActions(
+        permissions.userId,
+        [activeDraftReportId ? "update" : "create"],
+      );
       if (!projectId) throw new Error("Please select a project.");
       if (!siteId) throw new Error("Please select a project site.");
       if (!areaId) throw new Error("Please select a project area.");
@@ -1252,9 +1315,8 @@ const DailyReports = () => {
       let reportId = activeDraftReportId;
 
       if (!reportId) {
-        const { data: createdReport, error: reportError } = await supabase
-          .from("daily_reports")
-          .insert({
+        reportId = await createDailyReportBundleAtomic({
+          report: {
             project_id: projectId,
             site_id: siteId,
             area_id: areaId,
@@ -1269,44 +1331,24 @@ const DailyReports = () => {
             issues_found: null,
             next_actions: null,
             notes: null,
-            is_deleted: false,
-          })
-          .select("report_id")
-          .single();
-
-        if (reportError) throw reportError;
-        if (!createdReport?.report_id) {
-          throw new Error(
-            "Draft report was created but report ID was not returned.",
-          );
-        }
-
-        reportId = createdReport.report_id;
+          },
+          activities: [{ activity_type_id: checkedInRecord.activity_type_id }],
+          workers: [dailyReportWorkerChanges(checkedInRecord)],
+          timeLogs: [workTimeLogChanges(reportDate, checkedInRecord)],
+        });
+      } else {
+        const nextRecords = labourRecords.map((item, index) =>
+          index === recordIndex ? checkedInRecord : item
+        );
+        await updateDraftBundle(reportId, nextRecords);
       }
 
       const { data: createdWorkerRow, error: workerError } = await supabase
         .from("daily_report_workers")
-        .insert({
-          report_id: reportId,
-          employee_id: checkedInRecord.employee_id,
-          work_assignment_id: checkedInRecord.work_assignment_id || null,
-          replaces_work_assignment_id:
-            checkedInRecord.replaces_work_assignment_id || null,
-          worker_source: checkedInRecord.worker_source,
-          attendance_status: checkedInRecord.attendance_status,
-          activity_type_id: checkedInRecord.activity_type_id,
-          regular_hours: Number(checkedInRecord.regular_hours || 0),
-          overtime_hours: Number(checkedInRecord.overtime_hours || 0),
-          completed_quantity: Number(checkedInRecord.completed_quantity || 0),
-          ot_start: checkedInRecord.ot_start || null,
-          ot_finish: checkedInRecord.ot_finish || null,
-          ot_completed_quantity: Number(
-            checkedInRecord.ot_completed_quantity || 0,
-          ),
-          worker_role: checkedInRecord.worker_role.trim() || null,
-          notes: checkedInRecord.notes.trim() || null,
-        })
         .select("daily_report_worker_id")
+        .eq("report_id", reportId)
+        .eq("employee_id", checkedInRecord.employee_id)
+        .eq("activity_type_id", checkedInRecord.activity_type_id)
         .single();
 
       if (workerError) throw workerError;
@@ -1316,52 +1358,17 @@ const DailyReports = () => {
 
       const { data: createdTimeLog, error: timeLogError } = await supabase
         .from("work_time_logs")
-        .insert({
-          report_id: reportId,
-          employee_id: checkedInRecord.employee_id,
-          work_assignment_id: checkedInRecord.work_assignment_id || null,
-          replaces_work_assignment_id:
-            checkedInRecord.replaces_work_assignment_id || null,
-          worker_source: checkedInRecord.worker_source,
-          attendance_status: checkedInRecord.attendance_status,
-          project_id: projectId,
-          site_id: siteId,
-          area_id: areaId,
-          work_order_id: workOrderId,
-          activity_type_id: checkedInRecord.activity_type_id,
-          work_date: reportDate,
-          regular_hours: Number(checkedInRecord.regular_hours || 0),
-          overtime_hours: Number(checkedInRecord.overtime_hours || 0),
-          break_minutes: Number(checkedInRecord.break_minutes || 0),
-          clock_in: combineReportDateAndTime(
-            reportDate,
-            checkedInRecord.clock_in,
-          ),
-          clock_out: null,
-          ot_start: combineReportDateAndTime(
-            reportDate,
-            checkedInRecord.ot_start,
-          ),
-          ot_finish: combineReportDateAndTime(
-            reportDate,
-            checkedInRecord.ot_finish,
-          ),
-          ot_completed_quantity: Number(
-            checkedInRecord.ot_completed_quantity || 0,
-          ),
-          approved: false,
-          time_status: checkedInRecord.time_status,
-          notes: checkedInRecord.notes.trim() ||
-            checkedInRecord.worker_role.trim() || null,
-          is_deleted: false,
-        })
         .select("work_time_log_id")
+        .eq("report_id", reportId)
+        .eq("employee_id", checkedInRecord.employee_id)
+        .eq("activity_type_id", checkedInRecord.activity_type_id)
         .single();
 
       if (timeLogError) throw timeLogError;
       if (!createdTimeLog?.work_time_log_id) {
         throw new Error("Time log was created but ID was not returned.");
       }
+      const activityRows = await loadActivityRows(reportId);
 
       return {
         reportId,
@@ -1369,12 +1376,14 @@ const DailyReports = () => {
         timeLogId: createdTimeLog.work_time_log_id,
         recordIndex,
         checkedInRecord,
+        activityRows,
       };
     },
     onSuccess: (
-      { reportId, workerRowId, timeLogId, recordIndex, checkedInRecord },
+      { reportId, workerRowId, timeLogId, recordIndex, checkedInRecord, activityRows },
     ) => {
       setActiveDraftReportId(reportId);
+      setEditingActivityRows(activityRows);
 
       setLabourRecords((prev) =>
         prev.map((record, index) =>
@@ -1402,6 +1411,8 @@ const DailyReports = () => {
       record: LabourRecord;
       recordIndex: number;
     }) => {
+      if (!permissions.userId) throw new Error("Please sign in before changing a Daily Report.");
+      await requireDailyReportActions(permissions.userId, ["update"]);
       if (!activeDraftReportId) {
         throw new Error("No active draft report found.");
       }
@@ -1420,52 +1431,12 @@ const DailyReports = () => {
         clock_out: checkOutTime,
       });
 
-      const { error: workerUpdateError } = await supabase
-        .from("daily_report_workers")
-        .update({
-          regular_hours: Number(checkedOutRecord.regular_hours || 0),
-          overtime_hours: Number(checkedOutRecord.overtime_hours || 0),
-          completed_quantity: Number(checkedOutRecord.completed_quantity || 0),
-          ot_start: checkedOutRecord.ot_start || null,
-          ot_finish: checkedOutRecord.ot_finish || null,
-          ot_completed_quantity: Number(
-            checkedOutRecord.ot_completed_quantity || 0,
-          ),
-          notes: checkedOutRecord.notes.trim() || null,
-        })
-        .eq("daily_report_worker_id", record.daily_report_worker_id);
-
-      if (workerUpdateError) throw workerUpdateError;
-
-      const { error: timeLogUpdateError } = await supabase
-        .from("work_time_logs")
-        .update({
-          clock_out: combineReportDateAndTime(
-            reportDate,
-            checkedOutRecord.clock_out,
-          ),
-          regular_hours: Number(checkedOutRecord.regular_hours || 0),
-          overtime_hours: Number(checkedOutRecord.overtime_hours || 0),
-          break_minutes: Number(checkedOutRecord.break_minutes || 0),
-          ot_start: combineReportDateAndTime(
-            reportDate,
-            checkedOutRecord.ot_start,
-          ),
-          ot_finish: combineReportDateAndTime(
-            reportDate,
-            checkedOutRecord.ot_finish,
-          ),
-          ot_completed_quantity: Number(
-            checkedOutRecord.ot_completed_quantity || 0,
-          ),
-          time_status: checkedOutRecord.time_status,
-          notes: checkedOutRecord.notes.trim() ||
-            checkedOutRecord.worker_role.trim() ||
-            null,
-        })
-        .eq("work_time_log_id", record.work_time_log_id);
-
-      if (timeLogUpdateError) throw timeLogUpdateError;
+      await updateDraftBundle(
+        activeDraftReportId,
+        labourRecords.map((item, index) =>
+          index === recordIndex ? checkedOutRecord : item
+        ),
+      );
 
       return {
         recordIndex,
@@ -1484,7 +1455,7 @@ const DailyReports = () => {
       toast.success("Check Out saved.");
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(saveErrorMessage(error));
     },
   });
 
@@ -1500,6 +1471,8 @@ const DailyReports = () => {
       field: keyof LabourRecord;
       value: string;
     }) => {
+      if (!permissions.userId) throw new Error("Please sign in before changing a Daily Report.");
+      await requireDailyReportActions(permissions.userId, ["update"]);
       if (!record.daily_report_worker_id) {
         throw new Error("No worker row found for this worker.");
       }
@@ -1512,58 +1485,16 @@ const DailyReports = () => {
         ...record,
         [field]: value,
       });
+      if (!activeDraftReportId) {
+        throw new Error("Daily report ID was not found.");
+      }
 
-      const { error: workerUpdateError } = await supabase
-        .from("daily_report_workers")
-        .update({
-          regular_hours: Number(updatedRecord.regular_hours || 0),
-          overtime_hours: Number(updatedRecord.overtime_hours || 0),
-          completed_quantity: Number(updatedRecord.completed_quantity || 0),
-          ot_start: updatedRecord.ot_start || null,
-          ot_finish: updatedRecord.ot_finish || null,
-          ot_completed_quantity: Number(
-            updatedRecord.ot_completed_quantity || 0,
-          ),
-          worker_role: updatedRecord.worker_role.trim() || null,
-          notes: updatedRecord.notes.trim() || null,
-        })
-        .eq("daily_report_worker_id", record.daily_report_worker_id);
-
-      if (workerUpdateError) throw workerUpdateError;
-
-      const { error: timeLogUpdateError } = await supabase
-        .from("work_time_logs")
-        .update({
-          clock_in: combineReportDateAndTime(
-            reportDate,
-            updatedRecord.clock_in,
-          ),
-          clock_out: combineReportDateAndTime(
-            reportDate,
-            updatedRecord.clock_out,
-          ),
-          break_minutes: Number(updatedRecord.break_minutes || 0),
-          regular_hours: Number(updatedRecord.regular_hours || 0),
-          overtime_hours: Number(updatedRecord.overtime_hours || 0),
-          ot_start: combineReportDateAndTime(
-            reportDate,
-            updatedRecord.ot_start,
-          ),
-          ot_finish: combineReportDateAndTime(
-            reportDate,
-            updatedRecord.ot_finish,
-          ),
-          ot_completed_quantity: Number(
-            updatedRecord.ot_completed_quantity || 0,
-          ),
-          time_status: updatedRecord.time_status,
-          notes: updatedRecord.notes.trim() ||
-            updatedRecord.worker_role.trim() ||
-            null,
-        })
-        .eq("work_time_log_id", record.work_time_log_id);
-
-      if (timeLogUpdateError) throw timeLogUpdateError;
+      await updateDraftBundle(
+        activeDraftReportId,
+        labourRecords.map((item, index) =>
+          index === recordIndex ? updatedRecord : item
+        ),
+      );
 
       return {
         recordIndex,
@@ -1580,12 +1511,17 @@ const DailyReports = () => {
       queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(saveErrorMessage(error));
     },
   });
 
   const createDailyReport = useMutation({
     mutationFn: async () => {
+      if (!permissions.userId) throw new Error("Please sign in before saving a Daily Report.");
+      await requireDailyReportActions(
+        permissions.userId,
+        [formMode === "edit" ? "update" : "create", ...(pendingPhotos.length > 0 ? ["upload_photos" as const] : [])],
+      );
       if (!projectId) throw new Error("Please select a project.");
       if (!siteId) throw new Error("Please select a project site.");
       if (!areaId) throw new Error("Please select a project area.");
@@ -1612,10 +1548,10 @@ const DailyReports = () => {
 
       const timeLogWorkers = normalizedDailyReportWorkers.filter(
         (record) =>
-          record.attendance_status === "Present" &&
-          record.activity_type_id &&
-          record.clock_in &&
-          record.clock_out,
+          Boolean(record.work_time_log_id) ||
+          (record.attendance_status === "Present" &&
+            Boolean(record.activity_type_id) &&
+            Boolean(record.clock_in)),
       );
 
       if (dailyReportWorkers.length === 0) {
@@ -1627,9 +1563,6 @@ const DailyReports = () => {
           "Please add at least one present worker with activity, check in, and check out.",
         );
       }
-
-      const primaryActivityTypeId =
-        normalizedDailyReportWorkers[0]?.activity_type_id || "";
 
       const reportActivityTypeId =
         normalizedDailyReportWorkers[0]?.activity_type_id || "";
@@ -1705,214 +1638,84 @@ const DailyReports = () => {
         }
       }
 
-      if (finalReportId) {
-        const { error: updateReportError } = await supabase
-          .from("daily_reports")
-          .update({
-            report_date: reportDate,
-            weather_condition: weatherCondition || null,
-            workers_count: formMode === "edit"
-              ? new Set(dailyReportWorkers.map((record) => record.employee_id))
-                .size
-              : new Set(timeLogWorkers.map((record) => record.employee_id))
-                .size,
-            approval_status: formMode === "edit"
-              ? editingApprovalStatus || "Submitted"
-              : "Submitted",
-            progress_percent: progress,
-            completed_quantity: completedToday,
-            work_completed: workCompleted.trim() || null,
-            issues_found: issuesFound.trim() || null,
-            next_actions: nextActions.trim() || null,
-            notes: notes.trim() || null,
-          })
-          .eq("report_id", finalReportId);
+      const workerPayloads = normalizedDailyReportWorkers.map(
+        dailyReportWorkerChanges,
+      );
+      const timeLogPayloads = timeLogWorkers.map((record) =>
+        workTimeLogChanges(reportDate, record),
+      );
+      const reportChanges = {
+        weather_condition: weatherCondition || null,
+        progress_percent: progress,
+        completed_quantity: completedToday,
+        work_completed: workCompleted.trim() || null,
+        issues_found: issuesFound.trim() || null,
+        next_actions: nextActions.trim() || null,
+        notes: notes.trim() || null,
+        ...(formMode === "add" && activeDraftReportId
+          ? { approval_status: "Submitted" }
+          : {}),
+      };
 
-        if (updateReportError) throw updateReportError;
+      if (finalReportId) {
+        if (!editingUpdatedAt) throw new Error("Reload the Daily Report before editing.");
+        const activityTypeIds = Array.from(
+          new Set(
+            normalizedDailyReportWorkers
+              .map((record) => record.activity_type_id)
+              .filter(Boolean),
+          ),
+        );
+        const nextVersion = await updateDailyReportBundleAtomic(finalReportId, editingUpdatedAt, {
+          reportChanges,
+          activities: activityTypeIds.map((activityTypeId) => {
+            const existingActivity = editingActivityRows.find(
+              (activity) => activity.activityTypeId === activityTypeId,
+            );
+            return {
+              ...(existingActivity ? { id: existingActivity.id } : {}),
+              changes: { activity_type_id: activityTypeId },
+            };
+          }),
+          workers: normalizedDailyReportWorkers.map((record, index) => ({
+            ...(record.daily_report_worker_id ? { id: record.daily_report_worker_id } : {}),
+            changes: record.daily_report_worker_id
+              ? dailyReportWorkerChanges(record)
+              : workerPayloads[index],
+          })),
+          timeLogs: timeLogWorkers.map((record, index) => ({
+            ...(record.work_time_log_id ? { id: record.work_time_log_id } : {}),
+            changes: record.work_time_log_id
+              ? workTimeLogChanges(reportDate, record)
+              : timeLogPayloads[index],
+          })),
+        });
+        setEditingUpdatedAt(nextVersion);
       } else {
-        const { data: createdReport, error: createReportError } = await supabase
-          .from("daily_reports")
-          .insert({
+        finalReportId = await createDailyReportBundleAtomic({
+          report: {
             project_id: projectId,
             site_id: siteId,
             area_id: areaId,
             work_order_id: workOrderId,
             report_date: reportDate,
-            weather_condition: weatherCondition || null,
-            workers_count: new Set(timeLogWorkers.map((record) =>
-              record.employee_id
-            )).size,
             approval_status: "Submitted",
-            progress_percent: progress,
-            completed_quantity: completedToday,
-            work_completed: workCompleted.trim() || null,
-            issues_found: issuesFound.trim() || null,
-            next_actions: nextActions.trim() || null,
-            notes: notes.trim() || null,
-            is_deleted: false,
-          })
-          .select("report_id")
-          .single();
-
-        if (createReportError) throw createReportError;
-
-        if (!createdReport?.report_id) {
-          throw new Error(
-            "Daily report was created but report ID was not returned.",
-          );
-        }
-
-        finalReportId = createdReport.report_id;
+            ...reportChanges,
+          },
+          activities: Array.from(
+            new Set(
+              normalizedDailyReportWorkers
+                .map((record) => record.activity_type_id)
+                .filter(Boolean),
+            ),
+          ).map((activity_type_id) => ({ activity_type_id })),
+          workers: workerPayloads,
+          timeLogs: timeLogPayloads,
+        });
       }
 
       if (!finalReportId) {
         throw new Error("Daily report ID was not found.");
-      }
-      const { error: deleteActivityError } = await supabase
-        .from("daily_report_activities")
-        .delete()
-        .eq("report_id", finalReportId);
-
-      if (deleteActivityError) throw deleteActivityError;
-
-      const activityRows = [
-        {
-          report_id: finalReportId,
-          activity_type_id: reportActivityTypeId,
-        },
-      ];
-
-      if (activityRows.length > 0) {
-        const { error: activityInsertError } = await supabase
-          .from("daily_report_activities")
-          .insert(activityRows);
-
-        if (activityInsertError) throw activityInsertError;
-      }
-      if (!activeDraftReportId) {
-        const workerRows = normalizedDailyReportWorkers.map((record) => ({
-          report_id: finalReportId,
-          employee_id: record.employee_id,
-          work_assignment_id: record.work_assignment_id || null,
-          replaces_work_assignment_id: record.replaces_work_assignment_id ||
-            null,
-          worker_source: record.worker_source,
-          attendance_status: record.attendance_status,
-          activity_type_id: record.activity_type_id,
-          regular_hours: Number(record.regular_hours || 0),
-          overtime_hours: Number(record.overtime_hours || 0),
-          completed_quantity: Number(record.completed_quantity || 0),
-          ot_start: record.ot_start || null,
-          ot_finish: record.ot_finish || null,
-          ot_completed_quantity: Number(record.ot_completed_quantity || 0),
-          worker_role: record.worker_role.trim() || null,
-          notes: record.notes.trim() || null,
-        }));
-
-        const { error: workerInsertError } = await supabase
-          .from("daily_report_workers")
-          .insert(workerRows);
-
-        if (workerInsertError) throw workerInsertError;
-      }
-      if (!activeDraftReportId) {
-        const timeLogRows = timeLogWorkers.map((record) => ({
-          report_id: finalReportId,
-          employee_id: record.employee_id,
-          work_assignment_id: record.work_assignment_id || null,
-          replaces_work_assignment_id: record.replaces_work_assignment_id ||
-            null,
-          worker_source: record.worker_source,
-          attendance_status: record.attendance_status,
-          project_id: projectId,
-          site_id: siteId,
-          area_id: areaId,
-          work_order_id: workOrderId,
-          activity_type_id: record.activity_type_id,
-          work_date: reportDate,
-          regular_hours: Number(record.regular_hours || 0),
-          overtime_hours: Number(record.overtime_hours || 0),
-          break_minutes: Number(record.break_minutes || 0),
-          clock_in: combineReportDateAndTime(reportDate, record.clock_in),
-          clock_out: combineReportDateAndTime(reportDate, record.clock_out),
-          ot_start: combineReportDateAndTime(reportDate, record.ot_start),
-          ot_finish: combineReportDateAndTime(reportDate, record.ot_finish),
-          ot_completed_quantity: Number(record.ot_completed_quantity || 0),
-          approved: false,
-          time_status: record.time_status,
-          notes: record.notes.trim() || record.worker_role.trim() || null,
-          is_deleted: false,
-        }));
-
-        if (timeLogRows.length > 0) {
-          const { error: timeLogInsertError } = await supabase
-            .from("work_time_logs")
-            .insert(timeLogRows);
-
-          if (timeLogInsertError) throw timeLogInsertError;
-        }
-      }
-      if (activeDraftReportId) {
-        for (const record of normalizedDailyReportWorkers) {
-          if (record.daily_report_worker_id) {
-            const { error: workerUpdateError } = await supabase
-              .from("daily_report_workers")
-              .update({
-                activity_type_id: record.activity_type_id,
-                attendance_status: record.attendance_status,
-                worker_source: record.worker_source,
-                regular_hours: Number(record.regular_hours || 0),
-                overtime_hours: Number(record.overtime_hours || 0),
-                completed_quantity: Number(record.completed_quantity || 0),
-                ot_start: record.ot_start || null,
-                ot_finish: record.ot_finish || null,
-                ot_completed_quantity: Number(
-                  record.ot_completed_quantity || 0,
-                ),
-                worker_role: record.worker_role.trim() || null,
-                notes: record.notes.trim() || null,
-              })
-              .eq(
-                "daily_report_worker_id",
-                record.daily_report_worker_id,
-              );
-
-            if (workerUpdateError) throw workerUpdateError;
-          }
-
-          if (record.work_time_log_id) {
-            const { error: timeLogUpdateError } = await supabase
-              .from("work_time_logs")
-              .update({
-                activity_type_id: record.activity_type_id,
-                attendance_status: record.attendance_status,
-                worker_source: record.worker_source,
-                clock_in: combineReportDateAndTime(reportDate, record.clock_in),
-                clock_out: combineReportDateAndTime(
-                  reportDate,
-                  record.clock_out,
-                ),
-                break_minutes: Number(record.break_minutes || 0),
-                regular_hours: Number(record.regular_hours || 0),
-                overtime_hours: Number(record.overtime_hours || 0),
-                ot_start: combineReportDateAndTime(reportDate, record.ot_start),
-                ot_finish: combineReportDateAndTime(
-                  reportDate,
-                  record.ot_finish,
-                ),
-                ot_completed_quantity: Number(
-                  record.ot_completed_quantity || 0,
-                ),
-                time_status: record.time_status,
-                notes: record.notes.trim() ||
-                  record.worker_role.trim() ||
-                  null,
-              })
-              .eq("work_time_log_id", record.work_time_log_id);
-
-            if (timeLogUpdateError) throw timeLogUpdateError;
-          }
-        }
       }
       let uploadedPhotoCount = 0;
       let failedPhotoCount = 0;
@@ -1928,34 +1731,12 @@ const DailyReports = () => {
           );
 
           try {
-            const fileExt = photo.file.name.split(".").pop();
-
-            const fileName =
-              `${finalReportId}/${crypto.randomUUID()}.${fileExt}`;
-
-            const { error: uploadError } = await supabase.storage
-              .from("daily-report-photos")
-              .upload(fileName, photo.file);
-
-            if (uploadError) throw uploadError;
-
-            const { error: photoInsertError } = await supabase
-              .from("daily_report_photos")
-              .insert({
-                report_id: finalReportId,
-                photo_url: fileName,
-                caption: photo.caption?.trim() || null,
-                taken_at: photo.takenAt
-                  ? new Date(photo.takenAt).toISOString()
-                  : null,
-                approval_status: "Pending",
-                approved_by: null,
-                approved_at: null,
-                rejected_reason: null,
-                is_deleted: false,
-              });
-
-            if (photoInsertError) throw photoInsertError;
+            await uploadDailyReportPhoto({
+              reportId: finalReportId,
+              file: photo.file,
+              caption: photo.caption,
+              takenAt: photo.takenAt ? new Date(photo.takenAt).toISOString() : null,
+            });
 
             uploadedPhotoCount += 1;
 
@@ -1974,7 +1755,7 @@ const DailyReports = () => {
                 item.id === photo.id
                   ? {
                     ...item,
-                    status: "uploaded",
+                    status: "failed",
                     error: error instanceof Error
                       ? error.message
                       : "Photo upload failed.",
@@ -2001,16 +1782,18 @@ const DailyReports = () => {
       });
 
       if (result.failedPhotoCount > 0) {
-        toast.warning(
-          `Daily report saved. ${result.uploadedPhotoCount} photo(s) uploaded, ${result.failedPhotoCount} failed.`,
+        toast.error(
+          `Daily report data was saved, but ${result.failedPhotoCount} photo(s) failed to upload. Please retry the failed photos.`,
         );
-      } else {
-        toast.success(
-          formMode === "edit"
-            ? "Daily report updated successfully."
-            : "Daily report submitted and time logs created for review.",
-        );
+        queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
+        return;
       }
+
+      toast.success(
+        formMode === "edit"
+          ? "Daily report updated successfully."
+          : "Daily report submitted and time logs created for review.",
+      );
       queryClient.invalidateQueries({ queryKey: ["daily_reports"] });
       queryClient.invalidateQueries({
         queryKey: ["work-orders-for-daily-reports"],
@@ -2020,7 +1803,7 @@ const DailyReports = () => {
       resetForm();
     },
     onError: (error) => {
-      toast.error(error.message);
+      toast.error(saveErrorMessage(error));
     },
   });
 
@@ -2063,7 +1846,7 @@ const DailyReports = () => {
     });
 
     if (showLatestOnly) {
-      const latestByArea = new Map<string, any>();
+      const latestByArea = new Map<string, (typeof dailyReports)[number]>();
 
       reports.forEach((report) => {
         const key = report.area_id || report.report_id;
@@ -2129,7 +1912,7 @@ const DailyReports = () => {
   }, [filteredDailyReports, areas, filterAreaId]);
 
   const groupedDailyReports = useMemo(() => {
-    const groups = new Map<string, any[]>();
+    const groups = new Map<string, Array<(typeof dailyReports)[number]>>();
 
     filteredDailyReports.forEach((report) => {
       const key = report.area_id || "no-area";
@@ -2197,6 +1980,24 @@ const DailyReports = () => {
         return "bg-slate-100 text-slate-500 border-slate-200";
     }
   };
+  if (!permissions.canRead) {
+    return (
+      <div className="mx-auto max-w-xl p-6 text-sm text-slate-600">
+        <p>
+          {permissions.isChecking
+            ? "Checking Daily Report access..."
+            : permissions.error
+              ? "Unable to check Daily Report access. Please retry."
+              : "Your account is not active, so Daily Reports are unavailable."}
+        </p>
+        {permissions.error && (
+          <Button variant="outline" className="mt-3" onClick={() => void permissions.retry()}>
+            Retry
+          </Button>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="space-y-5 px-4 pb-8 pt-4 animate-fade-in sm:px-6 lg:px-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -2217,7 +2018,7 @@ const DailyReports = () => {
           </div>
         </div>
 
-        {userCanManageWorkers && (
+        {permissions.can("create") && (
           <Button
             onClick={() => {
               resetForm();
@@ -2235,6 +2036,14 @@ const DailyReports = () => {
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm space-y-4 md:p-4">
+        {dailyReportsLoading && (
+          <p className="text-sm text-slate-500">Loading Daily Reports...</p>
+        )}
+        {dailyReportsError && (
+          <p className="text-sm text-red-700">
+            Unable to load Daily Reports: {dailyReportsError.message}
+          </p>
+        )}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
           <Select
             value={filterProjectId}
@@ -3964,10 +3773,12 @@ const DailyReports = () => {
             title="Photos"
             description="Attach clear site photos that support the daily progress record."
           >
-            <MobilePhotoUpload
-              pendingPhotos={pendingPhotos}
-              setPendingPhotos={setPendingPhotos}
-            />
+            <fieldset disabled={!permissions.can("upload_photos") || createDailyReport.isPending}>
+              <MobilePhotoUpload
+                pendingPhotos={pendingPhotos}
+                setPendingPhotos={setPendingPhotos}
+              />
+            </fieldset>
           </DailyReportFormSection>
           <div className="sticky bottom-0 -mx-4 mt-4 border-t bg-slate-50/95 px-4 py-4 backdrop-blur sm:mx-0 sm:flex sm:justify-end sm:gap-2 sm:px-0">
             <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-2">
@@ -3978,7 +3789,7 @@ const DailyReports = () => {
                   setShowAddDialog(false);
                   resetForm();
                 }}
-                disabled={createDailyReport.isPending}
+                disabled={createDailyReport.isPending || !permissions.can(formMode === "edit" ? "update" : "create")}
                 className="h-11 w-full rounded-xl sm:w-auto"
               >
                 Cancel
