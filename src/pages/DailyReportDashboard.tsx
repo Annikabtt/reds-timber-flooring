@@ -10,6 +10,11 @@ import {
     updateDailyReportBundleAtomic,
     uploadDailyReportPhoto,
 } from "@/lib/dailyReportApi";
+import {
+    optionalTime,
+    reportDateTimeToTimestamp,
+    timeValueForInput,
+} from "@/lib/dailyReportPayload";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -28,7 +33,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const STANDARD_DAILY_HOURS = 8.00;
 
@@ -118,6 +123,8 @@ const DailyReportDashboard = () => {
     const [timeCorrectionRegularHours, setTimeCorrectionRegularHours] = useState("");
     const [timeCorrectionOvertimeHours, setTimeCorrectionOvertimeHours] = useState("");
     const [timeCorrectionNotes, setTimeCorrectionNotes] = useState("");
+    const [reportVersion, setReportVersion] = useState<string | null>(null);
+    const reportVersionReportId = useRef<string | null>(null);
     const { data: report, isLoading, error: reportError } = useQuery({
         queryKey: ["daily_report", reportId],
         enabled: !!reportId && permissions.canRead,
@@ -300,6 +307,17 @@ const DailyReportDashboard = () => {
         setEditNextActions(report.next_actions || "");
         setEditNotes(report.notes || "");
     }, [report]);
+
+    useEffect(() => {
+        if (
+            report?.report_id &&
+            report.updated_at &&
+            reportVersionReportId.current !== report.report_id
+        ) {
+            setReportVersion(report.updated_at);
+            reportVersionReportId.current = report.report_id;
+        }
+    }, [report?.report_id, report?.updated_at]);
 
     const { data: areaProgress } = useQuery({
         queryKey: ["daily_report_area_progress", report?.area_id],
@@ -524,16 +542,16 @@ const DailyReportDashboard = () => {
     ) => {
         setTimeCorrectionWorkerId(worker.daily_report_worker_id);
         setTimeCorrectionTimeLogId(linkedTimeLog?.work_time_log_id || "");
-        setTimeCorrectionClockIn(linkedTimeLog?.clock_in || "");
-        setTimeCorrectionClockOut(linkedTimeLog?.clock_out || "");
+        setTimeCorrectionClockIn(timeValueForInput(linkedTimeLog?.clock_in));
+        setTimeCorrectionClockOut(timeValueForInput(linkedTimeLog?.clock_out));
         setTimeCorrectionBreakMinutes(
             linkedTimeLog?.break_minutes === null ||
                 linkedTimeLog?.break_minutes === undefined
                 ? "60"
                 : String(linkedTimeLog.break_minutes)
         );
-        setTimeCorrectionOtStart(linkedTimeLog?.ot_start || worker.ot_start || "");
-        setTimeCorrectionOtFinish(linkedTimeLog?.ot_finish || worker.ot_finish || "");
+        setTimeCorrectionOtStart(timeValueForInput(linkedTimeLog?.ot_start || worker.ot_start));
+        setTimeCorrectionOtFinish(timeValueForInput(linkedTimeLog?.ot_finish || worker.ot_finish));
         setTimeCorrectionRegularHours(
             linkedTimeLog?.regular_hours === null ||
                 linkedTimeLog?.regular_hours === undefined
@@ -1057,8 +1075,8 @@ const DailyReportDashboard = () => {
                 regular_hours: Number(worker.regular_hours || 0),
                 overtime_hours: Number(worker.overtime_hours || 0),
                 completed_quantity: Number(worker.completed_quantity || 0),
-                ot_start: worker.ot_start || null,
-                ot_finish: worker.ot_finish || null,
+                ot_start: optionalTime(worker.ot_start),
+                ot_finish: optionalTime(worker.ot_finish),
                 ot_completed_quantity: Number(worker.ot_completed_quantity || 0),
                 worker_role: worker.worker_role || null,
                 notes: worker.notes || null,
@@ -1083,19 +1101,25 @@ const DailyReportDashboard = () => {
                     worker_source: worker.worker_source || null,
                     attendance_status: worker.attendance_status || null,
                     activity_type_id: worker.activity_type_id,
-                    clock_in: override?.clockIn || worker.clock_in || existing?.clock_in || null,
-                    clock_out: override?.clockOut || worker.clock_out || existing?.clock_out || null,
+                    clock_in: reportDateTimeToTimestamp(
+                        report.report_date,
+                        timeValueForInput(override?.clockIn ?? worker.clock_in ?? existing?.clock_in),
+                    ),
+                    clock_out: reportDateTimeToTimestamp(
+                        report.report_date,
+                        timeValueForInput(override?.clockOut ?? worker.clock_out ?? existing?.clock_out),
+                    ),
                     break_minutes: override?.breakMinutes ?? Number(worker.break_minutes || existing?.break_minutes || 0),
                     regular_hours: override?.regularHours ?? Number(worker.regular_hours || 0),
                     overtime_hours: override?.overtimeHours ?? Number(worker.overtime_hours || 0),
-                    ot_start: override?.otStart ?? worker.ot_start ?? existing?.ot_start ?? null,
-                    ot_finish: override?.otFinish ?? worker.ot_finish ?? existing?.ot_finish ?? null,
+                    ot_start: optionalTime(override?.otStart ?? worker.ot_start ?? existing?.ot_start),
+                    ot_finish: optionalTime(override?.otFinish ?? worker.ot_finish ?? existing?.ot_finish),
                     ot_completed_quantity: Number(worker.ot_completed_quantity || existing?.ot_completed_quantity || 0),
                     notes: override?.notes || worker.notes || worker.worker_role || null,
                 },
             };
         });
-        return updateDailyReportBundleAtomic(reportId, report.updated_at, {
+        const nextVersion = await updateDailyReportBundleAtomic(reportId, reportVersion || report.updated_at, {
             reportChanges: { workers_count: nextWorkers.length },
             activities: (report.daily_report_activities || []).map((activity) => ({
                 id: activity.daily_report_activity_id,
@@ -1104,6 +1128,8 @@ const DailyReportDashboard = () => {
             workers: workerPayloads,
             timeLogs: timeLogPayloads,
         });
+        setReportVersion(nextVersion);
+        return nextVersion;
     };
 
     const saveLabourRecord = useMutation({
@@ -1462,7 +1488,10 @@ const DailyReportDashboard = () => {
                 throw new Error("Workers count cannot be negative.");
             }
 
-            await updateDailyReportBundleAtomic(reportId, report.updated_at, {
+            const nextVersion = await updateDailyReportBundleAtomic(
+                reportId,
+                reportVersion || report.updated_at,
+                {
                 reportChanges: {
                     report_date: editReportDate,
                     weather_condition: editWeatherCondition || null,
@@ -1509,7 +1538,9 @@ const DailyReportDashboard = () => {
                         notes: timeLog.notes,
                     },
                 })),
-            });
+                },
+            );
+            setReportVersion(nextVersion);
 
         },
         onSuccess: () => {

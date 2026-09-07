@@ -4,6 +4,7 @@ import {
   dailyReportWorkerChanges,
   optionalTime,
   reportDateTimeToTimestamp,
+  timeValueForInput,
   workTimeLogChanges,
 } from "./dailyReportPayload";
 
@@ -49,5 +50,11 @@ describe("Daily Report payload normalization", () => {
     expect(optionalTime("")).toBeNull();
     expect(reportDateTimeToTimestamp("2026-09-07", "")).toBeNull();
     expect(() => optionalTime("25:00")).toThrow("valid range");
+  });
+
+  it("formats database timestamp and time values for time inputs", () => {
+    expect(timeValueForInput("17:30:00")).toBe("17:30");
+    expect(timeValueForInput("not-a-time")).toBe("");
+    expect(timeValueForInput("2026-09-07T08:15:00.000Z")).toMatch(/^\d{2}:\d{2}$/);
   });
 });

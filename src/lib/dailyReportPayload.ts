@@ -42,6 +42,20 @@ export function optionalTime(value: string | null | undefined) {
   return `${hour}:${minute}:${second}`;
 }
 
+/** Converts a database time or timestamp into the HH:MM format required by time inputs. */
+export function timeValueForInput(value: string | null | undefined) {
+  const trimmed = optionalText(value);
+  if (!trimmed) return "";
+
+  const timeMatch = /^(\d{2}):(\d{2})(?::\d{2})?$/.exec(trimmed);
+  if (timeMatch) return `${timeMatch[1]}:${timeMatch[2]}`;
+
+  const timestamp = new Date(trimmed);
+  if (Number.isNaN(timestamp.getTime())) return "";
+
+  return `${String(timestamp.getHours()).padStart(2, "0")}:${String(timestamp.getMinutes()).padStart(2, "0")}`;
+}
+
 export function reportDateTimeToTimestamp(
   reportDate: string | null | undefined,
   time: string | null | undefined,

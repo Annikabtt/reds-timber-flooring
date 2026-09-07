@@ -30,8 +30,10 @@
 - Daily Report list, detail, mobile entry and photo approval screens now expose
   loading, error, inactive-member and permission-aware read-only states. Every
   write rechecks current permissions before the first mutation.
-- Main and mobile report saves use the atomic RPCs. Worker check-in, check-out,
-  correction, addition and removal submit a complete atomic worker/time state.
+- Main, mobile and Dashboard report saves use the atomic RPCs. Worker check-in,
+  check-out, correction, addition and removal submit a complete atomic worker/time
+  state. Dashboard time inputs convert database timestamps for display and convert
+  clock values back to `timestamptz` before save; OT remains `time without time zone`.
   Payload normalization sends clock fields as `timestamptz`, OT fields as
   `time without time zone`, and empty UUID/date/time values as `null`.
   Editing preserves the version loaded with the form and asks the user to reopen
@@ -62,8 +64,8 @@
   Permission regression passed 16 assertions and atomic create/edit regression
   passed 27 assertions, including activity primary-key retention and the omitted
   work-time-log audit-history case.
-  Test fixtures roll back. Private Storage regression was previously verified
-  but is outside this phase.
+  Test fixtures roll back. The Private Storage draft was reapplied and its six
+  assertions passed against local Supabase.
 
 ## Remaining before promotion
 
