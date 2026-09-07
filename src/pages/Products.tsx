@@ -19,6 +19,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { useAuth } from "@/contexts/AuthContext";
+import { normalizeAppRole } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -537,6 +539,8 @@ const SectionHeading = (
 
 const Products = () => {
     const queryClient = useQueryClient();
+    const { user } = useAuth();
+    const role = normalizeAppRole(user?.app_metadata?.app_role);
     // Bridge for the newly added Pricing RPCs/columns until generated Supabase
     // TypeScript types are refreshed from the hosted schema.
     const db = supabase;
