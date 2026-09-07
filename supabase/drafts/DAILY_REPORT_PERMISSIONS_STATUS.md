@@ -27,6 +27,10 @@
 - `daily_report_photo_storage_private.sql` converts supported legacy public URLs
   to object paths, makes `daily-report-photos` private and installs Active-member
   read plus permission-driven write policies.
+- `../migrations/20260907160000_daily_report_atomic_security.sql` promotes the
+  reviewed permission, atomic-RPC and private-Storage drafts into one ordered
+  migration. It has passed against local Supabase and has not been applied to
+  production.
 - Daily Report list, detail, mobile entry and photo approval screens now expose
   loading, error, inactive-member and permission-aware read-only states. Every
   write rechecks current permissions before the first mutation.
@@ -70,8 +74,8 @@
 ## Remaining before promotion
 
 1. Review production Active accounts and the compatibility role seed before
-   converting drafts into ordered migrations.
-2. Regenerate Supabase TypeScript types after the migration is approved.
+   applying the ordered migration.
+2. Regenerate Supabase TypeScript types after the migration is applied.
 3. Run browser tests for read-only members, individual allow/deny, suspended
    accounts, desktop/mobile create and edit, stale-editor conflicts, approved
    payroll locks, photo upload/review/delete, Variation photo display and direct
