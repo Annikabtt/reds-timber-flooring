@@ -540,7 +540,13 @@ begin
               'daily_report_photos_storage_select',
               'daily_report_photos_storage_insert',
               'daily_report_photos_storage_update',
-              'daily_report_photos_storage_delete'
+              'daily_report_photos_storage_delete',
+              -- Production's reviewed legacy policies. The statements below
+              -- replace these with the permission-scoped policies above.
+              'daily report photos read',
+              'daily report photos upload',
+              'daily report photos update',
+              'daily report photos delete'
           )
     ) then
         raise exception 'Unreviewed Daily Report Storage policies exist. Stop and review them before deployment.';
@@ -574,6 +580,7 @@ set name = excluded.name,
     allowed_mime_types = excluded.allowed_mime_types;
 
 drop policy if exists daily_report_photos_storage_select on storage.objects;
+drop policy if exists "daily report photos read" on storage.objects;
 create policy daily_report_photos_storage_select
 on storage.objects for select to authenticated
 using (
@@ -582,6 +589,7 @@ using (
 );
 
 drop policy if exists daily_report_photos_storage_insert on storage.objects;
+drop policy if exists "daily report photos upload" on storage.objects;
 create policy daily_report_photos_storage_insert
 on storage.objects for insert to authenticated
 with check (
@@ -591,6 +599,7 @@ with check (
 );
 
 drop policy if exists daily_report_photos_storage_update on storage.objects;
+drop policy if exists "daily report photos update" on storage.objects;
 create policy daily_report_photos_storage_update
 on storage.objects for update to authenticated
 using (
@@ -610,6 +619,7 @@ with check (
 );
 
 drop policy if exists daily_report_photos_storage_delete on storage.objects;
+drop policy if exists "daily report photos delete" on storage.objects;
 create policy daily_report_photos_storage_delete
 on storage.objects for delete to authenticated
 using (
