@@ -50,6 +50,9 @@
 - Supabase types were regenerated from the production schema after the migration
   completed. `src/lib/dailyReportApi.ts` now uses the generated RPC signatures
   directly.
+- `20260908093000_daily_report_approved_lock.sql` adds a database guard that
+  blocks any update to an Approved report and any photo write under it. Dashboard
+  action controls mirror the same read-only rule.
 
 ## Local validation on 2026-09-07
 

@@ -812,6 +812,12 @@ const DailyReportDashboard = () => {
 
     const activePhotos =
         report?.daily_report_photos?.filter((photo) => !photo.is_deleted) || [];
+    const isReportApproved = report?.approval_status === "Approved";
+    const assertReportIsEditable = () => {
+        if (isReportApproved) {
+            throw new Error("Approved Daily Reports cannot be changed.");
+        }
+    };
     const { data: signedPhotoUrls = {}, error: signedPhotoError } = useQuery({
         queryKey: ["daily-report-signed-photos", reportId, activePhotos.map((photo) => photo.photo_id)],
         enabled: permissions.canRead && activePhotos.length > 0,
@@ -1063,6 +1069,7 @@ const DailyReportDashboard = () => {
         timeOverride?: TimeLogOverride,
     ) => {
         if (!reportId || !report) throw new Error("Daily report data is missing.");
+        assertReportIsEditable();
         const workerPayloads = nextWorkers.map((worker) => ({
             ...(worker.daily_report_worker_id ? { id: worker.daily_report_worker_id } : {}),
             changes: {
@@ -1135,6 +1142,7 @@ const DailyReportDashboard = () => {
     const saveLabourRecord = useMutation({
         mutationFn: async () => {
             if (!permissions.userId) throw new Error("Please sign in before editing this report.");
+            assertReportIsEditable();
             await requireDailyReportActions(permissions.userId, ["update"]);
             if (!userCanCorrectWorkerTime) {
                 throw new Error("You do not have permission to correct worker time.");
@@ -1212,6 +1220,7 @@ const DailyReportDashboard = () => {
     const saveTimeCorrection = useMutation({
         mutationFn: async () => {
             if (!permissions.userId) throw new Error("Please sign in before editing this report.");
+            assertReportIsEditable();
             await requireDailyReportActions(permissions.userId, ["update"]);
             if (!userCanCorrectWorkerTime) {
                 throw new Error("You do not have permission to correct worker time.");
@@ -1444,6 +1453,7 @@ const DailyReportDashboard = () => {
     const updateDailyReport = useMutation({
         mutationFn: async () => {
             if (!permissions.userId) throw new Error("Please sign in before editing this report.");
+            assertReportIsEditable();
             await requireDailyReportActions(permissions.userId, ["update"]);
             if (!reportId) {
                 throw new Error("Daily report ID is missing.");
@@ -1738,6 +1748,7 @@ const DailyReportDashboard = () => {
 
         mutationFn: async () => {
             if (!permissions.userId) throw new Error("Please sign in before uploading a photo.");
+            assertReportIsEditable();
             await requireDailyReportActions(permissions.userId, ["upload_photos"]);
             if (!reportId) {
                 throw new Error("Daily report ID is missing.");
@@ -1769,6 +1780,7 @@ const DailyReportDashboard = () => {
     const approvePhoto = useMutation({
         mutationFn: async (photoId: string) => {
             if (!permissions.userId) throw new Error("Please sign in before reviewing a photo.");
+            assertReportIsEditable();
             await requireDailyReportActions(permissions.userId, ["update_photos"]);
             const { error } = await supabase
                 .from("daily_report_photos")
@@ -1795,6 +1807,7 @@ const DailyReportDashboard = () => {
     const rejectPhoto = useMutation({
         mutationFn: async (photoId: string) => {
             if (!permissions.userId) throw new Error("Please sign in before reviewing a photo.");
+            assertReportIsEditable();
             await requireDailyReportActions(permissions.userId, ["update_photos"]);
             const { error } = await supabase
                 .from("daily_report_photos")
@@ -1821,6 +1834,7 @@ const DailyReportDashboard = () => {
     const deletePhoto = useMutation({
         mutationFn: async (photoId: string) => {
             if (!permissions.userId) throw new Error("Please sign in before deleting a photo.");
+            assertReportIsEditable();
             await requireDailyReportActions(permissions.userId, ["delete_photos"]);
             const { error } = await supabase
                 .from("daily_report_photos")
@@ -1852,6 +1866,7 @@ const DailyReportDashboard = () => {
             if (!permissions.userId || !reportId) {
                 throw new Error("Daily Report ID or session is missing.");
             }
+            assertReportIsEditable();
             await requireDailyReportActions(permissions.userId, ["delete"]);
             const { error } = await supabase
                 .from("daily_reports")
@@ -1950,7 +1965,7 @@ const DailyReportDashboard = () => {
                     {permissions.can("delete") && (
                         <Button
                             variant="outline"
-                            disabled={deleteDailyReport.isPending}
+                            disabled={isReportApproved || deleteDailyReport.isPending}
                             onClick={() => {
                                 if (window.confirm("Delete this Daily Report?")) {
                                     deleteDailyReport.mutate();
@@ -1977,7 +1992,7 @@ const DailyReportDashboard = () => {
 
                     <Button
                         onClick={() => navigate(`/daily-reports?editReportId=${report.report_id}`)}
-                        disabled={!permissions.can("update")}
+                        disabled={isReportApproved || !permissions.can("update")}
                         className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
                     >
                         Edit Daily Report
@@ -2169,7 +2184,7 @@ const DailyReportDashboard = () => {
                             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                                 <Button
                                     onClick={() => navigate(`/daily-reports?editReportId=${report.report_id}`)}
-                                    disabled={!permissions.can("update")}
+                                    disabled={isReportApproved || !permissions.can("update")}
                                     className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
                                 >
                                     Edit Daily Report
@@ -2795,7 +2810,7 @@ const DailyReportDashboard = () => {
                     <div className="grid grid-cols-1 sm:flex sm:justify-end mt-4">
                         <Button
                             onClick={() => uploadPhoto.mutate()}
-                            disabled={!permissions.can("upload_photos") || uploadPhoto.isPending}
+                            disabled={isReportApproved || !permissions.can("upload_photos") || uploadPhoto.isPending}
                             className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
                         >
                             {uploadPhoto.isPending ? "Uploading..." : "Upload Photo"}
@@ -2852,7 +2867,7 @@ const DailyReportDashboard = () => {
                                                 variant="outline"
                                                 size="sm"
                                                 onClick={() => approvePhoto.mutate(photo.photo_id)}
-                                                disabled={!permissions.can("update_photos") || approvePhoto.isPending}
+                                                disabled={isReportApproved || !permissions.can("update_photos") || approvePhoto.isPending}
                                                 className="w-full text-green-700 hover:text-green-800"
                                             >
                                                 Approve
@@ -2864,7 +2879,7 @@ const DailyReportDashboard = () => {
                                                 variant="outline"
                                                 size="sm"
                                                 onClick={() => rejectPhoto.mutate(photo.photo_id)}
-                                                disabled={!permissions.can("update_photos") || rejectPhoto.isPending}
+                                                disabled={isReportApproved || !permissions.can("update_photos") || rejectPhoto.isPending}
                                                 className="w-full text-orange-700 hover:text-orange-800"
                                             >
                                                 Reject
@@ -2875,7 +2890,7 @@ const DailyReportDashboard = () => {
                                             variant="outline"
                                             size="sm"
                                             onClick={() => deletePhoto.mutate(photo.photo_id)}
-                                            disabled={!permissions.can("delete_photos") || deletePhoto.isPending}
+                                            disabled={isReportApproved || !permissions.can("delete_photos") || deletePhoto.isPending}
                                             className="w-full text-red-700 hover:text-red-800"
                                         >
                                             Delete
@@ -3031,7 +3046,7 @@ const DailyReportDashboard = () => {
                                             <Button
                                                 type="button"
                                                 variant="outline"
-                                                disabled={!permissions.can("update") || !userCanCorrectWorkerTime || saveTimeCorrection.isPending}
+                                                disabled={isReportApproved || !permissions.can("update") || !userCanCorrectWorkerTime || saveTimeCorrection.isPending}
                                                 onClick={() =>
                                                     startTimeCorrection(worker, linkedTimeLog)
                                                 }
@@ -3199,7 +3214,7 @@ const DailyReportDashboard = () => {
                                                         <Button
                                                             type="button"
                                                             onClick={() => saveTimeCorrection.mutate()}
-                                                            disabled={!permissions.can("update") || !userCanCorrectWorkerTime || saveTimeCorrection.isPending}
+                                                            disabled={isReportApproved || !permissions.can("update") || !userCanCorrectWorkerTime || saveTimeCorrection.isPending}
                                                             className="rounded-xl"
                                                         >
                                                             {saveTimeCorrection.isPending
@@ -3330,7 +3345,7 @@ const DailyReportDashboard = () => {
 
                         <Button
                             onClick={() => updateDailyReport.mutate()}
-                            disabled={!permissions.can("update") || updateDailyReport.isPending}
+                            disabled={isReportApproved || !permissions.can("update") || updateDailyReport.isPending}
                             className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
                         >
                             {updateDailyReport.isPending ? "Saving..." : "Save Changes"}
