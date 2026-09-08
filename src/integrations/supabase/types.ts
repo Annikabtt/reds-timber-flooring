@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -11,6 +11,31 @@ export type Database = {
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -2018,6 +2043,348 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: []
+      }
+      goods_receiving_resolution_cases: {
+        Row: {
+          base_uom_code: string
+          created_at: string
+          created_by: string
+          deleted_at: string | null
+          is_active: boolean
+          is_deleted: boolean
+          issue_type: string
+          notes: string | null
+          opened_at: string
+          opened_by_employee_id: string
+          original_issue_base_quantity: number
+          original_issue_quantity: number
+          original_issue_uom_code: string
+          product_id: string
+          project_id: string | null
+          replacement_required: boolean
+          resolution_case_id: string
+          resolution_no: string
+          resolution_status: string
+          resolved_at: string | null
+          resolved_by_employee_id: string | null
+          return_required: boolean
+          site_id: string
+          supplier_delivery_id: string
+          supplier_delivery_receipt_id: string
+          supplier_delivery_receipt_item_id: string
+          supplier_id: string
+          supplier_replacement_claim_id: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          base_uom_code: string
+          created_at?: string
+          created_by: string
+          deleted_at?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          issue_type: string
+          notes?: string | null
+          opened_at?: string
+          opened_by_employee_id: string
+          original_issue_base_quantity: number
+          original_issue_quantity: number
+          original_issue_uom_code: string
+          product_id: string
+          project_id?: string | null
+          replacement_required?: boolean
+          resolution_case_id?: string
+          resolution_no: string
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by_employee_id?: string | null
+          return_required?: boolean
+          site_id: string
+          supplier_delivery_id: string
+          supplier_delivery_receipt_id: string
+          supplier_delivery_receipt_item_id: string
+          supplier_id: string
+          supplier_replacement_claim_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          base_uom_code?: string
+          created_at?: string
+          created_by?: string
+          deleted_at?: string | null
+          is_active?: boolean
+          is_deleted?: boolean
+          issue_type?: string
+          notes?: string | null
+          opened_at?: string
+          opened_by_employee_id?: string
+          original_issue_base_quantity?: number
+          original_issue_quantity?: number
+          original_issue_uom_code?: string
+          product_id?: string
+          project_id?: string | null
+          replacement_required?: boolean
+          resolution_case_id?: string
+          resolution_no?: string
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by_employee_id?: string | null
+          return_required?: boolean
+          site_id?: string
+          supplier_delivery_id?: string
+          supplier_delivery_receipt_id?: string
+          supplier_delivery_receipt_item_id?: string
+          supplier_id?: string
+          supplier_replacement_claim_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goods_receiving_resolution_ca_supplier_delivery_receipt_id_fkey"
+            columns: ["supplier_delivery_receipt_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_delivery_receipts"
+            referencedColumns: ["supplier_delivery_receipt_id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_ca_supplier_delivery_receipt_it_fkey"
+            columns: ["supplier_delivery_receipt_item_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_delivery_receipt_items"
+            referencedColumns: ["supplier_delivery_receipt_item_id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_ca_supplier_replacement_claim_i_fkey"
+            columns: ["supplier_replacement_claim_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_replacement_claims"
+            referencedColumns: ["supplier_replacement_claim_id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_cases_base_uom_code_fkey"
+            columns: ["base_uom_code"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["uom_code"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_cases_opened_by_employee_id_fkey"
+            columns: ["opened_by_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_cases_original_issue_uom_code_fkey"
+            columns: ["original_issue_uom_code"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["uom_code"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_cases_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_cases_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_project_financial_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_cases_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_cases_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_cases_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_project_profitability"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_cases_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "v_project_progress"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_cases_resolved_by_employee_id_fkey"
+            columns: ["resolved_by_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_cases_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "_site_retention_summary"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_cases_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "project_sites"
+            referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_cases_supplier_delivery_id_fkey"
+            columns: ["supplier_delivery_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_deliveries"
+            referencedColumns: ["supplier_delivery_id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_cases_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["supplier_id"]
+          },
+        ]
+      }
+      goods_receiving_resolution_events: {
+        Row: {
+          created_at: string
+          created_by: string
+          event_at: string
+          event_base_quantity: number | null
+          event_no: string
+          event_quantity: number | null
+          event_sequence: number
+          event_type: string
+          event_uom_code: string | null
+          notes: string | null
+          performed_by_employee_id: string
+          reason: string | null
+          resolution_case_id: string
+          resolution_event_id: string
+          stock_location_id: string | null
+          stock_lot_id: string | null
+          stock_movement_id: string | null
+          supplier_replacement_receipt_id: string | null
+          supplier_replacement_receipt_item_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          event_at?: string
+          event_base_quantity?: number | null
+          event_no: string
+          event_quantity?: number | null
+          event_sequence: number
+          event_type: string
+          event_uom_code?: string | null
+          notes?: string | null
+          performed_by_employee_id: string
+          reason?: string | null
+          resolution_case_id: string
+          resolution_event_id?: string
+          stock_location_id?: string | null
+          stock_lot_id?: string | null
+          stock_movement_id?: string | null
+          supplier_replacement_receipt_id?: string | null
+          supplier_replacement_receipt_item_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          event_at?: string
+          event_base_quantity?: number | null
+          event_no?: string
+          event_quantity?: number | null
+          event_sequence?: number
+          event_type?: string
+          event_uom_code?: string | null
+          notes?: string | null
+          performed_by_employee_id?: string
+          reason?: string | null
+          resolution_case_id?: string
+          resolution_event_id?: string
+          stock_location_id?: string | null
+          stock_lot_id?: string | null
+          stock_movement_id?: string | null
+          supplier_replacement_receipt_id?: string | null
+          supplier_replacement_receipt_item_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goods_receiving_resolution_e_supplier_replacement_receipt_fkey1"
+            columns: ["supplier_replacement_receipt_item_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_replacement_receipt_items"
+            referencedColumns: ["supplier_replacement_receipt_item_id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_ev_supplier_replacement_receipt_fkey"
+            columns: ["supplier_replacement_receipt_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_replacement_receipts"
+            referencedColumns: ["supplier_replacement_receipt_id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_events_event_uom_code_fkey"
+            columns: ["event_uom_code"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["uom_code"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_events_performed_by_employee_id_fkey"
+            columns: ["performed_by_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_events_resolution_case_id_fkey"
+            columns: ["resolution_case_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receiving_resolution_cases"
+            referencedColumns: ["resolution_case_id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_events_stock_location_id_fkey"
+            columns: ["stock_location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["stock_location_id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_events_stock_lot_id_fkey"
+            columns: ["stock_lot_id"]
+            isOneToOne: false
+            referencedRelation: "stock_lots"
+            referencedColumns: ["stock_lot_id"]
+          },
+          {
+            foreignKeyName: "goods_receiving_resolution_events_stock_movement_id_fkey"
+            columns: ["stock_movement_id"]
+            isOneToOne: false
+            referencedRelation: "stock_movements"
+            referencedColumns: ["stock_movement_id"]
+          },
+        ]
       }
       inventory_transaction_photos: {
         Row: {
@@ -8677,6 +9044,7 @@ export type Database = {
           project_id: string | null
           site_id: string | null
           stock_location_id: string
+          supplier_id: string | null
           updated_at: string
           updated_by: string | null
         }
@@ -8693,6 +9061,7 @@ export type Database = {
           project_id?: string | null
           site_id?: string | null
           stock_location_id?: string
+          supplier_id?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -8709,6 +9078,7 @@ export type Database = {
           project_id?: string | null
           site_id?: string | null
           stock_location_id?: string
+          supplier_id?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -8761,6 +9131,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "project_sites"
             referencedColumns: ["site_id"]
+          },
+          {
+            foreignKeyName: "stock_locations_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["supplier_id"]
           },
         ]
       }
@@ -14505,6 +14882,15 @@ export type Database = {
         }
         Returns: string
       }
+      create_daily_report_bundle_atomic: {
+        Args: {
+          p_activities: Json
+          p_report: Json
+          p_time_logs: Json
+          p_workers: Json
+        }
+        Returns: string
+      }
       create_direct_invoice_draft_atomic: {
         Args: { p_invoice: Json }
         Returns: string
@@ -14540,6 +14926,16 @@ export type Database = {
           p_work_order_ids: string[]
         }
         Returns: string
+      }
+      create_goods_receiving_resolution_case: {
+        Args: {
+          p_issue_type: string
+          p_notes?: string
+          p_replacement_required?: boolean
+          p_return_required?: boolean
+          p_supplier_delivery_receipt_item_id: string
+        }
+        Returns: Json
       }
       create_invoice_atomic: {
         Args: { p_invoice: Json; p_lines: Json; p_sources?: Json }
@@ -14689,6 +15085,14 @@ export type Database = {
           p_work_order_id: string
         }
         Returns: string
+      }
+      create_work_order_atomic: {
+        Args: {
+          p_commercial_allocations?: Json
+          p_work_order: Json
+          p_worker_assignments?: Json
+        }
+        Returns: Json
       }
       current_app_role: { Args: never; Returns: string }
       current_app_user_status: { Args: never; Returns: string }
@@ -14915,6 +15319,35 @@ export type Database = {
         Args: { p_category_id: string }
         Returns: string
       }
+      get_goods_receiving_dashboard_po_numbers: { Args: never; Returns: Json }
+      get_goods_receiving_purchase_order_lines: {
+        Args: { p_purchase_order_id: string }
+        Returns: Json
+      }
+      get_goods_receiving_purchase_orders: { Args: never; Returns: Json }
+      get_goods_receiving_resolution_summary: {
+        Args: { p_supplier_delivery_receipt_id: string }
+        Returns: {
+          issue_type: string
+          opened_at: string
+          original_issue_base_quantity: number
+          original_issue_quantity: number
+          original_issue_uom_code: string
+          outstanding_replacement_base_quantity: number
+          outstanding_return_base_quantity: number
+          product_id: string
+          replacement_received_base_quantity: number
+          replacement_required: boolean
+          resolution_case_id: string
+          resolution_no: string
+          resolution_status: string
+          resolved_at: string
+          return_required: boolean
+          returned_base_quantity: number
+          supplier_delivery_receipt_item_id: string
+          supplier_replacement_claim_id: string
+        }[]
+      }
       get_invoice_work_eligibility: {
         Args: { p_source_id: string; p_source_type: string }
         Returns: {
@@ -15101,6 +15534,10 @@ export type Database = {
         }[]
       }
       get_quotation_detail: { Args: { p_quotation_id: string }; Returns: Json }
+      get_quotation_detail_impl: {
+        Args: { p_quotation_id: string }
+        Returns: Json
+      }
       get_quotation_revision_inherited_discount_snapshot: {
         Args: {
           p_line_no: number
@@ -15798,6 +16235,17 @@ export type Database = {
         Args: { p_allocations?: Json; p_payment: Json }
         Returns: string
       }
+      receive_goods_receiving_resolution_replacement: {
+        Args: {
+          p_items: Json
+          p_notes?: string
+          p_resolution_case_id: string
+          p_site_id: string
+          p_stock_location_id: string
+          p_supplier_replacement_note_no: string
+        }
+        Returns: Json
+      }
       receive_supplier_delivery_item_to_stock: {
         Args: {
           p_expiry_date?: string
@@ -15816,6 +16264,16 @@ export type Database = {
           p_stock_location_id: string
           p_supplier_replacement_claim_id: string
           p_supplier_replacement_note_no: string
+        }
+        Returns: Json
+      }
+      record_goods_receiving_resolution_return: {
+        Args: {
+          p_notes?: string
+          p_quantity: number
+          p_reason: string
+          p_resolution_case_id: string
+          p_uom_code: string
         }
         Returns: Json
       }
@@ -16279,6 +16737,17 @@ export type Database = {
         }
         Returns: string
       }
+      update_daily_report_bundle_atomic: {
+        Args: {
+          p_activities: Json
+          p_expected_updated_at: string
+          p_report_changes: Json
+          p_report_id: string
+          p_time_logs: Json
+          p_workers: Json
+        }
+        Returns: string
+      }
       update_direct_invoice_draft_with_price_book_atomic: {
         Args: {
           p_invoice: Json
@@ -16320,6 +16789,16 @@ export type Database = {
         }
         Returns: Json
       }
+      update_draft_quotation_progress_atomic_impl: {
+        Args: {
+          p_billing_allocations?: Json
+          p_billing_units?: Json
+          p_lines: Json
+          p_quotation: Json
+          p_quotation_id: string
+        }
+        Returns: Json
+      }
       update_draft_quotation_revision_atomic: {
         Args: { p_lines: Json; p_revision: Json; p_revision_id: string }
         Returns: Json
@@ -16334,6 +16813,15 @@ export type Database = {
       }
       update_draft_variation_atomic: {
         Args: { p_lines: Json; p_variation: Json; p_variation_id: string }
+        Returns: Json
+      }
+      update_goods_receiving_editable_notes: {
+        Args: {
+          p_delivery_notes?: string
+          p_receipt_notes?: string
+          p_supplier_delivery_id: string
+          p_supplier_delivery_receipt_id: string
+        }
         Returns: Json
       }
       update_material_requirement_header: {
@@ -16485,12 +16973,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -16514,11 +17002,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -16539,11 +17027,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -16564,11 +17052,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -16581,11 +17069,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -16595,6 +17083,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },

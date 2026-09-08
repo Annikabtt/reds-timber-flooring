@@ -4,16 +4,6 @@ import type { Json } from "@/integrations/supabase/types";
 export const DAILY_REPORT_PHOTO_BUCKET = "daily-report-photos";
 const SIGNED_URL_TTL_SECONDS = 60 * 60;
 
-type RpcResult<T> = PromiseLike<{
-  data: T | null;
-  error: { message: string } | null;
-}>;
-
-const callDraftRpc = supabase.rpc as unknown as <T>(
-  functionName: string,
-  args: Record<string, unknown>,
-) => RpcResult<T>;
-
 export type DailyReportBundle = {
   report: Json;
   activities: Json[];
@@ -22,7 +12,7 @@ export type DailyReportBundle = {
 };
 
 export async function createDailyReportBundleAtomic(bundle: DailyReportBundle) {
-  const { data, error } = await callDraftRpc<string>(
+  const { data, error } = await supabase.rpc(
     "create_daily_report_bundle_atomic",
     {
       p_report: bundle.report,
@@ -42,7 +32,7 @@ export async function updateDailyReportBundleAtomic(
   expectedUpdatedAt: string,
   bundle: Omit<DailyReportBundle, "report"> & { reportChanges: Json },
 ) {
-  const { data, error } = await callDraftRpc<string>(
+  const { data, error } = await supabase.rpc(
     "update_daily_report_bundle_atomic",
     {
       p_report_id: reportId,

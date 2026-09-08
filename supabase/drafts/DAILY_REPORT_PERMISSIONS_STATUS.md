@@ -29,8 +29,8 @@
   read plus permission-driven write policies.
 - `../migrations/20260907160000_daily_report_atomic_security.sql` promotes the
   reviewed permission, atomic-RPC and private-Storage drafts into one ordered
-  migration. It has passed against local Supabase and has not been applied to
-  production.
+  migration. It passed against local Supabase and was applied to production on
+  2026-09-08 after the legacy Storage policies were explicitly reviewed.
 - Daily Report list, detail, mobile entry and photo approval screens now expose
   loading, error, inactive-member and permission-aware read-only states. Every
   write rechecks current permissions before the first mutation.
@@ -47,9 +47,9 @@
   Photo upload failures remain visible and do not produce a false success state.
 - Detail, Photo Approval and Variation Records resolve private signed URLs,
   including supported legacy public URL values.
-- Generated Supabase types were inspected and were not edited manually. Draft RPC
-  calls are isolated behind `src/lib/dailyReportApi.ts` until a migration is
-  approved and types are regenerated.
+- Supabase types were regenerated from the production schema after the migration
+  completed. `src/lib/dailyReportApi.ts` now uses the generated RPC signatures
+  directly.
 
 ## Local validation on 2026-09-07
 
@@ -73,15 +73,14 @@
 
 ## Remaining before promotion
 
-1. Review production Active accounts and the compatibility role seed before
-   applying the ordered migration.
-2. Regenerate Supabase TypeScript types after the migration is applied.
-3. Run browser tests for read-only members, individual allow/deny, suspended
+1. Run browser tests for read-only members, individual allow/deny, suspended
    accounts, desktop/mobile create and edit, stale-editor conflicts, approved
    payroll locks, photo upload/review/delete, Variation photo display and direct
    photo URL access after logout.
-4. Review report approval/rejection workflow semantics separately. These actions
+2. Review report approval/rejection workflow semantics separately. These actions
    remain single-row RLS-protected updates and are outside the content-bundle RPC.
-5. Do not deploy the frontend independently of the database and Storage changes.
+3. Do not deploy the frontend independently of the database and Storage changes.
 
-No production SQL, Git commit, push or deployment has been performed.
+The reviewed migration was applied to Supabase production on 2026-09-08. The
+frontend and migrations were committed, pushed and deployed through Vercel
+Preview before each production update.
