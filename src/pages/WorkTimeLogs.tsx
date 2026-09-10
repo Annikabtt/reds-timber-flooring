@@ -21,6 +21,16 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 
+const toDateTimeLocalValue = (value: string | null | undefined) => {
+  if (!value) return "";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 16);
+};
+
 const WorkTimeLogs = () => {
   const queryClient = useQueryClient();
 
@@ -254,8 +264,8 @@ const WorkTimeLogs = () => {
 
   const openReviewDialog = (log: any) => {
     setReviewLog(log);
-    setReviewClockIn(log.clock_in || "");
-    setReviewClockOut(log.clock_out || "");
+    setReviewClockIn(toDateTimeLocalValue(log.clock_in));
+    setReviewClockOut(toDateTimeLocalValue(log.clock_out));
     setReviewBreakMinutes(
       log.break_minutes === null || log.break_minutes === undefined
         ? "0"
