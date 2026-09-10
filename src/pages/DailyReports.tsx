@@ -2700,6 +2700,7 @@ const DailyReports = () => {
                   <Label>Select Work Order *</Label>
                   <Select
                     value={workOrderId}
+                    disabled={hasApprovedPayrollTime}
                     onValueChange={(value) => {
                       const selected = workOrders.find(
                         (workOrder) => workOrder.work_order_id === value,
@@ -2882,6 +2883,7 @@ const DailyReports = () => {
             </DailyReportFormSection>
           </div>
 
+          <fieldset disabled={hasApprovedPayrollTime} className="contents">
           <DailyReportFormSection
             number="02"
             title="Report Date & Weather"
@@ -3811,6 +3813,7 @@ const DailyReports = () => {
               />
             </fieldset>
           </DailyReportFormSection>
+          </fieldset>
           <div className="sticky bottom-0 -mx-4 mt-4 border-t bg-slate-50/95 px-4 py-4 backdrop-blur sm:mx-0 sm:flex sm:justify-end sm:gap-2 sm:px-0">
             <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-2">
               <Button
