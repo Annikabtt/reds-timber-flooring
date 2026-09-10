@@ -150,7 +150,7 @@ const WorkTimeLogs = () => {
     },
   });
 
-  const { data: timeLogs = [] } = useQuery({
+  const { data: timeLogs = [], error: timeLogsError, isLoading: isLoadingTimeLogs } = useQuery({
     queryKey: ["work_time_logs"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -179,7 +179,7 @@ const WorkTimeLogs = () => {
             work_order_no,
             title
           ),
-          daily_reports (
+          daily_reports!work_time_logs_report_id_fkey (
             report_id,
             report_date
           ),
@@ -616,7 +616,15 @@ const WorkTimeLogs = () => {
       />
 
       <div className="bg-white rounded-xl border">
-        {filteredLogs.map((log) => (
+        {timeLogsError ? (
+          <p className="p-4 text-sm text-red-600" role="alert">
+            Unable to load time logs. Refresh the page and try again.
+          </p>
+        ) : isLoadingTimeLogs ? (
+          <p className="p-4 text-sm text-slate-500">Loading time logs...</p>
+        ) : filteredLogs.length === 0 ? (
+          <p className="p-4 text-sm text-slate-500">No time logs found.</p>
+        ) : filteredLogs.map((log) => (
           <div
             key={log.work_time_log_id}
             className="p-4 border-b"
