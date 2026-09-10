@@ -271,6 +271,7 @@ const DailyReports = () => {
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [editingUpdatedAt, setEditingUpdatedAt] = useState("");
   const [staleSaveMessage, setStaleSaveMessage] = useState<string | null>(null);
+  const [saveFailureMessage, setSaveFailureMessage] = useState<string | null>(null);
   const [editingActivityRows, setEditingActivityRows] = useState<
     Array<{ id: string; activityTypeId: string }>
   >([]);
@@ -1068,6 +1069,7 @@ const DailyReports = () => {
     setEditingActivityRows([]);
     setIsManualBackdatedEntry(false);
     setStaleSaveMessage(null);
+    setSaveFailureMessage(null);
   };
 
   const openEditDailyReport = async (reportId: string) => {
@@ -1487,9 +1489,12 @@ const DailyReports = () => {
     onError: (error) => {
       const message = saveErrorMessage(error);
       if (isStaleSaveError(error)) {
+        setSaveFailureMessage(null);
         setStaleSaveMessage(message);
         return;
       }
+      setStaleSaveMessage(null);
+      setSaveFailureMessage(message);
       toast.error(message);
     },
   });
@@ -1845,9 +1850,12 @@ const DailyReports = () => {
     onError: (error) => {
       const message = saveErrorMessage(error);
       if (isStaleSaveError(error)) {
+        setSaveFailureMessage(null);
         setStaleSaveMessage(message);
         return;
       }
+      setStaleSaveMessage(null);
+      setSaveFailureMessage(message);
       toast.error(message);
     },
   });
@@ -2723,6 +2731,11 @@ const DailyReports = () => {
                   Reload Report
                 </Button>
               </div>
+            )}
+            {saveFailureMessage && (
+              <p role="alert" className="mt-3 rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900">
+                {saveFailureMessage}
+              </p>
             )}
           </div>
 
