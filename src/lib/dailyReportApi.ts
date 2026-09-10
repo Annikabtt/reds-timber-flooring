@@ -3,6 +3,28 @@ import type { Json } from "@/integrations/supabase/types";
 
 export const DAILY_REPORT_PHOTO_BUCKET = "daily-report-photos";
 const SIGNED_URL_TTL_SECONDS = 60 * 60;
+const DAILY_REPORT_UPDATE_TIMEOUT_MS = 30_000;
+
+async function waitForDailyReportUpdate<T>(request: PromiseLike<T>) {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      request,
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(
+            new Error(
+              "The Daily Report save took too long. Reload the Daily Report before editing.",
+            ),
+          );
+        }, DAILY_REPORT_UPDATE_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
 
 export type DailyReportBundle = {
   report: Json;
@@ -32,16 +54,18 @@ export async function updateDailyReportBundleAtomic(
   expectedUpdatedAt: string,
   bundle: Omit<DailyReportBundle, "report"> & { reportChanges: Json },
 ) {
-  const { data, error } = await supabase.rpc(
-    "update_daily_report_bundle_atomic",
-    {
-      p_report_id: reportId,
-      p_expected_updated_at: expectedUpdatedAt,
-      p_report_changes: bundle.reportChanges,
-      p_activities: bundle.activities,
-      p_workers: bundle.workers,
-      p_time_logs: bundle.timeLogs,
-    },
+  const { data, error } = await waitForDailyReportUpdate(
+    supabase.rpc(
+      "update_daily_report_bundle_atomic",
+      {
+        p_report_id: reportId,
+        p_expected_updated_at: expectedUpdatedAt,
+        p_report_changes: bundle.reportChanges,
+        p_activities: bundle.activities,
+        p_workers: bundle.workers,
+        p_time_logs: bundle.timeLogs,
+      },
+    ),
   );
 
   if (error) throw new Error(error.message);
