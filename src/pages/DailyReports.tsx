@@ -1368,10 +1368,21 @@ const DailyReports = () => {
       if (!createdTimeLog?.work_time_log_id) {
         throw new Error("Time log was created but ID was not returned.");
       }
+      const { data: createdReport, error: reportError } = await supabase
+        .from("daily_reports")
+        .select("updated_at")
+        .eq("report_id", reportId)
+        .single();
+
+      if (reportError) throw reportError;
+      if (!createdReport?.updated_at) {
+        throw new Error("Daily Report was created but its version was not returned.");
+      }
       const activityRows = await loadActivityRows(reportId);
 
       return {
         reportId,
+        reportUpdatedAt: createdReport.updated_at,
         workerRowId: createdWorkerRow.daily_report_worker_id,
         timeLogId: createdTimeLog.work_time_log_id,
         recordIndex,
@@ -1380,9 +1391,10 @@ const DailyReports = () => {
       };
     },
     onSuccess: (
-      { reportId, workerRowId, timeLogId, recordIndex, checkedInRecord, activityRows },
+      { reportId, reportUpdatedAt, workerRowId, timeLogId, recordIndex, checkedInRecord, activityRows },
     ) => {
       setActiveDraftReportId(reportId);
+      setEditingUpdatedAt(reportUpdatedAt);
       setEditingActivityRows(activityRows);
 
       setLabourRecords((prev) =>
