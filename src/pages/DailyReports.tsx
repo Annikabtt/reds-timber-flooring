@@ -977,7 +977,11 @@ const DailyReports = () => {
   }, [selectedWorkOrder, reportDate, currentEmployee]);
 
   useEffect(() => {
-    if (!activeDraftReport || activeDraftReportId === activeDraftReport.report_id) return;
+    if (
+      !workOrderId ||
+      !activeDraftReport ||
+      activeDraftReportId === activeDraftReport.report_id
+    ) return;
 
     setActiveDraftReportId(activeDraftReport.report_id);
     setEditingUpdatedAt(activeDraftReport.updated_at);
@@ -1043,7 +1047,7 @@ const DailyReports = () => {
       setLabourRecords(resumedLabourRecords);
       setOpenWorkerCardIndexes([0]);
     }
-  }, [activeDraftReport, activeDraftReportId]);
+  }, [activeDraftReport, activeDraftReportId, workOrderId]);
 
   const resetForm = () => {
     setProjectId("");
