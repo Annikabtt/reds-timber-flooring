@@ -82,6 +82,7 @@ type LabourRecord = {
   break_minutes: string;
   ot_start: string;
   ot_finish: string;
+  payroll_approved: boolean;
   time_status: TimeStatus;
   regular_hours: string;
   overtime_hours: string;
@@ -108,6 +109,7 @@ const createEmptyLabourRecord = (): LabourRecord => ({
   break_minutes: "60",
   ot_start: "",
   ot_finish: "",
+  payroll_approved: false,
   time_status: "Pending",
   regular_hours: "0",
   overtime_hours: "0",
@@ -736,6 +738,7 @@ const DailyReports = () => {
           ot_start,
           ot_finish,
           ot_completed_quantity,
+          approved,
           time_status,
           notes
         )
@@ -1011,6 +1014,7 @@ const DailyReports = () => {
         break_minutes: String(matchedTimeLog?.break_minutes ?? "60"),
         ot_start: timestampToTimeValue(matchedTimeLog?.ot_start || worker.ot_start),
         ot_finish: timestampToTimeValue(matchedTimeLog?.ot_finish || worker.ot_finish),
+        payroll_approved: matchedTimeLog?.approved || false,
         time_status: (matchedTimeLog?.time_status || "Pending") as TimeStatus,
         regular_hours: String(
           matchedTimeLog?.regular_hours ?? worker.regular_hours ?? "0",
@@ -1125,6 +1129,7 @@ const DailyReports = () => {
         ot_start,
         ot_finish,
         ot_completed_quantity,
+        approved,
         time_status,
         notes
       `)
@@ -1193,6 +1198,7 @@ const DailyReports = () => {
         ot_finish: timestampToTimeValue(
           matchedTimeLog?.ot_finish || worker.ot_finish,
         ),
+        payroll_approved: matchedTimeLog?.approved || false,
         time_status: (matchedTimeLog?.time_status || "Pending") as TimeStatus,
         regular_hours: String(
           matchedTimeLog?.regular_hours ?? worker.regular_hours ?? "0",
@@ -1530,6 +1536,11 @@ const DailyReports = () => {
   const createDailyReport = useMutation({
     mutationFn: async () => {
       if (!permissions.userId) throw new Error("Please sign in before saving a Daily Report.");
+      if (formMode === "edit" && labourRecords.some((record) => record.payroll_approved)) {
+        throw new Error(
+          "This Daily Report has approved payroll time. Unapprove the payroll time before editing the report.",
+        );
+      }
       await requireDailyReportActions(
         permissions.userId,
         [formMode === "edit" ? "update" : "create", ...(pendingPhotos.length > 0 ? ["upload_photos" as const] : [])],
@@ -1992,6 +2003,9 @@ const DailyReports = () => {
         return "bg-slate-100 text-slate-500 border-slate-200";
     }
   };
+  const hasApprovedPayrollTime = formMode === "edit" &&
+    labourRecords.some((record) => record.payroll_approved);
+
   if (!permissions.canRead) {
     return (
       <div className="mx-auto max-w-xl p-6 text-sm text-slate-600">
@@ -2668,6 +2682,11 @@ const DailyReports = () => {
               Record the work order, date, worker activity, site notes and
               supporting photos.
             </p>
+            {hasApprovedPayrollTime && (
+              <p role="alert" className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
+                This report has approved payroll time and is locked. Unapprove the payroll time before editing the report.
+              </p>
+            )}
           </div>
 
           <div className="space-y-5 p-4 sm:p-6">
@@ -3030,8 +3049,8 @@ const DailyReports = () => {
 
                   const canManageWorkerAssignment = userCanManageWorkers;
 
-                  const canEditWorkerLog = userCanManageWorkers ||
-                    isCurrentWorker;
+                  const canEditWorkerLog = !hasApprovedPayrollTime &&
+                    (userCanManageWorkers || isCurrentWorker);
 
                   const canRemoveWorker = userCanManageWorkers &&
                     record.worker_source !== "Assigned";
@@ -3785,7 +3804,7 @@ const DailyReports = () => {
             title="Photos"
             description="Attach clear site photos that support the daily progress record."
           >
-            <fieldset disabled={!permissions.can("upload_photos") || createDailyReport.isPending}>
+            <fieldset disabled={!permissions.can("upload_photos") || createDailyReport.isPending || hasApprovedPayrollTime}>
               <MobilePhotoUpload
                 pendingPhotos={pendingPhotos}
                 setPendingPhotos={setPendingPhotos}
@@ -3809,10 +3828,14 @@ const DailyReports = () => {
 
               <Button
                 onClick={() => createDailyReport.mutate()}
-                disabled={createDailyReport.isPending}
+                disabled={createDailyReport.isPending || hasApprovedPayrollTime}
                 className="h-11 w-full rounded-xl bg-[#9E4B4B] px-5 font-bold text-white hover:bg-[#873f3f] sm:w-auto"
               >
-                {createDailyReport.isPending ? "Saving..." : "Save Report"}
+                {createDailyReport.isPending
+                  ? "Saving..."
+                  : hasApprovedPayrollTime
+                    ? "Payroll Time Approved"
+                    : "Save Report"}
               </Button>
             </div>
           </div>
