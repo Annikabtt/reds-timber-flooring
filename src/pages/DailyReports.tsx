@@ -270,6 +270,7 @@ const DailyReports = () => {
   const [formMode, setFormMode] = useState<FormMode>("add");
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [editingUpdatedAt, setEditingUpdatedAt] = useState("");
+  const [staleSaveMessage, setStaleSaveMessage] = useState<string | null>(null);
   const [editingActivityRows, setEditingActivityRows] = useState<
     Array<{ id: string; activityTypeId: string }>
   >([]);
@@ -375,8 +376,12 @@ const DailyReports = () => {
     return `${hours}:${minutes}`;
   };
 
+  const isStaleSaveError = (error: Error) =>
+    error.message.includes("The report changed. Reload before saving.") ||
+    error.message.includes("Reload the Daily Report before editing.");
+
   const saveErrorMessage = (error: Error) =>
-    error.message.includes("The report changed. Reload before saving.")
+    isStaleSaveError(error)
       ? "This Daily Report changed while you were editing it. Reopen or reload it before saving."
       : error.message;
 
@@ -1062,6 +1067,7 @@ const DailyReports = () => {
     setEditingUpdatedAt("");
     setEditingActivityRows([]);
     setIsManualBackdatedEntry(false);
+    setStaleSaveMessage(null);
   };
 
   const openEditDailyReport = async (reportId: string) => {
@@ -1227,6 +1233,12 @@ const DailyReports = () => {
     setOpenOvertimeCardIndexes([]);
     setPendingPhotos([]);
     setShowAddDialog(true);
+  };
+
+  const reloadEditedReport = () => {
+    const reportId = editingReportId || activeDraftReportId;
+    if (!reportId) return;
+    void openEditDailyReport(reportId);
   };
 
   useEffect(() => {
@@ -1473,7 +1485,12 @@ const DailyReports = () => {
       toast.success("Check Out saved.");
     },
     onError: (error) => {
-      toast.error(saveErrorMessage(error));
+      const message = saveErrorMessage(error);
+      if (isStaleSaveError(error)) {
+        setStaleSaveMessage(message);
+        return;
+      }
+      toast.error(message);
     },
   });
 
@@ -1826,7 +1843,12 @@ const DailyReports = () => {
       resetForm();
     },
     onError: (error) => {
-      toast.error(saveErrorMessage(error));
+      const message = saveErrorMessage(error);
+      if (isStaleSaveError(error)) {
+        setStaleSaveMessage(message);
+        return;
+      }
+      toast.error(message);
     },
   });
 
@@ -2686,6 +2708,21 @@ const DailyReports = () => {
               <p role="alert" className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
                 This report has approved payroll time and is locked. Unapprove the payroll time before editing the report.
               </p>
+            )}
+            {staleSaveMessage && (
+              <div role="alert" className="mt-3 flex flex-col gap-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+                <p className="font-semibold">{staleSaveMessage}</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={reloadEditedReport}
+                  disabled={createDailyReport.isPending}
+                  className="border-amber-400 bg-white text-amber-950 hover:bg-amber-100"
+                >
+                  Reload Report
+                </Button>
+              </div>
             )}
           </div>
 
