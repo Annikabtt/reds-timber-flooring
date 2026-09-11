@@ -47,12 +47,26 @@
   Photo upload failures remain visible and do not produce a false success state.
 - Detail, Photo Approval and Variation Records resolve private signed URLs,
   including supported legacy public URL values.
-- Supabase types were regenerated from the production schema after the migration
-  completed. `src/lib/dailyReportApi.ts` now uses the generated RPC signatures
-  directly.
+- Supabase types were regenerated from the production schema after the workflow
+  migration completed, and the frontend uses the generated RPC signatures.
 - `20260908093000_daily_report_approved_lock.sql` adds a database guard that
   blocks any update to an Approved report and any photo write under it. Dashboard
   action controls mirror the same read-only rule.
+- `20260911100000_daily_report_workflow_atomic.sql` was applied to Supabase
+  production on 2026-09-11. It
+  moves Dashboard status transitions, report soft-delete, and photo metadata
+  create/review/soft-delete into permission-checked RPCs with stale-version
+  checks. Approval now verifies labour, photo, quantity and area-limit rules in
+  the database before changing the report status.
+
+## Local validation on 2026-09-11
+
+- The workflow migration applied successfully to local Supabase.
+- `daily_report_workflow_atomic_regression.sql` passed: photo soft-delete,
+  stale transition rejection, pending-photo approval block, successful approval,
+  Approved report photo lock, and anonymous RPC denial.
+- Local schema lint reports existing warnings and one unrelated pre-existing
+  error in `update_draft_quotation_atomic`; it did not report this workflow.
 
 ## Local validation on 2026-09-07
 
@@ -80,9 +94,9 @@
    accounts, desktop/mobile create and edit, stale-editor conflicts, approved
    payroll locks, photo upload/review/delete, Variation photo display and direct
    photo URL access after logout.
-2. Review report approval/rejection workflow semantics separately. These actions
-   remain single-row RLS-protected updates and are outside the content-bundle RPC.
-3. Do not deploy the frontend independently of the database and Storage changes.
+2. Deploy the matching frontend only after its final checks and Preview review.
+3. Run browser tests for the workflow status, photo and stale-version paths in
+   production before marking the work complete.
 
 The reviewed migration was applied to Supabase production on 2026-09-08. The
 frontend and migrations were committed, pushed and deployed through Vercel

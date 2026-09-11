@@ -6,7 +6,11 @@ import { useDailyReportPermissions } from "@/hooks/useDailyReportPermissions";
 import { requireDailyReportActions } from "@/lib/dailyReportPermissions";
 import {
     createDailyReportPhotoSignedUrl,
+    deleteDailyReportAtomic,
+    deleteDailyReportPhotoAtomic,
     removeDailyReportPhotoObject,
+    reviewDailyReportPhotoAtomic,
+    transitionDailyReportAtomic,
     updateDailyReportBundleAtomic,
     uploadDailyReportPhoto,
 } from "@/lib/dailyReportApi";
@@ -1573,15 +1577,13 @@ const DailyReportDashboard = () => {
                 throw new Error("Daily report ID is missing.");
             }
 
-            const { error } = await supabase
-                .from("daily_reports")
-                .update({
-                    approval_status: "Ready for Inspection",
-                    completed_quantity: report?.completed_quantity ?? 0,
-                })
-                .eq("report_id", reportId);
-
-            if (error) throw error;
+            if (!report) throw new Error("Daily report data is missing.");
+            const nextVersion = await transitionDailyReportAtomic(
+                reportId,
+                reportVersion || report.updated_at,
+                "ready_for_inspection",
+            );
+            setReportVersion(nextVersion);
         },
         onSuccess: () => {
             toast.success("Daily report marked ready for inspection.");
@@ -1682,16 +1684,13 @@ const DailyReportDashboard = () => {
                 );
             }
 
-            const { error } = await supabase
-                .from("daily_reports")
-                .update({
-                    approval_status: "Approved",
-                    completed_quantity: report?.completed_quantity ?? 0,
-                })
-                .eq("report_id", reportId);
-
-            if (error) throw error;
-
+            if (!report) throw new Error("Daily report data is missing.");
+            const nextVersion = await transitionDailyReportAtomic(
+                reportId,
+                reportVersion || report.updated_at,
+                "approve",
+            );
+            setReportVersion(nextVersion);
 
         },
         onSuccess: () => {
@@ -1717,22 +1716,14 @@ const DailyReportDashboard = () => {
                 throw new Error("Please enter a reject reason.");
             }
 
-            const existingNotes = report?.notes?.trim();
-            const rejectionNote = `Rejected reason: ${rejectReason.trim()}`;
-            const updatedNotes = existingNotes
-                ? `${existingNotes}\n\n${rejectionNote}`
-                : rejectionNote;
-
-            const { error } = await supabase
-                .from("daily_reports")
-                .update({
-                    approval_status: "Rejected",
-                    completed_quantity: report?.completed_quantity ?? 0,
-                    notes: updatedNotes,
-                })
-                .eq("report_id", reportId);
-
-            if (error) throw error;
+            if (!report) throw new Error("Daily report data is missing.");
+            const nextVersion = await transitionDailyReportAtomic(
+                reportId,
+                reportVersion || report.updated_at,
+                "reject",
+                rejectReason,
+            );
+            setReportVersion(nextVersion);
         },
         onSuccess: () => {
             toast.success("Daily report rejected.");
@@ -1782,17 +1773,7 @@ const DailyReportDashboard = () => {
             if (!permissions.userId) throw new Error("Please sign in before reviewing a photo.");
             assertReportIsEditable();
             await requireDailyReportActions(permissions.userId, ["update_photos"]);
-            const { error } = await supabase
-                .from("daily_report_photos")
-                .update({
-                    approval_status: "Approved",
-                    approved_by: permissions.userId,
-                    approved_at: new Date().toISOString(),
-                    rejected_reason: null,
-                })
-                .eq("photo_id", photoId);
-
-            if (error) throw error;
+            await reviewDailyReportPhotoAtomic(photoId, "approve");
         },
         onSuccess: () => {
             toast.success("Photo approved.");
@@ -1809,17 +1790,7 @@ const DailyReportDashboard = () => {
             if (!permissions.userId) throw new Error("Please sign in before reviewing a photo.");
             assertReportIsEditable();
             await requireDailyReportActions(permissions.userId, ["update_photos"]);
-            const { error } = await supabase
-                .from("daily_report_photos")
-                .update({
-                    approval_status: "Rejected",
-                    approved_by: null,
-                    approved_at: null,
-                    rejected_reason: "Rejected from daily report review.",
-                })
-                .eq("photo_id", photoId);
-
-            if (error) throw error;
+            await reviewDailyReportPhotoAtomic(photoId, "reject");
         },
         onSuccess: () => {
             toast.success("Photo rejected.");
@@ -1836,20 +1807,7 @@ const DailyReportDashboard = () => {
             if (!permissions.userId) throw new Error("Please sign in before deleting a photo.");
             assertReportIsEditable();
             await requireDailyReportActions(permissions.userId, ["delete_photos"]);
-            const { error } = await supabase
-                .from("daily_report_photos")
-                .update({
-                    is_deleted: true,
-                    deleted_at: new Date().toISOString(),
-                    approval_status: "Pending",
-                    approved_by: null,
-                    approved_at: null,
-                    rejected_reason: null,
-                })
-                .eq("photo_id", photoId);
-
-            if (error) throw error;
-            const storedValue = activePhotos.find((photo) => photo.photo_id === photoId)?.photo_url;
+            const storedValue = await deleteDailyReportPhotoAtomic(photoId);
             if (storedValue) await removeDailyReportPhotoObject(storedValue);
         },
         onSuccess: () => {
@@ -1868,11 +1826,12 @@ const DailyReportDashboard = () => {
             }
             assertReportIsEditable();
             await requireDailyReportActions(permissions.userId, ["delete"]);
-            const { error } = await supabase
-                .from("daily_reports")
-                .update({ is_deleted: true, deleted_at: new Date().toISOString() })
-                .eq("report_id", reportId);
-            if (error) throw error;
+            if (!report) throw new Error("Daily report data is missing.");
+            const nextVersion = await deleteDailyReportAtomic(
+                reportId,
+                reportVersion || report.updated_at,
+            );
+            setReportVersion(nextVersion);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["daily_reports"] });

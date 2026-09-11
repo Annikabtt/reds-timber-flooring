@@ -14891,6 +14891,16 @@ export type Database = {
         }
         Returns: string
       }
+      create_daily_report_photo_atomic: {
+        Args: {
+          p_caption?: string
+          p_photo_url: string
+          p_report_id: string
+          p_sort_order?: number
+          p_taken_at?: string
+        }
+        Returns: string
+      }
       create_direct_invoice_draft_atomic: {
         Args: { p_invoice: Json }
         Returns: string
@@ -15097,6 +15107,14 @@ export type Database = {
       current_app_role: { Args: never; Returns: string }
       current_app_user_status: { Args: never; Returns: string }
       current_employee_id: { Args: never; Returns: string }
+      delete_daily_report_atomic: {
+        Args: { p_expected_updated_at: string; p_report_id: string }
+        Returns: string
+      }
+      delete_daily_report_photo_atomic: {
+        Args: { p_photo_id: string }
+        Returns: string
+      }
       deliver_stock_issue_atomic: {
         Args: {
           p_delivered_at?: string
@@ -16580,6 +16598,10 @@ export type Database = {
         Args: { p_payment_id: string; p_reason: string }
         Returns: string
       }
+      review_daily_report_photo_atomic: {
+        Args: { p_action: string; p_photo_id: string }
+        Returns: string
+      }
       save_product_flooring_spec: {
         Args: {
           p_coverage_method: string
@@ -16719,6 +16741,15 @@ export type Database = {
           p_product_id: string
         }
         Returns: Json
+      }
+      transition_daily_report_atomic: {
+        Args: {
+          p_action: string
+          p_expected_updated_at: string
+          p_rejection_reason?: string
+          p_report_id: string
+        }
+        Returns: string
       }
       transition_material_requirement_status: {
         Args: {
